@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <PackageId>ViShap.Viper.Serialization</PackageId>
+        <Authors>Vahe Babayan (0xVahe)</Authors>
+        <Company>ViShap Solutions</Company>
+        <Copyright>Copyright © ViShap Solutions 2026</Copyright>
+        <Description>High-performance polymorphic binary serializer with integrated checksums, compression, and encryption.</Description>
+        <RepositoryUrl>https://github.com</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+        <PackageIcon>icon.png</PackageIcon>
+        <PackageReadmeFile>SERIALIZATION-README.md</PackageReadmeFile>
+        <Title>Viper.Serialization</Title>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\ViShap.Viper.Core\ViShap.Viper.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
+        <None Include="SERIALIZATION-README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+    
+</Project>
