@@ -19,6 +19,16 @@ Viper
 ```
 📂 Viper
 ├── 📁 src
+│   │
+│   ├── 📁 ViShap.Viper 
+│   │   └── 📄 METAPACK-README.md
+│   │
+│   ├── 📁 ViShap.Viper.Core
+│   │   └── 📄 CORE-README.md
+│   │
+│   └── 📁 ViShap.Viper.Serialization
+│       └── 📄 SERIALIZATION-README.md
+│        
 ├── 📁 tests
 ├── ⚖️ LICENSE
 └── 📝 README.md
