@@ -4,7 +4,7 @@ internal sealed class BinaryFormatRouter(IEnumerable<IFormatCodec> codecs)
 {
     private readonly Dictionary<int, IFormatCodec> _byVersion = codecs.ToDictionary(c => c.Version);
 
-    public void Serialize<T>(Stream destination, T data, int version) where T : class
+    public void Serialize<T>(Stream destination, T data, int version)
     {
         if (!_byVersion.TryGetValue(version, out var codec))
             throw new BinaryFormatNotSupportedException($"No codec registered for version {version}.");
@@ -12,7 +12,7 @@ internal sealed class BinaryFormatRouter(IEnumerable<IFormatCodec> codecs)
         codec.Serialize(destination, data);
     }
 
-    public T? Deserialize<T>(Stream source) where T : class =>
+    public T? Deserialize<T>(Stream source) => 
         ResolveCodec(source).Deserialize<T>(source);
 
     public T? Deserialize<T>(Stream source, T existingInstance) where T : class
@@ -20,6 +20,9 @@ internal sealed class BinaryFormatRouter(IEnumerable<IFormatCodec> codecs)
         ArgumentNullException.ThrowIfNull(existingInstance);
         return ResolveCodec(source).Deserialize(source, existingInstance);
     }
+    
+    public void Deserialize<T>(Stream source, ref T existingInstance) where T : struct
+        => ResolveCodec(source).Deserialize(source, ref existingInstance);
     
     private IFormatCodec ResolveCodec(Stream source)
     {

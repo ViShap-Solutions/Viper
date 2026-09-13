@@ -3,7 +3,7 @@
 public static class StreamExtensions
 {
     // --- Standard Serialization ---
-    public static void Serialize<T>(this Stream destination, T data, BinarySerializerOptions? options = null) where T : class
+    public static void Serialize<T>(this Stream destination, T data, BinarySerializerOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(destination);
 
@@ -12,7 +12,7 @@ public static class StreamExtensions
     }
     
     // --- New Instance Deserialization ---
-    public static T? Deserialize<T>(this Stream source, BinarySerializerOptions options) where T : class
+    public static T? Deserialize<T>(this Stream source, BinarySerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(options);
@@ -21,27 +21,27 @@ public static class StreamExtensions
         return serializer.Deserialize<T>(source);
     }
 
-    public static T? Deserialize<T>(this Stream source) where T : class =>
-        Deserialize<T>(source, (byte[]?)null);
+    public static T? Deserialize<T>(this Stream source) =>
+        source.Deserialize<T>((byte[]?)null);
 
-    public static T? Deserialize<T>(this Stream source, byte[]? key) where T : class
+    public static T? Deserialize<T>(this Stream source, byte[]? key)
     {
         ArgumentNullException.ThrowIfNull(source);
 
         var options = BinarySerializerOptions.FromStream(source, key);
-        return Deserialize<T>(source, options);
+        return source.Deserialize<T>(options);
     }
 
-    public static T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver) where T : class
+    public static T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(keyResolver);
 
         var options = BinarySerializerOptions.FromStream(source, keyResolver);
-        return Deserialize<T>(source, options);
+        return source.Deserialize<T>(options);
     }
 
-    // --- Existing Instance Deserialization ---
+    // --- Reference Type Existing Instance Deserialization ---
     public static T? Deserialize<T>(this Stream source, T existingInstance, BinarySerializerOptions options) where T : class
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -53,7 +53,7 @@ public static class StreamExtensions
     }
 
     public static T? Deserialize<T>(this Stream source, T existingInstance) where T : class =>
-        Deserialize(source, existingInstance, (byte[]?)null);
+        source.Deserialize(existingInstance, (byte[]?)null);
 
     public static T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key) where T : class
     {
@@ -61,7 +61,7 @@ public static class StreamExtensions
         ArgumentNullException.ThrowIfNull(existingInstance);
 
         var options = BinarySerializerOptions.FromStream(source, key);
-        return Deserialize(source, existingInstance, options);
+        return source.Deserialize(existingInstance, options);
     }
 
     public static T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver) where T : class
@@ -71,6 +71,36 @@ public static class StreamExtensions
         ArgumentNullException.ThrowIfNull(keyResolver);
 
         var options = BinarySerializerOptions.FromStream(source, keyResolver);
-        return Deserialize(source, existingInstance, options);
+        return source.Deserialize(existingInstance, options);
+    }
+    
+    // --- Value Type Existing Instance Deserialization ---
+    public static void Deserialize<T>(this Stream source, ref T existingInstance, BinarySerializerOptions options) where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var serializer = new BinarySerializer(options);
+        serializer.Deserialize(source, ref existingInstance);
+    }
+
+    public static void Deserialize<T>(this Stream source, ref T existingInstance) where T : struct =>
+        source.Deserialize(ref existingInstance, (byte[]?)null);
+
+    public static void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key) where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var options = BinarySerializerOptions.FromStream(source, key);
+        source.Deserialize(ref existingInstance, options);
+    }
+
+    public static void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver) where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keyResolver);
+
+        var options = BinarySerializerOptions.FromStream(source, keyResolver);
+        source.Deserialize(ref existingInstance, options);
     }
 }

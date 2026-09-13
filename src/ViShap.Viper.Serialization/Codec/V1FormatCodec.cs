@@ -11,7 +11,7 @@ internal sealed class V1FormatCodec(
 {
     public int Version => 1;
 
-    public void Serialize<T>(Stream destination, T data) where T : class
+    public void Serialize<T>(Stream destination, T data)
     {
         ArgumentNullException.ThrowIfNull(destination);
 
@@ -35,7 +35,7 @@ internal sealed class V1FormatCodec(
         writer.Flush();
     }
 
-    public T? Deserialize<T>(Stream source) where T : class
+    public T? Deserialize<T>(Stream source)
     {
         var (header, rawPayload) = ReadAndUnwrap(source);
         return DeserializePayload<T>(rawPayload, header.PreserveReferences);
@@ -50,6 +50,15 @@ internal sealed class V1FormatCodec(
         using var payloadReader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
         return new BinaryPayloadReader(payloadReader, preserveReferences: header.PreserveReferences)
             .Deserialize(existingInstance);
+    }
+    
+    public void Deserialize<T>(Stream source, ref T existingInstance) where T : struct
+    {
+        var (header, rawPayload) = ReadAndUnwrap(source);
+        using var ms = new MemoryStream(rawPayload);
+        using var payloadReader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+        new BinaryPayloadReader(payloadReader, preserveReferences: header.PreserveReferences)
+                .Deserialize(ref existingInstance);
     }
 
     private (BinaryFormatHeaderV1 Header, byte[] RawPayload) ReadAndUnwrap(Stream source)
@@ -84,7 +93,7 @@ internal sealed class V1FormatCodec(
         return (header, rawPayload);
     }
 
-    private static byte[] SerializePayload<T>(T data, bool preserveReferences) where T : class
+    private static byte[] SerializePayload<T>(T data, bool preserveReferences)
     {
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
@@ -93,7 +102,7 @@ internal sealed class V1FormatCodec(
         return ms.ToArray();
     }
 
-    private static T? DeserializePayload<T>(byte[] rawPayload, bool preserveReferences) where T : class
+    private static T? DeserializePayload<T>(byte[] rawPayload, bool preserveReferences)
     {
         using var ms = new MemoryStream(rawPayload);
         using var reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);

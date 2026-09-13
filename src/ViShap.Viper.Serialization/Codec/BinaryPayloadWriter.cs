@@ -10,7 +10,7 @@ internal sealed class BinaryPayloadWriter(BinaryWriter writer, bool preserveRefe
 
     internal BinaryWriter RawWriter => writer;
 
-    public void Serialize<T>(T data) where T : class => WriteValue(data, typeof(T));
+    public void Serialize<T>(T data) => WriteValue(data, typeof(T));
 
     internal void WriteValue(object? value, Type declaredType)
     {

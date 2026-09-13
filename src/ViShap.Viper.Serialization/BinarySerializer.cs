@@ -12,23 +12,23 @@ public sealed class BinarySerializer
         _router = new BinaryFormatRouter(codecs);
     }
 
-    public void Serialize<T>(Stream destination, T data) where T : class =>
+    public void Serialize<T>(Stream destination, T data) =>
         _router.Serialize(destination, data, _options.WriteVersion);
     
-    public byte[] Serialize<T>(T data) where T : class
+    public byte[] Serialize<T>(T data)
     {
         using var ms = new MemoryStream();
         Serialize(ms, data);
         return ms.ToArray();
     }
 
-    public T? Deserialize<T>(Stream source) where T : class => 
+    public T? Deserialize<T>(Stream source) =>
         _router.Deserialize<T>(source);
     
-    public T? Deserialize<T>(byte[] bytes) where T : class
+    public T? Deserialize<T>(byte[] bytes)
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        if (bytes.Length == 0) return null;
+        if (bytes.Length == 0) return default;
 
         using var ms = new MemoryStream(bytes);
         return Deserialize<T>(ms);
@@ -45,5 +45,16 @@ public sealed class BinarySerializer
         
         using var ms = new MemoryStream(bytes);
         return _router.Deserialize(ms, existingInstance);
+    }
+    
+    public void Deserialize<T>(Stream source, ref T existingInstance) where T : struct =>
+        _router.Deserialize(source, ref existingInstance);
+    
+    public void Deserialize<T>(byte[] bytes, ref T existingInstance) where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(bytes);
+        if (bytes.Length == 0) return;
+        using var ms = new MemoryStream(bytes);
+        _router.Deserialize(ms, ref existingInstance);
     }
 }

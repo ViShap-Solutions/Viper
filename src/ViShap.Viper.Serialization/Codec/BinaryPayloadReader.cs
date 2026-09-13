@@ -8,7 +8,7 @@ internal sealed class BinaryPayloadReader(BinaryReader reader, bool preserveRefe
 
     internal BinaryReader RawReader => reader;
 
-    public T? Deserialize<T>() where T : class => (T?)ReadValue(typeof(T));
+    public T? Deserialize<T>() => (T?)ReadValue(typeof(T));
 
     public T? Deserialize<T>(T existingInstance) where T : class
     {
@@ -50,6 +50,15 @@ internal sealed class BinaryPayloadReader(BinaryReader reader, bool preserveRefe
             accessor.Setter(existingInstance, ReadValue(accessor.MemberType));
 
         return existingInstance;
+    }
+    
+    public void Deserialize<T>(ref T existingInstance) where T : struct
+    {
+        object boxed = existingInstance;
+        var plan = TypeAccessorCache.GetOrBuild(typeof(T));
+        foreach (var accessor in plan.Members)
+                accessor.Setter(boxed, ReadValue(accessor.MemberType));
+        existingInstance = (T)boxed;
     }
 
     internal object? ReadValue(Type declaredType)

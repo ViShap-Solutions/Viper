@@ -4,7 +4,8 @@ internal interface IFormatCodec
 {
     int Version { get; }
 
-    void Serialize<T>(Stream destination, T data) where T : class;
-    T? Deserialize<T>(Stream source) where T : class;
+    void Serialize<T>(Stream destination, T data);
+    T? Deserialize<T>(Stream source);
     T? Deserialize<T>(Stream source, T existingInstance) where T : class;
+    void Deserialize<T>(Stream source, ref T existingInstance) where T : struct;
 }
