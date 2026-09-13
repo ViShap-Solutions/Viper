@@ -77,7 +77,9 @@ internal static class TypeAccessorCache
     private static Func<object, object?> BuildPropertyGetter(PropertyInfo property)
     {
         var instanceParam = Expression.Parameter(typeof(object), "instance");
-        var typedInstance = Expression.Convert(instanceParam, property.DeclaringType!);
+        var typedInstance = property.DeclaringType!.IsValueType
+                                        ? Expression.Unbox(instanceParam, property.DeclaringType!)
+                                        : Expression.Convert(instanceParam, property.DeclaringType!);
         var propertyAccess = Expression.Property(typedInstance, property);
         var boxedResult = Expression.Convert(propertyAccess, typeof(object));
 
@@ -88,7 +90,9 @@ internal static class TypeAccessorCache
     {
         var instanceParam = Expression.Parameter(typeof(object), "instance");
         var valueParam = Expression.Parameter(typeof(object), "value");
-        var typedInstance = Expression.Convert(instanceParam, property.DeclaringType!);
+        var typedInstance = property.DeclaringType!.IsValueType
+                                        ? Expression.Unbox(instanceParam, property.DeclaringType!)
+                                        : Expression.Convert(instanceParam, property.DeclaringType!);
         var typedValue = Expression.Convert(valueParam, property.PropertyType);
         var propertyAccess = Expression.Property(typedInstance, property);
         var assign = Expression.Assign(propertyAccess, typedValue);
@@ -99,7 +103,9 @@ internal static class TypeAccessorCache
     private static Func<object, object?> BuildFieldGetter(FieldInfo field)
     {
         var instanceParam = Expression.Parameter(typeof(object), "instance");
-        var typedInstance = Expression.Convert(instanceParam, field.DeclaringType!);
+        var typedInstance = field.DeclaringType!.IsValueType
+                                        ? Expression.Unbox(instanceParam, field.DeclaringType!)
+                                        : Expression.Convert(instanceParam, field.DeclaringType!);
         var fieldAccess = Expression.Field(typedInstance, field);
         var boxedResult = Expression.Convert(fieldAccess, typeof(object));
 
@@ -110,7 +116,9 @@ internal static class TypeAccessorCache
     {
         var instanceParam = Expression.Parameter(typeof(object), "instance");
         var valueParam = Expression.Parameter(typeof(object), "value");
-        var typedInstance = Expression.Convert(instanceParam, field.DeclaringType!);
+        var typedInstance = field.DeclaringType!.IsValueType
+                                        ? Expression.Unbox(instanceParam, field.DeclaringType!)
+                                        : Expression.Convert(instanceParam, field.DeclaringType!);
         var typedValue = Expression.Convert(valueParam, field.FieldType);
         var fieldAccess = Expression.Field(typedInstance, field);
         var assign = Expression.Assign(fieldAccess, typedValue);
