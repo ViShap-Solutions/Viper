@@ -1,0 +1,12 @@
+﻿global using ViShap.Viper.Cache;
+global using ViShap.Viper.Checksum;
+global using ViShap.Viper.Codec;
+global using ViShap.Viper.Compression;
+global using ViShap.Viper.Configuration;
+global using ViShap.Viper.Crypto;
+global using ViShap.Viper.Exceptions;
+global using ViShap.Viper.Extensions;
+global using ViShap.Viper.Format;
+global using ViShap.Viper.Metadata;
+global using ViShap.Viper.Utils;
+global using ViShap.Viper.Versioning;

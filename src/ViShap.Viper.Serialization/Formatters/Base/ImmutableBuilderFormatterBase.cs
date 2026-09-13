@@ -1,0 +1,33 @@
+﻿using System.Collections;
+
+namespace ViShap.Viper.Formatters;
+
+internal abstract class ImmutableBuilderFormatterBase : ITypeFormatter
+{
+    public abstract bool CanHandle(Type declaredType);
+    protected abstract Type ConcreteType(Type elementType);
+
+    public void Write(BinaryPayloadWriter writer, object value, Type declaredType)
+    {
+        var elementType = declaredType.GetGenericArguments()[0];
+        var items = ((IEnumerable)value).Cast<object?>().ToList();
+        writer.WriteInt32(items.Count);
+        foreach (var item in items) writer.WriteElement(item, elementType);
+    }
+
+    public object Read(BinaryPayloadReader reader, Type declaredType)
+    {
+        var elementType = declaredType.GetGenericArguments()[0];
+        var concreteType = ConcreteType(elementType);
+
+        var createBuilder = MethodInvokerCache.GetStaticFactoryInvoker(concreteType, "CreateBuilder");
+        var builder = createBuilder();
+        var add = MethodInvokerCache.GetOneArgInvoker(builder.GetType(), "Add", elementType);
+        var toImmutable = MethodInvokerCache.GetInstanceFinalizerInvoker(builder.GetType(), "ToImmutable");
+
+        int count = reader.ReadInt32();
+        for (int i = 0; i < count; i++) add(builder, reader.ReadElement(elementType));
+
+        return toImmutable(builder);
+    }
+}

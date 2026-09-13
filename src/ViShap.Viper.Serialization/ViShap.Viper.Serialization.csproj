@@ -1,5 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-    
+
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
@@ -10,13 +10,17 @@
         <Company>ViShap Solutions</Company>
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
         <Description>High-performance polymorphic binary serializer with integrated checksums, compression, and encryption.</Description>
-        <RepositoryUrl>https://github.com</RepositoryUrl>
+        <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
         <PackageIcon>icon.png</PackageIcon>
         <PackageReadmeFile>SERIALIZATION-README.md</PackageReadmeFile>
         <Title>Viper.Serialization</Title>
     </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.IO.Hashing" Version="10.0.*" />
+    </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\ViShap.Viper.Core\ViShap.Viper.Core.csproj" />
@@ -26,5 +30,5 @@
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
         <None Include="SERIALIZATION-README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
-    
+
 </Project>
