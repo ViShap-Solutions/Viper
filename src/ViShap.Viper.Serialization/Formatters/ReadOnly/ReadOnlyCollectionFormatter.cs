@@ -21,7 +21,12 @@ internal sealed class ReadOnlyCollectionFormatter : ITypeFormatter
         var elementType = declaredType.GetGenericArguments()[0];
         var list = (IList)ActivatorCache.CreateInstance(typeof(List<>).MakeGenericType(elementType));
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength,
+            "Collection count");
+        
         for (int i = 0; i < count; i++) list.Add(reader.ReadElement(elementType));
 
         var listInterface = typeof(IList<>).MakeGenericType(elementType);

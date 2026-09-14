@@ -15,9 +15,13 @@ internal sealed class ArrayFormatter : ITypeFormatter
     public object Read(BinaryPayloadReader reader, Type declaredType)
     {
         var elementType = declaredType.GetElementType()!;
-        int count = reader.ReadInt32();
-        var array = Array.CreateInstance(elementType, count);
-        for (int i = 0; i < count; i++) array.SetValue(reader.ReadElement(elementType), i);
-        return array;
+        
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.ReadInt32(),
+            reader.Budget.Limits.MaxArrayLength,
+            "Array length");
+        
+        return DeserializationGuard.ReadIntoArray(reader, elementType, count);
     }
 }

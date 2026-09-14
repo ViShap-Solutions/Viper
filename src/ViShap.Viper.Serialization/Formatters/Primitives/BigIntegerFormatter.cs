@@ -19,7 +19,12 @@ internal sealed class BigIntegerFormatter : ITypeFormatter
 
     public object Read(BinaryPayloadReader reader, Type declaredType)
     {
-        int length = reader.RawReader.ReadInt32();
-        return new BigInteger(reader.RawReader.ReadBytes(length));
+        byte[] bytes = DeserializationGuard.ReadValidatedBytes(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxByteBlobLength,
+            "BigInteger byte length");
+        
+        return new BigInteger(bytes);
     }
 }

@@ -8,5 +8,9 @@ internal sealed class CultureInfoFormatter : ITypeFormatter
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
         writer.RawWriter.Write(((CultureInfo)value).Name);
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
-        CultureInfo.GetCultureInfo(reader.RawReader.ReadString());
+        CultureInfo.GetCultureInfo(
+            DeserializationGuard.ReadString(
+                reader,
+                reader.Budget.Limits.MaxStringLength,
+                "Culture name length"));
 }

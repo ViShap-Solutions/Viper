@@ -29,9 +29,16 @@ internal sealed class ImmutableArrayFormatter : ITypeFormatter
         bool hasValue = reader.ReadBool();
         if (!hasValue) return ActivatorCache.CreateInstance(declaredType);
 
-        int count = reader.ReadInt32();
-        var array = Array.CreateInstance(elementType, count);
-        for (int i = 0; i < count; i++) array.SetValue(reader.ReadElement(elementType), i);
+        int count = DeserializationGuard.ValidateCount(
+            reader, 
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxArrayLength, 
+            "ImmutableArray length");
+        
+        var array = DeserializationGuard.ReadIntoArray(
+            reader, 
+            elementType, 
+            count);
 
         return ImmutableFactoryCache.GetArrayFactory(typeof(ImmutableCollectionsMarshal), "AsImmutableArray", elementType)(array);
     }

@@ -6,5 +6,9 @@ internal sealed class TimeZoneInfoFormatter : ITypeFormatter
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
         writer.RawWriter.Write(((TimeZoneInfo)value).ToSerializedString());
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
-        TimeZoneInfo.FromSerializedString(reader.RawReader.ReadString());
+        TimeZoneInfo.FromSerializedString(
+            DeserializationGuard.ReadString(
+                reader,
+                reader.Budget.Limits.MaxStringLength,
+                "TimeZoneInfo serialized string length"));
 }

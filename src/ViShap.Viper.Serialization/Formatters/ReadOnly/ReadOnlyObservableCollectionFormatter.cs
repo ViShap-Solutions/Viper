@@ -23,7 +23,12 @@ internal sealed class ReadOnlyObservableCollectionFormatter : ITypeFormatter
         var observable = ActivatorCache.CreateInstance(observableType);
         var add = MethodInvokerCache.GetOneArgInvoker(observableType, "Add", elementType);
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength,
+            "Collection count");
+        
         for (int i = 0; i < count; i++) add(observable, reader.ReadElement(elementType));
 
         return ActivatorCache.GetOneArgConstructor(declaredType, observableType)(observable);

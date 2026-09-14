@@ -24,7 +24,12 @@ internal abstract class MutableAddFormatterBase : ITypeFormatter
         var elementType = declaredType.GetGenericArguments()[0];
         var instance = CreateInstance(elementType);
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength,
+            "Collection count");
+        
         for (int i = 0; i < count; i++) AddElement(instance, reader.ReadElement(elementType), elementType);
 
         return instance;

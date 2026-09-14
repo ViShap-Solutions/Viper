@@ -30,7 +30,12 @@ internal sealed class ReadOnlyDictionaryFormatter : ITypeFormatter
         Type keyType = args[0], valueType = args[1];
         var dict = (IDictionary)ActivatorCache.CreateInstance(typeof(Dictionary<,>).MakeGenericType(keyType, valueType));
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxDictionaryEntries,
+            "Dictionary entry count");
+        
         for (int i = 0; i < count; i++)
             dict.Add(reader.ReadElement(keyType)!, reader.ReadElement(valueType));
 

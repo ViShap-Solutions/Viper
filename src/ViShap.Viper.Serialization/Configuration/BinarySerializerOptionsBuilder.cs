@@ -12,6 +12,7 @@ public sealed class BinarySerializerOptionsBuilder
     private string? _keyId;
     private int _writeVersion = BinaryFormatConstants.LatestVersion;
     private bool _preserveReferences = false;
+    private DeserializationLimits _limits = DeserializationLimits.Default;
     private bool _allowV0Fallback = false;
 
     public BinarySerializerOptionsBuilder WithCompression(ICompressionAlgorithm compression)
@@ -56,6 +57,12 @@ public sealed class BinarySerializerOptionsBuilder
         return this;
     }
     
+    public BinarySerializerOptionsBuilder WithLimits(DeserializationLimits limits)
+    {
+        _limits = limits ?? throw new ArgumentNullException(nameof(limits));
+        return this;
+    }
+    
     public BinarySerializerOptionsBuilder AllowV0Fallback(bool allow = true)
     {
         _allowV0Fallback = allow;
@@ -71,6 +78,7 @@ public sealed class BinarySerializerOptionsBuilder
             Encryptor = AlgorithmResolver.ResolveEncryptor(_encryption, _key, _keyResolver, _keyId),
             WriteVersion = _writeVersion,
             PreserveReferences = _preserveReferences,
+            Limits = _limits,
             AllowV0Fallback = _allowV0Fallback
         };
     }

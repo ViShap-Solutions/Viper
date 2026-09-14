@@ -20,9 +20,17 @@ internal sealed class ImmutableQueueFormatter : ITypeFormatter
     public object Read(BinaryPayloadReader reader, Type declaredType)
     {
         var elementType = declaredType.GetGenericArguments()[0];
-        int count = reader.ReadInt32();
-        var array = Array.CreateInstance(elementType, count);
-        for (int i = 0; i < count; i++) array.SetValue(reader.ReadElement(elementType), i);
+        
+        int count = DeserializationGuard.ValidateCount(
+            reader, 
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength, 
+            "ImmutableQueue count");
+        
+        var array = DeserializationGuard.ReadIntoArray(
+            reader, 
+            elementType, 
+            count);
 
         var create = ImmutableFactoryCache.GetArrayFactory(typeof(ImmutableQueue), "Create", elementType);
         return create(array) ?? throw new BinaryTypeException($"Failed to construct ImmutableQueue<{elementType.Name}>.");

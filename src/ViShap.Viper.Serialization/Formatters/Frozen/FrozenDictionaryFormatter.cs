@@ -31,7 +31,12 @@ internal sealed class FrozenDictionaryFormatter : ITypeFormatter
         var dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
         var temp = (IDictionary)ActivatorCache.CreateInstance(dictType);
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader, 
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxDictionaryEntries, 
+            "FrozenDictionary entry count");
+        
         for (int i = 0; i < count; i++) temp.Add(reader.ReadElement(keyType)!, reader.ReadElement(valueType));
 
         return FrozenFactoryCache.GetToFrozenDictionary(keyType, valueType)(temp);

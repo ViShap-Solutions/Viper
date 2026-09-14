@@ -33,7 +33,12 @@ internal abstract class ImmutableDictionaryFormatterBase : ITypeFormatter
         var add = MethodInvokerCache.GetTwoArgInvoker(builder.GetType(), "Add", keyType, valueType);
         var toImmutable = MethodInvokerCache.GetInstanceFinalizerInvoker(builder.GetType(), "ToImmutable");
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxDictionaryEntries,
+            "Dictionary entry count");
+        
         for (int i = 0; i < count; i++)
             add(builder, reader.ReadElement(keyType), reader.ReadElement(valueType));
 

@@ -27,7 +27,12 @@ internal sealed class CustomCollectionFormatter : ITypeFormatter
         var instance = ActivatorCache.CreateInstance(declaredType);
         var add = MethodInvokerCache.GetOneArgInvoker(declaredType, "Add", elementType);
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader, 
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength, 
+            "Collection count");
+        
         for (int i = 0; i < count; i++) add(instance, reader.ReadElement(elementType));
 
         return instance;

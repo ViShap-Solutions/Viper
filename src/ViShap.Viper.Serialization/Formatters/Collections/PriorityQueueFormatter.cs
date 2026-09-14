@@ -37,7 +37,12 @@ internal sealed class PriorityQueueFormatter : ITypeFormatter
         var queue = ActivatorCache.CreateInstance(declaredType);
         var enqueue = MethodInvokerCache.GetTwoArgInvoker(declaredType, "Enqueue", elementType, priorityType);
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader, 
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength, 
+            "PriorityQueue count");
+        
         for (int i = 0; i < count; i++)
             enqueue(queue, reader.ReadElement(elementType), reader.ReadElement(priorityType));
 

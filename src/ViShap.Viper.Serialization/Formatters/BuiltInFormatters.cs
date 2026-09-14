@@ -15,7 +15,7 @@ internal static class PrimitiveFormatters
     public static readonly ITypeFormatter Double = new PrimitiveFormatter<double>((w, v) => w.Write(v), r => r.ReadDouble());
     public static readonly ITypeFormatter Decimal = new PrimitiveFormatter<decimal>((w, v) => w.Write(v), r => r.ReadDecimal());
     public static readonly ITypeFormatter Char = new PrimitiveFormatter<char>((w, v) => w.Write((ushort)v), r => (char)r.ReadUInt16());
-    public static readonly ITypeFormatter String = new PrimitiveFormatter<string>((w, v) => w.Write(v), r => r.ReadString());
+    public static readonly ITypeFormatter String = new StringFormatter();
     public static readonly ITypeFormatter Enum = new EnumFormatter();
     public static readonly ITypeFormatter Half = new HalfFormatter();
     public static readonly ITypeFormatter Int128 = new Int128Formatter();

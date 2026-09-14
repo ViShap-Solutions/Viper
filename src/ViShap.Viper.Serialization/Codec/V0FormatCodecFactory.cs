@@ -4,6 +4,10 @@ internal sealed class V0FormatCodecFactory : IFormatCodecFactory
 {
     public int Version => 0;
 
-    public IFormatCodec Create(BinarySerializerOptions options) =>
-        new V0FormatCodec();
+    public IFormatCodec Create(BinarySerializerOptions options)
+    {
+        options.Limits.Validate();
+        
+        return new V0FormatCodec(options.Limits);
+    }
 }

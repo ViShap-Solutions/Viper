@@ -25,7 +25,12 @@ internal abstract class ImmutableBuilderFormatterBase : ITypeFormatter
         var add = MethodInvokerCache.GetOneArgInvoker(builder.GetType(), "Add", elementType);
         var toImmutable = MethodInvokerCache.GetInstanceFinalizerInvoker(builder.GetType(), "ToImmutable");
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength,
+            "Collection count");
+        
         for (int i = 0; i < count; i++) add(builder, reader.ReadElement(elementType));
 
         return toImmutable(builder);

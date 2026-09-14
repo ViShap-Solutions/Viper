@@ -4,7 +4,7 @@ namespace ViShap.Viper.Cache;
 
 internal static class PolymorphicTypeCache
 {
-    private const int MaxKnownTypes = 256;
+    private const int MaxKnownTypes = 255;
 
     private static readonly ConcurrentDictionary<Type, PolymorphicMap?> Cache = new();
 
@@ -12,31 +12,26 @@ internal static class PolymorphicTypeCache
 
     private static PolymorphicMap? BuildMap(Type declaredType)
     {
-        var attrs = declaredType.GetCustomAttributes(typeof(BinaryKnownTypeAttribute), inherit: false)
-            .Cast<BinaryKnownTypeAttribute>()
+        var attrs = declaredType.GetCustomAttributes(typeof(BinaryUnionAttribute), inherit: false)
+            .Cast<BinaryUnionAttribute>()
             .ToArray();
 
         if (attrs.Length == 0) return null;
 
-        var knownTypes = attrs.Select(a => a.DerivedType).Distinct().ToArray();
+        var duplicateTags = attrs.GroupBy(a => a.Tag).Where(g => g.Count() > 1).ToArray();
+        if (duplicateTags.Length > 0)
+            throw new BinaryTypeException($"'{declaredType}' has duplicate [BinaryUnion] tag(s): {string.Join(", ", duplicateTags.Select(g => g.Key))}.");
 
-        if (knownTypes.Length > MaxKnownTypes)
-            throw new BinaryTypeException($"'{declaredType}' has {knownTypes.Length} [BinaryKnownType] entries — the byte discriminator supports at most {MaxKnownTypes}.");
-
-        foreach (var t in knownTypes)
+        foreach (var a in attrs)
         {
-            if (!declaredType.IsAssignableFrom(t))
-                throw new BinaryTypeException($"Known type '{t}' is not assignable to '{declaredType}'.");
+            if (a.Tag is < 0 or > MaxKnownTypes)
+                throw new BinaryTypeException($"[BinaryUnion] tag {a.Tag} on '{declaredType}' must fit in a byte (0-{MaxKnownTypes}).");
+            if (!declaredType.IsAssignableFrom(a.DerivedType))
+                throw new BinaryTypeException($"Known type '{a.DerivedType}' is not assignable to '{declaredType}'.");
         }
-        
-        var byType = new Dictionary<Type, byte>();
-        var byId = new Dictionary<byte, Type>();
 
-        for (byte id = 0; id < knownTypes.Length; id++)
-        {
-            byType[knownTypes[id]] = id;
-            byId[id] = knownTypes[id];
-        }
+        var byType = attrs.ToDictionary(a => a.DerivedType, a => (byte)a.Tag);
+        var byId = attrs.ToDictionary(a => (byte)a.Tag, a => a.DerivedType);
 
         return new PolymorphicMap(byType, byId);
     }

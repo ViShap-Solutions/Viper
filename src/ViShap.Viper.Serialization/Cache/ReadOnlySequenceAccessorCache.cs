@@ -39,9 +39,16 @@ internal static class ReadOnlySequenceAccessorCache
 
     private static object ReadGeneric<T>(BinaryPayloadReader reader)
     {
-        int count = reader.ReadInt32();
-        var array = new T[count];
-        for (int i = 0; i < count; i++) array[i] = (T)reader.ReadElement(typeof(T))!;
-        return new ReadOnlySequence<T>(array);
+        int count = 
+            DeserializationGuard.ValidateCount(
+                reader,
+                reader.ReadInt32(),
+                reader.Budget.Limits.MaxCollectionLength,
+                "ReadOnlySequence length");
+        
+        return new ReadOnlySequence<T>(
+            DeserializationGuard.ReadIntoArray<T>(
+                reader,
+                count));
     }
 }

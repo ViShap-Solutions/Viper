@@ -6,5 +6,9 @@ internal sealed class VersionFormatter : ITypeFormatter
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
         writer.RawWriter.Write(((Version)value).ToString());
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
-        new Version(reader.RawReader.ReadString());
+        new Version(
+            DeserializationGuard.ReadString(
+                reader,
+                reader.Budget.Limits.MaxStringLength,
+                "Version length"));
 }

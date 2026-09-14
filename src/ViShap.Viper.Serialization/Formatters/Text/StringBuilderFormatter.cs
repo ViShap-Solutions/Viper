@@ -8,5 +8,9 @@ internal sealed class StringBuilderFormatter : ITypeFormatter
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
         writer.RawWriter.Write(value.ToString()!);
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
-        new StringBuilder(reader.RawReader.ReadString());
+        new StringBuilder(
+            DeserializationGuard.ReadString(
+                reader,
+                reader.Budget.Limits.MaxStringLength,
+                "StringBuilder length"));
 }

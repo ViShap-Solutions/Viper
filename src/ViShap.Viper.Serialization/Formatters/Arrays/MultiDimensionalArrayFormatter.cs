@@ -18,12 +18,31 @@ internal sealed class MultiDimensionalArrayFormatter : ITypeFormatter
     public object Read(BinaryPayloadReader reader, Type declaredType)
     {
         var elementType = declaredType.GetElementType()!;
-        int rank = reader.ReadInt32();
-        var lengths = new int[rank];
-        for (int d = 0; d < rank; d++) lengths[d] = reader.ReadInt32();
+        
+        int expectedRank = declaredType.GetArrayRank();
+        int rank = reader.RawReader.ReadInt32();
 
-        var array = Array.CreateInstance(elementType, lengths);
+        if (rank != expectedRank)
+            throw new BinaryFormatException(
+                $"Array rank {rank} does not match the declared array rank {expectedRank}.");
+
+        var lengths = new int[rank];
+
+        for (int d = 0; d < rank; d++)
+            lengths[d] = reader.RawReader.ReadInt32();
+
+        DeserializationGuard.ValidateTotalElements(
+            reader,
+            lengths,
+            reader.Budget.Limits.MaxArrayLength,
+            "Multi-dimensional array");
+
+        var array = Array.CreateInstance(
+            elementType,
+            lengths);
+
         Fill(array, new int[rank], 0, reader, elementType);
+        
         return array;
     }
 

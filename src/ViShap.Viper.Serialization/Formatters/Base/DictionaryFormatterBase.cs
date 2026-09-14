@@ -33,7 +33,12 @@ internal abstract class DictionaryFormatterBase : ITypeFormatter
         var instance = ActivatorCache.CreateInstance(concreteType);
         var add = MethodInvokerCache.GetTwoArgInvoker(concreteType, AddMethodName, keyType, valueType);
 
-        int count = reader.ReadInt32();
+        int count = DeserializationGuard.ValidateCount(
+            reader,
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxDictionaryEntries,
+            "Dictionary entry count");
+        
         for (int i = 0; i < count; i++)
             add(instance, reader.ReadElement(keyType), reader.ReadElement(valueType));
 

@@ -17,8 +17,19 @@ internal sealed class BitArrayFormatter : ITypeFormatter
 
     public object Read(BinaryPayloadReader reader, Type declaredType)
     {
-        int length = reader.ReadInt32();
-        var bytes = reader.RawReader.ReadBytes((length + 7) / 8);
+        int length = DeserializationGuard.ValidateBitCount(
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxByteBlobLength,
+            "BitArray length");
+
+        int byteLength = (int)(((long)length + 7L) / 8L);
+
+        byte[] bytes = DeserializationGuard.ReadValidatedBytes(
+            reader,
+            byteLength,
+            reader.Budget.Limits.MaxByteBlobLength,
+            "BitArray data length");
+
         return new BitArray(bytes) { Length = length };
     }
 }

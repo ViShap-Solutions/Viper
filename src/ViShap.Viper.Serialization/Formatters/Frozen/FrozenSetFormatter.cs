@@ -19,7 +19,12 @@ internal sealed class FrozenSetFormatter : ITypeFormatter
     public object Read(BinaryPayloadReader reader, Type declaredType)
     {
         var elementType = declaredType.GetGenericArguments()[0];
-        int count = reader.ReadInt32();
+        
+        int count = DeserializationGuard.ValidateCount(
+            reader, 
+            reader.RawReader.ReadInt32(),
+            reader.Budget.Limits.MaxCollectionLength, 
+            "FrozenSet count");
 
         var listType = typeof(List<>).MakeGenericType(elementType);
         var temp = (IList)ActivatorCache.CreateInstance(listType);
