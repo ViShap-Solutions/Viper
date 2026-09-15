@@ -9,7 +9,7 @@
         <Authors>Vahe Babayan (0xVahe)</Authors>
         <Company>ViShap Solutions</Company>
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
-        <Description>Core configuration contracts and options for Viper.</Description>
+        <Description>Core contracts, attributes, algorithm interfaces, and exceptions for Viper.</Description>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 

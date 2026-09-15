@@ -12,6 +12,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{33861600
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViShap.Viper.Serialization.Tests", "tests\ViShap.Viper.Serialization.Tests\ViShap.Viper.Serialization.Tests.csproj", "{5FC71370-E0F5-4656-9ABC-A23CAC074DE9}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{1F65067D-DBC7-437B-9450-343D5233E911}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViShap.Viper.Serialization.Benchmarks", "benchmarks\ViShap.Viper.Serialization.Benchmarks\ViShap.Viper.Serialization.Benchmarks.csproj", "{B88DF3F6-9849-4F75-83F3-01B1E2B891F1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -22,6 +26,7 @@ Global
 		{4FE11A98-505C-421D-9CE4-4F237ADA49A4} = {B8701D43-62DA-4A71-A4B2-9CCAFBF40C08}
 		{9DD00E3A-F0E7-4BAF-85FB-B845745BDF92} = {B8701D43-62DA-4A71-A4B2-9CCAFBF40C08}
 		{5FC71370-E0F5-4656-9ABC-A23CAC074DE9} = {33861600-57B3-450C-9BD3-02A6E57CB1CD}
+		{B88DF3F6-9849-4F75-83F3-01B1E2B891F1} = {1F65067D-DBC7-437B-9450-343D5233E911}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{3B0BA93A-47C1-4E26-B9BF-B6D7050C0E4F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -40,5 +45,9 @@ Global
 		{5FC71370-E0F5-4656-9ABC-A23CAC074DE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5FC71370-E0F5-4656-9ABC-A23CAC074DE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5FC71370-E0F5-4656-9ABC-A23CAC074DE9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B88DF3F6-9849-4F75-83F3-01B1E2B891F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B88DF3F6-9849-4F75-83F3-01B1E2B891F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B88DF3F6-9849-4F75-83F3-01B1E2B891F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B88DF3F6-9849-4F75-83F3-01B1E2B891F1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

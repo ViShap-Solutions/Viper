@@ -7,7 +7,7 @@
         <Authors>Vahe Babayan (0xVahe)</Authors>
         <Company>ViShap Solutions</Company>
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
-        <Description>Ultimate binary engineering solutions ecosystem.</Description>
+        <Description>Viper .NET binary engineering ecosystem meta-package.</Description>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
