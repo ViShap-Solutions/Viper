@@ -5,7 +5,7 @@ namespace ViShap.Viper.Formatters;
 internal abstract class ImmutableDictionaryFormatterBase : ITypeFormatter
 {
     public abstract bool CanHandle(Type declaredType);
-    protected abstract Type ConcreteType(Type keyType, Type valueType);
+    protected abstract Type BuilderFactoryType(Type keyType, Type valueType);
 
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType)
     {
@@ -26,9 +26,9 @@ internal abstract class ImmutableDictionaryFormatterBase : ITypeFormatter
     {
         var args = declaredType.GetGenericArguments();
         Type keyType = args[0], valueType = args[1];
-        var concreteType = ConcreteType(keyType, valueType);
+        var factoryType = BuilderFactoryType(keyType, valueType);
 
-        var createBuilder = MethodInvokerCache.GetStaticFactoryInvoker(concreteType, "CreateBuilder");
+        var createBuilder = MethodInvokerCache.GetGenericStaticFactoryInvoker(factoryType, "CreateBuilder", keyType, valueType);
         var builder = createBuilder();
         var add = MethodInvokerCache.GetTwoArgInvoker(builder.GetType(), "Add", keyType, valueType);
         var toImmutable = MethodInvokerCache.GetInstanceFinalizerInvoker(builder.GetType(), "ToImmutable");

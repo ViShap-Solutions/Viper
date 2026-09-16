@@ -126,6 +126,13 @@ public sealed class Encryptor : IEncryptor, IDisposable
 
         try
         {
+            if (key.Length == 0)
+            {
+                throw new BinaryIntegrityException(
+                    $"The payload is encrypted with '{kind}', " +
+                    "but no decryption key is available.");
+            }
+
             var result = new byte[expectedPlaintextLength];
             int written = algorithm.Decrypt(ciphertext, key, result);
 

@@ -1,5 +1,3 @@
-using ViShap.Viper.Serialization.Tests.Fixtures;
-
 namespace ViShap.Viper.Serialization.Tests.RoundTrip;
 
 public sealed class CollectionRoundTripTests
@@ -117,7 +115,7 @@ public sealed class CollectionRoundTripTests
     {
         var list = TestHelpers.RoundTrip(ImmutableList.Create(1,2,3)); Assert.IsType<ImmutableList<int>>(list); TestHelpers.AssertSequence(new[]{1,2,3}, list);
         var arr = TestHelpers.RoundTrip(ImmutableArray.Create(1,2,3)); Assert.Equal(new[]{1,2,3}, arr.ToArray());
-        var hs = TestHelpers.RoundTrip(ImmutableHashSet.Create(1,2,3)); Assert.Equal(3, hs.Count); Assert.All(new[]{1,2,3}, x => Assert.True(hs.Contains(x)));
+        var hs = TestHelpers.RoundTrip(ImmutableHashSet.Create(1,2,3)); Assert.Equal(3, hs.Count); Assert.All(new[]{1,2,3}, x => Assert.Contains(x, hs));
         var ss = TestHelpers.RoundTrip(ImmutableSortedSet.Create(3,1,2)); TestHelpers.AssertSequence(new[]{1,2,3}, ss);
         var st = TestHelpers.RoundTrip(ImmutableStack.Create(1,2,3)); Assert.Equal(new[]{3,2,1}, st.ToArray());
         var q = TestHelpers.RoundTrip(ImmutableQueue.Create(1,2,3)); TestHelpers.AssertSequence(new[]{1,2,3}, q);
@@ -125,12 +123,24 @@ public sealed class CollectionRoundTripTests
         var sd = TestHelpers.RoundTrip(ImmutableSortedDictionary.CreateRange(new[]{KeyValuePair.Create(2,"b"),KeyValuePair.Create(1,"a")})); TestHelpers.AssertSequence(new[]{1,2}, sd.Keys);
     }
 
-    [Fact] public void FrozenCollectionsSemanticContents()
+    [Fact]
+    public void FrozenCollectionsSemanticContents()
     {
-        var fd = TestHelpers.RoundTrip(new Dictionary<int,string>{{2,"b"},{1,"a"}}.ToFrozenDictionary());
-        Assert.IsAssignableFrom<FrozenDictionary<int,string>>(fd); Assert.Equal("a", fd[1]); Assert.Equal("b", fd[2]);
-        var fs = TestHelpers.RoundTrip(new HashSet<int>{3,1,2}.ToFrozenSet());
-        Assert.IsAssignableFrom<FrozenSet<int>>(fs); Assert.Equal(3, fs.Count); Assert.All(new[]{1,2,3}, x => Assert.True(fs.Contains(x)));
+        var fd = TestHelpers.RoundTrip(
+            new Dictionary<int, string> { { 2, "b" }, { 1, "a" } }.ToFrozenDictionary());
+
+        Assert.IsAssignableFrom<FrozenDictionary<int, string>>(fd);
+        Assert.Equal("a", fd[1]);
+        Assert.Equal("b", fd[2]);
+
+        var fs = TestHelpers.RoundTrip(
+            new HashSet<int> { 3, 1, 2 }.ToFrozenSet());
+
+        Assert.IsAssignableFrom<FrozenSet<int>>(fs);
+        Assert.Equal(3, fs.Count);
+        Assert.Contains(1, (IEnumerable<int>)fs);
+        Assert.Contains(2, (IEnumerable<int>)fs);
+        Assert.Contains(3, (IEnumerable<int>)fs);
     }
 
     [Fact] public void CustomCollection()

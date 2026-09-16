@@ -7,5 +7,5 @@ internal sealed class ImmutableSortedSetFormatter : ImmutableBuilderFormatterBas
     public override bool CanHandle(Type declaredType) =>
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() == typeof(ImmutableSortedSet<>);
 
-    protected override Type ConcreteType(Type elementType) => typeof(ImmutableSortedSet<>).MakeGenericType(elementType);
+    protected override Type BuilderFactoryType(Type elementType) => typeof(ImmutableSortedSet);
 }

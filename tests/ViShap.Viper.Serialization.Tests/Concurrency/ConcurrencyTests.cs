@@ -35,7 +35,7 @@ public sealed class ConcurrencyTests
     }
     [Fact] public void CN07_DifferentSerializerInstancesRemainIsolated()
     {
-        var key=new byte[32]; var plain=new BinarySerializer(); var encrypted=new BinarySerializer(BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(),key,"k").Build()); var plainBytes=plain.Serialize(1); var encryptedBytes=encrypted.Serialize(2); Assert.Equal(1,plain.Deserialize<int>(plainBytes)); Assert.Equal(2,encrypted.Deserialize<int>(encryptedBytes)); Assert.Throws<BinaryFormatException>(()=>plain.Deserialize<int>(encryptedBytes));
+        var key=new byte[32]; var plain=new BinarySerializer(); var encrypted=new BinarySerializer(BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(),key,"k").Build()); var plainBytes=plain.Serialize(1); var encryptedBytes=encrypted.Serialize(2); Assert.Equal(1,plain.Deserialize<int>(plainBytes)); Assert.Equal(2,encrypted.Deserialize<int>(encryptedBytes)); Assert.Throws<BinaryIntegrityException>(()=>plain.Deserialize<int>(encryptedBytes));
     }
 
     private sealed class FirstTouchFixture { public int Value {get;set;} }

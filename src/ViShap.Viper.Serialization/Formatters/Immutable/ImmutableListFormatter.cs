@@ -8,6 +8,5 @@ internal sealed class ImmutableListFormatter : ImmutableBuilderFormatterBase
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() is var def &&
         (def == typeof(ImmutableList<>) || def == typeof(IImmutableList<>));
 
-    protected override Type ConcreteType(Type elementType) =>
-        typeof(ImmutableList<>).MakeGenericType(elementType);
+    protected override Type BuilderFactoryType(Type elementType) => typeof(ImmutableList);
 }

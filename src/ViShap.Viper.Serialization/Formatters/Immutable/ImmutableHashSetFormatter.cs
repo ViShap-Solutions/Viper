@@ -8,6 +8,5 @@ internal sealed class ImmutableHashSetFormatter : ImmutableBuilderFormatterBase
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() is var def &&
         (def == typeof(ImmutableHashSet<>) || def == typeof(IImmutableSet<>));
 
-    protected override Type ConcreteType(Type elementType) =>
-        typeof(ImmutableHashSet<>).MakeGenericType(elementType);
+    protected override Type BuilderFactoryType(Type elementType) => typeof(ImmutableHashSet);
 }

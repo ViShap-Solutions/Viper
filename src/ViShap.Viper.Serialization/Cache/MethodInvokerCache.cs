@@ -55,6 +55,45 @@ internal static class MethodInvokerCache
             return Expression.Lambda<Func<object>>(Expression.Convert(call, typeof(object))).Compile();
         });
 
+    private static readonly ConcurrentDictionary<(Type Type, string Method, Type GenericArg), Func<object>> GenericStaticFactoryInvokers = new();
+    private static readonly ConcurrentDictionary<(Type Type, string Method, Type GenericArg1, Type GenericArg2), Func<object>> GenericStaticFactory2Invokers = new();
+
+    public static Func<object> GetGenericStaticFactoryInvoker(Type type, string methodName, Type genericArg) =>
+        GenericStaticFactoryInvokers.GetOrAdd((type, methodName, genericArg), static key =>
+        {
+            var (t, m, a) = key;
+            var method = t.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(static method => method.IsGenericMethodDefinition)
+                .SingleOrDefault(method =>
+                    method.Name == m &&
+                    method.GetGenericArguments().Length == 1 &&
+                    method.GetParameters().Length == 0)
+                ?? throw new BinaryTypeException(
+                    $"'{t}' has no public static generic parameterless method {m}<{a.Name}>().");
+
+            var closedMethod = method.MakeGenericMethod(a);
+            var call = Expression.Call(closedMethod);
+            return Expression.Lambda<Func<object>>(Expression.Convert(call, typeof(object))).Compile();
+        });
+
+    public static Func<object> GetGenericStaticFactoryInvoker(Type type, string methodName, Type genericArg1, Type genericArg2) =>
+        GenericStaticFactory2Invokers.GetOrAdd((type, methodName, genericArg1, genericArg2), static key =>
+        {
+            var (t, m, a1, a2) = key;
+            var method = t.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                .Where(static method => method.IsGenericMethodDefinition)
+                .SingleOrDefault(method =>
+                    method.Name == m &&
+                    method.GetGenericArguments().Length == 2 &&
+                    method.GetParameters().Length == 0)
+                ?? throw new BinaryTypeException(
+                    $"'{t}' has no public static generic parameterless method {m}<{a1.Name}, {a2.Name}>().");
+
+            var closedMethod = method.MakeGenericMethod(a1, a2);
+            var call = Expression.Call(closedMethod);
+            return Expression.Lambda<Func<object>>(Expression.Convert(call, typeof(object))).Compile();
+        });
+
     public static Func<object, object> GetInstanceFinalizerInvoker(Type type, string methodName) =>
         InstanceFinalizerInvokers.GetOrAdd((type, methodName), static key =>
         {

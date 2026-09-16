@@ -1,5 +1,3 @@
-using ViShap.Viper.Serialization.Tests.Fixtures;
-
 namespace ViShap.Viper.Serialization.Tests.ExistingInstance;
 
 public sealed class ExistingInstanceTests
@@ -18,11 +16,11 @@ public sealed class ExistingInstanceTests
     }
     [Fact] public void EXI04_ExistingBaseAgainstSerializedDerivedFails()
     {
-        var options=BinarySerializerOptions.Configure().Build(); var serializer=new BinarySerializer(options); var bytes=serializer.Serialize<Animal>(new Dog{Name="d"}); var existing=new Cat{Name="c"}; Assert.Throws<BinaryTypeException>(()=>serializer.Deserialize(bytes,existing));
+        var options=BinarySerializerOptions.Configure().Build(); var serializer=new BinarySerializer(options); var bytes=serializer.Serialize<Animal>(new Dog{Name="d"}); Animal existing = new Cat { Name = "c" }; Assert.Throws<BinaryTypeException>(()=>serializer.Deserialize(bytes,existing));
     }
     [Fact] public void EXI05_RootReferenceMarkerCannotBeUsedAsExistingRoot()
     {
-        var options=BinarySerializerOptions.Configure().PreserveReferences().Build(); var serializer=new BinarySerializer(options); var bytes=serializer.Serialize(new Person{Name="p"}); bytes[1]=1; Assert.Throws<BinaryTypeException>(()=>serializer.Deserialize(bytes,new Person()));
+        var options=BinarySerializerOptions.Configure().PreserveReferences().Build(); var serializer=new BinarySerializer(options); var bytes=serializer.Serialize(new Person{Name="p"}); const int rootMarkerOffset = 30; bytes[rootMarkerOffset] = 1; Assert.Throws<BinaryTypeException>(()=>serializer.Deserialize(bytes,new Person()));
     }
     [Fact] public void EXI06_ValueTypeRefReceivesAllValues()
     {

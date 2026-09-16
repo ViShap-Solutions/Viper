@@ -4,19 +4,23 @@ public sealed class LimitsValidationTests
 {
     public static IEnumerable<object[]> LimitProperties()
     {
-        yield return new object[]{ nameof(DeserializationLimits.MaxDepth), new Func<DeserializationLimits,int>(x=>x.MaxDepth), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxDepth=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxArrayLength), new Func<DeserializationLimits,int>(x=>x.MaxArrayLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxArrayLength=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxCollectionLength), new Func<DeserializationLimits,int>(x=>x.MaxCollectionLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxCollectionLength=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxDictionaryEntries), new Func<DeserializationLimits,int>(x=>x.MaxDictionaryEntries), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxDictionaryEntries=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxStringLength), new Func<DeserializationLimits,int>(x=>x.MaxStringLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxStringLength=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxByteBlobLength), new Func<DeserializationLimits,int>(x=>x.MaxByteBlobLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxByteBlobLength=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxTotalElements), new Func<DeserializationLimits,int>(_=>1), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxTotalElements=0}) };
-        yield return new object[]{ nameof(DeserializationLimits.MaxMessageBytes), new Func<DeserializationLimits,int>(_=>1), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxMessageBytes=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxDepth), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxDepth=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxArrayLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxArrayLength=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxCollectionLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxCollectionLength=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxDictionaryEntries), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxDictionaryEntries=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxStringLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxStringLength=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxByteBlobLength), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxByteBlobLength=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxTotalElements), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxTotalElements=0}) };
+        yield return new object[]{ nameof(DeserializationLimits.MaxMessageBytes), new Func<DeserializationLimits,DeserializationLimits>(x=>x with {MaxMessageBytes=0}) };
     }
 
     [Theory]
     [MemberData(nameof(LimitProperties))]
-    public void ZeroValuesAreRejected(string _, Func<DeserializationLimits,int> __, Func<DeserializationLimits,DeserializationLimits> mutate) => Assert.Throws<BinaryTypeException>(()=>mutate(DeserializationLimits.Default).Validate());
+    public void ZeroValuesAreRejected(string name, Func<DeserializationLimits,DeserializationLimits> mutate)
+    {
+        var exception = Record.Exception(() => mutate(DeserializationLimits.Default).Validate());
+        Assert.True(exception is BinaryTypeException, $"{name}: expected BinaryTypeException, got {exception?.GetType().Name ?? "no exception"}.");
+    }
 
     [Fact] public void PositiveLimitsValidate() => DeserializationLimits.Default.Validate();
 
