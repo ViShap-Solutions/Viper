@@ -7,9 +7,21 @@ public sealed class HeaderSecurityTests
 
     [Fact] public void HDR01_MagicMismatchIsBinaryFormatException() { var b=Valid(); b[0]^=0xFF; Assert.Throws<BinaryFormatException>(()=>Serializer.Deserialize<int>(b)); }
     [Fact] public void HDR02_UnsupportedVersionFollowsRoutingContract() { var b=Valid(); BinaryPrimitives.WriteInt32LittleEndian(b.AsSpan(4),99); Assert.Throws<BinaryFormatNotSupportedException>(()=>Serializer.Deserialize<int>(b)); }
-    [Fact] public void HDR03_TruncationThroughFixedHeaderNeverAllocatesPayload()
+    [Fact]
+    public void HDR03_FixedHeaderTruncationAlwaysThrowsBinaryFormatException()
     {
-        var b=Valid(); for(int n=1;n<29;n++) { var cut=b[..n]; var ex=Record.Exception(()=>Serializer.Deserialize<int>(cut)); Assert.NotNull(ex); Assert.True(ex is BinaryFormatException or EndOfStreamException or IOException, $"Unexpected {ex.GetType()}"); }
+        var bytes = Valid();
+        
+        for (var length = 1; length < 29; length++)
+        {
+            var truncated = bytes[..length];
+
+            var exception = Record.Exception(
+                () => Serializer.Deserialize<int>(truncated));
+
+            Assert.NotNull(exception);
+            Assert.IsType<BinaryFormatException>(exception);
+        }
     }
     [Fact] public void HDR05_InvalidAlgorithmEnumsAreRejected()
     {

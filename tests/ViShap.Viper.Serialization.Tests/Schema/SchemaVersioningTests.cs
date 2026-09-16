@@ -155,6 +155,59 @@ public sealed class SchemaVersioningTests
         Assert.Equal("Ada", actual.Name);
         Assert.Equal(37, actual.Age);
     }
+    
+    [Fact]
+    public void KEY06B_MultipleUnknownFieldsAreSkippedWithinMessageLimit()
+    {
+        var original = new ContractV1
+        {
+            Name = "Ada",
+            Age = 37
+        };
+
+        var payload = ExtractPayload(
+            new BinarySerializer().Serialize(original));
+
+        var fields = ReadFields(payload);
+
+        var unknownPayload1 =
+            Enumerable.Repeat((byte)0xA5, 256).ToArray();
+
+        var unknownPayload2 =
+            Enumerable.Repeat((byte)0x5A, 256).ToArray();
+
+        fields.Insert(
+            1,
+            new KeyedField(99, unknownPayload1));
+
+        fields.Insert(
+            2,
+            new KeyedField(100, unknownPayload2));
+
+        var options =
+            BinarySerializerOptions.Configure()
+                .WithLimits(new DeserializationLimits
+                {
+                    MaxDepth = 64,
+                    MaxArrayLength = 4096,
+                    MaxCollectionLength = 4096,
+                    MaxDictionaryEntries = 4096,
+                    MaxStringLength = 4096,
+                    MaxByteBlobLength = 2048,
+                    
+                    MaxTotalElements = 1,
+
+                    MaxMessageBytes = 8 * 1024
+                })
+                .Build();
+
+        var actual =
+            new BinarySerializer(options)
+                .Deserialize<ContractV1>(RebuildV1(fields))!;
+
+        Assert.Equal("Ada", actual.Name);
+        Assert.Equal(37, actual.Age);
+    }
 
     [Fact]
     public void KEY07_UnknownKeyWithTruncatedDeclaredPayloadIsFormatError()
