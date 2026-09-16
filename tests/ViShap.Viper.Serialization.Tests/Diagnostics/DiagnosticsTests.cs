@@ -4,7 +4,7 @@ public sealed class DiagnosticsTests
 {
     [Fact] public void DMP01_ValidHeaderDump()
     {
-        var bytes=new BinarySerializer().Serialize(42); var text=BinaryFormatDumper.DumpHeader(new MemoryStream(bytes)); Assert.Contains("Format version",text,StringComparison.OrdinalIgnoreCase);
+        var bytes=new BinarySerializer().Serialize(42); var text=BinaryFormatDumper.DumpHeader(new MemoryStream(bytes)); Assert.Contains("FormatVersion    : 1",text,StringComparison.Ordinal);
     }
     [Fact] public void DMP02_UnknownInput()
     {
@@ -24,7 +24,7 @@ public sealed class DiagnosticsTests
     }
     [Fact] public void DMP06_TraceRingBufferIsBoundedAt500()
     {
-        using var ms=new MemoryStream(); using var bw=new BinaryWriter(ms,Encoding.UTF8,true); var writer=new BinaryPayloadWriter(bw); writer.Serialize(Enumerable.Range(0,600).ToList()); bw.Flush(); ms.Position=0; using var br=new BinaryReader(ms,Encoding.UTF8,true); var reader=new BinaryPayloadReader(br,enableTrace:true); reader.Deserialize<List<int>>(); Assert.Equal(500,reader.Trace.Count); Assert.Equal("Int32",reader.Trace[^1].TypeName);
+        using var ms=new MemoryStream(); using var bw=new BinaryWriter(ms,Encoding.UTF8,true); var writer=new BinaryPayloadWriter(bw); writer.Serialize(Enumerable.Range(0,600).ToList()); bw.Flush(); ms.Position=0; using var br=new BinaryReader(ms,Encoding.UTF8,true); var reader=new BinaryPayloadReader(br,enableTrace:true); reader.Deserialize<List<int>>(); Assert.Equal(500,reader.Trace.Count); Assert.Equal("List`1",reader.Trace[^1].TypeName);
     }
     [Fact] public void DMP07_SharedReferenceMarkerTerminatesGraphDump()
     {

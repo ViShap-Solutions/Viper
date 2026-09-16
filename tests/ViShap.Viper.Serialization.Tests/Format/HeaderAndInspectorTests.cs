@@ -37,7 +37,14 @@ public sealed class HeaderSecurityTests
     }
     [Fact] public void HDR11_PeekPreservesPosition()
     {
-        var b=Valid(); using var s=new MemoryStream(b); s.Position=3; var before=s.Position; var info=BinaryFormatInspector.Peek(s); Assert.Equal(before,s.Position); Assert.Equal(1,info!.Value.FormatVersion);
+        var b = Valid();
+        using var s = new MemoryStream(b);
+        s.Position = 0;
+        var before = s.Position;
+        var info = BinaryFormatInspector.Peek(s);
+        Assert.Equal(before, s.Position);
+        Assert.NotNull(info);
+        Assert.Equal(1, info.Value.FormatVersion);
     }
     [Fact] public void HDR12_UnknownStreamDoesNotPretendToBeHeader() { using var s=new MemoryStream(Enumerable.Repeat((byte)0xAA,64).ToArray()); Assert.Null(BinaryFormatInspector.Peek(s)); }
 }

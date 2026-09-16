@@ -1,5 +1,3 @@
-using ViShap.Viper.Serialization.Tests.Fixtures;
-
 namespace ViShap.Viper.Serialization.Tests.References;
 
 public sealed class ReferencePreservationTests
@@ -30,7 +28,6 @@ public sealed class ReferencePreservationTests
     [Fact] public void REF05_InvalidReferenceMarkerIsRejected()
     {
         var options=Preserve; var bytes=new BinarySerializer(options).Serialize(new SharedReferenceGraph{Home=new Person{Name="a"},Work=new Person{Name="b"}});
-        // Root object marker is at the first nested object after its null marker. Force an undefined marker.
         var idx=FindFirstObjectMarker(bytes); bytes[idx]=2;
         Assert.Throws<BinaryFormatException>(()=>new BinarySerializer(options).Deserialize<SharedReferenceGraph>(bytes));
     }
@@ -42,7 +39,22 @@ public sealed class ReferencePreservationTests
         Assert.Throws<BinaryTypeException>(()=>new BinarySerializer(options).Deserialize<SharedReferenceGraph>(bytes));
     }
 
-    [Fact] public void REF07_NegativeReferenceIdIsRejected() { var options=Preserve; var bytes=new BinarySerializer(options).Serialize(new Person{Name="p"}); BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(2),-1); Assert.Throws<BinaryTypeException>(()=>new BinarySerializer(options).Deserialize<Person>(bytes)); }
+    [Fact]
+    public void REF07_NegativeReferenceIdIsRejected()
+    {
+        var options = Preserve;
+        var bytes = new BinarySerializer(options).Serialize(new Person { Name = "p" });
+        
+        const int rootMarkerOffset = 30;
+        const int referenceIdOffset = 31;
+        
+        Assert.True(bytes.Length >= referenceIdOffset + 4);
+        Assert.Equal(0, bytes[rootMarkerOffset]);
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(referenceIdOffset), -1);
+
+        Assert.IsType<BinaryFormatException>(Record.Exception(() =>
+            new BinarySerializer(options).Deserialize<Person>(bytes)));
+    }
 
     [Fact] public void REF08_SharedPolymorphicInstancePreservesIdentity()
     {
@@ -54,8 +66,18 @@ public sealed class ReferencePreservationTests
         var dog=new Dog{Name="d"}; var value=new AnimalPairContract{A=dog,B=dog}; var actual=TestHelpers.RoundTrip(value,Preserve); Assert.Same(actual.A,actual.B);
     }
 
-    private static int FindFirstObjectMarker(byte[] bytes) => 1;
-    private static int FindReferenceMarker(byte[] bytes) => bytes.Skip(1).ToArray().Select((b,i)=>(b,i)).FirstOrDefault(x=>x.b==1).i+1;
+    private static int FindFirstObjectMarker(byte[] bytes) => 30;
+    private static int FindReferenceMarker(byte[] bytes)
+    {
+        const int rootMarkerOffset = 30;
+        for (int i = rootMarkerOffset; i < bytes.Length; i++)
+        {
+            if (bytes[i] is 0 or 1)
+                return i;
+        }
+
+        return -1;
+    }
 
     public sealed class AnimalPair { public Animal A {get;set;}=null!; public Animal B {get;set;}=null!; }
     [BinaryContract] public sealed class AnimalPairContract { [BinaryKey(1)] public Animal A {get;set;}=null!; [BinaryKey(2)] public Animal B {get;set;}=null!; }
@@ -65,8 +87,20 @@ public sealed class CircularReferenceTests
 {
     [Fact] public void CYC01_DirectSelfReferenceIsCatchable() { var n=new CyclicNode{Name="self"}; n.Next=n; Assert.Throws<BinaryTypeException>(()=>new BinarySerializer().Serialize(n)); }
     [Fact] public void CYC02_TwoObjectCycleIsCatchable() { var a=new CyclicNode{Name="a"}; var b=new CyclicNode{Name="b"}; a.Next=b;b.Next=a;Assert.Throws<BinaryTypeException>(()=>new BinarySerializer().Serialize(a)); }
-    [Fact] public void CYC03_CycleThroughCollectionIsCatchable() { var n=new List<object>(); n.Add(n); Assert.Throws<BinaryTypeException>(()=>new BinarySerializer().Serialize(n)); }
-    [Fact] public void CYC04_CycleThroughDictionaryIsCatchable() { var d=new Dictionary<string,object>(); d["self"]=d; Assert.Throws<BinaryTypeException>(()=>new BinarySerializer().Serialize(d)); }
+    [Fact]
+    public void CYC03_CycleThroughCollectionIsCatchable()
+    {
+        var root = new CollectionCycleNode();
+        root.Children.Add(root);
+        Assert.Throws<BinaryTypeException>(() => new BinarySerializer().Serialize(root));
+    }
+    [Fact]
+    public void CYC04_CycleThroughDictionaryIsCatchable()
+    {
+        var root = new DictionaryCycleNode();
+        root.Children["self"] = root;
+        Assert.Throws<BinaryTypeException>(() => new BinarySerializer().Serialize(root));
+    }
     [Fact] public void CYC05_CycleThroughPolymorphicMemberIsCatchable() { var n=new PolyCycle(); n.Next=n; Assert.Throws<BinaryTypeException>(()=>new BinarySerializer().Serialize<PolyBase>(n)); }
     [Fact] public void CYC06_StructWrapperCycleIsCatchable() { var n=new StructWrapper(); n.Node=new CyclicNode(); n.Node.Next=n.Node; Assert.Throws<BinaryTypeException>(()=>new BinarySerializer().Serialize(n)); }
     [Fact] public void CYC07_SharedDagSucceeds() { var p=new Person{Name="p"}; var g=new SharedReferenceGraph{Home=p,Work=p}; Assert.NotEmpty(new BinarySerializer(BinarySerializerOptions.Configure().PreserveReferences().Build()).Serialize(g)); }
@@ -79,4 +113,6 @@ public sealed class CircularReferenceTests
     public abstract class PolyBase { public PolyBase? Next {get;set;} }
     public sealed class PolyCycle : PolyBase { }
     public sealed class StructWrapper { public CyclicNode? Node {get;set;} }
+    public sealed class CollectionCycleNode { public List<CollectionCycleNode> Children { get; set; } = []; }
+    public sealed class DictionaryCycleNode { public Dictionary<string, DictionaryCycleNode> Children { get; set; } = new(); }
 }

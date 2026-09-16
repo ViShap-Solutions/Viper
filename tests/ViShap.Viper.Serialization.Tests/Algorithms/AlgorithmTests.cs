@@ -14,7 +14,6 @@ public sealed class CompressionTests
 
         var decompressed = new byte[data.Length];
         var decompressedLength = a.Decompress(compressed, decompressed);
-        
         Assert.Equal(data.Length, decompressedLength);
         Assert.Equal(data, decompressed);
     }

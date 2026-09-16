@@ -26,7 +26,6 @@ public sealed class AttributeTests
     [Fact] public void ATTR07_ExplicitOrderIsDeterministic()
     {
         var options=BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build(); var bytes=new BinarySerializer(options).Serialize(new OrderedMemberFixture{A=11,B=22,C=33});
-        // root members are serialized as int32 values after null/object metadata; verify the fixture round-trips and plan order directly.
         var plan=TypeAccessorCache.GetOrBuild(typeof(OrderedMemberFixture)); Assert.Equal(new[]{"A","B","C"},plan.Members.Select(m=>m.Name)); Assert.NotEmpty(bytes);
     }
 

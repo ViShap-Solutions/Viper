@@ -32,7 +32,6 @@ public sealed class PolymorphismTests
     }
     [Fact] public void PM07_UnknownDiscriminatorIsRejected()
     {
-        // For a V0 payload, root null marker is followed by the union discriminator.
         var v0=BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build(); var payload=new BinarySerializer(v0).Serialize<Animal>(new Dog{Name="d"});
         Assert.True(payload.Length>1); payload[1]=99;
         Assert.Throws<BinaryTypeException>(() => { new BinarySerializer(v0).Deserialize<Animal>(payload); });
@@ -41,15 +40,20 @@ public sealed class PolymorphismTests
     [Fact] public void PM09_DuplicateUnionTagFailsDuringMapConstruction() => Assert.Throws<BinaryTypeException>(() => { PolymorphicTypeCache.GetMap(typeof(DuplicateTagBase)); });
     [Fact] public void PM10_TagOutsideByteRangeFails() => Assert.Throws<BinaryTypeException>(() => { PolymorphicTypeCache.GetMap(typeof(OutOfRangeTagBase)); });
     [Fact] public void PM11_NonAssignableDerivedTypeFails() => Assert.Throws<BinaryTypeException>(() => { PolymorphicTypeCache.GetMap(typeof(InvalidAssignableBase)); });
-    [Fact] public void PM12_ConcurrentFirstTouchIsDeterministic()
+    [Fact] public async Task PM12_ConcurrentFirstTouchIsDeterministic()
     {
-        var tasks=Enumerable.Range(0,64).Select(_=>Task.Run(()=>PolymorphicTypeCache.GetMap(typeof(Animal)))).ToArray(); Task.WaitAll(tasks);
-        Assert.All(tasks,t=>Assert.NotNull(t.Result)); Assert.True(tasks.All(t=>t.Result!.TryGetType(1,out var type) && type==typeof(Dog)));
+        var tasks = Enumerable.Range(0, 64)
+            .Select(_ => Task.Run(() => PolymorphicTypeCache.GetMap(typeof(Animal))))
+            .ToArray();
+
+        var maps = await Task.WhenAll(tasks);
+        Assert.All(maps, map => Assert.NotNull(map));
+        Assert.All(maps, map => Assert.True(map!.TryGetType(1, out var type) && type == typeof(Dog)));
     }
 
     public class ConcreteAnimal { public string Name {get;set;}=""; }
     public sealed class UnregisteredAnimal : Animal { }
-    public sealed class ContractWithAnimal { [BinaryKey(1)] public Animal Animal {get;set;}=null!; }
+    [BinaryContract] public sealed class ContractWithAnimal { [BinaryKey(1)] public Animal Animal {get;set;}=null!; }
     [BinaryUnion(1,typeof(Dog))][BinaryUnion(1,typeof(Cat))] public abstract class DuplicateTagBase { }
     [BinaryUnion(256,typeof(Dog))] public abstract class OutOfRangeTagBase { }
     [BinaryUnion(1,typeof(string))] public abstract class InvalidAssignableBase { }

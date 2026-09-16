@@ -61,7 +61,6 @@ public sealed class AdversarialCorpusTests
     [Fact] public void SingleByteMutationOfChecksummedPayloadFailsIntegrity()
     {
         var options=BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build(); var bytes=new BinarySerializer(options).Serialize(new Person{Name="payload"});
-        // Header occupies 29 bytes for the no-compression/no-encryption configuration.
         for(int i=29;i<bytes.Length;i++) { var mutated=bytes.ToArray();mutated[i]^=1; Assert.IsType<BinaryIntegrityException>(Record.Exception(()=>new BinarySerializer(options).Deserialize<Person>(mutated))); }
     }
 

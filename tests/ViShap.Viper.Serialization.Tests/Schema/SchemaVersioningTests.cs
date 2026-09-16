@@ -5,6 +5,56 @@ namespace ViShap.Viper.Serialization.Tests.Schema;
 public sealed class SchemaVersioningTests
 {
     [Fact]
+    public void KEY_V0_01_V0WriterRejectsBinaryContract()
+    {
+        var options = BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback(true).Build();
+        var exception = Assert.Throws<BinaryFormatNotSupportedException>(
+            () => new BinarySerializer(options).Serialize(new ContractV1 { Name = "Ada", Age = 37 }));
+        Assert.Contains("[BinaryContract]/[BinaryKey]", exception.Message);
+        Assert.Contains("requires V1 keyed wire encoding", exception.Message);
+    }
+
+    [Fact]
+    public void KEY_V0_02_V0ReaderRejectsBinaryContract()
+    {
+        var codec = new V0FormatCodec(DeserializationLimits.Default);
+        using var stream = new MemoryStream();
+        using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(true);
+            writer.Flush();
+        }
+        stream.Position = 0;
+
+        var exception = Assert.Throws<BinaryFormatNotSupportedException>(
+            () => codec.Deserialize<ContractV1>(stream));
+        Assert.Contains("[BinaryContract]/[BinaryKey]", exception.Message);
+        Assert.Contains("requires V1 keyed wire encoding", exception.Message);
+    }
+
+    [Fact]
+    public void KEY_V0_03_V1KeyedContractWorksWithV0FallbackDisabled()
+    {
+        var options = BinarySerializerOptions.Configure().WithVersion(1).AllowV0Fallback(false).Build();
+        var expected = new ContractV1 { Name = "Ada", Age = 37 };
+        var serializer = new BinarySerializer(options);
+        var actual = serializer.Deserialize<ContractV1>(serializer.Serialize(expected));
+        Assert.Equal(expected.Name, actual!.Name);
+        Assert.Equal(expected.Age, actual.Age);
+    }
+
+    [Fact]
+    public void KEY_V0_04_V1KeyedContractWorksWithV0FallbackEnabled()
+    {
+        var options = BinarySerializerOptions.Configure().WithVersion(1).AllowV0Fallback(true).Build();
+        var expected = new ContractV1 { Name = "Ada", Age = 37 };
+        var serializer = new BinarySerializer(options);
+        var actual = serializer.Deserialize<ContractV1>(serializer.Serialize(expected));
+        Assert.Equal(expected.Name, actual!.Name);
+        Assert.Equal(expected.Age, actual.Age);
+    }
+
+    [Fact]
     public void KEY01_SameSchemaRoundTrips()
     {
         var value = new ContractV1 { Name = "Ada", Age = 37 };
@@ -207,117 +257,6 @@ public sealed class SchemaVersioningTests
 
         Assert.Same(actual.A, actual.B);
     }
-    
-    [Fact]
-    public void KEY_V0_01_V0WriterRejectsBinaryContract()
-    {
-        var options = BinarySerializerOptions.Configure()
-            .WithVersion(0)
-            .AllowV0Fallback(true)
-            .Build();
-
-        var serializer = new BinarySerializer(options);
-
-        var value = new ContractV1
-        {
-            Name = "Ada",
-            Age = 37
-        };
-
-        var exception = Assert.Throws<BinaryFormatNotSupportedException>(
-            () => serializer.Serialize(value));
-
-        Assert.Contains("[BinaryContract]/[BinaryKey]", exception.Message);
-        Assert.Contains("requires V1 keyed wire encoding", exception.Message);
-    }
-    
-    [Fact]
-    public void KEY_V0_02_V0ReaderRejectsBinaryContract()
-    {
-        var codec = new V0FormatCodec(DeserializationLimits.Default);
-
-        using var stream = new MemoryStream();
-
-        using (var writer = new BinaryWriter(
-                   stream,
-                   Encoding.UTF8,
-                   leaveOpen: true))
-        {
-            // BinaryPayloadReader.Deserialize<T>() first reads hasValue.
-            // true is enough to reach PopulateMembers() where the V0
-            // keyed-contract capability check must reject ContractV1.
-            writer.Write(true);
-            writer.Flush();
-        }
-
-        stream.Position = 0;
-
-        var exception = Assert.Throws<BinaryFormatNotSupportedException>(
-            () => codec.Deserialize<ContractV1>(stream));
-
-        Assert.Contains("[BinaryContract]/[BinaryKey]", exception.Message);
-        Assert.Contains("requires V1 keyed wire encoding", exception.Message);
-    }
-    
-    [Fact]
-    public void KEY_V0_03_V1KeyedContractWorksWithV0FallbackDisabled()
-    {
-        var options = BinarySerializerOptions.Configure()
-            .WithVersion(1)
-            .AllowV0Fallback(false)
-            .Build();
-
-        var serializer = new BinarySerializer(options);
-
-        var expected = new ContractV1
-        {
-            Name = "Ada",
-            Age = 37
-        };
-
-        var bytes = serializer.Serialize(expected);
-
-        var header = BinaryFormatInspector.Peek(new MemoryStream(bytes));
-
-        Assert.NotNull(header);
-        Assert.Equal(1, header?.FormatVersion);
-
-        var actual = serializer.Deserialize<ContractV1>(bytes);
-
-        Assert.NotNull(actual);
-        Assert.Equal(expected.Name, actual.Name);
-        Assert.Equal(expected.Age, actual.Age);
-    }
-    
-    [Fact]
-    public void KEY_V0_04_V1KeyedContractWorksWithV0FallbackEnabled()
-    {
-        var options = BinarySerializerOptions.Configure()
-            .WithVersion(1)
-            .AllowV0Fallback(true)
-            .Build();
-
-        var serializer = new BinarySerializer(options);
-
-        var expected = new ContractV1
-        {
-            Name = "Ada",
-            Age = 37
-        };
-
-        var bytes = serializer.Serialize(expected);
-
-        var header = BinaryFormatInspector.Peek(new MemoryStream(bytes));
-
-        Assert.NotNull(header);
-        Assert.Equal(1, header?.FormatVersion);
-
-        var actual = serializer.Deserialize<ContractV1>(bytes);
-
-        Assert.NotNull(actual);
-        Assert.Equal(expected.Name, actual.Name);
-        Assert.Equal(expected.Age, actual.Age);
-    }
 
     private static byte[] SerializePayload<T>(T value)
     {
@@ -347,6 +286,7 @@ public sealed class SchemaVersioningTests
         var payload = new MemoryStream();
         using (var writer = new BinaryWriter(payload, Encoding.UTF8, leaveOpen: true))
         {
+            writer.Write(true);
             Write7Bit(writer, fields.Count);
             foreach (var field in fields)
             {
@@ -391,6 +331,8 @@ public sealed class SchemaVersioningTests
     {
         using var stream = new MemoryStream(payload, writable: false);
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+        var hasValue = reader.ReadBoolean();
+        Assert.True(hasValue);
         var count = Read7Bit(reader);
         var fields = new List<KeyedField>(count);
 
