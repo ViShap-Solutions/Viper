@@ -55,9 +55,25 @@ internal static class TypeAccessorCache
                 $"'{type}' member(s) [{string.Join(", ", stray.Select(c => c.Name))}] have [BinaryKey], " +
                 $"but '{type.Name}' is not marked [BinaryContract] — [BinaryKey] only applies to contract types.");
 
-        var included = candidates
+        var eligible = candidates
             .Where(c => !c.HasIgnore)
             .Where(c => c.IsPubliclyVisible || c.HasInclude)
+            .ToArray();
+
+        var duplicateOrders = eligible
+            .Where(c => c.Order != int.MaxValue)
+            .GroupBy(c => c.Order)
+            .Where(g => g.Count() > 1)
+            .ToArray();
+
+        if (duplicateOrders.Length > 0)
+        {
+            throw new BinaryTypeException(
+                $"'{type}' has duplicate [BinaryOrder] value(s): " +
+                string.Join(", ", duplicateOrders.Select(g => g.Key)));
+        }
+
+        var included = eligible
             .OrderBy(c => c.Order)
             .ThenBy(c => c.Name, StringComparer.Ordinal)
             .Select(c => c.Accessor)

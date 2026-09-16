@@ -8,6 +8,5 @@ internal sealed class ImmutableDictionaryFormatter : ImmutableDictionaryFormatte
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() is var def &&
         (def == typeof(ImmutableDictionary<,>) || def == typeof(IImmutableDictionary<,>));
 
-    protected override Type ConcreteType(Type keyType, Type valueType) =>
-        typeof(ImmutableDictionary<,>).MakeGenericType(keyType, valueType);
+    protected override Type BuilderFactoryType(Type keyType, Type valueType) => typeof(ImmutableDictionary);
 }

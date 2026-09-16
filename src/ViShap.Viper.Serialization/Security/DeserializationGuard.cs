@@ -100,7 +100,9 @@ internal static class DeserializationGuard
         long maxLength,
         string what)
     {
-        int byteLength = reader.RawReader.Read7BitEncodedInt();
+        int byteLength = ReadBounded7BitEncodedInt(
+            reader.RawReader,
+            $"{what} length");
 
         byte[] bytes = ReadValidatedBytes(
             reader,

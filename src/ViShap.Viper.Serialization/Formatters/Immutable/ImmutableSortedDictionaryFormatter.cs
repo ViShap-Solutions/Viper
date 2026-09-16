@@ -7,6 +7,5 @@ internal sealed class ImmutableSortedDictionaryFormatter : ImmutableDictionaryFo
     public override bool CanHandle(Type declaredType) =>
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() == typeof(ImmutableSortedDictionary<,>);
 
-    protected override Type ConcreteType(Type keyType, Type valueType) =>
-        typeof(ImmutableSortedDictionary<,>).MakeGenericType(keyType, valueType);
+    protected override Type BuilderFactoryType(Type keyType, Type valueType) => typeof(ImmutableSortedDictionary);
 }
