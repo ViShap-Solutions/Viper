@@ -17,7 +17,7 @@ internal sealed class ImmutableArrayFormatter : ITypeFormatter
         writer.WriteBool(!isDefault);
         if (isDefault) return;
 
-        var array = (IEnumerable)MethodInvokerCache.GetInstanceFinalizerInvoker(declaredType, "ToArray")(value);
+        var array = (Array)ImmutableFactoryCache.GetStructFactory(typeof(ImmutableCollectionsMarshal), "AsArray", elementType)(value);
         var items = array.Cast<object?>().ToList();
         writer.WriteInt32(items.Count);
         foreach (var item in items) writer.WriteElement(item, elementType);
