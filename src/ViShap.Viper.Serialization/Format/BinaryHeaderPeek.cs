@@ -6,8 +6,22 @@ internal static class BinaryHeaderPeek
     {
         long position = source.Position;
         Span<byte> buffer = stackalloc byte[8];
-        int read = source.Read(buffer);
-        source.Position = position;
+        int read = 0;
+        try
+        {
+            while (read < buffer.Length)
+            {
+                int current = source.Read(buffer[read..]);
+                if (current <= 0)
+                    break;
+
+                read += current;
+            }
+        }
+        finally
+        {
+            source.Position = position;
+        }
 
         if (read == 8 && BitConverter.ToInt32(buffer) == BinaryFormatConstants.Magic)
         {

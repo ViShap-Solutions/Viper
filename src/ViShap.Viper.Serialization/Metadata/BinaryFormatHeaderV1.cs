@@ -60,7 +60,7 @@ internal readonly record struct BinaryFormatHeaderV1(
         int formatVersion = reader.ReadInt32();
 
         if (formatVersion != Version)
-            throw new BinaryFormatException(
+            throw new BinaryFormatNotSupportedException(
                 $"Expected format version {Version}, but found {formatVersion}.");
 
         var compression = (CompressionAlgorithm)reader.ReadByte();

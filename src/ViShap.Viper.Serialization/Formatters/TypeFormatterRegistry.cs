@@ -83,5 +83,18 @@ internal static class TypeFormatterRegistry
 
     public static ITypeFormatter Resolve(Type declaredType) =>
         Cache.GetOrAdd(declaredType, static t =>
-            Custom.FirstOrDefault(f => f.CanHandle(t)) ?? BuiltIn.First(f => f.CanHandle(t)));
+        {
+            var custom = Custom.FirstOrDefault(f => f.CanHandle(t));
+            if (custom is not null)
+                return custom;
+
+            foreach (var formatter in BuiltIn)
+            {
+                if (formatter.CanHandle(t))
+                    return formatter;
+            }
+
+            throw new BinaryTypeException(
+                $"Type '{t}' is not supported by any registered binary formatter.");
+        });
 }

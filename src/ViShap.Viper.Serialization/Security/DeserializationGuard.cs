@@ -110,6 +110,50 @@ internal static class DeserializationGuard
 
         return System.Text.Encoding.UTF8.GetString(bytes);
     }
+    
+    public static int ReadBounded7BitEncodedInt(BinaryReader reader, string what)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        ArgumentException.ThrowIfNullOrWhiteSpace(what);
+
+        uint result = 0;
+
+        for (int shift = 0; shift < 35; shift += 7)
+        {
+            byte current;
+
+            try
+            {
+                current = reader.ReadByte();
+            }
+            catch (EndOfStreamException)
+            {
+                throw new BinaryFormatException(
+                    $"Malformed {what} 7-bit integer: truncated encoding.");
+            }
+
+            if (shift == 28 && (current & 0xF0) != 0)
+            {
+                throw new BinaryFormatException(
+                    $"Malformed {what} 7-bit integer.");
+            }
+
+            result |= (uint)(current & 0x7F) << shift;
+
+            if ((current & 0x80) == 0)
+            {
+                if (result > int.MaxValue)
+                {
+                    throw new BinaryFormatException(
+                        $"{what} value {result} is outside the supported non-negative Int32 range.");
+                }
+
+                return (int)result;
+            }
+        }
+
+        throw new BinaryFormatException($"Malformed {what} 7-bit integer.");
+    }
 
     public static Array ReadIntoArray(
         BinaryPayloadReader reader,

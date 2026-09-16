@@ -5,6 +5,8 @@ namespace ViShap.Viper.Codec;
 
 internal sealed class V1FormatCodec : IFormatCodec
 {
+    private const bool SupportsKeyedContracts = true;
+
     private readonly ICompressor _compressor;
     private readonly IChecksumCalculator _checksum;
     private readonly IEncryptor _encryptor;
@@ -34,9 +36,9 @@ internal sealed class V1FormatCodec : IFormatCodec
         ArgumentNullException.ThrowIfNull(destination);
 
         byte[] rawPayload = SerializePayload(data, _preserveReferences, _limits);
+
         byte[] checksumBytes = _checksum.Compute(rawPayload);
         byte[] compressedPayload = _compressor.Compress(rawPayload);
-
         byte[] onDiskPayload = _encryptor.Encrypt(compressedPayload);
 
         var header =
@@ -55,6 +57,7 @@ internal sealed class V1FormatCodec : IFormatCodec
                 checksumBytes);
 
         using var writer = new BinaryWriter(destination, Encoding.UTF8, leaveOpen: true);
+
         header.WriteTo(writer);
         writer.Write(onDiskPayload);
         writer.Flush();
@@ -63,17 +66,17 @@ internal sealed class V1FormatCodec : IFormatCodec
     public T? Deserialize<T>(Stream source)
     {
         var (header, rawPayload) = ReadAndUnwrap(source);
+
         return DeserializePayload<T>(rawPayload, header.PreserveReferences, _limits);
     }
 
     public T? Deserialize<T>(Stream source, T existingInstance) where T : class
     {
         ArgumentNullException.ThrowIfNull(existingInstance);
-        
+
         var (header, rawPayload) = ReadAndUnwrap(source);
 
-        using var ms =
-            new MemoryStream(rawPayload);
+        using var ms = new MemoryStream(rawPayload);
 
         using var payloadReader =
             new BinaryReader(
@@ -84,14 +87,14 @@ internal sealed class V1FormatCodec : IFormatCodec
         return new BinaryPayloadReader(
                 payloadReader,
                 header.PreserveReferences,
-                _limits)
+                _limits,
+                keyedContracts: SupportsKeyedContracts)
             .Deserialize(existingInstance);
     }
 
     public void Deserialize<T>(Stream source, ref T existingInstance) where T : struct
     {
-        var (header, rawPayload) =
-            ReadAndUnwrap(source);
+        var (header, rawPayload) = ReadAndUnwrap(source);
 
         using var ms = new MemoryStream(rawPayload);
 
@@ -104,7 +107,8 @@ internal sealed class V1FormatCodec : IFormatCodec
         new BinaryPayloadReader(
                 payloadReader,
                 header.PreserveReferences,
-                _limits)
+                _limits,
+                keyedContracts: SupportsKeyedContracts)
             .Deserialize(ref existingInstance);
     }
 
@@ -118,9 +122,7 @@ internal sealed class V1FormatCodec : IFormatCodec
                 Encoding.UTF8,
                 leaveOpen: true);
 
-        var header = BinaryFormatHeaderV1.ReadFrom(
-            reader,
-            _limits);
+        var header = BinaryFormatHeaderV1.ReadFrom(reader, _limits);
 
         byte[] onDiskPayload =
             reader.ReadBytes(header.OnDiskLength);
@@ -203,13 +205,14 @@ internal sealed class V1FormatCodec : IFormatCodec
                 leaveOpen: true);
 
         new BinaryPayloadWriter(
-            writer,
-            preserveReferences,
-            limits)
+                writer,
+                preserveReferences,
+                limits,
+                keyedContracts: SupportsKeyedContracts)
             .Serialize(data);
 
         writer.Flush();
-        
+
         return ms.ToArray();
     }
 
@@ -218,8 +221,7 @@ internal sealed class V1FormatCodec : IFormatCodec
         bool preserveReferences,
         DeserializationLimits limits)
     {
-        using var ms =
-            new MemoryStream(rawPayload);
+        using var ms = new MemoryStream(rawPayload);
 
         using var reader =
             new BinaryReader(
@@ -230,7 +232,8 @@ internal sealed class V1FormatCodec : IFormatCodec
         return new BinaryPayloadReader(
                 reader,
                 preserveReferences,
-                limits)
+                limits,
+                keyedContracts: SupportsKeyedContracts)
             .Deserialize<T>();
     }
 }

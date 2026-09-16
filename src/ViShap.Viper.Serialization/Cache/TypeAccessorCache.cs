@@ -89,6 +89,11 @@ internal static class TypeAccessorCache
 
         var keyed = candidates.Where(c => c.HasKey).ToArray();
 
+        var negativeKeys = keyed.Where(c => c.Key!.Value < 0).ToArray();
+        if (negativeKeys.Length > 0)
+            throw new BinaryTypeException(
+                $"'{type}' has negative [BinaryKey] value(s): {string.Join(", ", negativeKeys.Select(c => c.Key!.Value))}.");
+
         var duplicateKeys = keyed.GroupBy(c => c.Key!.Value).Where(g => g.Count() > 1).ToArray();
         if (duplicateKeys.Length > 0)
             throw new BinaryTypeException($"'{type}' has duplicate [BinaryKey] value(s): {string.Join(", ", duplicateKeys.Select(g => g.Key))}.");

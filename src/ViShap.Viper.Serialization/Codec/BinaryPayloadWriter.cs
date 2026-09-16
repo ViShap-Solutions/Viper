@@ -4,6 +4,8 @@ internal sealed class BinaryPayloadWriter
 {
     private readonly BinaryWriter _writer;
     private readonly bool _preserveReferences;
+    private readonly bool _keyedContracts;
+    private readonly DeserializationLimits _limits;
     private readonly int _maxDepth;
 
     private readonly Dictionary<object, int> _seenObjects =
@@ -20,14 +22,17 @@ internal sealed class BinaryPayloadWriter
     public BinaryPayloadWriter(
         BinaryWriter writer,
         bool preserveReferences = false,
-        DeserializationLimits? limits = null)
+        DeserializationLimits? limits = null,
+        bool keyedContracts = false)
     {
         _writer = writer ?? throw new ArgumentNullException(nameof(writer));
         _preserveReferences = preserveReferences;
+        _keyedContracts = keyedContracts;
 
         var actualLimits = limits ?? DeserializationLimits.Default;
         actualLimits.Validate();
 
+        _limits = actualLimits;
         _maxDepth = actualLimits.MaxDepth;
     }
 
@@ -125,7 +130,68 @@ internal sealed class BinaryPayloadWriter
         }
 
         var plan = TypeAccessorCache.GetOrBuild(value.GetType());
+
+        if (plan.UseKeyedEncoding)
+        {
+            if (!_keyedContracts)
+            {
+                throw new BinaryFormatNotSupportedException(
+                    $"Type '{value.GetType()}' uses [BinaryContract]/[BinaryKey], " +
+                    "which requires V1 keyed wire encoding to provide schema-evolution tolerance.");
+            }
+
+            WriteKeyedMembers(value, plan);
+            return;
+        }
+
         foreach (var accessor in plan.Members)
             WriteValue(accessor.Getter(value), accessor.MemberType);
+    }
+
+    private void WriteKeyedMembers(object value, TypeAccessorPlan plan)
+    {
+        if (!_writer.BaseStream.CanSeek)
+            throw new BinaryFormatException(
+                "Keyed contract encoding requires a seekable payload stream.");
+
+        var membersByKey = plan.MembersByKey!;
+        Write7BitEncodedInt(membersByKey.Count);
+
+        foreach (var entry in membersByKey.OrderBy(static pair => pair.Key))
+        {
+            Write7BitEncodedInt(entry.Key);
+
+            long lengthPosition = _writer.BaseStream.Position;
+            _writer.Write(0);
+
+            long payloadStart = _writer.BaseStream.Position;
+            var accessor = entry.Value;
+            WriteValue(accessor.Getter(value), accessor.MemberType);
+            long payloadEnd = _writer.BaseStream.Position;
+
+            long payloadLength = payloadEnd - payloadStart;
+            if (payloadLength < 0 || payloadLength > int.MaxValue || payloadLength > _limits.MaxMessageBytes)
+                throw new BinaryFormatException(
+                    $"Keyed member '{accessor.Name}' payload length {payloadLength} exceeds the configured maximum.");
+
+            _writer.BaseStream.Position = lengthPosition;
+            _writer.Write((int)payloadLength);
+            _writer.BaseStream.Position = payloadEnd;
+        }
+    }
+
+    private void Write7BitEncodedInt(int value)
+    {
+        if (value < 0)
+            throw new BinaryFormatException($"7-bit encoded integer {value} must be non-negative.");
+
+        uint remaining = (uint)value;
+        while (remaining >= 0x80)
+        {
+            _writer.Write((byte)(remaining | 0x80));
+            remaining >>= 7;
+        }
+
+        _writer.Write((byte)remaining);
     }
 }

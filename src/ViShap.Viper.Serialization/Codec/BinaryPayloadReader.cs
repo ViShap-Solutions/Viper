@@ -1,9 +1,12 @@
-﻿namespace ViShap.Viper.Codec;
+﻿using System.Text;
+
+namespace ViShap.Viper.Codec;
 
 internal sealed class BinaryPayloadReader
 {
     private readonly BinaryReader _reader;
     private readonly bool _preserveReferences;
+    private readonly bool _keyedContracts;
     private readonly Dictionary<int, object> _seenObjects = new();
     private readonly List<TraceEntry>? _trace;
 
@@ -20,10 +23,12 @@ internal sealed class BinaryPayloadReader
         BinaryReader reader,
         bool preserveReferences = false,
         DeserializationLimits? limits = null,
-        bool enableTrace = false)
+        bool enableTrace = false,
+        bool keyedContracts = false)
     {
         _reader = reader ?? throw new ArgumentNullException(nameof(reader));
         _preserveReferences = preserveReferences;
+        _keyedContracts = keyedContracts;
 
         var actualLimits = limits ?? DeserializationLimits.Default;
         actualLimits.Validate();
@@ -33,6 +38,22 @@ internal sealed class BinaryPayloadReader
         _trace = enableTrace
             ? new List<TraceEntry>(capacity: 64)
             : null;
+    }
+
+    private BinaryPayloadReader(
+        BinaryReader reader,
+        bool preserveReferences,
+        bool keyedContracts,
+        DeserializationBudget budget,
+        Dictionary<int, object> seenObjects,
+        List<TraceEntry>? trace)
+    {
+        _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+        _preserveReferences = preserveReferences;
+        _keyedContracts = keyedContracts;
+        Budget = budget ?? throw new ArgumentNullException(nameof(budget));
+        _seenObjects = seenObjects ?? throw new ArgumentNullException(nameof(seenObjects));
+        _trace = trace;
     }
 
     public T? Deserialize<T>() => (T?)ReadValue(typeof(T));
@@ -90,9 +111,7 @@ internal sealed class BinaryPayloadReader
             typeToConstruct = runtimeType;
         }
 
-        var plan = TypeAccessorCache.GetOrBuild(typeToConstruct);
-        foreach (var accessor in plan.Members)
-            accessor.Setter(existingInstance, ReadValue(accessor.MemberType));
+        PopulateMembers(existingInstance, typeToConstruct);
 
         return existingInstance;
     }
@@ -100,9 +119,7 @@ internal sealed class BinaryPayloadReader
     public void Deserialize<T>(ref T existingInstance) where T : struct
     {
         object boxed = existingInstance;
-        var plan = TypeAccessorCache.GetOrBuild(typeof(T));
-        foreach (var accessor in plan.Members)
-            accessor.Setter(boxed, ReadValue(accessor.MemberType));
+        PopulateMembers(boxed, typeof(T));
 
         existingInstance = (T)boxed;
     }
@@ -186,6 +203,10 @@ internal sealed class BinaryPayloadReader
             byte marker = _reader.ReadByte();
             int id = _reader.ReadInt32();
 
+            if (id < 0)
+                throw new BinaryFormatException(
+                    $"Reference id {id} must be non-negative.");
+
             if (marker is not 0 and not 1)
             {
                 throw new BinaryFormatException(
@@ -231,10 +252,94 @@ internal sealed class BinaryPayloadReader
         return Activator.CreateInstance(declaredType)!;
     }
 
-    private void PopulateNested(object instance)
+    private void PopulateNested(object instance) =>
+        PopulateMembers(instance, instance.GetType());
+
+    private void PopulateMembers(object instance, Type type)
     {
-        var plan = TypeAccessorCache.GetOrBuild(instance.GetType());
+        var plan = TypeAccessorCache.GetOrBuild(type);
+
+        if (plan.UseKeyedEncoding)
+        {
+            if (!_keyedContracts)
+            {
+                throw new BinaryFormatNotSupportedException(
+                    $"Type '{type}' uses [BinaryContract]/[BinaryKey], " +
+                    "which requires V1 keyed wire encoding to provide schema-evolution tolerance.");
+            }
+
+            ReadKeyedMembers(instance, plan);
+            return;
+        }
+
         foreach (var accessor in plan.Members)
             accessor.Setter(instance, ReadValue(accessor.MemberType));
+    }
+
+    private void ReadKeyedMembers(object instance, TypeAccessorPlan plan)
+    {
+        int fieldCount = 
+            DeserializationGuard.ReadBounded7BitEncodedInt(
+                _reader,
+                "keyed field count");
+        
+        if (fieldCount > Budget.Limits.MaxCollectionLength)
+            throw new BinaryFormatException(
+                $"Keyed field count {fieldCount} exceeds the configured maximum of {Budget.Limits.MaxCollectionLength}.");
+
+        var seenKeys = new HashSet<int>();
+        var membersByKey = plan.MembersByKey!;
+
+        for (int i = 0; i < fieldCount; i++)
+        {
+            int key =
+                DeserializationGuard.ReadBounded7BitEncodedInt(
+                    _reader,
+                    "field key");
+                    
+            if (!seenKeys.Add(key))
+                throw new BinaryFormatException($"Duplicate keyed field key {key}.");
+
+            int payloadLength;
+            try
+            {
+                payloadLength = _reader.ReadInt32();
+            }
+            catch (EndOfStreamException)
+            {
+                throw new BinaryFormatException(
+                    $"Key {key} payload length is truncated.");
+            }
+
+            DeserializationGuard.ValidateLength(
+                payloadLength,
+                Budget.Limits.MaxMessageBytes,
+                $"Key {key} payload length");
+
+            byte[] payload = _reader.ReadBytes(payloadLength);
+            if (payload.Length != payloadLength)
+                throw new BinaryFormatException(
+                    $"Key {key} payload ended early. Expected {payloadLength} bytes, got {payload.Length}.");
+
+            if (!membersByKey.TryGetValue(key, out var accessor))
+                continue;
+
+            using var fieldStream = new MemoryStream(payload, writable: false);
+            using var fieldReader = new BinaryReader(fieldStream, Encoding.UTF8, leaveOpen: true);
+            var child = new BinaryPayloadReader(
+                fieldReader,
+                _preserveReferences,
+                _keyedContracts,
+                Budget,
+                _seenObjects,
+                _trace);
+
+            object? value = child.ReadValue(accessor.MemberType);
+            if (fieldStream.Position != fieldStream.Length)
+                throw new BinaryFormatException(
+                    $"Key {key} payload contains trailing bytes after decoding '{accessor.Name}'.");
+
+            accessor.Setter(instance, value);
+        }
     }
 }
