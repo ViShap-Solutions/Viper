@@ -1,3 +1,8 @@
 namespace ViShap.Viper.Exceptions;
 
-public sealed class BinaryFormatException(string message) : BinarySerializerException(message);
+public class BinaryFormatException : BinarySerializerException
+{
+    public BinaryFormatException(string message) : base(message) { }
+    
+    public BinaryFormatException(string message, Exception? innerException) : base(message, innerException) { }
+}
