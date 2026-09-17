@@ -216,7 +216,7 @@ internal sealed class BinaryPayloadReader
             if (marker == 1)
             {
                 if (!_seenObjects.TryGetValue(id, out var existing))
-                    throw new BinaryTypeException(
+                    throw new BinaryFormatException(
                         $"Reference to object id {id} was not found — " +
                         "the data may be corrupted or from an incompatible version.");
 
@@ -284,7 +284,7 @@ internal sealed class BinaryPayloadReader
                 "keyed field count");
         
         if (fieldCount > Budget.Limits.MaxCollectionLength)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"Keyed field count {fieldCount} exceeds the configured maximum of {Budget.Limits.MaxCollectionLength}.");
 
         var seenKeys = new HashSet<int>();
@@ -305,10 +305,10 @@ internal sealed class BinaryPayloadReader
             {
                 payloadLength = _reader.ReadInt32();
             }
-            catch (EndOfStreamException)
+            catch (EndOfStreamException ex)
             {
                 throw new BinaryFormatException(
-                    $"Key {key} payload length is truncated.");
+                    $"Key {key} payload length is truncated.", ex);
             }
 
             DeserializationGuard.ValidateLength(

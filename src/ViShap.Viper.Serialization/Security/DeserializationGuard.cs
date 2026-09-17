@@ -15,7 +15,7 @@ internal static class DeserializationGuard
                 $"{what} {rawCount} must be non-negative.");
 
         if (rawCount > maxCount)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"{what} {rawCount} exceeds the configured maximum of {maxCount}.");
 
         reader.Budget.ConsumeElements(rawCount);
@@ -33,7 +33,7 @@ internal static class DeserializationGuard
                 $"{what} {rawLength} must be non-negative.");
 
         if (rawLength > maxLength)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"{what} {rawLength} exceeds the configured maximum of {maxLength}.");
     }
 
@@ -61,14 +61,14 @@ internal static class DeserializationGuard
             }
 
             if (total > maxCount / length)
-                throw new BinaryFormatException(
+                throw new BinaryLimitException(
                     $"{what}: total element count exceeds the configured maximum of {maxCount}.");
 
             total *= length;
         }
 
         if (total > maxCount)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"{what}: total element count {total} exceeds the configured maximum of {maxCount}.");
 
         reader.Budget.ConsumeElements(total);
@@ -128,10 +128,10 @@ internal static class DeserializationGuard
             {
                 current = reader.ReadByte();
             }
-            catch (EndOfStreamException)
+            catch (EndOfStreamException ex)
             {
                 throw new BinaryFormatException(
-                    $"Malformed {what} 7-bit integer: truncated encoding.");
+                    $"Malformed {what} 7-bit integer: truncated encoding.", ex);
             }
 
             if (shift == 28 && (current & 0xF0) != 0)
@@ -198,7 +198,7 @@ internal static class DeserializationGuard
                 $"{what} {rawBitCount} must be non-negative.");
 
         if (rawBitCount > maxByteLength * 8L)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"{what} {rawBitCount} exceeds the configured maximum.");
 
         return rawBitCount;

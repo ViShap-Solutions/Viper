@@ -16,7 +16,8 @@ public sealed class Deflate(CompressionLevel level = CompressionLevel.Optimal) :
 
         byte[] compressed = output.ToArray();
         if (compressed.Length > destination.Length)
-            throw new IOException($"Deflate output ({compressed.Length} bytes) exceeded the provided buffer ({destination.Length} bytes).");
+            throw new InvalidOperationException(
+                $"Deflate output ({compressed.Length} bytes) exceeded the provided buffer ({destination.Length} bytes).");
 
         compressed.CopyTo(destination);
         return compressed.Length;
@@ -27,13 +28,21 @@ public sealed class Deflate(CompressionLevel level = CompressionLevel.Optimal) :
         using var input = new MemoryStream(source.ToArray());
         using var deflate = new DeflateStream(input, CompressionMode.Decompress);
 
-        int totalRead = 0;
-        while (totalRead < destination.Length)
+        try
         {
-            int read = deflate.Read(destination[totalRead..]);
-            if (read == 0) break;
-            totalRead += read;
+            int totalRead = 0;
+            while (totalRead < destination.Length)
+            {
+                int read = deflate.Read(destination[totalRead..]);
+                if (read == 0) break;
+                totalRead += read;
+            }
+            return totalRead;
         }
-        return totalRead;
+        catch (InvalidDataException ex)
+        {
+            throw new BinaryFormatException(
+                "Deflate decompression failed: the compressed payload is malformed.", ex);
+        }
     }
 }

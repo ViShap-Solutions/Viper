@@ -138,7 +138,7 @@ internal sealed class V1FormatCodec : IFormatCodec
             _encryptor.DefaultKeyId is not null &&
             header.KeyId != _encryptor.DefaultKeyId)
         {
-            throw new BinaryIntegrityException(
+            throw new BinaryEncryptionKeyException(
                 $"This data is marked as encrypted with key '{header.KeyId}', " +
                 $"but the configured encryptor is set up for key '{_encryptor.DefaultKeyId}'.");
         }

@@ -23,7 +23,7 @@ internal sealed class DeserializationBudget
                 $"Element count {count} must be non-negative.");
 
         if (count > _limits.MaxTotalElements - _totalElements)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"Cumulative element count across the payload exceeds the configured limit of {_limits.MaxTotalElements}.");
 
         _totalElements += count;
@@ -31,9 +31,17 @@ internal sealed class DeserializationBudget
 
     public void ConsumeBytes(long count)
     {
-        if (count < 0 || count > _limits.MaxMessageBytes)
+        if (count < 0)
+        {
             throw new BinaryFormatException(
+                $"Byte count {count} must be non-negative.");
+        }
+
+        if (count > _limits.MaxMessageBytes)
+        {
+            throw new BinaryLimitException(
                 $"Byte count {count} exceeds the configured limit of {_limits.MaxMessageBytes}.");
+        }
     }
 
     public IDisposable EnterDepth()
@@ -41,7 +49,7 @@ internal sealed class DeserializationBudget
         if (++_depth > _limits.MaxDepth)
         {
             _depth--;
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"Nesting depth exceeds the configured limit of {_limits.MaxDepth}.");
         }
 
