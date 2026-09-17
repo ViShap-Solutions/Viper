@@ -115,10 +115,17 @@ public sealed class Encryptor : IEncryptor, IDisposable
         
         if (kind == EncryptionAlgorithm.None) return ciphertext;
 
-        if (expectedPlaintextLength < 0 || expectedPlaintextLength > _limits.MaxMessageBytes)
+        if (expectedPlaintextLength < 0)
+        {
             throw new BinaryFormatException(
-                $"Declared plaintext length {expectedPlaintextLength} " +
-                $"exceeds the configured maximum of {_limits.MaxMessageBytes}.");
+                $"Declared plaintext length {expectedPlaintextLength} must be non-negative.");
+        }
+
+        if (expectedPlaintextLength > _limits.MaxMessageBytes)
+        {
+            throw new BinaryLimitException(
+                $"Declared plaintext length {expectedPlaintextLength} exceeds the configured maximum of {_limits.MaxMessageBytes}.");
+        }
 
         var algorithm = EncryptionAlgorithmRegistry.Resolve(kind, customName);
         bool isTransient = _keyResolver is not null;
@@ -128,7 +135,7 @@ public sealed class Encryptor : IEncryptor, IDisposable
         {
             if (key.Length == 0)
             {
-                throw new BinaryIntegrityException(
+                throw new BinaryEncryptionKeyException(
                     $"The payload is encrypted with '{kind}', " +
                     "but no decryption key is available.");
             }

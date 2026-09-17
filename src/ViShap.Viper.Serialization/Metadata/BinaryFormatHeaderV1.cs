@@ -164,7 +164,7 @@ internal readonly record struct BinaryFormatHeaderV1(
         }
         catch (EndOfStreamException ex)
         {
-            throw new BinaryFormatException($"V1 header is truncated: {ex.Message}");
+            throw new BinaryFormatException($"V1 header is truncated.", ex);
         }
     }
 }

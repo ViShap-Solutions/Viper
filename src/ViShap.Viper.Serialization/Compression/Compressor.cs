@@ -65,10 +65,17 @@ public sealed class Compressor : ICompressor
         if (kind == CompressionAlgorithm.None)
             return compressedPayload;
 
-        if (uncompressedLength < 0 || uncompressedLength > _limits.MaxMessageBytes)
+        if (uncompressedLength < 0)
+        {
             throw new BinaryFormatException(
-                $"Declared uncompressed length {uncompressedLength} " +
-                $"exceeds the configured maximum of {_limits.MaxMessageBytes}.");
+                $"Declared uncompressed length {uncompressedLength} must be non-negative.");
+        }
+
+        if (uncompressedLength > _limits.MaxMessageBytes)
+        {
+            throw new BinaryLimitException(
+                $"Declared uncompressed length {uncompressedLength} exceeds the configured maximum of {_limits.MaxMessageBytes}.");
+        }
 
         var algorithm = CompressionAlgorithmRegistry.Resolve(kind, customName);
         var result = new byte[uncompressedLength];

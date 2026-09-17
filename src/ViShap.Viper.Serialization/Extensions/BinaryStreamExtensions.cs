@@ -24,26 +24,16 @@ internal static class BinaryStreamExtensions
         if (!hasValue)
             return null;
 
-        int byteLength;
-        try
-        {
-            byteLength = 
-                DeserializationGuard.ReadBounded7BitEncodedInt(
-                    reader,
-                    $"{what} length");
-        }
-        catch (EndOfStreamException)
-        {
-            throw new BinaryFormatException(
-                $"Malformed {what} length encoding: truncated 7-bit integer.");
-        }
+        int byteLength = DeserializationGuard.ReadBounded7BitEncodedInt(
+            reader,
+            $"{what} length");
 
         if (byteLength < 0)
             throw new BinaryFormatException(
                 $"{what} length {byteLength} must be non-negative.");
 
         if (byteLength > limits.MaxStringLength)
-            throw new BinaryFormatException(
+            throw new BinaryLimitException(
                 $"{what} length {byteLength} exceeds the configured maximum of {limits.MaxStringLength}.");
 
         byte[] bytes = reader.ReadBytes(byteLength);

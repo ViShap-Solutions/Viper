@@ -110,7 +110,7 @@ internal sealed class BinaryPayloadWriter
         if (++_depth > _maxDepth)
         {
             _depth--;
-            throw new BinaryTypeException(
+            throw new BinaryLimitException(
                 $"Serialization nesting depth exceeds the configured limit of {_maxDepth}.");
         }
     }
@@ -170,9 +170,24 @@ internal sealed class BinaryPayloadWriter
             long payloadEnd = _writer.BaseStream.Position;
 
             long payloadLength = payloadEnd - payloadStart;
-            if (payloadLength < 0 || payloadLength > int.MaxValue || payloadLength > _limits.MaxMessageBytes)
+            
+            if (payloadLength < 0)
+            {
                 throw new BinaryFormatException(
-                    $"Keyed member '{accessor.Name}' payload length {payloadLength} exceeds the configured maximum.");
+                    $"Keyed member '{accessor.Name}' payload length {payloadLength} must be non-negative.");
+            }
+
+            if (payloadLength > int.MaxValue)
+            {
+                throw new BinaryFormatException(
+                    $"Keyed member '{accessor.Name}' payload length {payloadLength} exceeds Int32 range {int.MaxValue}.");
+            }
+
+            if (payloadLength > _limits.MaxMessageBytes)
+            {
+                throw new BinaryLimitException(
+                    $"Keyed member '{accessor.Name}' payload length {payloadLength} exceeds the configured maximum of {_limits.MaxMessageBytes}.");
+            }
 
             _writer.BaseStream.Position = lengthPosition;
             _writer.Write((int)payloadLength);

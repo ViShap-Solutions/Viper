@@ -11,14 +11,14 @@ public sealed class Brotli(CompressionLevel level = CompressionLevel.Optimal) : 
     public int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         if (!BrotliEncoder.TryCompress(source, destination, out int bytesWritten, GetQuality(), window: 22))
-            throw new IOException("Brotli compression failed — destination buffer may be too small.");
+            throw new InvalidOperationException("Brotli compression failed because the destination buffer was insufficient.");
         return bytesWritten;
     }
 
     public int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         if (!BrotliDecoder.TryDecompress(source, destination, out int bytesWritten))
-            throw new IOException("Brotli decompression failed.");
+            throw new BinaryFormatException("Brotli decompression failed: the compressed payload is malformed.");
         return bytesWritten;
     }
 
