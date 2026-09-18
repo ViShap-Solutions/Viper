@@ -482,8 +482,9 @@ $RECYCLE.BIN/
 *.swp
 
 # Claude Code
+# Tooling stays out of the repository; project documentation lives in docs/ and is tracked.
+# CLAUDE.md is tracked: it is the entry point that points at docs/ and must travel with the code.
 .claude/
-CLAUDE.md
 CLAUDE.local.md
 .claude.json
 .mcp.json

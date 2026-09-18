@@ -3,8 +3,8 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Correctness;
 
 /// <summary>
-/// Pins the byte-level encoding documented in System-Contract §22. These tests fail whenever the wire
-/// format changes, which is the point: a change here is a compatibility break.
+/// Pins the byte-level encoding documented in <c>docs/System-Contract.md</c> §22. These tests fail
+/// whenever the wire format changes, which is the point: a change here is a compatibility break.
 /// </summary>
 public class WireFormatTests
 {
