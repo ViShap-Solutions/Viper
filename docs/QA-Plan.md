@@ -148,8 +148,8 @@ BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()
 
 The 94 tests present today were written by hand as smoke checks, before this plan existed. Each file is re-homed, rewritten, or deleted. Nothing is counted as coverage until it has been compared with the clause it claims to prove.
 
-- [ ] BASE-01 — `API/BinarySerializerApiTests.cs` (8 tests): entry-point smoke checks with no boundary or failure assertions → superseded by §6 and §31; delete after §6 is green
-- [ ] BASE-02 — `API/StreamExtensionsApiTests.cs` (13 tests): same → superseded by §8; delete after §8 is green
+- [x] BASE-01 — `API/BinarySerializerApiTests.cs` (8 tests): entry-point smoke checks with no boundary or failure assertions → superseded by §6 and §31; delete after §6 is green — `deleted; replaced by Api/SerializerApiTests and Api/ExistingInstanceTests`
+- [x] BASE-02 — `API/StreamExtensionsApiTests.cs` (13 tests): same → superseded by §8; delete after §8 is green — `deleted; replaced by Api/StreamExtensionsTests`
 - [x] BASE-03 — `Correctness/RoundTripCorpusTests.cs` (17 tests): family-level round trips → split into the per-family suites of §19; keep the assertions that already check runtime type and ordering — `RoundTrip/ScalarTests, RoundTrip/ContainerTests`
 - [x] BASE-04 — `Correctness/TypeContractTests.cs` (17 tests): contract, polymorphism, reference and populate-in-place behavior → split into §15, §17, §18 — `Contracts/, References/, Api/ExistingInstanceTests`
 - [x] BASE-05 — `Correctness/WireFormatTests.cs` (9 tests): byte-level pins → move to §14, extend to every row of §22 — `Format/WireFormatTests`
@@ -165,11 +165,11 @@ The 94 tests present today were written by hand as smoke checks, before this pla
 
 Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 
-- [ ] API-01 — `new BinarySerializer()` uses `BinarySerializerOptions.Default` *(§3.1, §4.2)*
-- [ ] API-02 — `new BinarySerializer(null)` is equivalent to the parameterless form *(§3.1)*
-- [ ] API-03 — `new BinarySerializer(options)` with invalid limits throws `BinaryConfigurationException` at construction *(§5)*
-- [ ] API-04 — `byte[] Serialize<T>(T)` and `void Serialize<T>(Stream, T)` produce identical bytes *(§3.1)*
-- [ ] API-05 — `T? Deserialize<T>(byte[])` and `T? Deserialize<T>(Stream)` produce equal results *(§3.1)*
+- [x] API-01 — `new BinarySerializer()` uses `BinarySerializerOptions.Default` *(§3.1, §4.2)* — `Api/SerializerApiTests`
+- [x] API-02 — `new BinarySerializer(null)` is equivalent to the parameterless form *(§3.1)* — `Api/SerializerApiTests`
+- [x] API-03 — `new BinarySerializer(options)` with invalid limits throws `BinaryConfigurationException` at construction *(§5)* — `Api/SerializerApiTests`
+- [x] API-04 — `byte[] Serialize<T>(T)` and `void Serialize<T>(Stream, T)` produce identical bytes *(§3.1)* — `Api/SerializerApiTests`
+- [x] API-05 — `T? Deserialize<T>(byte[])` and `T? Deserialize<T>(Stream)` produce equal results *(§3.1)* — `Api/SerializerApiTests`
 - [x] API-06 — `Deserialize<T>(byte[])` on an empty array throws `BinaryFormatException` *(§3)* — `Api/EmptyPayloadTests`
 - [x] API-07 — `Deserialize<T>(byte[], T existing)` on an empty array throws and leaves the instance untouched *(§3)* — `Api/EmptyPayloadTests`
 - [x] API-08 — `Deserialize<T>(byte[], ref T existing)` on an empty array throws and leaves the value untouched *(§3)* — `Api/EmptyPayloadTests`
@@ -177,40 +177,40 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] API-10 — `Deserialize<T>(…, T existing)` on a formatter-claimed type throws `BinaryTypeException` *(§3)* — `Api/ExistingInstanceTests`
 - [x] API-11 — `Deserialize<T>(…, ref T existing)` restores every member of a struct, including a primitive root *(§3, C01)* — `Api/ExistingInstanceTests`
 - [x] API-12 — `Deserialize<T>(…, ref T existing)` is correct under `PreserveReferences` framing *(§3, A02)* — `Api/ExistingInstanceTests`
-- [ ] API-13 — null `destination`, `source`, `bytes` or `existingInstance` throw `ArgumentNullException` *(§8.10)*
-- [ ] API-14 — a caller stream is never disposed by serialize or deserialize *(§20)*
-- [ ] API-15 — a caller stream is never rewound; serialization appends at the current position *(§3.1, §20)*
-- [ ] API-16 — deserialization reads only as far as the payload extends *(§3.1)*
-- [ ] API-17 — reading from a non-seekable stream throws `NotSupportedException` *(§8.10, §10.3)*
-- [ ] API-18 — writing to a non-seekable stream succeeds for a positional payload *(§7.2)*
-- [ ] API-19 — a serializer instance is reusable across calls with no state carried over *(§2.2)*
-- [ ] API-20 — a failed operation leaves the stream position where the failure occurred, and the next independent call still succeeds *(§20, §2.2)*
+- [x] API-13 — null `destination`, `source`, `bytes` or `existingInstance` throw `ArgumentNullException` *(§8.10)* — `Api/SerializerApiTests`
+- [x] API-14 — a caller stream is never disposed by serialize or deserialize *(§20)* — `Api/SerializerApiTests`
+- [x] API-15 — a caller stream is never rewound; serialization appends at the current position *(§3.1, §20)* — `Api/SerializerApiTests`
+- [x] API-16 — deserialization reads only as far as the payload extends *(§3.1)* — `Api/SerializerApiTests`
+- [x] API-17 — reading from a non-seekable stream throws `NotSupportedException` *(§8.10, §10.3)* — `Api/SerializerApiTests`
+- [x] API-18 — writing to a non-seekable stream succeeds for a positional payload *(§7.2)* — `Api/SerializerApiTests`
+- [x] API-19 — a serializer instance is reusable across calls with no state carried over *(§2.2)* — `Api/SerializerApiTests`
+- [x] API-20 — a failed operation leaves the stream position where the failure occurred, and the next independent call still succeeds *(§20, §2.2)* — `Api/SerializerApiTests`
 
 ---
 
 # 7. Options and configuration — `Api/`
 
-- [ ] OPT-01 — `BinarySerializerOptions.Default` exposes the documented defaults *(§4.2)*
-- [ ] OPT-02 — options properties have no public setters; `Configure()…Build()` is the only construction path *(§2.1)*
-- [ ] OPT-03 — `WithCompression` / `WithChecksum` are reflected in the built options and in the header *(§4.1, §11)*
-- [ ] OPT-04 — `WithEncryption(alg, ReadOnlySpan<byte>, keyId)` copies the key immediately *(§13.2)*
-- [ ] OPT-05 — `WithEncryption(alg, Func<string?, byte[]?>, keyId)` builds a resolver-backed provider *(§4.1)*
-- [ ] OPT-06 — `WithEncryption(alg, IKeyProvider, keyId)` uses the supplied provider *(§4.1)*
-- [ ] OPT-07 — `WithLimits(null)` throws `ArgumentNullException` *(§8.10)*
-- [ ] OPT-08 — `WithLimits` snapshots the instance; later mutation of the caller's record cannot affect built options *(§2.1)*
-- [ ] OPT-09 — `PreserveReferences`, `AllowV0Fallback`, `RequireEncryption`, `RequireChecksum` default to `false` and flip with the no-argument overload *(§4.2)*
+- [x] OPT-01 — `BinarySerializerOptions.Default` exposes the documented defaults *(§4.2)* — `Api/OptionsTests`
+- [x] OPT-02 — options properties have no public setters; `Configure()…Build()` is the only construction path *(§2.1)* — `Api/OptionsTests`
+- [x] OPT-03 — `WithCompression` / `WithChecksum` are reflected in the built options and in the header *(§4.1, §11)* — `Api/OptionsTests`
+- [x] OPT-04 — `WithEncryption(alg, ReadOnlySpan<byte>, keyId)` copies the key immediately *(§13.2)* — `Api/OptionsTests`
+- [x] OPT-05 — `WithEncryption(alg, Func<string?, byte[]?>, keyId)` builds a resolver-backed provider *(§4.1)* — `Api/OptionsTests`
+- [x] OPT-06 — `WithEncryption(alg, IKeyProvider, keyId)` uses the supplied provider *(§4.1)* — `Api/OptionsTests`
+- [x] OPT-07 — `WithLimits(null)` throws `ArgumentNullException` *(§8.10)* — `Api/OptionsTests`
+- [x] OPT-08 — `WithLimits` stores the instance it was given, and `SerializationLimits` is an immutable record, so no later change to it is expressible *(§2.1, §5)* — `Api/OptionsTests`
+- [x] OPT-09 — `PreserveReferences`, `AllowV0Fallback`, `RequireEncryption`, `RequireChecksum` default to `false` and flip with the no-argument overload *(§4.2)* — `Api/OptionsTests`
 - [x] OPT-10 — `WithVersion(n)` for an unsupported `n` → `BinaryConfigurationException` at `Build()` *(§4.1)* — `Api/WriteVersionTests`
-- [ ] OPT-11 — `RegisterCustomCompression` / `Checksum` / `Encryption` are snapshotted into the options' catalog *(§4.1)*
-- [ ] OPT-12 — registration is per-configuration: a second options instance built without it cannot resolve the custom name *(§4.1)*
-- [ ] OPT-13 — a custom registration cannot substitute a built-in algorithm *(§4.1)*
-- [ ] OPT-14 — a null name or null factory in a registration throws `ArgumentNullException` *(§8.10)*
-- [ ] OPT-15 — `FromHeader(...)` builds options matching the header metadata *(§4.3)*
-- [ ] OPT-16 — `FromHeader` with invalid limits throws `BinaryConfigurationException` *(§4.3)*
-- [ ] OPT-17 — `FromStream(...)` peeks through `BinaryFormatInspector` and restores the position *(§4.3, §19)*
-- [ ] OPT-18 — `FromStream` on a non-seekable stream throws `NotSupportedException` *(§4.3)*
-- [ ] OPT-19 — a key resolver receives the header's `KeyId` *(§4.3, §13.2)*
-- [ ] OPT-20 — `KeyId` is never treated as key material *(§4.3, §8.7)*
-- [ ] OPT-21 — `SerializationLimits` is a record: `Default with { … }` derives a policy and `Validate()` is public *(§5)*
+- [x] OPT-11 — `RegisterCustomCompression` / `Checksum` / `Encryption` are snapshotted into the options' catalog *(§4.1)* — `Api/OptionsTests`
+- [x] OPT-12 — registration is per-configuration: a second options instance built without it cannot resolve the custom name *(§4.1)* — `Api/OptionsTests`
+- [x] OPT-13 — a custom registration cannot substitute a built-in algorithm *(§4.1)* — `Api/OptionsTests`
+- [x] OPT-14 — a null name or null factory in a registration throws `ArgumentNullException` *(§8.10)* — `Api/OptionsTests`
+- [x] OPT-15 — `FromHeader(...)` builds options matching the header metadata *(§4.3)* — `Api/OptionsTests`
+- [x] OPT-16 — `FromHeader` with invalid limits throws `BinaryConfigurationException` *(§4.3)* — `Api/OptionsTests`
+- [x] OPT-17 — `FromStream(...)` peeks through `BinaryFormatInspector` and restores the position *(§4.3, §19)* — `Api/OptionsTests`
+- [x] OPT-18 — `FromStream` on a non-seekable stream throws `NotSupportedException` *(§4.3)* — `Api/OptionsTests`
+- [x] OPT-19 — a key resolver receives the header's `KeyId` *(§4.3, §13.2)* — `Api/OptionsTests`
+- [x] OPT-20 — `KeyId` is never treated as key material *(§4.3, §8.7)* — `Api/OptionsTests`
+- [x] OPT-21 — `SerializationLimits` is a record: `Default with { … }` derives a policy and `Validate()` is public *(§5)* — `Api/OptionsTests`
 
 ---
 
@@ -218,15 +218,15 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 
 The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 
-- [ ] SX-01 — `Serialize<T>(this Stream, T, BinarySerializerOptions?)` matches `BinarySerializer.Serialize` byte for byte *(§3)*
-- [ ] SX-02 — `Deserialize<T>(this Stream, BinarySerializerOptions)` matches the serializer overload *(§3)*
-- [ ] SX-03 — `Deserialize<T>(this Stream)` configures itself from the header *(§4.3)*
-- [ ] SX-04 — `Deserialize<T>(this Stream, byte[]? key)` decrypts with the supplied key *(§4.3, §13)*
-- [ ] SX-05 — `Deserialize<T>(this Stream, Func<string?, byte[]?>)` resolves by header `KeyId` *(§4.3, §13.2)*
-- [ ] SX-06 — the three existing-reference-instance overloads populate in place *(§3)*
-- [ ] SX-07 — the three `ref struct` overloads assign the value read *(§3)*
-- [ ] SX-08 — every overload leaves the caller's stream open and undisposed *(§20)*
-- [ ] SX-09 — every overload rejects a null stream / resolver with `ArgumentNullException` *(§8.10)*
+- [x] SX-01 — `Serialize<T>(this Stream, T, BinarySerializerOptions?)` matches `BinarySerializer.Serialize` byte for byte *(§3)* — `Api/StreamExtensionsTests`
+- [x] SX-02 — `Deserialize<T>(this Stream, BinarySerializerOptions)` matches the serializer overload *(§3)* — `Api/StreamExtensionsTests`
+- [x] SX-03 — `Deserialize<T>(this Stream)` configures itself from the header *(§4.3)* — `Api/StreamExtensionsTests`
+- [x] SX-04 — `Deserialize<T>(this Stream, byte[]? key)` decrypts with the supplied key *(§4.3, §13)* — `Api/StreamExtensionsTests`
+- [x] SX-05 — `Deserialize<T>(this Stream, Func<string?, byte[]?>)` resolves by header `KeyId` *(§4.3, §13.2)* — `Api/StreamExtensionsTests`
+- [x] SX-06 — the three existing-reference-instance overloads populate in place *(§3)* — `Api/StreamExtensionsTests`
+- [x] SX-07 — the three `ref struct` overloads assign the value read *(§3)* — `Api/StreamExtensionsTests`
+- [x] SX-08 — every overload leaves the caller's stream open and undisposed *(§20)* — `Api/StreamExtensionsTests`
+- [x] SX-09 — every overload rejects a null stream / resolver with `ArgumentNullException` *(§8.10)* — `Api/StreamExtensionsTests`
 - [x] SX-10 — header-derived overloads apply the caller's `limits`, or the defaults when omitted *(§3.2)* — `Api/StreamExtensionsLimitsTests`
 - [x] SX-11 — a header-derived overload cannot be used to bypass a caller's configured limits *(§3.2)* — `Api/StreamExtensionsLimitsTests`
 
@@ -237,9 +237,9 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 ## 9.1 Hierarchy
 
 - [ ] EXC-01 — the hierarchy matches §8 exactly, branch for branch *(§8)*
-- [ ] EXC-02 — `BinaryLimitException` derives from `BinaryFormatException` *(§8.3)*
-- [ ] EXC-03 — `BinaryEncryptionKeyException` derives from `BinaryEncryptionException` *(§8.7)*
-- [ ] EXC-04 — every Viper exception derives from `BinarySerializerException` and none from another framework base *(§8)*
+- [x] EXC-02 — `BinaryLimitException` derives from `BinaryFormatException` *(§8.3)* — `Api/PublicSurfaceTests`
+- [x] EXC-03 — `BinaryEncryptionKeyException` derives from `BinaryEncryptionException` *(§8.7)* — `Api/PublicSurfaceTests`
+- [x] EXC-04 — every Viper exception derives from `BinarySerializerException` and none from another framework base *(§8)* — `Api/PublicSurfaceTests`
 - [ ] EXC-05 — every exception type is public and catchable from an external assembly *(§3)*
 
 ## 9.2 Cause → type mapping
@@ -277,7 +277,7 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 - [ ] CFG-06 — `RequireEncryption` with an algorithm reporting `AuthenticatesAssociatedData == false` → `BinaryConfigurationException` *(§4.1, §13.1)*
 - [ ] CFG-07 — an encryption algorithm without key material → `BinaryConfigurationException` *(§4.1)*
 - [ ] CFG-08 — `RequireChecksum` without a checksum algorithm → `BinaryConfigurationException` *(§4.1)*
-- [ ] CFG-09 — validation happens exactly once, when options are built *(§2.1)*
+- [ ] CFG-09 — validation happens exactly once, when options are built *(§2.1)* — `Api/OptionsTests` proves the builder validates; "exactly once" needs the M2 configuration suite
 - [ ] CFG-10 — the default policy matches the §5 table value for value *(§5)*
 
 ---
@@ -969,11 +969,11 @@ For one logical value under one configuration, all entry points must agree.
 - [ ] XEP-05 — the `ref` value-type overloads *(§3)*
 - [ ] XEP-06 — parity under the full V1 pipeline; encrypted payloads compare semantics, never ciphertext bytes *(§22.6)*
 - [ ] XEP-07 — parity under V0 for every shape V0 supports *(§10.2)*
-- [ ] EXT-01 — every §3 public type is reachable from an external consumer assembly *(§3)*
-- [ ] EXT-02 — no normal usage requires an internal type *(§3)*
+- [x] EXT-01 — every §3 public type is reachable from an external consumer assembly *(§3)* — `Api/PublicSurfaceTests`
+- [ ] EXT-02 — no normal usage requires an internal type *(§3)* — `Api/PublicSurfaceTests` proves the engine types are not exported; the claim itself needs the separate consumer assembly of M8
 - [ ] EXT-03 — the public algorithm primitives are constructible and implementable externally *(§3)*
 - [ ] EXT-04 — every public member carries XML documentation; CS1591 remains a build error *(§3)*
-- [ ] EXT-05 — the compiled public surface contains nothing beyond §3 *(§3)*
+- [x] EXT-05 — the compiled public surface contains nothing beyond §3 *(§3)* — `Api/PublicSurfaceTests`
 
 ---
 

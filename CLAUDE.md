@@ -40,15 +40,15 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
   provenance; `Problems.cs` maps each finding to the test that now pins it.
 
 Current state: the architecture rework described in the audit is complete and `src/` matches the
-contract. 239 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
+contract. 290 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
 so an undocumented public member breaks the build (CS1591).
 
 The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Contracts/`,
 `Fixtures/`, `Format/`, `Hostile/`, `Limits/`, `Metadata/`, `References/`, `RoundTrip/`, `Streams/`.
-Stage M0 is done: the shared helpers live in `Fixtures/` (`AssertEx`, `Wire`, `Mutate`, stream
-doubles) and are themselves tested. `Api/BinarySerializerApiTests.cs` and
-`Api/StreamExtensionsApiTests.cs` are the last two hand-written smoke files, kept only until stage M1
-replaces them.
+Shared helpers live in `Fixtures/` (`AssertEx`, `Wire`, `Mutate`, stream doubles) and are themselves
+tested. Stages M0 and M1 are done: nothing hand-written survives, and `Api/PublicSurfaceTests`
+compares the exported surface against §3 by reflection, so adding a public type fails the build's
+test run until the contract lists it.
 
 ## Projects
 
