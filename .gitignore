@@ -480,3 +480,10 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Claude Code
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.claude.json
+.mcp.json
