@@ -42,7 +42,7 @@ public sealed class Compressor : ICompressor
                 "The compression algorithm returned a negative maximum compressed length.");
 
         long configuredMaximum = _limits.MaxCompressedBytes;
-        int destinationLength = (int)Math.Min((long)maxLength, configuredMaximum);
+        int destinationLength = (int)Math.Min(maxLength, configuredMaximum);
         bool destinationWasCapped = destinationLength < maxLength;
 
         byte[] rented = ArrayPool<byte>.Shared.Rent(destinationLength);

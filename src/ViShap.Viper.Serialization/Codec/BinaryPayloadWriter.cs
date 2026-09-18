@@ -138,7 +138,7 @@ internal sealed class BinaryPayloadWriter
             throw new NotSupportedException("Keyed contract encoding requires a seekable payload stream.");
 
         var membersByKey = plan.MembersByKey!;
-        
+
         if (membersByKey.Count > _limits.MaxKeyedFields)
             throw new BinaryLimitException(
                 $"Keyed field count {membersByKey.Count} exceeds the configured maximum of {_limits.MaxKeyedFields}.");
@@ -176,42 +176,19 @@ internal sealed class BinaryPayloadWriter
         }
     }
 
-    internal int ValidateArrayLengthForWrite(int count, string what)
-    {
-        if (count < 0)
-            throw new BinaryFormatException($"{what} {count} must be non-negative.");
-        if (count > _limits.MaxArrayLength)
-            throw new BinaryLimitException(
-                $"{what} {count} exceeds the configured maximum of {_limits.MaxArrayLength}.");
-        _budget.ConsumeElements(count);
-        return count;
-    }
+    internal int ValidateArrayLengthForWrite(int count, string what) =>
+        ValidateCountForWrite(count, _limits.MaxArrayLength, what);
 
-    internal int ValidateCollectionLengthForWrite(int count, string what)
-    {
-        if (count < 0)
-            throw new BinaryFormatException($"{what} {count} must be non-negative.");
-        if (count > _limits.MaxCollectionLength)
-            throw new BinaryLimitException(
-                $"{what} {count} exceeds the configured maximum of {_limits.MaxCollectionLength}.");
-        _budget.ConsumeElements(count);
-        return count;
-    }
+    internal int ValidateCollectionLengthForWrite(int count, string what) =>
+        ValidateCountForWrite(count, _limits.MaxCollectionLength, what);
 
-    internal int ValidateDictionaryEntryCountForWrite(int count, string what)
-    {
-        if (count < 0)
-            throw new BinaryFormatException($"{what} {count} must be non-negative.");
-        if (count > _limits.MaxDictionaryEntries)
-            throw new BinaryLimitException(
-                $"{what} {count} exceeds the configured maximum of {_limits.MaxDictionaryEntries}.");
-        _budget.ConsumeElements(count);
-        return count;
-    }
+    internal int ValidateDictionaryEntryCountForWrite(int count, string what) =>
+        ValidateCountForWrite(count, _limits.MaxDictionaryEntries, what);
 
     internal long ValidateTotalArrayElementsForWrite(int[] lengths, string what)
     {
         ArgumentNullException.ThrowIfNull(lengths);
+        ArgumentException.ThrowIfNullOrWhiteSpace(what);
 
         long total = 1;
         foreach (int length in lengths)
@@ -237,24 +214,47 @@ internal sealed class BinaryPayloadWriter
         return total;
     }
 
-    internal int ValidateBitCountForWrite(int bitCount, string what)
-    {
-        if (bitCount < 0)
-            throw new BinaryFormatException($"{what} {bitCount} must be non-negative.");
-        if (bitCount > _limits.MaxByteBlobBytes * 8L)
-            throw new BinaryLimitException(
-                $"{what} {bitCount} exceeds the configured maximum of {_limits.MaxByteBlobBytes * 8L}.");
-        return bitCount;
-    }
+    internal int ValidateBitCountForWrite(int bitCount, string what) =>
+        ValidateBitCountForWrite(bitCount, _limits.MaxByteBlobBytes, what);
 
-    internal int ValidateByteBlobLengthForWrite(int byteLength, string what)
+    internal int ValidateByteBlobLengthForWrite(int byteLength, string what) =>
+        ValidateLengthForWrite(byteLength, _limits.MaxByteBlobBytes, what);
+
+    private int ValidateCountForWrite(int count, long maxCount, string what)
     {
-        if (byteLength < 0)
-            throw new BinaryFormatException($"{what} {byteLength} must be non-negative.");
-        if (byteLength > _limits.MaxByteBlobBytes)
+        ArgumentException.ThrowIfNullOrWhiteSpace(what);
+
+        if (count < 0)
+            throw new BinaryFormatException($"{what} {count} must be non-negative.");
+
+        if (count > maxCount)
             throw new BinaryLimitException(
-                $"{what} {byteLength} exceeds the configured maximum of {_limits.MaxByteBlobBytes}.");
-        return byteLength;
+                $"{what} {count} exceeds the configured maximum of {maxCount}.");
+
+        _budget.ConsumeElements(count);
+        return count;
+    }
+    
+    private int ValidateBitCountForWrite(int bitCount, long maxByteLength, string what)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(what);
+
+        long maxBitCount = checked(maxByteLength * 8L);
+        return ValidateLengthForWrite(bitCount, maxBitCount, what);
+    }
+    
+    private int ValidateLengthForWrite(int length, long maxLength, string what)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(what);
+
+        if (length < 0)
+            throw new BinaryFormatException($"{what} {length} must be non-negative.");
+
+        if (length > maxLength)
+            throw new BinaryLimitException(
+                $"{what} {length} exceeds the configured maximum of {maxLength}.");
+
+        return length;
     }
 
     internal void WriteString(string value)

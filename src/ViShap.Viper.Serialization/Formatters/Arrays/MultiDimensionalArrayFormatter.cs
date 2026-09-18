@@ -21,8 +21,8 @@ internal sealed class MultiDimensionalArrayFormatter : ITypeFormatter
         writer.WriteInt32(array.Rank);
         writer.ValidateTotalArrayElementsForWrite(lengths, "Multi-dimensional array");
 
-        for (int d = 0; d < lengths.Length; d++)
-            writer.WriteInt32(lengths[d]);
+        foreach (var d in lengths)
+            writer.WriteInt32(d);
 
         foreach (var item in array)
             writer.WriteElement(item, elementType);

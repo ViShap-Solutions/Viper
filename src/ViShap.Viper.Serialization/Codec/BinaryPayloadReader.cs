@@ -194,7 +194,7 @@ internal sealed class BinaryPayloadReader
 
         if (_preserveReferences)
         {
-                byte marker = _reader.ReadByte();
+            byte marker = _reader.ReadByte();
             int id = _reader.ReadInt32();
             ValidateReferenceMarker(marker, id);
 
