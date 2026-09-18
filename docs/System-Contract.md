@@ -155,8 +155,7 @@ Every public type and member carries XML documentation, and the projects build w
 The public `BinarySerializer` surface includes:
 
 ```csharp
-BinarySerializer();
-BinarySerializer(BinarySerializerOptions? options);
+BinarySerializer(BinarySerializerOptions? options = null);
 
 void Serialize<T>(Stream destination, T data);
 byte[] Serialize<T>(T data);
@@ -178,7 +177,10 @@ Exact overloads exposed by the compiled public assembly are authoritative.
 Caller-provided streams are never disposed, never rewound, and are read only as far as the payload
 extends.
 
-Empty `byte[]` behavior is explicit API behavior and must remain covered by QA; it must not be inferred from internal parser behavior.
+An **empty `byte[]` is not a payload**: no wire version encodes a value in zero bytes, not even a
+null root, which costs one byte. Every byte-array read overload therefore rejects it with
+`BinaryFormatException` before any routing happens, and the existing instance or `ref` target is left
+untouched. A zero-length array is never silently read as `default(T)`.
 
 Populate-in-place semantics:
 
@@ -188,6 +190,41 @@ Populate-in-place semantics:
 - `Deserialize<T>(…, ref T existingInstance)` reads the root exactly as the writer framed it and
   assigns the result. A struct is copied by value, so this is observationally identical to populating
   in place, and it stays correct under every framing the writer may add.
+
+## 3.2 Stream extensions
+
+`StreamExtensions` builds a serializer per call, for occasional use and for payloads that describe
+their own configuration. The surface is:
+
+```csharp
+void Serialize<T>(this Stream destination, T data, BinarySerializerOptions? options = null);
+
+T? Deserialize<T>(this Stream source, BinarySerializerOptions options);
+T? Deserialize<T>(this Stream source, SerializationLimits? limits = null);
+T? Deserialize<T>(this Stream source, byte[]? key, SerializationLimits? limits = null);
+T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null);
+
+T? Deserialize<T>(this Stream source, T existingInstance, BinarySerializerOptions options) where T : class;
+T? Deserialize<T>(this Stream source, T existingInstance, SerializationLimits? limits = null) where T : class;
+T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : class;
+T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : class;
+
+void Deserialize<T>(this Stream source, ref T existingInstance, BinarySerializerOptions options) where T : struct;
+void Deserialize<T>(this Stream source, ref T existingInstance, SerializationLimits? limits = null) where T : struct;
+void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : struct;
+void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : struct;
+```
+
+The overloads that take a key, a key resolver, or neither configure themselves from the payload's
+header through `BinarySerializerOptions.FromStream` and therefore require a seekable stream.
+
+**The header supplies algorithms, never policy.** It says how the payload was wrapped — compression,
+checksum, encryption, key id — and nothing it contains can raise a resource ceiling. The limits
+applied are the caller's `limits` argument, or `SerializationLimits.Default` when it is omitted. An
+application reading untrusted data through these overloads passes its own policy exactly as it would
+through `BinarySerializerOptions`.
+
+Every overload leaves the caller's stream open.
 
 ---
 
@@ -229,10 +266,16 @@ determined by the options that were built, not by global state another component
 
 `Build()` rejects contradictory configuration with `BinaryConfigurationException`:
 
+- a write version that is not a supported wire format;
 - `RequireEncryption` without an encryption algorithm;
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
 - an encryption algorithm without key material;
 - `RequireChecksum` without a checksum algorithm.
+
+`WithVersion(n)` selects the format used for **writing** only, and is validated here rather than at
+the first `Serialize`. `AllowV0Fallback` is the separate, **read-side** choice of whether a stream
+without the magic number may be read as V0; writing V0 does not require it, and enabling it does not
+change what is written.
 
 ## 4.2 Default configuration
 
@@ -361,6 +404,10 @@ Limits the number of fields in **one** keyed object.
 
 It is a structural field-count limit, not a replacement for the cumulative element budget.
 
+It is evaluated **before** `MaxTotalKeyedFields`, on both directions, so an object that breaches both
+at once reports the per-object ceiling. A caller therefore always learns which limit the payload
+actually broke.
+
 ## 5.9a `MaxTotalKeyedFields`
 
 Cumulative per-operation count of keyed fields, including unknown fields that are skipped. It bounds
@@ -417,9 +464,14 @@ There are two mechanisms, in three types.
 > Caps the bytes this operation reads from a caller-owned stream.
 
 - counts from zero regardless of the caller stream's absolute position;
-- exposes `RemainingBytes`, so a declared length can be rejected before it drives an allocation;
-- classifies an over-read as `BinaryLimitException`, because exceeding a configured ceiling is a
-  limit violation and not a truncated payload;
+- exposes `RemainingBytes` — the lesser of the remaining budget and the bytes the source can still
+  physically deliver — so a declared length is rejected before it drives an allocation. A chain of
+  meters propagates the physical truth, because each one answers for itself;
+- classifies a declaration it cannot satisfy by which bound it broke: beyond the configured ceiling
+  is `BinaryLimitException`, while within the ceiling but beyond the remaining bytes means the
+  payload is shorter than it claims, which is `BinaryFormatException`;
+- bounds a *read* by the budget alone, so an ordinary short read stays a truncation for the caller
+  to report rather than being reclassified as a limit violation;
 - wraps underlying `IOException` as `BinaryStreamException`;
 - never disposes the caller's stream.
 
@@ -657,6 +709,9 @@ V0 must reject `[BinaryContract]` / `[BinaryKey]` operations with `BinaryFormatN
 
 V0 and V1 must remain distinct wire formats. V1-specific behavior must not be accidentally required to parse valid V0 payloads.
 
+Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether a stream
+without the magic number may be *read* as V0, so the two choices are independent in both directions.
+
 ## 10.3 Routing
 
 Format routing first identifies the version from a seekable source.
@@ -700,6 +755,13 @@ Encryption == None   → OnDiskLength == CompressedLength
 Lengths must be non-negative and within their corresponding phase limits.
 
 Checksum length must fit the header representation.
+
+Each header string — `CustomCompressionName`, `CustomChecksumName`, `CustomEncryptionName` and
+`KeyId` — is limited to **256 UTF-8 bytes**. The ceiling is fixed by the format, not configured:
+these fields name an algorithm or select a key, so `MaxStringBytes`, which bounds payload data, does
+not apply to them. A declared header string above the ceiling is `BinaryFormatException`, because a
+fixed format bound describes malformed input rather than a policy breach; a configured value too
+large to write is `BinaryConfigurationException`.
 
 Header truncation is `BinaryFormatException`.
 
@@ -1150,12 +1212,12 @@ length; reading one consumes it exactly, and trailing bytes inside a field are
 magic            int32   0x52455342
 version          int32   1
 compression      byte    CompressionAlgorithm
-customCompression        optional string
+customCompression        optional string, <= 256 UTF-8 bytes
 checksum         byte    ChecksumAlgorithm
-customChecksum           optional string
+customChecksum           optional string, <= 256 UTF-8 bytes
 encryption       byte    EncryptionAlgorithm
-customEncryption         optional string
-keyId                    optional string
+customEncryption         optional string, <= 256 UTF-8 bytes
+keyId                    optional string, <= 256 UTF-8 bytes
 preserveReferences bool
 uncompressedLength int32
 compressedLength   int32
@@ -1173,6 +1235,7 @@ Header invariants, each `BinaryFormatException` unless noted:
 - the magic must match, otherwise the stream is not a Viper payload;
 - an unknown version is `BinaryFormatNotSupportedException`;
 - an undefined algorithm identifier is `BinaryFormatNotSupportedException`;
+- every optional header string is at most 256 UTF-8 bytes;
 - all three lengths are non-negative and within their phase limits, otherwise `BinaryLimitException`;
 - `Compression = None` implies `compressedLength = uncompressedLength`;
 - `Encryption = None` implies `onDiskLength = compressedLength`;
@@ -1248,6 +1311,11 @@ Notes that belong to the contract:
   not their iteration order.
 - **`PriorityQueue<TElement,TPriority>`** round trips its unordered element/priority pairs, so
   dequeue order is reconstructed from the priorities rather than copied.
+- **`Lazy<T>`** travels as its value, so writing one **materializes** it: an unevaluated instance has
+  its factory run, and an exception from that factory is the caller's own and propagates unchanged
+  rather than being wrapped. Reading produces a `Lazy<T>` that already holds the value, so it never
+  fails and never runs a factory, though `IsValueCreated` is `false` until the value is first asked
+  for.
 - **Delegates** are rejected with `BinaryTypeException` as a root value, a member, or an element. Use
   `[BinaryIgnore]` on the member that holds one.
 - **Types without a parameterless constructor**, including interfaces and abstract classes without a
@@ -1332,6 +1400,6 @@ A box is checked only when source and a test prove it.
 - [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test.
 - [x] Round-trip corpus covers every supported type family in V0 and V1.
 - [x] The byte-level wire format of §22 is pinned by tests.
-- [ ] `QA-Plan.md` mandatory cases pass (plan still to be realigned with §2).
+- [ ] `QA-Plan.md` mandatory cases pass (plan realigned; execution staged M0–M8).
 - [ ] `Benchmark-Plan.md` mandatory baseline is captured after the rework.
 - [ ] Release artifact includes reproducible environment/version metadata.

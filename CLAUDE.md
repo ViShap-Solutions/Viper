@@ -31,15 +31,21 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
   the same commit when behavior changes.
 - `docs/Architecture-Audit.md` — why the architecture looks like this: the audit that produced it,
   the alternatives that were rejected and why, the invariants, and the implementation status.
-- `docs/QA-Plan.md`, `docs/Benchmark-Plan.md` — **not yet realigned** with the reworked architecture.
-  Treat them as stale until they are.
+- `docs/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
+  staged M0–M8; §30 records confirmed defects and the resolved contract questions. The method for
+  working it lives in the `viper_tester` skill, not in the plan.
+- `docs/Benchmark-Plan.md` — **not yet realigned** with the reworked architecture. Treat it as stale.
 - `docs/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
 
 Current state: the architecture rework described in the audit is complete and `src/` matches the
-contract. 94 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
+contract. 148 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
 so an undocumented public member breaks the build (CS1591).
+
+The test project is mid-migration to the layout in `QA-Plan.md` §2: `Api/`, `Format/`, `Limits/`,
+`RoundTrip/`, `Streams/` and `Hostile/` follow the plan, while `API/`, `Correctness/` and `Security/`
+still hold the hand-written suite that stage M0 re-homes or deletes.
 
 ## Projects
 
@@ -129,3 +135,9 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
 - Any change to what goes on the wire (formatter encoding, header fields, member ordering, reference framing) is a compatibility break unless it goes behind a new format version or a keyed contract.
 - Exception constructors keep the inner exception on the same line as the message, never on its own line.
 - Do not add `catch (BinarySerializerException) { throw; }` unless the catch performs real cleanup.
+- Comments describe what the code does, for the NuGet consumer reading XML docs on hover or the next
+  engineer reading the file. Nothing in `src/` or `tests/` addresses the reader personally or records
+  history — no "note:", no "before the fix", no audit or refactoring narrative. Findings and the
+  reasoning behind a decision belong in `docs/`.
+- The repository owner makes every commit. Leave finished work in the working tree and report the
+  changed paths.
