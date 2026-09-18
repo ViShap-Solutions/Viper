@@ -67,7 +67,7 @@ Work proceeds stage by stage. A stage closes when every one of its items is `[x]
 
 | Stage | Content | Suites | Gate |
 |---|---|---|---|
-| **M0** | Foundation | §5 baseline reconciliation, §29 utilities | Layout exists, helpers tested, every legacy test re-homed or deleted |
+| **M0** | Foundation | §5 baseline reconciliation, §29 utilities | Layout exists, helpers tested, no test file outside it; the two API smoke files survive until M1 replaces them |
 | **M1** | Public surface | §6 API, §7 options, §8 stream extensions | Every public overload of §3 exercised; §3 surface confirmed complete |
 | **M2** | Failure taxonomy | §9 exceptions, §10 configuration validation | Every branch of the §8 hierarchy pinned to a cause |
 | **M3** | Format | §11 header, §12 envelope/canonicity, §13 V0 and routing, §14 wire format | A conforming reader could be written from the tests alone |
@@ -150,14 +150,14 @@ The 94 tests present today were written by hand as smoke checks, before this pla
 
 - [ ] BASE-01 — `API/BinarySerializerApiTests.cs` (8 tests): entry-point smoke checks with no boundary or failure assertions → superseded by §6 and §31; delete after §6 is green
 - [ ] BASE-02 — `API/StreamExtensionsApiTests.cs` (13 tests): same → superseded by §8; delete after §8 is green
-- [ ] BASE-03 — `Correctness/RoundTripCorpusTests.cs` (17 tests): family-level round trips → split into the per-family suites of §19; keep the assertions that already check runtime type and ordering
-- [ ] BASE-04 — `Correctness/TypeContractTests.cs` (17 tests): contract, polymorphism, reference and populate-in-place behavior → split into §15, §17, §18
-- [ ] BASE-05 — `Correctness/WireFormatTests.cs` (9 tests): byte-level pins → move to §14, extend to every row of §22
-- [ ] BASE-06 — `Security/CryptoContractTests.cs` (14 tests): crypto and compression contract → split into §23 and §25
-- [ ] BASE-07 — `Security/HostileInputTests.cs` (13 tests): hostile corpus → split into §20, §21, §22
-- [ ] BASE-08 — `Fixtures/Basic.cs`, `Fixtures/Wire.cs` → become the shared fixture base of §29; `Wire.Frame` gains the parameters the §11 header suite needs
-- [ ] BASE-09 — no test file remains outside the §2 layout (`Streams/` and `Hostile/` already started by the D1 fix)
-- [ ] BASE-10 — every surviving test names the checkpoint it proves
+- [x] BASE-03 — `Correctness/RoundTripCorpusTests.cs` (17 tests): family-level round trips → split into the per-family suites of §19; keep the assertions that already check runtime type and ordering — `RoundTrip/ScalarTests, RoundTrip/ContainerTests`
+- [x] BASE-04 — `Correctness/TypeContractTests.cs` (17 tests): contract, polymorphism, reference and populate-in-place behavior → split into §15, §17, §18 — `Contracts/, References/, Api/ExistingInstanceTests`
+- [x] BASE-05 — `Correctness/WireFormatTests.cs` (9 tests): byte-level pins → move to §14, extend to every row of §22 — `Format/WireFormatTests`
+- [x] BASE-06 — `Security/CryptoContractTests.cs` (14 tests): crypto and compression contract → split into §23 and §25 — `Algorithms/CompressionTests, Algorithms/EncryptionTests`
+- [x] BASE-07 — `Security/HostileInputTests.cs` (13 tests): hostile corpus → split into §20, §21, §22 — `Limits/, Streams/, Hostile/`
+- [x] BASE-08 — `Fixtures/Basic.cs`, `Fixtures/Wire.cs` → become the shared fixture base of §29; `Wire.Frame` gains the parameters the §11 header suite needs — `Fixtures/AssertEx, Wire, Mutate, Streams`
+- [x] BASE-09 — no test file remains outside the §2 layout (`Streams/` and `Hostile/` already started by the D1 fix) — `Correctness/ and Security/ removed`
+- [x] BASE-10 — every surviving test names the checkpoint it proves — `every suite names its checkpoints`
 
 ---
 
@@ -173,10 +173,10 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] API-06 — `Deserialize<T>(byte[])` on an empty array throws `BinaryFormatException` *(§3)* — `Api/EmptyPayloadTests`
 - [x] API-07 — `Deserialize<T>(byte[], T existing)` on an empty array throws and leaves the instance untouched *(§3)* — `Api/EmptyPayloadTests`
 - [x] API-08 — `Deserialize<T>(byte[], ref T existing)` on an empty array throws and leaves the value untouched *(§3)* — `Api/EmptyPayloadTests`
-- [ ] API-09 — `Deserialize<T>(Stream, T existing)` populates and returns the same instance *(§3)*
-- [ ] API-10 — `Deserialize<T>(…, T existing)` on a formatter-claimed type throws `BinaryTypeException` *(§3)*
-- [ ] API-11 — `Deserialize<T>(…, ref T existing)` restores every member of a struct, including a primitive root *(§3, C01)*
-- [ ] API-12 — `Deserialize<T>(…, ref T existing)` is correct under `PreserveReferences` framing *(§3, A02)*
+- [x] API-09 — `Deserialize<T>(Stream, T existing)` populates and returns the same instance *(§3)* — `Api/ExistingInstanceTests`
+- [x] API-10 — `Deserialize<T>(…, T existing)` on a formatter-claimed type throws `BinaryTypeException` *(§3)* — `Api/ExistingInstanceTests`
+- [x] API-11 — `Deserialize<T>(…, ref T existing)` restores every member of a struct, including a primitive root *(§3, C01)* — `Api/ExistingInstanceTests`
+- [x] API-12 — `Deserialize<T>(…, ref T existing)` is correct under `PreserveReferences` framing *(§3, A02)* — `Api/ExistingInstanceTests`
 - [ ] API-13 — null `destination`, `source`, `bytes` or `existingInstance` throw `ArgumentNullException` *(§8.10)*
 - [ ] API-14 — a caller stream is never disposed by serialize or deserialize *(§20)*
 - [ ] API-15 — a caller stream is never rewound; serialization appends at the current position *(§3.1, §20)*
@@ -273,7 +273,7 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 - [ ] CFG-02 — every limit negative → `BinaryConfigurationException`, one test per limit *(§5)*
 - [ ] CFG-03 — the message names the offending limit *(§5)*
 - [ ] CFG-04 — a valid positive policy builds *(§5)*
-- [ ] CFG-05 — `RequireEncryption` without an encryption algorithm → `BinaryConfigurationException` *(§4.1)*
+- [x] CFG-05 — `RequireEncryption` without an encryption algorithm → `BinaryConfigurationException` *(§4.1)* — `Algorithms/EncryptionTests`
 - [ ] CFG-06 — `RequireEncryption` with an algorithm reporting `AuthenticatesAssociatedData == false` → `BinaryConfigurationException` *(§4.1, §13.1)*
 - [ ] CFG-07 — an encryption algorithm without key material → `BinaryConfigurationException` *(§4.1)*
 - [ ] CFG-08 — `RequireChecksum` without a checksum algorithm → `BinaryConfigurationException` *(§4.1)*
@@ -286,7 +286,7 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 
 Field order, types and invariants per §22.6.
 
-- [ ] HDR-01 — a written header has the documented field order and byte layout *(§22.6)*
+- [x] HDR-01 — a written header has the documented field order and byte layout *(§22.6)* — `Format/WireFormatTests`
 - [ ] HDR-02 — magic mismatch → `BinaryFormatException` *(§22.6)*
 - [ ] HDR-03 — an unknown version → `BinaryFormatNotSupportedException` *(§22.6)*
 - [ ] HDR-04 — truncation at every prefix length of the fixed header → `BinaryFormatException` *(§11)*
@@ -312,31 +312,31 @@ Field order, types and invariants per §22.6.
 
 - [ ] ENV-01 — write order is serialize → checksum raw → compress → AAD → encrypt → header *(§22.6)*
 - [ ] ENV-02 — read reverses that order *(§22.6)*
-- [ ] ENV-03 — trailing bytes after the root value → `BinaryFormatException` *(§10.1)*
+- [x] ENV-03 — trailing bytes after the root value → `BinaryFormatException` *(§10.1)* — `Hostile/MalformedPayloadTests`
 - [ ] ENV-04 — a payload shorter than the root value demands → `BinaryFormatException` *(§10.1)*
 - [ ] ENV-05 — extra bytes **after** the declared `OnDiskLength` in the source stream are not consumed and not an error *(§3.1, §20)*
 - [ ] ENV-06 — a decompressed payload shorter than declared → rejected *(§12)*
 - [ ] ENV-07 — a decompressed payload longer than declared → rejected *(§12)*
 - [ ] ENV-08 — the declared plaintext length never exceeds the ciphertext delivered *(§13)*
-- [ ] ENV-09 — `MaxWireBytes` is charged relative to the operation's start position on write *(§7.2)*
+- [x] ENV-09 — `MaxWireBytes` is charged relative to the operation's start position on write *(§7.2)* — `Streams/MeteredWriteStreamTests`
 - [ ] ENV-10 — `MaxWireBytes` is charged from zero on read regardless of the source's absolute position *(§7.1)*
 
 ---
 
 # 13. V0 and routing — `Format/`
 
-- [ ] V0-01 — V0 writes a headerless payload with no magic *(§22.8)*
-- [ ] V0-02 — V0 round-trips positional data *(§10.2)*
-- [ ] V0-03 — a `[BinaryContract]` type on V0 write → `BinaryFormatNotSupportedException` *(§10.2)*
+- [x] V0-01 — V0 writes a headerless payload with no magic *(§22.8)* — `Format/WireFormatTests`
+- [x] V0-02 — V0 round-trips positional data *(§10.2)* — `Format/V0FormatTests`
+- [x] V0-03 — a `[BinaryContract]` type on V0 write → `BinaryFormatNotSupportedException` *(§10.2)* — `Format/V0FormatTests`
 - [ ] V0-04 — a `[BinaryContract]` type on V0 read → `BinaryFormatNotSupportedException` *(§10.2)*
-- [ ] V0-05 — V0 ignores `PreserveReferences`; a cycle is a `BinaryTypeException`, not a reference frame *(§10.2, §16)*
-- [ ] V0-06 — V0 may be embedded: bytes after the payload are neither required nor rejected *(§22.8)*
-- [ ] V0-07 — `MaxPayloadBytes` applies to V0 on read *(§7.1, S05)*
+- [x] V0-05 — V0 ignores `PreserveReferences`; a cycle is a `BinaryTypeException`, not a reference frame *(§10.2, §16)* — `Format/V0FormatTests`
+- [x] V0-06 — V0 may be embedded: bytes after the payload are neither required nor rejected *(§22.8)* — `Format/V0FormatTests`
+- [x] V0-07 — `MaxPayloadBytes` applies to V0 on read *(§7.1, S05)* — `Limits/BudgetTests`
 - [ ] V0-08 — `MaxPayloadBytes` applies to V0 on write *(§7.2)*
 - [ ] V0-09 — V0 truncation → `BinaryFormatException` *(§8.2)*
-- [ ] V0-10 — routing selects V1 when the magic and version are recognized *(§10.3)*
+- [x] V0-10 — routing selects V1 when the magic and version are recognized *(§10.3)* — `Format/V0FormatTests`
 - [x] V0-11 — routing selects V0 only when the read fallback is enabled; writing V0 does not enable it *(§10.2, §10.3)* — `Api/WriteVersionTests`
-- [ ] V0-12 — no magic with the fallback disabled → `BinaryFormatException` *(§10.3)*
+- [x] V0-12 — no magic with the fallback disabled → `BinaryFormatException` *(§10.3)* — `Format/V0FormatTests`
 - [ ] V0-13 — a recognized but unregistered version → `BinaryFormatNotSupportedException` *(§10.3)*
 - [ ] V0-14 — routing on a non-seekable stream → `NotSupportedException` *(§10.3)*
 - [ ] V0-15 — the version probe restores the stream position before dispatch *(§10.3)*
@@ -354,7 +354,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 - [ ] WF-01 — each fixed-size primitive encoding of §22.1, little-endian, exact width *(§22.1)*
 - [ ] WF-02 — `decimal` is four `int32` in `GetBits` order *(§22.1)*
-- [ ] WF-03 — a string is a 7-bit length prefix then UTF-8 bytes *(§22.1)*
+- [x] WF-03 — a string is a 7-bit length prefix then UTF-8 bytes *(§22.1)* — `Format/WireFormatTests`
 - [ ] WF-04 — a blob is a 7-bit length prefix then bytes *(§22.1)*
 - [ ] WF-05 — a count is a raw `int32` *(§22.1)*
 - [ ] WF-06 — an optional string is a present flag then the string *(§22.1)*
@@ -368,12 +368,12 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 ## 14.2 Shapes
 
-- [ ] WF-14 — a sequence is a count then framed elements *(§22.3)*
-- [ ] WF-15 — a map is an entry count then framed key/value pairs *(§22.3)*
-- [ ] WF-16 — a positional object writes members in plan order: `[BinaryOrder]` ascending first, then ordinal name order *(§22.3)*
-- [ ] WF-17 — a keyed object is a 7-bit field count then `key, int32 length, payload` per field *(§22.3)*
+- [x] WF-14 — a sequence is a count then framed elements *(§22.3)* — `Format/WireFormatTests`
+- [x] WF-15 — a map is an entry count then framed key/value pairs *(§22.3)* — `Format/WireFormatTests`
+- [x] WF-16 — a positional object writes members in plan order: `[BinaryOrder]` ascending first, then ordinal name order *(§22.3)* — `Format/WireFormatTests`
+- [x] WF-17 — a keyed object is a 7-bit field count then `key, int32 length, payload` per field *(§22.3)* — `Format/WireFormatTests`
 - [ ] WF-18 — keyed fields are written in ascending key order *(§22.3)*
-- [ ] WF-19 — a union writes one tag byte before the member layout *(§22.3)*
+- [x] WF-19 — a union writes one tag byte before the member layout *(§22.3)* — `Format/WireFormatTests`
 - [ ] WF-20 — a field payload is exactly its declared length; trailing bytes inside a field → `BinaryFormatException` *(§22.3)*
 
 ## 14.3 Scalar encodings
@@ -410,17 +410,17 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [ ] CTR-09 — unordered members fall back to ordinal name order, deterministically *(§14.1)*
 - [ ] CTR-10 — duplicate `[BinaryOrder]` values → `BinaryTypeException` *(§14.1)*
 - [ ] CTR-11 — `[BinaryKey]` without `[BinaryContract]` → `BinaryTypeException` *(§14.1)*
-- [ ] CTR-12 — `[BinaryInclude]` together with `[BinaryIgnore]` → `BinaryTypeException` *(§14.1)*
+- [x] CTR-12 — `[BinaryInclude]` together with `[BinaryIgnore]` → `BinaryTypeException` *(§14.1)* — `Contracts/AttributeContractTests`
 - [ ] CTR-13 — a complete keyed contract round-trips *(§14.2)*
 - [ ] CTR-14 — a keyed contract member with neither `[BinaryKey]` nor `[BinaryIgnore]` → `BinaryTypeException` *(§14.2)*
 - [ ] CTR-15 — `[BinaryContract]` with `[BinaryInclude]` → `BinaryTypeException` *(§14.2)*
 - [ ] CTR-16 — `[BinaryContract]` with `[BinaryOrder]` → `BinaryTypeException` *(§14.2)*
 - [ ] CTR-17 — duplicate `[BinaryKey]` values → `BinaryTypeException` *(§14.2)*
-- [ ] CTR-18 — `[BinaryKey]` together with `[BinaryIgnore]` → `BinaryTypeException`, and the member never reaches the payload *(§14.2, C05)*
+- [x] CTR-18 — `[BinaryKey]` together with `[BinaryIgnore]` → `BinaryTypeException`, and the member never reaches the payload *(§14.2, C05)* — `Contracts/AttributeContractTests`
 - [ ] CTR-19 — every contradiction is rejected when the contract is built, not on first field write *(§14.2)*
 - [ ] CTR-20 — a member-encoded type without a parameterless constructor → `BinaryTypeException` on read *(§23)*
-- [ ] CTR-21 — an interface or abstract class without a union map → `BinaryTypeException` on read *(§23)*
-- [ ] CTR-22 — a delegate as root, member or element → `BinaryTypeException` *(§23)*
+- [x] CTR-21 — an interface or abstract class without a union map → `BinaryTypeException` on read *(§23)* — `Contracts/AttributeContractTests`
+- [x] CTR-22 — a delegate as root, member or element → `BinaryTypeException` *(§14.1, §23)* — `Contracts/DelegateMemberTests`
 - [ ] CTR-23 — an unsupported type is `BinaryTypeException` at first use, never silently member-encoded into nothing *(§23)*
 - [ ] CTR-24 — `FormatterRegistry.Resolve` returning `null` means member encoding; no catch-all shadows a specific formatter *(L2, §2.4)*
 - [ ] CTR-25 — a struct containing a reference member round-trips *(§23)*
@@ -430,9 +430,9 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 # 16. Keyed schema evolution — `Contracts/`
 
-- [ ] KEY-01 — the same schema round-trips *(§14.2)*
-- [ ] KEY-02 — a member removed from the reader's schema is skipped by declared length *(§14.2)*
-- [ ] KEY-03 — a member absent from the payload keeps its CLR default *(§14.2)*
+- [x] KEY-01 — the same schema round-trips *(§14.2)* — `Contracts/KeyedContractTests`
+- [x] KEY-02 — a member removed from the reader's schema is skipped by declared length *(§14.2)* — `Contracts/KeyedContractTests`
+- [x] KEY-03 — a member absent from the payload keeps its CLR default *(§14.2)* — `Contracts/KeyedContractTests`
 - [ ] KEY-04 — an unknown key between two known keys is skipped without disturbing them *(§14.2)*
 - [ ] KEY-05 — an unknown field whose payload is a nested structure is skipped whole *(§14.2, §7.3)*
 - [ ] KEY-06 — an unknown field is skipped in bounded chunks, never copied into one attacker-sized array *(§7.3)*
@@ -446,23 +446,23 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [ ] KEY-14 — a polymorphic member inside a keyed field round-trips *(§15)*
 - [ ] KEY-15 — a cycle that crosses a keyed field boundary resolves through the ancestor chain *(§16.2)*
 - [ ] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)*
-- [ ] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)*
-- [ ] KEY-18 — keyed encoding requires V1; V0 rejects it *(§10.2)*
+- [x] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)* — `Contracts/KeyedContractTests`
+- [x] KEY-18 — keyed encoding requires V1; V0 rejects it *(§10.2)* — `Contracts/KeyedContractTests`
 
 ---
 
 # 17. Polymorphism — `Contracts/`
 
-- [ ] PM-01 — a registered derived type round-trips with its runtime type intact *(§15)*
+- [x] PM-01 — a registered derived type round-trips with its runtime type intact *(§15)* — `Contracts/PolymorphismTests`
 - [ ] PM-02 — several derived types under one base are distinguished by tag *(§15)*
-- [ ] PM-03 — a union declared on an interface resolves the implementation *(§15)*
-- [ ] PM-04 — a union inside a collection element *(§15)*
-- [ ] PM-05 — a union inside a dictionary value *(§15)*
+- [x] PM-03 — a union declared on an interface resolves the implementation *(§15)* — `Contracts/PolymorphismTests`
+- [x] PM-04 — a union inside a collection element *(§15)* — `Contracts/PolymorphismTests`
+- [x] PM-05 — a union inside a dictionary value *(§15)* — `Contracts/PolymorphismTests`
 - [ ] PM-06 — a union inside a keyed member *(§15)*
 - [ ] PM-07 — an unknown discriminator on read → `BinaryTypeException` *(§15)*
-- [ ] PM-08 — a runtime type differing from the declared type with no union map → `BinaryTypeException` **on write** *(§15, C04)*
-- [ ] PM-09 — a value written through `object` without a map → `BinaryTypeException` *(§15, A03)*
-- [ ] PM-10 — a derived value inside a collection without a map → `BinaryTypeException` on write *(§15)*
+- [x] PM-08 — a runtime type differing from the declared type with no union map → `BinaryTypeException` **on write** *(§15, C04)* — `Contracts/PolymorphismTests`
+- [x] PM-09 — a value written through `object` without a map → `BinaryTypeException` *(§15, A03)* — `Contracts/PolymorphismTests`
+- [x] PM-10 — a derived value inside a collection without a map → `BinaryTypeException` on write *(§15)* — `Contracts/PolymorphismTests`
 - [ ] PM-11 — duplicate union tags → `BinaryTypeException` *(§15)*
 - [ ] PM-12 — a tag outside the byte range → `BinaryTypeException` *(§15)*
 - [ ] PM-13 — a derived type not assignable to the declared base → `BinaryTypeException` *(§15)*
@@ -474,13 +474,13 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 # 18. References and cycles — `References/`
 
-- [ ] REF-01 — with `PreserveReferences`, a shared object is written once and restored as one instance *(§16)*
-- [ ] REF-02 — without it, a shared object is duplicated into distinct instances *(§16)*
-- [ ] REF-03 — identity covers member-encoded objects *(§16)*
-- [ ] REF-04 — identity covers arrays, collections and dictionaries *(§16, C02)*
+- [x] REF-01 — with `PreserveReferences`, a shared object is written once and restored as one instance *(§16)* — `References/ReferenceIdentityTests`
+- [x] REF-02 — without it, a shared object is duplicated into distinct instances *(§16)* — `References/ReferenceIdentityTests`
+- [x] REF-03 — identity covers member-encoded objects *(§16)* — `References/ReferenceIdentityTests`
+- [x] REF-04 — identity covers arrays, collections and dictionaries *(§16, C02)* — `References/ReferenceIdentityTests`
 - [ ] REF-05 — value types are never framed, boxed or otherwise *(§16)*
 - [ ] REF-06 — strings are never framed *(§16)*
-- [ ] REF-07 — identity is reference identity; an overridden `Equals` does not merge two distinct objects *(§16)*
+- [x] REF-07 — identity is reference identity; an overridden `Equals` does not merge two distinct objects *(§16)* — `References/ReferenceIdentityTests`
 - [ ] REF-08 — the header's `PreserveReferences` flag, not local configuration, drives payload interpretation *(§16, §2.2)*
 - [ ] REF-09 — a mutable container is registered **before** its children, so a cycle through it closes *(§16.1)*
 - [ ] REF-10 — an array, immutable or frozen collection, or tuple is registered **after** completion *(§16.1)*
@@ -490,17 +490,17 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [ ] REF-14 — an invalid marker byte → `BinaryFormatException` *(§16)*
 - [ ] REF-15 — ids are visible only along the ancestor chain *(§16.2)*
 - [ ] REF-16 — a back reference is never emitted between sibling keyed fields *(§16.2)*
-- [ ] REF-17 — a repeated reference does not consume a second graph node *(§5.8)*
-- [ ] CYC-01 — a direct self-reference round-trips under `PreserveReferences` *(§16)*
-- [ ] CYC-02 — a two-object cycle round-trips *(§16)*
-- [ ] CYC-03 — a cycle through a collection round-trips *(§16.1)*
+- [x] REF-17 — a repeated reference does not consume a second graph node *(§5.8)* — `Limits/DepthAndNodeTests`
+- [x] CYC-01 — a direct self-reference round-trips under `PreserveReferences` *(§16)* — `References/ReferenceIdentityTests`
+- [x] CYC-02 — a two-object cycle round-trips *(§16)* — `References/ReferenceIdentityTests`
+- [x] CYC-03 — a cycle through a collection round-trips *(§16.1)* — `References/ReferenceIdentityTests`
 - [ ] CYC-04 — a cycle through a dictionary round-trips *(§16.1)*
 - [ ] CYC-05 — a cycle through a polymorphic member round-trips *(§15, §16)*
 - [ ] CYC-06 — a cycle through a struct wrapper behaves per §16 *(§16)*
-- [ ] CYC-07 — a shared DAG without a cycle succeeds *(§16)*
-- [ ] CYC-08 — equal-but-distinct objects stay distinct *(§16)*
-- [ ] CYC-09 — a cycle without `PreserveReferences` → `BinaryTypeException` on write *(§16)*
-- [ ] CYC-10 — deep nesting fails as `BinaryLimitException`; no test may risk a stack overflow *(§5.1)*
+- [x] CYC-07 — a shared DAG without a cycle succeeds *(§16)* — `References/ReferenceIdentityTests`
+- [x] CYC-08 — equal-but-distinct objects stay distinct *(§16)* — `References/ReferenceIdentityTests`
+- [x] CYC-09 — a cycle without `PreserveReferences` → `BinaryTypeException` on write *(§16)* — `References/ReferenceIdentityTests`
+- [x] CYC-10 — deep nesting fails as `BinaryLimitException`; no test may risk a stack overflow *(§5.1)* — `Limits/DepthAndNodeTests`
 
 ---
 
@@ -565,7 +565,7 @@ Every numeric component is asserted individually.
 - [ ] RT-71 `ConcurrentBag<>` · [ ] RT-72 `ConcurrentQueue<>` · [ ] RT-73 `ConcurrentStack<>`
 - [ ] RT-74 `Dictionary<,>` · [ ] RT-75 `SortedDictionary<,>` · [ ] RT-76 `SortedList<,>`
 - [ ] RT-77 `ConcurrentDictionary<,>` · [ ] RT-78 `ReadOnlyDictionary<,>`
-- [ ] RT-79 `PriorityQueue<,>`: entries round-trip and dequeue order is reconstructed from priorities *(§23)*
+- [x] RT-79 `PriorityQueue<,>`: entries round-trip and dequeue order is reconstructed from priorities *(§23)* — `RoundTrip/ContainerTests`
 - [ ] RT-80 `ImmutableList<>` · [ ] RT-81 `ImmutableHashSet<>` · [ ] RT-82 `ImmutableSortedSet<>`
 - [ ] RT-83 `ImmutableStack<>` · [ ] RT-84 `ImmutableQueue<>`
 - [ ] RT-85 `ImmutableDictionary<,>` · [ ] RT-86 `ImmutableSortedDictionary<,>`
@@ -573,10 +573,10 @@ Every numeric component is asserted individually.
 
 Cross-cutting:
 
-- [ ] RT-C01 — every container round-trips empty *(§23)*
-- [ ] RT-C02 — stack ordering is preserved; elements are written bottom-up for `Stack`, `ConcurrentStack`, `ImmutableStack` *(§23)*
-- [ ] RT-C03 — unordered containers assert contents, never iteration order *(§23)*
-- [ ] RT-C04 — each interface resolves to its documented concrete type: `IList<T>`/`ICollection<T>`/`IEnumerable<T>`/`IReadOnlyList<T>`/`IReadOnlyCollection<T>` → `List<T>`; `ISet<T>` → `HashSet<T>`; `IDictionary<K,V>` → `Dictionary<K,V>`; `IReadOnlyDictionary<K,V>` → `ReadOnlyDictionary<K,V>`; immutable interfaces → their immutable types *(§23)*
+- [x] RT-C01 — every container round-trips empty *(§23)* — `RoundTrip/ContainerTests`
+- [x] RT-C02 — stack ordering is preserved; elements are written bottom-up for `Stack`, `ConcurrentStack`, `ImmutableStack` *(§23)* — `RoundTrip/ContainerTests`
+- [x] RT-C03 — unordered containers assert contents, never iteration order *(§23)* — `RoundTrip/ContainerTests`
+- [x] RT-C04 — each interface resolves to its documented concrete type: `IList<T>`/`ICollection<T>`/`IEnumerable<T>`/`IReadOnlyList<T>`/`IReadOnlyCollection<T>` → `List<T>`; `ISet<T>` → `HashSet<T>`; `IDictionary<K,V>` → `Dictionary<K,V>`; `IReadOnlyDictionary<K,V>` → `ReadOnlyDictionary<K,V>`; immutable interfaces → their immutable types *(§23)* — `RoundTrip/ContainerTests`
 - [ ] RT-C05 — reference identity across an interface-typed member is preserved; the concrete type is not *(§23)*
 - [ ] RT-C06 — `ImmutableArray<T>` is the only container distinguishing default from empty *(§23)*
 - [ ] RT-C07 — nested containers: collection of dictionaries, dictionary of collections, array of objects *(§23)*
@@ -611,16 +611,16 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ## 20.3 Cumulative budgets
 
-- [ ] LIM-15 — two individually legal collections exceeding `MaxTotalElements` → `BinaryLimitException` *(§5.7)*
+- [x] LIM-15 — two individually legal collections exceeding `MaxTotalElements` → `BinaryLimitException` *(§5.7)* — `Limits/BudgetTests`
 - [ ] LIM-16 — the element count is charged exactly once per validated count *(§6)*
 - [ ] LIM-17 — the element budget never decreases within an operation *(§6)*
-- [ ] LIM-18 — `MaxObjectGraphNodes` counts member-encoded objects **and** container instances *(§5.8, S04)*
-- [ ] LIM-19 — a back reference does not create another node *(§5.8)*
+- [x] LIM-18 — `MaxObjectGraphNodes` counts member-encoded objects **and** container instances *(§5.8, S04)* — `Limits/DepthAndNodeTests`
+- [x] LIM-19 — a back reference does not create another node *(§5.8)* — `Limits/DepthAndNodeTests`
 - [x] LIM-20 — `MaxKeyedFields` bounds one keyed object, on read and on write *(§5.9)* — `Limits/KeyedFieldLimitTests`
 - [ ] LIM-21 — `MaxTotalKeyedFields` bounds the operation, including skipped unknown fields *(§5.9a, S12)* — known fields done by `Limits/KeyedFieldLimitTests`; skipped-field half outstanding
-- [ ] LIM-22 — unknown keyed fields do **not** consume `MaxTotalElements` *(§21.2)*
+- [x] LIM-22 — unknown keyed fields do **not** consume `MaxTotalElements` *(§21.2)* — `Limits/BudgetTests`
 - [x] LIM-23 — the per-object ceiling is evaluated before the cumulative one, on both directions *(§5.9)* — `Limits/KeyedFieldLimitTests`
-- [ ] LIM-24 — a fresh budget per public call; a prior failure cannot poison a later one *(§2.2)*
+- [x] LIM-24 — a fresh budget per public call; a prior failure cannot poison a later one *(§2.2)* — `Limits/BudgetTests`
 - [ ] LIM-25 — a header declaring a different reference mode keeps the same budget object *(§2.2)*
 
 ## 20.4 Depth
@@ -631,8 +631,8 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [ ] LIM-29 — depth unwinds to the previous value on exception *(L2, §6)*
 - [ ] LIM-30 — a failed `EnterDepth` leaves depth unchanged *(L2, §6)*
 - [ ] LIM-31 — sibling nesting unwinds independently *(§5.1)*
-- [ ] LIM-32 — a recursive container type (`class Tree : List<Tree>`) is bounded exactly like a recursive object *(§5.1, S03)*
-- [ ] LIM-33 — depth applies on write as well as read *(§5.1)*
+- [x] LIM-32 — a recursive container type (`class Tree : List<Tree>`) is bounded exactly like a recursive object *(§5.1, S03)* — `Limits/DepthAndNodeTests`
+- [x] LIM-33 — depth applies on write as well as read *(§5.1)* — `Limits/DepthAndNodeTests`
 
 ## 20.5 Phases
 
@@ -668,12 +668,12 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ## 21.2 `MeteredWriteStream`
 
-- [ ] STR-09 — the budget is relative to the destination's starting position *(§7.2, C06)*
-- [ ] STR-10 — appending to a non-empty stream costs the operation nothing for pre-existing bytes *(§7.2)*
+- [x] STR-09 — the budget is relative to the destination's starting position *(§7.2, C06)* — `Streams/MeteredWriteStreamTests`
+- [x] STR-10 — appending to a non-empty stream costs the operation nothing for pre-existing bytes *(§7.2)* — `Streams/MeteredWriteStreamTests`
 - [ ] STR-11 — writes under budget succeed; the exact budget succeeds *(§7.2)*
-- [ ] STR-12 — exceeding the budget → `BinaryLimitException` *(§7.2)*
+- [x] STR-12 — exceeding the budget → `BinaryLimitException` *(§7.2)* — `Streams/MeteredWriteStreamTests`
 - [ ] STR-13 — a rewind for keyed-length patching does not double-charge; the budget follows the high-water mark *(§7.2)*
-- [ ] STR-14 — an underlying `IOException` → `BinaryStreamException` *(§7.2, §9)*
+- [x] STR-14 — an underlying `IOException` → `BinaryStreamException` *(§7.2, §9)* — `Streams/MeteredWriteStreamTests`
 - [ ] STR-15 — the caller's stream is never disposed *(§7.2)*
 - [ ] STR-16 — `CanSeek` follows the inner stream *(§7.2)*
 
@@ -714,7 +714,7 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 ## 22.2 Truncation
 
 - [ ] HST-10 — every prefix of a valid V1 frame has a deterministic, documented outcome *(§8.2)*
-- [ ] HST-11 — a truncated fixed-size primitive → `BinaryFormatException`, one case per primitive width *(§2.3, C07)*
+- [ ] HST-11 — a truncated fixed-size primitive → `BinaryFormatException`, one case per primitive width *(§2.3, C07)* — `Hostile/MalformedPayloadTests` covers Guid, Int128, UInt128 and int64; the remaining widths land in M6
 - [ ] HST-12 — a truncated 7-bit integer → `BinaryFormatException` *(§22.1)*
 - [ ] HST-13 — excessive 7-bit continuation bytes → `BinaryFormatException` *(§22.1)*
 - [ ] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)*
@@ -725,14 +725,14 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 - [ ] HST-17 — a declared count at the limit with a truncated element stream allocates nothing proportional to the count *(§17)*
 - [ ] HST-18 — a declared string or blob length beyond the bytes physically present → `BinaryFormatException` before allocation, on the wire as well as inside the payload *(§17)* — wire half done by D1-02; payload half outstanding
-- [ ] HST-19 — a declared phase length above its limit → `BinaryLimitException` before allocation *(§22.6)*
+- [x] HST-19 — a declared phase length above its limit → `BinaryLimitException` before allocation *(§22.6)* — `Hostile/MalformedPayloadTests`
 - [ ] HST-20 — a declared plaintext length exceeding the ciphertext delivered → rejected before allocation *(§13)*
 - [ ] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver `CompressedLength` real bytes *(§12)*
 - [ ] HST-22 — nested individually-valid containers cannot bypass the cumulative element budget *(§5.7)*
 - [ ] HST-23 — many small keyed objects cannot bypass `MaxTotalKeyedFields` *(§5.9a)*
 - [ ] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)*
-- [ ] HST-25 — a hostile deeply nested payload fails as a limit violation, never a stack overflow *(§5.1)*
-- [ ] HST-26 — an oversized or infinite `IEnumerable<T>` on write is abandoned at the limit, not enumerated *(§17, S11)*
+- [x] HST-25 — a hostile deeply nested payload fails as a limit violation, never a stack overflow *(§5.1)* — `Limits/DepthAndNodeTests`
+- [x] HST-26 — an oversized or infinite `IEnumerable<T>` on write is abandoned at the limit, not enumerated *(§17, S11)* — `Limits/BudgetTests`
 
 ## 22.4 Property and metamorphic (L3)
 
@@ -749,17 +749,17 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 # 23. Compression — `Algorithms/`
 
-- [ ] CMP-01 — `NoCompression` round-trips and still honors phase limits *(§12)*
-- [ ] CMP-02 — `Deflate` round-trips *(§12)*
-- [ ] CMP-03 — `Brotli` round-trips *(§12)*
-- [ ] CMP-04 — malformed Deflate input → `BinaryFormatException` *(§12)*
-- [ ] CMP-05 — malformed Brotli input → `BinaryFormatException` *(§12)*
+- [ ] CMP-01 — `NoCompression` round-trips and still honors phase limits *(§12)* — round trip proven by `Algorithms/CompressionTests`; the phase-limit half lands in M7
+- [x] CMP-02 — `Deflate` round-trips *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-03 — `Brotli` round-trips *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-04 — malformed Deflate input → `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-05 — malformed Brotli input → `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`
 - [ ] CMP-06 — raw input above `MaxPayloadBytes` → `BinaryLimitException` *(§12)*
 - [ ] CMP-07 — compressed output above `MaxCompressedBytes` → `BinaryLimitException` *(§12)*
 - [ ] CMP-08 — compressed input above `MaxCompressedBytes` → `BinaryLimitException` *(§12)*
 - [ ] CMP-09 — an expected decompressed length above `MaxPayloadBytes` → `BinaryLimitException` before allocation *(§12)*
-- [ ] CMP-10 — decompression producing **fewer** bytes than declared → rejected *(§12, S09)*
-- [ ] CMP-11 — decompression producing **more** bytes than declared → rejected *(§12, S09)*
+- [x] CMP-10 — decompression producing **fewer** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
+- [x] CMP-11 — decompression producing **more** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
 - [ ] CMP-12 — `ICompressionAlgorithm` receives no limits and is invoked inside the phase barrier *(§2.5, §12)*
 - [ ] CMP-13 — a custom compression algorithm round-trips and its name is recorded in the header *(§4.1, §11)*
 
@@ -780,26 +780,26 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 # 25. Encryption — `Algorithms/`
 
-- [ ] ENC-01 — `Aes256Gcm` with a 32-byte key round-trips *(§13)*
+- [x] ENC-01 — `Aes256Gcm` with a 32-byte key round-trips *(§13)* — `Algorithms/EncryptionTests`
 - [ ] ENC-02 — an invalid direct key size → `ArgumentException` *(§8.10)*
-- [ ] ENC-03 — a wrong key → `BinaryIntegrityException` at the authentication boundary *(§8.5)*
-- [ ] ENC-04 — tampered ciphertext → `BinaryIntegrityException` *(§13.1)*
-- [ ] ENC-05 — any altered authenticated header byte → `BinaryIntegrityException` *(§13.1)*
+- [x] ENC-03 — a wrong key → `BinaryIntegrityException` at the authentication boundary *(§8.5)* — `Algorithms/EncryptionTests`
+- [x] ENC-04 — tampered ciphertext → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
+- [x] ENC-05 — any altered authenticated header byte → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
 - [ ] ENC-06 — `OnDiskLength` is not authenticated, and a wrong value still fails by truncation or tag *(§22.7)*
-- [ ] ENC-07 — no key configured for an encrypted payload → `BinaryEncryptionKeyException` *(§8.7)*
+- [x] ENC-07 — no key configured for an encrypted payload → `BinaryEncryptionKeyException` *(§8.7)* — `Algorithms/EncryptionTests`
 - [ ] ENC-08 — a resolver returning null → `BinaryEncryptionKeyException` *(§8.7)*
-- [ ] ENC-09 — a `KeyId` mismatch against the provider's configured id → `BinaryEncryptionKeyException` *(§13.2)*
-- [ ] ENC-10 — the resolver receives the header's `KeyId` *(§13.2)*
+- [x] ENC-09 — a `KeyId` mismatch against the provider's configured id → `BinaryEncryptionKeyException` *(§13.2)* — `Algorithms/EncryptionTests`
+- [x] ENC-10 — the resolver receives the header's `KeyId` *(§13.2)* — `Algorithms/EncryptionTests`
 - [ ] ENC-11 — `SecretKey` always holds its own copy *(§13.2)*
-- [ ] ENC-12 — a resolver's returned buffer is not mutated or zeroed by the serializer *(§13.2, S07)*
-- [ ] ENC-13 — disposing a provider clears only its own copy; the caller's array is untouched *(§13.2)*
-- [ ] ENC-14 — using a disposed provider → `ObjectDisposedException` *(§13.2, S08)*
+- [x] ENC-12 — a resolver's returned buffer is not mutated or zeroed by the serializer *(§13.2, S07)* — `Algorithms/EncryptionTests`
+- [x] ENC-13 — disposing a provider clears only its own copy; the caller's array is untouched *(§13.2)* — `Algorithms/EncryptionTests`
+- [x] ENC-14 — using a disposed provider → `ObjectDisposedException` *(§13.2, S08)* — `Algorithms/EncryptionTests`
 - [ ] ENC-15 — each resolved key is disposed at the end of the phase that requested it *(§13.2)*
 - [ ] ENC-16 — serializer-owned temporary crypto buffers are cleared when their lifetime ends *(§13.2)*
-- [ ] ENC-17 — a second payload with a different key id does not fall back to a previously resolved key *(§13.2)*
+- [ ] ENC-17 — a second payload with a different key id does not fall back to a previously resolved key *(§13.2)* — M7
 - [ ] ENC-18 — `AuthenticatesAssociatedData == false` is rejected under `RequireEncryption` *(§13.1)*
-- [ ] ENC-19 — `NoEncryption` with `RequireEncryption` on the read path → `BinaryIntegrityException` *(§21.1)*
-- [ ] ENC-20 — an encryption **capability** does not force encryption: a plaintext payload is read normally without the policy *(§21.1, S01)*
+- [x] ENC-19 — `NoEncryption` with `RequireEncryption` on the read path → `BinaryIntegrityException` *(§21.1)* — `Algorithms/EncryptionTests`
+- [x] ENC-20 — an encryption **capability** does not force encryption: a plaintext payload is read normally without the policy *(§21.1, S01)* — `Algorithms/EncryptionTests`
 - [ ] ENC-21 — plaintext input ≤ `MaxCompressedBytes`, ciphertext ≤ `MaxEncryptedBytes`, both directions *(§13)*
 - [ ] ENC-22 — a custom encryption algorithm round-trips under its registered name *(§4.1)*
 
@@ -820,16 +820,16 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 # 27. Inspection and diagnostics — `Metadata/`, `Diagnostics/`
 
-- [ ] INS-01 — `Peek` returns the header metadata of a valid V1 payload *(§19)*
-- [ ] INS-02 — `Peek` restores the source position, on success and on failure *(§19, §20)*
-- [ ] INS-03 — `Peek` on a non-seekable stream → `NotSupportedException` *(§19)*
-- [ ] INS-04 — `Peek` returns `null` for bytes not recognized as a supported format *(§19)*
+- [x] INS-01 — `Peek` returns the header metadata of a valid V1 payload *(§19)* — `Metadata/InspectorTests`
+- [x] INS-02 — `Peek` restores the source position, on success and on failure *(§19, §20)* — `Metadata/InspectorTests`
+- [x] INS-03 — `Peek` on a non-seekable stream → `NotSupportedException` *(§19)* — `Metadata/InspectorTests`
+- [x] INS-04 — `Peek` returns `null` for bytes not recognized as a supported format *(§19)* — `Metadata/InspectorTests`
 - [ ] INS-05 — `Peek` on a recognized magic with an unsupported version → `BinaryFormatNotSupportedException` *(§19)*
-- [ ] INS-06 — `Peek` on a recognized but malformed header → `BinaryFormatException`, not `null` *(§19)*
-- [ ] INS-07 — limits passed to `Peek` are honored *(§19)*
-- [ ] INS-08 — `Peek(stream, null)` → `ArgumentNullException` *(§8.10)*
+- [x] INS-06 — `Peek` on a recognized but malformed header → `BinaryFormatException`, not `null` *(§19)* — `Metadata/InspectorTests`
+- [ ] INS-07 — limits passed to `Peek` are honored *(§19)* — `Metadata/InspectorTests` proves the limits are validated; enforcement during the read lands in M8
+- [x] INS-08 — `Peek(stream, null)` → `ArgumentNullException` *(§8.10)* — `Metadata/InspectorTests`
 - [ ] INS-09 — an underlying `IOException` during inspection → `BinaryStreamException` *(§19)*
-- [ ] INS-10 — `BinaryHeaderInfo` reports version, algorithms, custom names and `KeyId` and nothing secret *(§11)*
+- [ ] INS-10 — `BinaryHeaderInfo` reports version, algorithms, custom names and `KeyId` and nothing secret *(§11)* — `Metadata/InspectorTests` covers version, algorithms and KeyId; custom names land in M8
 - [ ] DMP-01 — `DumpHeader(byte[])` renders a valid envelope *(§19)*
 - [ ] DMP-02 — `DumpHeader(Stream)` renders a valid envelope and does not consume the stream *(§19)*
 - [ ] DMP-03 — unrecognized input produces diagnostic text rather than a thrown exception *(§19)*
@@ -867,32 +867,35 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 Implemented centrally in M0; every helper with logic of its own is itself tested.
 
 ```text
-AssertEx.SequenceEqualWithType<T>()
-AssertEx.DictionaryContentEqual<TKey,TValue>()
-AssertEx.StackBehaviorEqual<T>()
-AssertEx.QueueBehaviorEqual<T>()
-AssertEx.PriorityQueueBehaviorEqual<TElement,TPriority>()
-AssertEx.SameReferenceGraph()
-AssertEx.ThrowsExact<TException>()
-AssertEx.ThrowsWithSubstring<TException>()
+AssertEx.Throws<TException>(messageSubstring, act)
+AssertEx.AllocatesLessThan(ceiling, act)
+AssertEx.SameContents<T>()
+AssertEx.PopsInOrder<T>() · DequeuesInOrder<T>() · DequeuesInPriorityOrder<TElement,TPriority>()
 
-Wire.Payload / Wire.Frame / Wire.FrameWith(headerOverrides…)
-Wire.V0Payload
-Mutate.ReplaceInt32 / ReplaceByte / Replace7BitInt / FlipByte / Truncate / TruncateEveryPrefix
+Wire.Payload · Wire.Header · Wire.Frame · Wire.NestedCollections · Wire.KeyedFields
+Wire.FrameWithOversizedCustomName · Wire.FrameWithOversizedChecksum
+Wire.PlainHeaderLength · PreserveReferencesOffset · UncompressedLengthOffset · CompressedLengthOffset
+
+Mutate.FlipByte · SetByte · SetInt32 · Truncate · Prefixes · SevenBitEncoded
 
 NonSeekableStream · PartialReadStream · FailingStream
-ObservingReadStream · ObservingWriteStream
 ```
 
-- [ ] UTIL-01 — assertion helpers behave correctly, including their negative cases
-- [ ] UTIL-02 — frame builders produce bytes a real reader accepts
-- [ ] UTIL-03 — mutation helpers change exactly the targeted bytes
-- [ ] UTIL-04 — truncation helpers enumerate every prefix
-- [ ] UTIL-05 — `NonSeekableStream` reports `CanSeek == false` and throws on `Position`
-- [ ] UTIL-06 — `PartialReadStream` returns short reads without losing data
-- [ ] UTIL-07 — `FailingStream` raises `IOException` at the configured offset
-- [ ] UTIL-08 — observing streams report exactly the bytes that crossed them
-- [ ] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test
+There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
+a wrapper that restates it would only invite the assumption that the plain form is loose.
+
+Helpers a later stage needs — committed `*.bin` compatibility fixtures (M3) and byte-observing stream
+wrappers, if a suite turns out to need them — are added by that stage rather than built ahead of use.
+
+- [x] UTIL-01 — assertion helpers behave correctly, including their negative cases — `Fixtures/UtilityTests`
+- [x] UTIL-02 — frame builders produce bytes a real reader accepts — `Fixtures/UtilityTests`
+- [x] UTIL-03 — mutation helpers change exactly the targeted bytes — `Fixtures/UtilityTests`
+- [x] UTIL-04 — truncation helpers enumerate every prefix — `Fixtures/UtilityTests`
+- [x] UTIL-05 — `NonSeekableStream` reports `CanSeek == false` and throws on `Position` — `Fixtures/UtilityTests`
+- [x] UTIL-06 — `PartialReadStream` returns short reads without losing data — `Fixtures/UtilityTests`
+- [x] UTIL-07 — `FailingStream` raises `IOException` at the configured offset, on read and on write — `Fixtures/UtilityTests`
+- [ ] UTIL-08 — byte-observing stream wrappers, only if a suite needs them *(deferred; nothing so far does)*
+- [ ] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test *(M3; no fixture is committed yet)*
 
 ---
 
@@ -953,6 +956,7 @@ same change as the test that pins them. Kept as the record of why the behavior i
 | **Q5** | The evaluation order of `MaxKeyedFields` against `MaxTotalKeyedFields` was unfixed | The per-object ceiling is evaluated first on both directions, so the reported limit is the one the payload actually broke | §5.9 |
 | **Q6** | Header strings borrowed `MaxStringBytes`, a 4 MB payload policy, inside a security boundary | A fixed 256 UTF-8 byte ceiling belongs to the format. Above it on read is `BinaryFormatException`; a configured value too large to write is `BinaryConfigurationException` | §11, §22.6 |
 | **Q7** | `Lazy<T>` write semantics were unspecified | Writing materializes the value and a factory exception is the caller's own, propagating unwrapped; reading yields a `Lazy<T>` that already holds the value, with `IsValueCreated` false until asked | §23 |
+| **Q8** | §23 rejected a delegate member while `CLAUDE.md` and `TypeContract` skipped it silently | Reject, when the contract is built, naming the member. A delegate is eligible under the positional inclusion rules, so dropping it would lose state those rules said was included; `[BinaryIgnore]` states the intent. Decided at plan-build time, never per value, because a null callback must not serialize where a set one fails. Events are unaffected: their backing field is private | §14.1, §23 |
 
 # 31. Cross-entry-point equivalence — `Api/`
 

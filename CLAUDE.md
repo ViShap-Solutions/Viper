@@ -40,12 +40,15 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
   provenance; `Problems.cs` maps each finding to the test that now pins it.
 
 Current state: the architecture rework described in the audit is complete and `src/` matches the
-contract. 148 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
+contract. 239 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
 so an undocumented public member breaks the build (CS1591).
 
-The test project is mid-migration to the layout in `QA-Plan.md` §2: `Api/`, `Format/`, `Limits/`,
-`RoundTrip/`, `Streams/` and `Hostile/` follow the plan, while `API/`, `Correctness/` and `Security/`
-still hold the hand-written suite that stage M0 re-homes or deletes.
+The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Contracts/`,
+`Fixtures/`, `Format/`, `Hostile/`, `Limits/`, `Metadata/`, `References/`, `RoundTrip/`, `Streams/`.
+Stage M0 is done: the shared helpers live in `Fixtures/` (`AssertEx`, `Wire`, `Mutate`, stream
+doubles) and are themselves tested. `Api/BinarySerializerApiTests.cs` and
+`Api/StreamExtensionsApiTests.cs` are the last two hand-written smoke files, kept only until stage M1
+replaces them.
 
 ## Projects
 
@@ -107,7 +110,7 @@ Adding a format version means a pipeline registered in `BinarySerializer`; the r
 
 `TypeContract` (`Engine/`) is the single materialized description of a concrete type, used identically by reader and writer:
 
-- **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields, delegates and indexers are skipped. Field order *is* the wire format.
+- **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields and indexers are skipped. A delegate-typed member is **rejected** — it carries behaviour, not data — so it must be marked `[BinaryIgnore]`. Field order *is* the wire format.
 - **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Requires a seekable payload stream and V1.
 
 The two are mutually exclusive, and every contradiction is rejected when the contract is built: `[BinaryKey]` without `[BinaryContract]`, `[BinaryOrder]`/`[BinaryInclude]` on a contract, an unmarked contract member, `[BinaryKey]` together with `[BinaryIgnore]`, `[BinaryInclude]` together with `[BinaryIgnore]`, duplicate keys or orders.

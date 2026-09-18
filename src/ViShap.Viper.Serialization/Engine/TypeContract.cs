@@ -133,6 +133,8 @@ internal static class TypeContractCache
             .Where(c => c.IsPubliclyVisible || c.HasInclude)
             .ToArray();
 
+        RejectDelegates(type, eligible);
+
         var duplicateOrders = eligible
             .Where(c => c.Order != int.MaxValue)
             .GroupBy(c => c.Order)
@@ -190,6 +192,8 @@ internal static class TypeContractCache
 
         var keyed = candidates.Where(c => c.Key is not null).ToArray();
 
+        RejectDelegates(type, keyed);
+
         var negative = keyed.Where(c => c.Key!.Value < 0).ToArray();
         if (negative.Length > 0)
             throw new BinaryTypeException(
@@ -217,6 +221,19 @@ internal static class TypeContractCache
     private static string Join(IEnumerable<Candidate> candidates) =>
         string.Join(", ", candidates.Select(c => c.Name));
 
+    private static void RejectDelegates(Type type, IEnumerable<Candidate> members)
+    {
+        var delegates = members
+            .Where(c => typeof(Delegate).IsAssignableFrom(c.Binding.MemberType))
+            .ToArray();
+
+        if (delegates.Length > 0)
+            throw new BinaryTypeException(
+                $"'{type}' member(s) [{Join(delegates)}] are delegates, which carry behaviour rather " +
+                "than data and have no representation on the wire. Mark them [BinaryIgnore] to state " +
+                "that they are not part of the serialized state.");
+    }
+
     private static IEnumerable<Candidate> Candidates(Type type)
     {
         const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
@@ -225,7 +242,6 @@ internal static class TypeContractCache
         {
             if (!property.CanRead || !property.CanWrite) continue;
             if (property.GetIndexParameters().Length != 0) continue;
-            if (typeof(Delegate).IsAssignableFrom(property.PropertyType)) continue;
 
             yield return Candidate.From(
                 property.Name,
@@ -239,7 +255,6 @@ internal static class TypeContractCache
         foreach (var field in type.GetFields(flags))
         {
             if (field.IsInitOnly) continue;
-            if (typeof(Delegate).IsAssignableFrom(field.FieldType)) continue;
             if (field.GetCustomAttribute<CompilerGeneratedAttribute>() is not null) continue;
 
             yield return Candidate.From(

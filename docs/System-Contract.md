@@ -847,6 +847,13 @@ which hands out owned copies.
 
 Eligible members include public fields/properties according to the accessor rules.
 
+Compiler-generated fields and indexers are not members. A **delegate-typed** member is eligible and
+is therefore rejected with `BinaryTypeException` naming it: a delegate carries behaviour rather than
+data, and silently dropping it would lose state the inclusion rules said was included. Marking it
+`[BinaryIgnore]` states that it is not part of the serialized value. The rejection is decided when the
+contract is built, so it never depends on whether the member happens to be null. An event is
+unaffected, because its backing field is private and was never eligible.
+
 `[BinaryIgnore]` excludes a member.
 
 `[BinaryInclude]` enables otherwise non-public members where positional mode permits it.
