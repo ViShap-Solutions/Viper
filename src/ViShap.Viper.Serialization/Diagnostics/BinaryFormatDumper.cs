@@ -3,7 +3,7 @@ using System.Text;
 namespace ViShap.Viper.Diagnostics;
 
 /// <summary>
-/// Diagnostic rendering of a payload's envelope. This is tooling, not production behaviour: it turns
+/// Diagnostic rendering of a payload's envelope. This is tooling, not production behavior: it turns
 /// a failure into readable output, so unlike the serializer it is allowed to report an error as text
 /// instead of propagating it.
 /// </summary>

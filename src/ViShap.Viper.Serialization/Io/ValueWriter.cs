@@ -125,6 +125,7 @@ internal sealed class ValueWriter(Stream destination, SerializationOperation ope
     }
 
     /// <summary>Writes a UTF-8 string bounded by <c>MaxStringBytes</c>.</summary>
+    /// <exception cref="BinaryLimitException">The encoded length exceeds the configured maximum.</exception>
     public void WriteString(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -135,12 +136,37 @@ internal sealed class ValueWriter(Stream destination, SerializationOperation ope
                 $"String byte length {byteCount} exceeds the configured maximum of " +
                 $"{Operation.Limits.MaxStringBytes}.");
 
+        WriteEncodedString(value, byteCount);
+    }
+
+    /// <summary>
+    /// Writes a UTF-8 string that must fit a ceiling the format itself fixes, such as a header field.
+    /// </summary>
+    /// <param name="value">The string to write.</param>
+    /// <param name="maxBytes">The largest encoded length the format admits here.</param>
+    /// <param name="what">The field being written, used in diagnostics.</param>
+    /// <exception cref="BinaryConfigurationException">
+    /// The encoded length exceeds <paramref name="maxBytes"/>, so the value cannot be represented.
+    /// </exception>
+    public void WriteString(string value, int maxBytes, string what)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+        if (byteCount > maxBytes)
+            throw new BinaryConfigurationException(
+                $"{what} encodes to {byteCount} byte(s), but this field admits at most {maxBytes}.");
+
+        WriteEncodedString(value, byteCount);
+    }
+
+    private void WriteEncodedString(string value, int byteCount)
+    {
         Write7BitEncodedInt(byteCount);
         if (byteCount == 0)
             return;
 
-        byte[] bytes = Encoding.UTF8.GetBytes(value);
-        Write(bytes);
+        Write(Encoding.UTF8.GetBytes(value));
     }
 
     /// <summary>Validates a count against its limit and the element budget, then writes it.</summary>

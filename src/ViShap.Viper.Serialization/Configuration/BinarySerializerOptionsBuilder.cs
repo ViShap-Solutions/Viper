@@ -120,6 +120,10 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>Selects the wire format version used for writing. Reading always detects it from the payload.</summary>
+    /// <remarks>
+    /// Selecting version 0 is enough to write the legacy format; <see cref="AllowV0Fallback"/> is a
+    /// separate, read-side choice. An unsupported version is rejected by <see cref="Build"/>.
+    /// </remarks>
     /// <param name="version">1 for the current format, 0 for the legacy headerless one.</param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder WithVersion(int version)
@@ -221,13 +225,19 @@ public sealed class BinarySerializerOptionsBuilder
     /// <summary>Validates the configuration and produces the options.</summary>
     /// <returns>An immutable configuration.</returns>
     /// <exception cref="BinaryConfigurationException">
-    /// A limit is not positive; encryption is required but not configured, or is configured with an
-    /// algorithm that cannot authenticate format metadata; encryption is configured without key
-    /// material; or a checksum is required but not configured.
+    /// A limit is not positive; the write version is not a supported wire format; encryption is
+    /// required but not configured, or is configured with an algorithm that cannot authenticate
+    /// format metadata; encryption is configured without key material; or a checksum is required but
+    /// not configured.
     /// </exception>
     public BinarySerializerOptions Build()
     {
         _limits.Validate();
+
+        if (_writeVersion is < V0FormatPipeline.Version or > BinaryFormatConstants.LatestVersion)
+            throw new BinaryConfigurationException(
+                $"Format version {_writeVersion} cannot be written. Supported versions are " +
+                $"{V0FormatPipeline.Version} through {BinaryFormatConstants.LatestVersion}.");
 
         var encryption = _encryption ?? new NoEncryption();
 

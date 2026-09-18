@@ -5,7 +5,9 @@ namespace ViShap.Viper.Pipeline;
 /// without consuming the stream, and a stream without them is only treated as V0 when the caller
 /// opted into that fallback.
 /// </summary>
-internal sealed class FormatRouter(IReadOnlyDictionary<int, IFormatPipeline> pipelines)
+internal sealed class FormatRouter(
+    IReadOnlyDictionary<int, IFormatPipeline> pipelines,
+    bool allowHeaderlessFallback)
 {
     public IFormatPipeline ForWriting(int version) =>
         pipelines.TryGetValue(version, out var pipeline)
@@ -26,7 +28,7 @@ internal sealed class FormatRouter(IReadOnlyDictionary<int, IFormatPipeline> pip
         {
             if (BinaryHeaderPeek.TryPeekMagicAndVersion(source, out int detected))
                 version = detected;
-            else if (pipelines.ContainsKey(0))
+            else if (allowHeaderlessFallback && pipelines.ContainsKey(0))
                 version = 0;
             else
                 throw new BinaryFormatException(

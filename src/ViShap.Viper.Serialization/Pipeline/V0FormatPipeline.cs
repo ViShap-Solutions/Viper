@@ -9,7 +9,10 @@ internal sealed class V0FormatPipeline : IFormatPipeline
 {
     private const bool KeyedContractsSupported = false;
 
-    public int Version => 0;
+    /// <summary>The wire format version this pipeline reads and writes.</summary>
+    public const int Version = 0;
+
+    int IFormatPipeline.Version => Version;
 
     public void Write<T>(Stream destination, T data, SerializationOperation operation)
     {

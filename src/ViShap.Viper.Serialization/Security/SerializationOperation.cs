@@ -13,8 +13,7 @@ internal sealed class SerializationOperation
         IKeyProvider? keys,
         bool preserveReferences,
         bool requireEncryption,
-        bool requireChecksum,
-        bool enableTrace = false)
+        bool requireChecksum)
     {
         Limits = limits;
         Budget = new SerializationBudget(limits);
@@ -23,7 +22,6 @@ internal sealed class SerializationOperation
         PreserveReferences = preserveReferences;
         RequireEncryption = requireEncryption;
         RequireChecksum = requireChecksum;
-        EnableTrace = enableTrace;
     }
 
     private SerializationOperation(SerializationOperation source, bool preserveReferences)
@@ -35,7 +33,6 @@ internal sealed class SerializationOperation
         PreserveReferences = preserveReferences;
         RequireEncryption = source.RequireEncryption;
         RequireChecksum = source.RequireChecksum;
-        EnableTrace = source.EnableTrace;
     }
 
     /// <summary>
@@ -54,7 +51,6 @@ internal sealed class SerializationOperation
     public bool PreserveReferences { get; }
     public bool RequireEncryption { get; }
     public bool RequireChecksum { get; }
-    public bool EnableTrace { get; }
 
     public IKeyProvider RequireKeys() =>
         Keys ?? throw new BinaryEncryptionKeyException(

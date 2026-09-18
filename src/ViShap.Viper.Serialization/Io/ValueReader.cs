@@ -156,21 +156,45 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
     }
 
     /// <summary>Reads a UTF-8 string bounded by <c>MaxStringBytes</c>.</summary>
+    /// <exception cref="BinaryLimitException">The declared length exceeds the configured maximum.</exception>
     public string ReadString()
     {
         int length = ReadBoundedLength(Operation.Limits.MaxStringBytes, "String byte length");
+        return DecodeString(length, "String");
+    }
+
+    /// <summary>
+    /// Reads a UTF-8 string whose declared byte length must fit a ceiling the format itself fixes,
+    /// such as a header field. Exceeding it describes malformed input rather than a policy breach, so
+    /// it is reported as a format error and not as a limit violation.
+    /// </summary>
+    /// <param name="maxBytes">The largest encoded length the format admits here.</param>
+    /// <param name="what">The field being read, used in diagnostics.</param>
+    /// <exception cref="BinaryFormatException">The declared length exceeds <paramref name="maxBytes"/>.</exception>
+    public string ReadString(int maxBytes, string what)
+    {
+        int length = Read7BitEncodedInt($"{what} byte length");
+        if (length > maxBytes)
+            throw new BinaryFormatException(
+                $"{what} declares {length} byte(s), but this field admits at most {maxBytes}.");
+
+        RequireAvailable(length, what);
+        return DecodeString(length, what);
+    }
+
+    private string DecodeString(int length, string what)
+    {
         if (length == 0)
             return string.Empty;
 
-        byte[] bytes = ReadBytes(length, "String");
+        byte[] bytes = ReadBytes(length, what);
         try
         {
             return Encoding.UTF8.GetString(bytes);
         }
         catch (ArgumentException ex)
         {
-            throw new BinaryFormatException(
-                "String payload is not valid UTF-8.", ex);
+            throw new BinaryFormatException($"{what} payload is not valid UTF-8.", ex);
         }
     }
 
