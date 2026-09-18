@@ -10,6 +10,7 @@ internal sealed class BigIntegerFormatter : ITypeFormatter
     {
         var v = (BigInteger)value;
         int maxLength = v.GetByteCount();
+        writer.ValidateByteBlobLengthForWrite(maxLength, "BigInteger byte length");
         Span<byte> buffer = maxLength <= 64 ? stackalloc byte[maxLength] : new byte[maxLength];
         v.TryWriteBytes(buffer, out int bytesWritten);
 
@@ -22,7 +23,7 @@ internal sealed class BigIntegerFormatter : ITypeFormatter
         byte[] bytes = DeserializationGuard.ReadValidatedBytes(
             reader,
             reader.RawReader.ReadInt32(),
-            reader.Budget.Limits.MaxByteBlobLength,
+            reader.Budget.Limits.MaxByteBlobBytes,
             "BigInteger byte length");
         
         return new BigInteger(bytes);

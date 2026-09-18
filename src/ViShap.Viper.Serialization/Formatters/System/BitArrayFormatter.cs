@@ -9,8 +9,11 @@ internal sealed class BitArrayFormatter : ITypeFormatter
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType)
     {
         var bits = (BitArray)value;
-        writer.WriteInt32(bits.Length);
-        var bytes = new byte[(bits.Length + 7) / 8];
+        int length = writer.ValidateBitCountForWrite(bits.Length, "BitArray length");
+        int byteLength = checked((length + 7) / 8);
+        writer.ValidateByteBlobLengthForWrite(byteLength, "BitArray data length");
+        writer.WriteInt32(length);
+        var bytes = new byte[byteLength];
         bits.CopyTo(bytes, 0);
         writer.RawWriter.Write(bytes);
     }
@@ -19,7 +22,7 @@ internal sealed class BitArrayFormatter : ITypeFormatter
     {
         int length = DeserializationGuard.ValidateBitCount(
             reader.RawReader.ReadInt32(),
-            reader.Budget.Limits.MaxByteBlobLength,
+            reader.Budget.Limits.MaxByteBlobBytes,
             "BitArray length");
 
         int byteLength = (int)(((long)length + 7L) / 8L);
@@ -27,7 +30,7 @@ internal sealed class BitArrayFormatter : ITypeFormatter
         byte[] bytes = DeserializationGuard.ReadValidatedBytes(
             reader,
             byteLength,
-            reader.Budget.Limits.MaxByteBlobLength,
+            reader.Budget.Limits.MaxByteBlobBytes,
             "BitArray data length");
 
         return new BitArray(bytes) { Length = length };

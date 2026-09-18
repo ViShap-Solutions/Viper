@@ -14,7 +14,7 @@ internal sealed class ReadOnlyDictionaryFormatter : ITypeFormatter
         var args = declaredType.GetGenericArguments();
         Type keyType = args[0], valueType = args[1];
         var entries = ((IEnumerable)value).Cast<object>().ToList();
-        writer.WriteInt32(entries.Count);
+        writer.WriteInt32(writer.ValidateDictionaryEntryCountForWrite(entries.Count, "Dictionary entry count"));
 
         foreach (var entry in entries)
         {

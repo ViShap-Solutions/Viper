@@ -3,5 +3,5 @@
 internal interface IHeaderCodec
 {
     int Version { get; }
-    BinaryHeaderInfo ReadHeaderInfo(BinaryReader reader);
+    BinaryHeaderInfo ReadHeaderInfo(BinaryReader reader, SerializationLimits limits);
 }

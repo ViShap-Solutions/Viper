@@ -18,7 +18,8 @@ public sealed class Aes256Gcm : IEncryptionAlgorithm
 
         int required = GetMaxCiphertextLength(plaintext.Length);
         if (destination.Length < required)
-            throw new BinaryFormatException($"Destination buffer too small for AES-GCM output. Need {required}, got {destination.Length}.");
+            throw new InvalidOperationException(
+                $"Destination buffer too small for AES-GCM output. Need {required}, got {destination.Length}.");
 
         var nonce = destination[..NonceSizeBytes];
         var ciphertext = destination.Slice(NonceSizeBytes, plaintext.Length);

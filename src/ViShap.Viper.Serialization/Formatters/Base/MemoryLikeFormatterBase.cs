@@ -8,7 +8,7 @@ internal abstract class MemoryLikeFormatterBase : ITypeFormatter
     {
         var elementType = declaredType.GetGenericArguments()[0];
         var array = (Array)MethodInvokerCache.GetInstanceFinalizerInvoker(declaredType, "ToArray")(value);
-        writer.WriteInt32(array.Length);
+        writer.WriteInt32(writer.ValidateCollectionLengthForWrite(array.Length, "Memory element count"));
         foreach (var item in array) writer.WriteElement(item, elementType);
     }
 

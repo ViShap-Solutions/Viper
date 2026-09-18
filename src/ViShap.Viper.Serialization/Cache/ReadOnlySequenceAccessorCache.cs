@@ -27,7 +27,11 @@ internal static class ReadOnlySequenceAccessorCache
     private static void WriteGeneric<T>(BinaryPayloadWriter writer, object boxedSequence)
     {
         var sequence = (ReadOnlySequence<T>)boxedSequence;
-        writer.WriteInt32(checked((int)sequence.Length));
+        long sequenceLength = sequence.Length;
+        if (sequenceLength > int.MaxValue)
+            throw new BinaryLimitException($"ReadOnlySequence length {sequenceLength} exceeds Int32 range {int.MaxValue}.");
+        writer.WriteInt32(
+            writer.ValidateCollectionLengthForWrite((int)sequenceLength, "ReadOnlySequence length"));
 
         foreach (var memory in sequence)
         {

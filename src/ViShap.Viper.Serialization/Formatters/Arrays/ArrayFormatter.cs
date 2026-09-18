@@ -8,7 +8,7 @@ internal sealed class ArrayFormatter : ITypeFormatter
     {
         var array = (Array)value;
         var elementType = declaredType.GetElementType()!;
-        writer.WriteInt32(array.Length);
+        writer.WriteInt32(writer.ValidateArrayLengthForWrite(array.Length, "Array length"));
         foreach (var item in array) writer.WriteElement(item, elementType);
     }
 

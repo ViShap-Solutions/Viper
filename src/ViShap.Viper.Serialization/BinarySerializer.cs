@@ -8,6 +8,9 @@ public sealed class BinarySerializer
     public BinarySerializer(BinarySerializerOptions? options = null)
     {
         _options = options ?? BinarySerializerOptions.Default;
+        ArgumentNullException.ThrowIfNull(_options.Limits);
+        _options.Limits.Validate();
+
         var codecs = CodecRegistry.CreateCodecs(_options);
         _router = new BinaryFormatRouter(codecs);
     }

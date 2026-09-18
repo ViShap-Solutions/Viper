@@ -3,8 +3,14 @@ namespace ViShap.Viper.Metadata;
 public static class BinaryFormatInspector
 {
     public static BinaryHeaderInfo? Peek(Stream source)
+        => Peek(source, SerializationLimits.Default);
+
+    internal static BinaryHeaderInfo? Peek(Stream source, SerializationLimits limits)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(limits);
+        limits.Validate();
+
         if (!source.CanSeek)
             throw new NotSupportedException($"{nameof(Peek)} needs a seekable stream.");
 
@@ -14,21 +20,30 @@ public static class BinaryFormatInspector
             if (!BinaryHeaderPeek.TryPeekMagicAndVersion(source, out int version))
                 return null;
 
-            return CodecRegistry.Inspect(source, version);
-        }
-        catch (EndOfStreamException ex)
-        {
-            throw new BinaryFormatException(
-                "Binary data ended unexpectedly while reading the format header.", ex);
+            using var budgeted = new BudgetedReadStream(
+                source,
+                limits.MaxWireBytes,
+                "format inspection",
+                leaveOpen: true);
+
+            return CodecRegistry.Inspect(budgeted, version, limits);
         }
         catch (IOException ex)
         {
             throw new BinaryStreamException(
-                "Failed to read the binary format header from the source stream.", ex);
+                "Failed to inspect the binary format from the underlying stream.", ex);
         }
         finally
         {
-            source.Position = start;
+            try
+            {
+                source.Position = start;
+            }
+            catch (IOException ex)
+            {
+                throw new BinaryStreamException(
+                    "Failed to restore the source stream position after format inspection.", ex);
+            }
         }
     }
 }

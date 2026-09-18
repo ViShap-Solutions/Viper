@@ -12,7 +12,7 @@ internal sealed class BinaryFormatRouter(IEnumerable<IFormatCodec> codecs)
         codec.Serialize(destination, data);
     }
 
-    public T? Deserialize<T>(Stream source) => 
+    public T? Deserialize<T>(Stream source) =>
         ResolveCodec(source).Deserialize<T>(source);
 
     public T? Deserialize<T>(Stream source, T existingInstance) where T : class
@@ -20,30 +20,39 @@ internal sealed class BinaryFormatRouter(IEnumerable<IFormatCodec> codecs)
         ArgumentNullException.ThrowIfNull(existingInstance);
         return ResolveCodec(source).Deserialize(source, existingInstance);
     }
-    
+
     public void Deserialize<T>(Stream source, ref T existingInstance) where T : struct
         => ResolveCodec(source).Deserialize(source, ref existingInstance);
-    
+
     private IFormatCodec ResolveCodec(Stream source)
     {
         ArgumentNullException.ThrowIfNull(source);
 
         if (!source.CanSeek)
-            throw new NotSupportedException($"{nameof(BinaryFormatRouter)} needs a seekable stream to detect the format version.");
+            throw new NotSupportedException(
+                $"{nameof(BinaryFormatRouter)} needs a seekable stream to detect the format version.");
 
         int version;
-
-        if (BinaryHeaderPeek.TryPeekMagicAndVersion(source, out int detectedVersion))
+        try
         {
-            version = detectedVersion;
+            if (BinaryHeaderPeek.TryPeekMagicAndVersion(source, out int detectedVersion))
+            {
+                version = detectedVersion;
+            }
+            else if (_byVersion.ContainsKey(0))
+            {
+                version = 0;
+            }
+            else
+            {
+                throw new BinaryFormatException(
+                    "Not a recognized BinarySerializer stream (magic number mismatch and V0 fallback is disabled).");
+            }
         }
-        else if (_byVersion.ContainsKey(0))
+        catch (IOException ex)
         {
-            version = 0;
-        }
-        else
-        {
-            throw new BinaryFormatException("Not a recognized BinarySerializer stream (magic number mismatch and V0 fallback is disabled).");
+            throw new BinaryStreamException(
+                "Failed to inspect the source stream while detecting the binary format.", ex);
         }
 
         if (!_byVersion.TryGetValue(version, out var codec))

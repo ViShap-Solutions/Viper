@@ -12,7 +12,7 @@ public sealed class BinarySerializerOptionsBuilder
     private string? _keyId;
     private int _writeVersion = BinaryFormatConstants.LatestVersion;
     private bool _preserveReferences = false;
-    private DeserializationLimits _limits = DeserializationLimits.Default;
+    private SerializationLimits _limits = SerializationLimits.Default;
     private bool _allowV0Fallback = false;
 
     public BinarySerializerOptionsBuilder WithCompression(ICompressionAlgorithm compression)
@@ -57,7 +57,7 @@ public sealed class BinarySerializerOptionsBuilder
         return this;
     }
     
-    public BinarySerializerOptionsBuilder WithLimits(DeserializationLimits limits)
+    public BinarySerializerOptionsBuilder WithLimits(SerializationLimits limits)
     {
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
         return this;
@@ -71,11 +71,13 @@ public sealed class BinarySerializerOptionsBuilder
 
     public BinarySerializerOptions Build()
     {
+        _limits.Validate();
+
         return new BinarySerializerOptions
         {
-            Compressor = AlgorithmResolver.ResolveCompressor(_compression),
+            Compressor = AlgorithmResolver.ResolveCompressor(_compression, _limits),
             Checksum = AlgorithmResolver.ResolveChecksum(_checksum),
-            Encryptor = AlgorithmResolver.ResolveEncryptor(_encryption, _key, _keyResolver, _keyId),
+            Encryptor = AlgorithmResolver.ResolveEncryptor(_encryption, _key, _keyResolver, _keyId, _limits),
             WriteVersion = _writeVersion,
             PreserveReferences = _preserveReferences,
             Limits = _limits,

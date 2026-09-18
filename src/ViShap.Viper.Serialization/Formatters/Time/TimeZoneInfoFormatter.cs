@@ -4,11 +4,11 @@ internal sealed class TimeZoneInfoFormatter : ITypeFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(TimeZoneInfo);
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
-        writer.RawWriter.Write(((TimeZoneInfo)value).ToSerializedString());
+        writer.WriteString(((TimeZoneInfo)value).ToSerializedString());
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
         TimeZoneInfo.FromSerializedString(
             DeserializationGuard.ReadString(
                 reader,
-                reader.Budget.Limits.MaxStringLength,
+                reader.Budget.Limits.MaxStringBytes,
                 "TimeZoneInfo serialized string length"));
 }

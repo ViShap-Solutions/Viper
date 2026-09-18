@@ -4,32 +4,38 @@ public static class AlgorithmResolver
 {
     public static ICompressor ResolveCompressor(
         ICompressionAlgorithm? algorithm = null,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         if (algorithm is null ||
             algorithm.Kind == CompressionAlgorithm.None)
         {
-            return Compressor.None;
+            return new Compressor(new NoCompression(), actualLimits);
         }
 
         return new Compressor(
             algorithm,
-            limits ?? DeserializationLimits.Default);
+            actualLimits);
     }
 
     public static ICompressor ResolveCompressor(
         CompressionAlgorithm kind,
         string? customName = null,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         if (kind == CompressionAlgorithm.None)
-            return Compressor.None;
+            return new Compressor(new NoCompression(), actualLimits);
 
         return new Compressor(
             CompressionAlgorithmRegistry.Resolve(
                 kind,
                 customName),
-            limits ?? DeserializationLimits.Default);
+                actualLimits);
     }
 
     public static IChecksumCalculator ResolveChecksum(
@@ -54,16 +60,17 @@ public static class AlgorithmResolver
         byte[]? key = null,
         Func<string?, byte[]?>? keyResolver = null,
         string? keyId = null,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
+        var actualLimits =
+            limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         if (algorithm is null ||
             algorithm.Kind == EncryptionAlgorithm.None)
         {
             return Encryptor.None;
         }
-
-        var actualLimits =
-            limits ?? DeserializationLimits.Default;
 
         if (keyResolver is not null)
         {
@@ -87,8 +94,12 @@ public static class AlgorithmResolver
         byte[]? key = null,
         Func<string?, byte[]?>? keyResolver = null,
         string? keyId = null,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
+        var actualLimits =
+            limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         if (kind == EncryptionAlgorithm.None)
             return Encryptor.None;
 
@@ -96,9 +107,6 @@ public static class AlgorithmResolver
             EncryptionAlgorithmRegistry.Resolve(
                 kind,
                 customName);
-
-        var actualLimits =
-            limits ?? DeserializationLimits.Default;
 
         if (keyResolver is not null)
         {

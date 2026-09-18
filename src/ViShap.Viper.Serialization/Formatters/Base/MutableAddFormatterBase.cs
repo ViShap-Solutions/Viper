@@ -15,7 +15,7 @@ internal abstract class MutableAddFormatterBase : ITypeFormatter
         var items = ((IEnumerable)value).Cast<object?>().ToList();
         if (ReverseOnWrite) items.Reverse();
 
-        writer.WriteInt32(items.Count);
+        writer.WriteInt32(writer.ValidateCollectionLengthForWrite(items.Count, "Collection count"));
         foreach (var item in items) writer.WriteElement(item, elementType);
     }
 

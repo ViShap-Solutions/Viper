@@ -17,7 +17,7 @@ internal sealed class CustomCollectionFormatter : ITypeFormatter
     {
         var elementType = GetElementType(declaredType)!;
         var items = ((IEnumerable)value).Cast<object?>().ToList();
-        writer.WriteInt32(items.Count);
+        writer.WriteInt32(writer.ValidateCollectionLengthForWrite(items.Count, "Collection count"));
         foreach (var item in items) writer.WriteElement(item, elementType);
     }
 
