@@ -17,8 +17,8 @@ public sealed class Brotli(CompressionLevel level = CompressionLevel.Optimal) : 
 
     public int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        if (!BrotliDecoder.TryDecompress(source, destination, out int bytesWritten))
-            throw new BinaryFormatException("Brotli decompression failed: the compressed payload is malformed.");
+        if (!BrotliDecoder.TryDecompress(source, destination, out int bytesWritten)) 
+            throw new BinaryFormatException("Brotli decompression failed because the compressed payload is malformed.");
         return bytesWritten;
     }
 

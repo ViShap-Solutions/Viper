@@ -13,7 +13,7 @@ internal sealed class ImmutableQueueFormatter : ITypeFormatter
     {
         var elementType = declaredType.GetGenericArguments()[0];
         var items = ((IEnumerable)value).Cast<object?>().ToList();
-        writer.WriteInt32(items.Count);
+        writer.WriteInt32(writer.ValidateCollectionLengthForWrite(items.Count, "ImmutableQueue count"));
         foreach (var item in items) writer.WriteElement(item, elementType);
     }
 

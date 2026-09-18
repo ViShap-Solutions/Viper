@@ -6,11 +6,11 @@ internal sealed class CultureInfoFormatter : ITypeFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(CultureInfo);
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
-        writer.RawWriter.Write(((CultureInfo)value).Name);
+        writer.WriteString(((CultureInfo)value).Name);
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
         CultureInfo.GetCultureInfo(
             DeserializationGuard.ReadString(
                 reader,
-                reader.Budget.Limits.MaxStringLength,
+                reader.Budget.Limits.MaxStringBytes,
                 "Culture name length"));
 }

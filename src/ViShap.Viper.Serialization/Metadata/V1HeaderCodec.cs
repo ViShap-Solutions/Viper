@@ -4,9 +4,9 @@ internal sealed class V1HeaderCodec : IHeaderCodec
 {
     public int Version => BinaryFormatHeaderV1.Version;
 
-    public BinaryHeaderInfo ReadHeaderInfo(BinaryReader reader)
+    public BinaryHeaderInfo ReadHeaderInfo(BinaryReader reader, SerializationLimits limits)
     {
-        var header = BinaryFormatHeaderV1.ReadFrom(reader);
+        var header = BinaryFormatHeaderV1.ReadFrom(reader, limits);
         return new BinaryHeaderInfo(
             BinaryFormatHeaderV1.Version,
             header.Compression,

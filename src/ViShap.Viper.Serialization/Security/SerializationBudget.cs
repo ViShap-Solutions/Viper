@@ -1,26 +1,25 @@
-﻿namespace ViShap.Viper.Security;
+namespace ViShap.Viper.Security;
 
-internal sealed class DeserializationBudget
+internal sealed class SerializationBudget
 {
-    private readonly DeserializationLimits _limits;
-
+    private readonly SerializationLimits _limits;
     private long _totalElements;
+    private long _objectGraphNodes;
     private int _depth;
 
-    public DeserializationBudget(DeserializationLimits limits)
+    public SerializationBudget(SerializationLimits limits)
     {
         _limits = limits ?? throw new ArgumentNullException(nameof(limits));
+        _limits.Validate();
     }
 
-    internal DeserializationLimits Limits => _limits;
-
+    internal SerializationLimits Limits => _limits;
     internal int Depth => _depth;
 
     public void ConsumeElements(long count)
     {
         if (count < 0)
-            throw new BinaryFormatException(
-                $"Element count {count} must be non-negative.");
+            throw new BinaryFormatException($"Element count {count} must be non-negative.");
 
         if (count > _limits.MaxTotalElements - _totalElements)
             throw new BinaryLimitException(
@@ -29,30 +28,25 @@ internal sealed class DeserializationBudget
         _totalElements += count;
     }
 
-    public void ConsumeBytes(long count)
+    public void ConsumeObjectGraphNodes(long count)
     {
         if (count < 0)
-        {
-            throw new BinaryFormatException(
-                $"Byte count {count} must be non-negative.");
-        }
+            throw new BinaryFormatException($"Object graph node count {count} must be non-negative.");
 
-        if (count > _limits.MaxMessageBytes)
-        {
+        if (count > _limits.MaxObjectGraphNodes - _objectGraphNodes)
             throw new BinaryLimitException(
-                $"Byte count {count} exceeds the configured limit of {_limits.MaxMessageBytes}.");
-        }
+                $"Object graph node count exceeds the configured limit of {_limits.MaxObjectGraphNodes}.");
+
+        _objectGraphNodes += count;
     }
 
     public IDisposable EnterDepth()
     {
-        if (++_depth > _limits.MaxDepth)
-        {
-            _depth--;
+        if (_depth >= _limits.MaxDepth)
             throw new BinaryLimitException(
                 $"Nesting depth exceeds the configured limit of {_limits.MaxDepth}.");
-        }
 
+        _depth++;
         return new DepthScope(this);
     }
 
@@ -62,7 +56,7 @@ internal sealed class DeserializationBudget
             _depth--;
     }
 
-    private sealed class DepthScope(DeserializationBudget owner) : IDisposable
+    private sealed class DepthScope(SerializationBudget owner) : IDisposable
     {
         private bool _disposed;
 

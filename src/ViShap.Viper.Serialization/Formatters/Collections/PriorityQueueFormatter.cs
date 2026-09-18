@@ -21,7 +21,7 @@ internal sealed class PriorityQueueFormatter : ITypeFormatter
             items.Add((accessors.Getters[0](entry), accessors.Getters[1](entry)));
         }
 
-        writer.WriteInt32(items.Count);
+        writer.WriteInt32(writer.ValidateCollectionLengthForWrite(items.Count, "PriorityQueue count"));
         foreach (var (element, priority) in items)
         {
             writer.WriteElement(element, elementType);

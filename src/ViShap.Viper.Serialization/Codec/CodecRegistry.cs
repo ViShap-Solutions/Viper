@@ -19,9 +19,7 @@ internal static class CodecRegistry
 
         Factories[factory.Version] = factory;
         if (headerCodec != null)
-        {
             HeaderCodecs[headerCodec.Version] = headerCodec;
-        }
     }
 
     public static IEnumerable<IFormatCodec> CreateCodecs(BinarySerializerOptions options)
@@ -35,12 +33,15 @@ internal static class CodecRegistry
         }
     }
 
-    public static BinaryHeaderInfo? Inspect(Stream source, int version)
+    public static BinaryHeaderInfo? Inspect(Stream source, int version, SerializationLimits? limits = null)
     {
         if (!HeaderCodecs.TryGetValue(version, out var headerCodec))
             return null;
 
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         using var reader = new BinaryReader(source, Encoding.UTF8, leaveOpen: true);
-        return headerCodec.ReadHeaderInfo(reader);
+        return headerCodec.ReadHeaderInfo(reader, actualLimits);
     }
 }

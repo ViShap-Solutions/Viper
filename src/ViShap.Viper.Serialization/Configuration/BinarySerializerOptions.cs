@@ -11,15 +11,16 @@ public sealed record BinarySerializerOptions
     public IEncryptor Encryptor { get; init; } = Crypto.Encryptor.None;
     public int WriteVersion { get; init; } = BinaryFormatConstants.LatestVersion;
     public bool PreserveReferences { get; init; }
-    public DeserializationLimits Limits { get; init; } = DeserializationLimits.Default;
+    public SerializationLimits Limits { get; init; } = SerializationLimits.Default;
     public bool AllowV0Fallback { get; init; }
 
     public static BinarySerializerOptions FromHeader(
         BinaryHeaderInfo info,
         byte[]? key = null,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
-        var actualLimits = limits ?? DeserializationLimits.Default;
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
 
         return new BinarySerializerOptions
         {
@@ -49,12 +50,13 @@ public sealed record BinarySerializerOptions
     public static BinarySerializerOptions FromHeader(
         BinaryHeaderInfo info,
         Func<string?, byte[]?> keyResolver,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(keyResolver);
 
         var actualLimits =
-            limits ?? DeserializationLimits.Default;
+            limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
 
         return new BinarySerializerOptions
         {
@@ -84,26 +86,32 @@ public sealed record BinarySerializerOptions
     public static BinarySerializerOptions FromStream(
         Stream stream,
         byte[]? key = null,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         var info =
-            BinaryFormatInspector.Peek(stream)
+            BinaryFormatInspector.Peek(stream, actualLimits)
             ?? throw new BinaryFormatException(
                 "Unable to inspect stream header. Format is unknown or unsupported.");
 
-        return FromHeader(info, key, limits);
+        return FromHeader(info, key, actualLimits);
     }
 
     public static BinarySerializerOptions FromStream(
         Stream stream,
         Func<string?, byte[]?> keyResolver,
-        DeserializationLimits? limits = null)
+        SerializationLimits? limits = null)
     {
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
+
         var info =
-            BinaryFormatInspector.Peek(stream)
+            BinaryFormatInspector.Peek(stream, actualLimits)
             ?? throw new BinaryFormatException(
                 "Unable to inspect stream header. Format is unknown or unsupported.");
 
-        return FromHeader(info, keyResolver, limits);
+        return FromHeader(info, keyResolver, actualLimits);
     }
 }

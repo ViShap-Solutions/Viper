@@ -6,11 +6,11 @@ internal sealed class StringBuilderFormatter : ITypeFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(StringBuilder);
     public void Write(BinaryPayloadWriter writer, object value, Type declaredType) =>
-        writer.RawWriter.Write(value.ToString()!);
+        writer.WriteString(value.ToString()!);
     public object Read(BinaryPayloadReader reader, Type declaredType) =>
         new StringBuilder(
             DeserializationGuard.ReadString(
                 reader,
-                reader.Budget.Limits.MaxStringLength,
+                reader.Budget.Limits.MaxStringBytes,
                 "StringBuilder length"));
 }

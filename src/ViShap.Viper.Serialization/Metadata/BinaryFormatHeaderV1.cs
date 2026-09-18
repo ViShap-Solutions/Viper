@@ -16,93 +16,98 @@ internal readonly record struct BinaryFormatHeaderV1(
 {
     public const int Version = 1;
 
-    public void WriteTo(BinaryWriter writer)
+    public void WriteTo(BinaryWriter writer, SerializationLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(writer);
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
 
         writer.Write(BinaryFormatConstants.Magic);
         writer.Write(Version);
-        
         writer.Write((byte)Compression);
-        writer.WriteOptionalString(CustomCompressionName);
-
+        writer.WriteOptionalString(CustomCompressionName, actualLimits, "Custom compression name");
         writer.Write((byte)ChecksumAlgorithm);
-        writer.WriteOptionalString(CustomChecksumName);
-
+        writer.WriteOptionalString(CustomChecksumName, actualLimits, "Custom checksum name");
         writer.Write((byte)Encryption);
-        writer.WriteOptionalString(CustomEncryptionName);
-
-        writer.WriteOptionalString(KeyId);
-        
+        writer.WriteOptionalString(CustomEncryptionName, actualLimits, "Custom encryption name");
+        writer.WriteOptionalString(KeyId, actualLimits, "Key ID");
         writer.Write(PreserveReferences);
+
+        DeserializationGuard.ValidateLength(
+            UncompressedLength,
+            actualLimits.MaxPayloadBytes,
+            "UncompressedLength");
+        DeserializationGuard.ValidateLength(
+            CompressedLength,
+            actualLimits.MaxCompressedBytes,
+            "CompressedLength");
+        DeserializationGuard.ValidateLength(
+            OnDiskLength,
+            actualLimits.MaxEncryptedBytes,
+            "OnDiskLength");
 
         writer.Write(UncompressedLength);
         writer.Write(CompressedLength);
         writer.Write(OnDiskLength);
 
+        if (Checksum.Length > byte.MaxValue)
+            throw new BinaryConfigurationException(
+                $"Checksum length {Checksum.Length} cannot be represented by the V1 header.");
+
         writer.Write((byte)Checksum.Length);
-        if (Checksum.Length > 0) writer.Write(Checksum);
+        if (Checksum.Length > 0)
+            writer.Write(Checksum);
     }
 
-    public static BinaryFormatHeaderV1 ReadFrom(BinaryReader reader, DeserializationLimits? limits = null)
+    public static BinaryFormatHeaderV1 ReadFrom(
+        BinaryReader reader,
+        SerializationLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
-        limits ??= DeserializationLimits.Default;
-        limits.Validate();
+        var actualLimits = limits ?? SerializationLimits.Default;
+        actualLimits.Validate();
 
         try
-        { 
+        {
             int magic = reader.ReadInt32();
-
             if (magic != BinaryFormatConstants.Magic)
                 throw new BinaryFormatException(
                     "Not a recognized BinarySerializer stream (magic number mismatch).");
 
             int formatVersion = reader.ReadInt32();
-
             if (formatVersion != Version)
                 throw new BinaryFormatNotSupportedException(
                     $"Expected format version {Version}, but found {formatVersion}.");
 
             var compression = (CompressionAlgorithm)reader.ReadByte();
-
             if (!Enum.IsDefined(compression))
                 throw new BinaryFormatNotSupportedException(
                     $"Unknown compression algorithm: {compression}.");
 
-            var customCompression =
-                reader.ReadOptionalString(
-                    limits,
-                    "Custom compression name");
+            var customCompression = reader.ReadOptionalString(
+                actualLimits,
+                "Custom compression name");
 
             var checksumAlgorithm = (ChecksumAlgorithm)reader.ReadByte();
-
             if (!Enum.IsDefined(checksumAlgorithm))
                 throw new BinaryFormatNotSupportedException(
                     $"Unknown checksum algorithm: {checksumAlgorithm}.");
 
-            var customChecksum =
-                reader.ReadOptionalString(
-                    limits,
-                    "Custom checksum name");
+            var customChecksum = reader.ReadOptionalString(
+                actualLimits,
+                "Custom checksum name");
 
             var encryption = (EncryptionAlgorithm)reader.ReadByte();
-
             if (!Enum.IsDefined(encryption))
                 throw new BinaryFormatNotSupportedException(
                     $"Unknown encryption algorithm: {encryption}.");
 
-            var customEncryption =
-                reader.ReadOptionalString(
-                    limits,
-                    "Custom encryption name");
+            var customEncryption = reader.ReadOptionalString(
+                actualLimits,
+                "Custom encryption name");
 
-            var keyId =
-                reader.ReadOptionalString(
-                    limits,
-                    "Key ID");
-
+            var keyId = reader.ReadOptionalString(actualLimits, "Key ID");
             bool preserveReferences = reader.ReadBoolean();
 
             int uncompressedLength = reader.ReadInt32();
@@ -111,17 +116,17 @@ internal readonly record struct BinaryFormatHeaderV1(
 
             DeserializationGuard.ValidateLength(
                 uncompressedLength,
-                limits.MaxMessageBytes,
+                actualLimits.MaxPayloadBytes,
                 "UncompressedLength");
-
+            
             DeserializationGuard.ValidateLength(
                 compressedLength,
-                limits.MaxMessageBytes,
+                actualLimits.MaxCompressedBytes,
                 "CompressedLength");
-
+            
             DeserializationGuard.ValidateLength(
                 onDiskLength,
-                limits.MaxMessageBytes,
+                actualLimits.MaxEncryptedBytes,
                 "OnDiskLength");
 
             if (compression == CompressionAlgorithm.None &&
@@ -139,14 +144,10 @@ internal readonly record struct BinaryFormatHeaderV1(
             }
 
             byte checksumLength = reader.ReadByte();
-
-            byte[] checksum = reader.ReadBytes(checksumLength);
-
-            if (checksum.Length != checksumLength)
-            {
-                throw new BinaryFormatException(
-                    $"Checksum bytes ended early. Expected {checksumLength}, got {checksum.Length}.");
-            }
+            byte[] checksum = DeserializationGuard.ReadExactly(
+                reader.BaseStream,
+                checksumLength,
+                "Checksum");
 
             return new BinaryFormatHeaderV1(
                 compression,
@@ -164,7 +165,7 @@ internal readonly record struct BinaryFormatHeaderV1(
         }
         catch (EndOfStreamException ex)
         {
-            throw new BinaryFormatException($"V1 header is truncated.", ex);
+            throw new BinaryFormatException("V1 header is truncated.", ex);
         }
     }
 }
