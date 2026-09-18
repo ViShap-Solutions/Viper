@@ -1,72 +1,75 @@
 namespace ViShap.Viper.Security;
 
-internal sealed class SerializationBudget
+/// <summary>
+/// Per-operation resource accounting. The budget answers "what has this operation already consumed";
+/// it is created once per public call and is never shared between calls or threads.
+/// </summary>
+internal sealed class SerializationBudget(SerializationLimits limits)
 {
-    private readonly SerializationLimits _limits;
     private long _totalElements;
     private long _objectGraphNodes;
+    private long _keyedFields;
     private int _depth;
 
-    public SerializationBudget(SerializationLimits limits)
+    public SerializationLimits Limits { get; } = limits;
+    public int Depth => _depth;
+    public long TotalElements => _totalElements;
+    public long ObjectGraphNodes => _objectGraphNodes;
+    public long KeyedFields => _keyedFields;
+
+    public void ConsumeElements(long count) =>
+        Consume(ref _totalElements, count, Limits.MaxTotalElements,
+            "Cumulative element count across the payload");
+
+    public void ConsumeObjectGraphNodes(long count) =>
+        Consume(ref _objectGraphNodes, count, Limits.MaxObjectGraphNodes,
+            "Object graph node count");
+
+    public void ConsumeKeyedFields(long count) =>
+        Consume(ref _keyedFields, count, Limits.MaxTotalKeyedFields,
+            "Cumulative keyed field count across the payload");
+
+    /// <summary>
+    /// Enters one structural level. The returned scope restores the previous depth exactly once;
+    /// it is a <c>ref struct</c> so entering a node costs no allocation.
+    /// </summary>
+    public DepthScope EnterDepth()
     {
-        _limits = limits ?? throw new ArgumentNullException(nameof(limits));
-        _limits.Validate();
-    }
-
-    internal SerializationLimits Limits => _limits;
-    internal int Depth => _depth;
-
-    public void ConsumeElements(long count)
-    {
-        if (count < 0)
-            throw new BinaryFormatException($"Element count {count} must be non-negative.");
-
-        if (count > _limits.MaxTotalElements - _totalElements)
+        if (_depth >= Limits.MaxDepth)
             throw new BinaryLimitException(
-                $"Cumulative element count across the payload exceeds the configured limit of {_limits.MaxTotalElements}.");
-
-        _totalElements += count;
-    }
-
-    public void ConsumeObjectGraphNodes(long count)
-    {
-        if (count < 0)
-            throw new BinaryFormatException($"Object graph node count {count} must be non-negative.");
-
-        if (count > _limits.MaxObjectGraphNodes - _objectGraphNodes)
-            throw new BinaryLimitException(
-                $"Object graph node count exceeds the configured limit of {_limits.MaxObjectGraphNodes}.");
-
-        _objectGraphNodes += count;
-    }
-
-    public IDisposable EnterDepth()
-    {
-        if (_depth >= _limits.MaxDepth)
-            throw new BinaryLimitException(
-                $"Nesting depth exceeds the configured limit of {_limits.MaxDepth}.");
+                $"Nesting depth exceeds the configured limit of {Limits.MaxDepth}.");
 
         _depth++;
         return new DepthScope(this);
     }
 
-    private void ExitDepth()
+    private static void Consume(ref long consumed, long count, long maximum, string what)
     {
-        if (_depth > 0)
-            _depth--;
+        if (count < 0)
+            throw new BinaryFormatException($"{what} {count} must be non-negative.");
+
+        if (count > maximum - consumed)
+            throw new BinaryLimitException(
+                $"{what} exceeds the configured limit of {maximum}.");
+
+        consumed += count;
     }
 
-    private sealed class DepthScope(SerializationBudget owner) : IDisposable
+    internal ref struct DepthScope
     {
-        private bool _disposed;
+        private SerializationBudget? _owner;
+
+        internal DepthScope(SerializationBudget owner) => _owner = owner;
 
         public void Dispose()
         {
-            if (_disposed)
+            if (_owner is null)
                 return;
 
-            _disposed = true;
-            owner.ExitDepth();
+            if (_owner._depth > 0)
+                _owner._depth--;
+
+            _owner = null;
         }
     }
 }

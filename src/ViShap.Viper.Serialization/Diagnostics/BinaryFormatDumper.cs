@@ -1,83 +1,66 @@
-﻿using System.Text;
+using System.Text;
 
 namespace ViShap.Viper.Diagnostics;
 
-public readonly record struct TraceEntry(long Offset, int Depth, string TypeName, string? Value);
-
+/// <summary>
+/// Diagnostic rendering of a payload's envelope. This is tooling, not production behaviour: it turns
+/// a failure into readable output, so unlike the serializer it is allowed to report an error as text
+/// instead of propagating it.
+/// </summary>
 public static class BinaryFormatDumper
 {
+    /// <summary>Renders the envelope of a payload as human-readable text.</summary>
+    /// <param name="payload">The payload bytes.</param>
+    /// <returns>
+    /// A short report naming the format version and the algorithms, or a description of why the header
+    /// could not be read. This method does not throw for malformed input.
+    /// </returns>
+    public static string DumpHeader(byte[] payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+
+        using var stream = new MemoryStream(payload, writable: false);
+        return DumpHeader(stream);
+    }
+
+    /// <summary>Renders the envelope of a payload as human-readable text.</summary>
+    /// <param name="source">
+    /// A seekable stream positioned at the start of a payload. Its position is restored.
+    /// </param>
+    /// <returns>
+    /// A short report naming the format version and the algorithms, or a description of why the header
+    /// could not be read. This method does not throw for malformed input.
+    /// </returns>
     public static string DumpHeader(Stream source)
     {
-        var info = BinaryFormatInspector.Peek(source);
-        if (info is null) return "Not a recognized BinarySerializer stream (magic number mismatch).";
+        ArgumentNullException.ThrowIfNull(source);
 
-        var i = info.Value;
-        return $"""
-            FormatVersion    : {i.FormatVersion}
-            Compression      : {i.Compression}{(i.CustomCompressionName is { } c ? $" (custom: {c})" : "")}
-            ChecksumAlgorithm: {i.ChecksumAlgorithm}{(i.CustomChecksumName is { } cs ? $" (custom: {cs})" : "")}
-            Encryption       : {i.Encryption}{(i.CustomEncryptionName is { } e ? $" (custom: {e})" : "")}
-            KeyId            : {i.KeyId ?? "(none)"}
-            """;
-    }
-    
-    public static string Dump<T>(byte[] bytes, BinarySerializerOptions? options = null)
-    {
-        var header = DumpHeader(new MemoryStream(bytes));
-        var sb = new StringBuilder();
-        sb.AppendLine("=== Header ===");
-        sb.AppendLine(header);
-        sb.AppendLine();
+        var report = new StringBuilder();
 
         try
         {
-            var serializer = new BinarySerializer(options ?? BinarySerializerOptions.Default);
-            var result = serializer.Deserialize<T>(bytes);
-            sb.AppendLine("=== Parsed successfully ===");
-            sb.AppendLine(ObjectGraphDumper.Dump(result));
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"=== Parsing FAILED: {ex.GetType().Name}: {ex.Message} ===");
-            sb.AppendLine();
-            sb.AppendLine("=== Last reads before failure ===");
-
-            foreach (var entry in TraceFailedRead<T>(bytes, options))
+            var info = BinaryFormatInspector.Peek(source);
+            if (info is null)
             {
-                string valueText = entry.Value is null ? "" : $": {entry.Value}";
-                sb.AppendLine($"[Offset 0x{entry.Offset:X}] (depth {entry.Depth}) {entry.TypeName}{valueText}");
+                report.AppendLine("No recognized Viper header (V0 payload or unrelated data).");
+                return report.ToString();
             }
+
+            var header = info.Value;
+            report.AppendLine($"Format version : {header.FormatVersion}");
+            report.AppendLine($"Compression    : {Describe(header.Compression, header.CustomCompressionName)}");
+            report.AppendLine($"Checksum       : {Describe(header.ChecksumAlgorithm, header.CustomChecksumName)}");
+            report.AppendLine($"Encryption     : {Describe(header.Encryption, header.CustomEncryptionName)}");
+            report.AppendLine($"Key id         : {header.KeyId ?? "(none)"}");
+        }
+        catch (BinarySerializerException ex)
+        {
+            report.AppendLine($"Header could not be read: {ex.GetType().Name}: {ex.Message}");
         }
 
-        return sb.ToString();
+        return report.ToString();
     }
 
-    private static IReadOnlyList<TraceEntry> TraceFailedRead<T>(byte[] bytes, BinarySerializerOptions? options)
-    {
-        BinaryPayloadReader? payloadReader = null;
-
-        try
-        {
-            var opts = options ?? BinarySerializerOptions.Default;
-
-            using var ms = new MemoryStream(bytes);
-
-            using var reader = new BinaryReader(ms);
-
-            payloadReader =
-                new BinaryPayloadReader(
-                    reader,
-                    opts.PreserveReferences,
-                    opts.Limits,
-                    enableTrace: true);
-
-            payloadReader.Deserialize<T>();
-
-            return payloadReader.Trace;
-        }
-        catch (Exception)
-        {
-            return payloadReader?.Trace ?? Array.Empty<TraceEntry>();
-        }
-    }
+    private static string Describe<TKind>(TKind kind, string? customName) where TKind : Enum =>
+        customName is null ? kind.ToString() : $"{kind} ('{customName}')";
 }

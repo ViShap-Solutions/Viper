@@ -1,58 +1,27 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace ViShap.Viper.Cache;
 
+/// <summary>
+/// <c>ReadOnlySequence&lt;T&gt;</c> is not <c>IEnumerable</c>, so its elements are reached through a
+/// cached generic delegate rather than reflection on every call.
+/// </summary>
 internal static class ReadOnlySequenceAccessorCache
 {
-    private static readonly ConcurrentDictionary<Type, Action<BinaryPayloadWriter, object>> WriteCache = new();
-    private static readonly ConcurrentDictionary<Type, Func<BinaryPayloadReader, object>> ReadCache = new();
+    private static readonly ConcurrentDictionary<Type, Func<object, object>> ToArrayCache = new();
 
-    private static readonly MethodInfo WriteGenericDefinition =
-        typeof(ReadOnlySequenceAccessorCache).GetMethod(nameof(WriteGeneric), BindingFlags.NonPublic | BindingFlags.Static)!;
-    private static readonly MethodInfo ReadGenericDefinition =
-        typeof(ReadOnlySequenceAccessorCache).GetMethod(nameof(ReadGeneric), BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static readonly MethodInfo ToArrayDefinition =
+        typeof(ReadOnlySequenceAccessorCache)
+            .GetMethod(nameof(ToArrayGeneric), BindingFlags.NonPublic | BindingFlags.Static)!;
 
-    public static Action<BinaryPayloadWriter, object> GetWriter(Type elementType) =>
-        WriteCache.GetOrAdd(elementType, static t =>
-            (Action<BinaryPayloadWriter, object>)WriteGenericDefinition.MakeGenericMethod(t)
-                .CreateDelegate(typeof(Action<BinaryPayloadWriter, object>)));
+    public static Func<object, object> GetToArray(Type elementType) =>
+        ToArrayCache.GetOrAdd(elementType, static type =>
+            (Func<object, object>)ToArrayDefinition
+                .MakeGenericMethod(type)
+                .CreateDelegate(typeof(Func<object, object>)));
 
-    public static Func<BinaryPayloadReader, object> GetReader(Type elementType) =>
-        ReadCache.GetOrAdd(elementType, static t =>
-            (Func<BinaryPayloadReader, object>)ReadGenericDefinition.MakeGenericMethod(t)
-                .CreateDelegate(typeof(Func<BinaryPayloadReader, object>)));
-
-    private static void WriteGeneric<T>(BinaryPayloadWriter writer, object boxedSequence)
-    {
-        var sequence = (ReadOnlySequence<T>)boxedSequence;
-        long sequenceLength = sequence.Length;
-        if (sequenceLength > int.MaxValue)
-            throw new BinaryLimitException($"ReadOnlySequence length {sequenceLength} exceeds Int32 range {int.MaxValue}.");
-        writer.WriteInt32(
-            writer.ValidateCollectionLengthForWrite((int)sequenceLength, "ReadOnlySequence length"));
-
-        foreach (var memory in sequence)
-        {
-            var span = memory.Span;
-            for (int i = 0; i < span.Length; i++)
-                writer.WriteElement(span[i], typeof(T));
-        }
-    }
-
-    private static object ReadGeneric<T>(BinaryPayloadReader reader)
-    {
-        int count = 
-            DeserializationGuard.ValidateCount(
-                reader,
-                reader.ReadInt32(),
-                reader.Budget.Limits.MaxCollectionLength,
-                "ReadOnlySequence length");
-        
-        return new ReadOnlySequence<T>(
-            DeserializationGuard.ReadIntoArray<T>(
-                reader,
-                count));
-    }
+    private static object ToArrayGeneric<T>(object boxedSequence) =>
+        ((ReadOnlySequence<T>)boxedSequence).ToArray();
 }

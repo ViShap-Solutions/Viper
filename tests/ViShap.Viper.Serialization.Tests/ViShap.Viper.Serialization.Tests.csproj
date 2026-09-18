@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="ViShap.Viper" />
+    <Using Include="ViShap.Viper.Exceptions" />
   </ItemGroup>
   
   <ItemGroup>

@@ -30,6 +30,8 @@ Viper
 │       └── 📄 SERIALIZATION-README.md
 │        
 ├── 📁 tests
+├── 📁 docs
+│
 ├── ⚖️ LICENSE
 └── 📝 README.md
 ```

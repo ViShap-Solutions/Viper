@@ -1,0 +1,131 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+Targets .NET 10 (`net10.0`), SDK 10.0.x.
+
+```powershell
+dotnet restore Viper.sln
+dotnet build Viper.sln --configuration Release
+dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj
+
+# Single test / class / trait
+dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~Serialize_Deserialize_ByteArray_ReferenceType"
+dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~HostileInputTests"
+
+# Benchmarks (BenchmarkDotNet; must run Release)
+dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release
+```
+
+CI (`.github/workflows/ci.yml`) runs restore → build → the serialization test project on every PR/push to `main`. CD (`cd.yml`) fires on `v*` tags: it *requires the tag to point exactly at `origin/main` HEAD*, packs all three packages with `-p:Version=<tag minus v>`, and pushes to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
+
+## Where the authoritative information lives
+
+- `docs/System-Contract.md` — **the normative contract and the source of truth.** Public API surface
+  (§3), limits and budgets (§5–6), stream mechanisms (§7), exception taxonomy (§8), versions and
+  header (§10–11), compression and encryption (§12–13), member layouts (§14), polymorphism (§15),
+  references (§16), the byte-level wire format (§22), the supported types with their encodings (§23),
+  and the release checklist (§24). Read the relevant section before changing behavior; update it in
+  the same commit when behavior changes.
+- `docs/Architecture-Audit.md` — why the architecture looks like this: the audit that produced it,
+  the alternatives that were rejected and why, the invariants, and the implementation status.
+- `docs/QA-Plan.md`, `docs/Benchmark-Plan.md` — **not yet realigned** with the reworked architecture.
+  Treat them as stale until they are.
+- `docs/audit/` — the historical record of the audit that led to the rework: the original probes
+  (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
+  provenance; `Problems.cs` maps each finding to the test that now pins it.
+
+Current state: the architecture rework described in the audit is complete and `src/` matches the
+contract. 94 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
+so an undocumented public member breaks the build (CS1591).
+
+## Projects
+
+- `ViShap.Viper.Core` — contracts only, no dependencies: attributes, the `CompressionAlgorithm`/`ChecksumAlgorithm`/`EncryptionAlgorithm` enums with their `I*Algorithm` primitives, `SecretKey`/`IKeyProvider`, and the exception hierarchy (all derive from `BinarySerializerException`). Core carries **no policy**: no limits, no orchestration, nothing that enforces a resource ceiling.
+- `ViShap.Viper.Serialization` — the entire engine. Depends on Core + `System.IO.Hashing`.
+- `ViShap.Viper` — meta-package, references both, ships no code.
+
+**Namespaces do not follow the folder/assembly layout.** Everything roots at `ViShap.Viper.*` regardless of project (e.g. `src/ViShap.Viper.Serialization/Io/` → `ViShap.Viper.Io`). The *public* API (`BinarySerializer`, `BinarySerializerOptions`, `StreamExtensions`, the attributes) sits in the bare `ViShap.Viper` namespace so consumers need one `using`. `GlobalUsings.cs` imports every sub-namespace, so new files in the Serialization project usually need no `using` for in-project types.
+
+Most engine types are `internal`; `AssemblyInfo.QA.cs` grants `InternalsVisibleTo("ViShap.Viper.Serialization.Tests")`.
+
+## Architecture
+
+Documented normatively in `docs/System-Contract.md` §2; the reasoning behind it is in `docs/Architecture-Audit.md`. Layers, top to bottom:
+
+```text
+BinarySerializer            creates exactly one SerializationOperation per public call
+SerializationOperation      Limits snapshot, Budget, PhaseBudget, Keys, policies
+FormatPipeline (V0 | V1)    framing, phase order, header + AAD, phase sizes
+PayloadEngine               traversal: depth, graph nodes, references, TypeContract
+ValueReader / ValueWriter   the only access to payload bytes
+Formatters                  type encoding only
+Algorithms                  pure mechanics over spans
+```
+
+Dependencies point strictly downwards. **No type below `Pipeline/` may reference `SerializationLimits`.**
+
+### Three structural barriers
+
+These are why the codebase does not carry a security check in every class. Do not work around them:
+
+1. **Byte monopoly.** `ValueReader`/`ValueWriter` (`Io/`) are the only types that touch payload bytes; there is no raw stream accessor. Fixed-size reads throw `BinaryFormatException` on truncation, strings and blobs are bounded by their limits, and every declared length is compared with the bytes physically remaining before anything is allocated.
+2. **Validated counts.** A loop bound over wire data exists only as an `ElementCount`, whose sole factory checks the count against its limit and charges the element budget. There is no other way to obtain one, so "read a length, then allocate" is not expressible.
+3. **Engine-owned traversal.** `GraphReader`/`GraphWriter` (`Engine/`) own all recursion: depth scopes, node budget, reference identity and scopes, cycle detection, the keyed layout, and the element loop of every container. A formatter never writes a loop over attacker-controlled data.
+
+### Adding a formatter
+
+Pick the shape, implement its interface (`Formatters/ITypeFormatter.cs`), and register it in `FormatterRegistry` **before** anything that would also claim the type:
+
+- `IScalarFormatter` — self-contained values with no children and no data-driven allocation.
+- `ISequenceFormatter` — element type plus a builder; the engine owns count, loop, depth, nodes and identity. Set `BuilderIsInstance = false` when the final object only exists after `Complete`, and `ReverseOnWrite` for LIFO containers.
+- `IMapFormatter` — the same, for key/value entries.
+- `ICompositeFormatter` — a fixed, type-determined child layout (tuples, pairs, lazies) or an irregular one (array rank). The engine has already charged depth, nodes and identity; any count still comes from `ReadCount`.
+
+No shape fits a plain object: a type no formatter claims is member-encoded through `TypeContract`. `FormatterRegistry.Resolve` returning `null` means exactly that — there is no catch-all formatter that could shadow a specific one.
+
+`ITypeFormatter` is deliberately `internal` for v1.0; publishing it would freeze the traversal protocol.
+
+### Versioned envelope
+
+`BinarySerializer` builds one pipeline per supported version. Writing uses `options.WriteVersion` (default `BinaryFormatConstants.LatestVersion` = 1). Reading is *self-describing*: `FormatRouter` peeks magic `0x52455342` + version and dispatches; a stream without the magic falls back to V0 only when `AllowV0Fallback` is set. **Reads therefore require a seekable stream.**
+
+- **V1** (`V1FormatPipeline`) — full envelope: `BinaryFormatHeaderV1` followed by the payload. Write order is serialize → checksum over the raw payload → compress → build AAD → encrypt → header. Read reverses it, verifies every declared length, and requires the payload to be consumed exactly. Only V1 supports keyed contracts and reference framing. The header is bound to authenticated encryption as associated data, so no header field can be altered without breaking the tag.
+- **V0** (`V0FormatPipeline`) — headerless raw payload, legacy compatibility only: positional layout, no references, no keyed contracts. It may be embedded in a larger stream, so it does not require the source to end with the payload.
+
+Adding a format version means a pipeline registered in `BinarySerializer`; the router picks it up. Formatters, the engine, the algorithms and the limits are untouched.
+
+### Member layouts
+
+`TypeContract` (`Engine/`) is the single materialized description of a concrete type, used identically by reader and writer:
+
+- **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields, delegates and indexers are skipped. Field order *is* the wire format.
+- **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Requires a seekable payload stream and V1.
+
+The two are mutually exclusive, and every contradiction is rejected when the contract is built: `[BinaryKey]` without `[BinaryContract]`, `[BinaryOrder]`/`[BinaryInclude]` on a contract, an unmarked contract member, `[BinaryKey]` together with `[BinaryIgnore]`, `[BinaryInclude]` together with `[BinaryIgnore]`, duplicate keys or orders.
+
+Polymorphism: `[BinaryUnion(tag, typeof(Derived))]` on a base class or interface; a one-byte discriminator precedes the members. Tags must fit in a byte, and only tags travel — never type names. Writing a value whose runtime type differs from the declared type **without** a union map is `BinaryTypeException`, because the reader could not reconstruct it.
+
+References: with `PreserveReferences`, a marker byte and object id precede every structural reference-typed value, containers included. Ids are unique but visible only along the ancestor chain, so a back reference never crosses two sibling keyed fields and skipping an unknown field can never dangle. Without the option a cycle throws `BinaryTypeException`. Member-encoded types are constructed through a parameterless constructor.
+
+### Limits and budgets
+
+`SerializationLimits` is the public, immutable policy, validated once when options are built. `SerializationBudget` is the per-operation accounting (elements, graph nodes, keyed fields, depth); `PhaseBudget` is the per-phase size policy. `MeteredReadStream`/`MeteredWriteStream` count bytes relative to where the operation started; `WindowReadStream` exposes one declared subrange.
+
+Limit breaches throw `BinaryLimitException`; malformed data throws `BinaryFormatException`; unsupported versions or algorithms throw `BinaryFormatNotSupportedException`; tampering and protection downgrades throw `BinaryIntegrityException`.
+
+### Algorithms
+
+Each family has a public primitive (`I*Algorithm`, span-based, policy-free) and an internal service (`CompressionService`, `ChecksumService`, `EncryptionService`) that the pipeline calls **inside** the phase barrier. Custom algorithms are registered on the options builder and snapshotted into an `AlgorithmCatalog`; there is no process-wide registry, and built-ins cannot be substituted.
+
+Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvider`. The serializer never zeroes memory it does not own.
+
+## Conventions
+
+- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern under `tests/.../API/`, `Security/` and `Correctness/`, with shared types in `Fixtures/`.
+- Work happens on `feature/*` / `bugfix/*` branches merged into `main` via PR.
+- Any change to what goes on the wire (formatter encoding, header fields, member ordering, reference framing) is a compatibility break unless it goes behind a new format version or a keyed contract.
+- Exception constructors keep the inner exception on the same line as the message, never on its own line.
+- Do not add `catch (BinarySerializerException) { throw; }` unless the catch performs real cleanup.
