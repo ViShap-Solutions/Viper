@@ -1,0 +1,17 @@
+﻿bin/
+obj/
+appsettings.json
+appsettings.Development.json
+
+logs/
+*.log
+
+.env
+.env.*
+*.pem
+*.key
+certs/
+secrets.toml
+
+.idea/
+.vscode/
