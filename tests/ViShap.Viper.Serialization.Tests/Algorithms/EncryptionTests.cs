@@ -1,15 +1,14 @@
 using System.Security.Cryptography;
-using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
-namespace ViShap.Viper.Serialization.Tests.Security;
+namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Acceptance gate for the cryptography findings (S01, S02, S07, S08, S09): key ownership,
-/// authenticated metadata, downgrade policy and exact decompression.
+/// Pins ENC-01, ENC-03…ENC-05, ENC-07, ENC-09…ENC-14, ENC-17, ENC-20 and CFG-05: authenticated
+/// metadata, key ownership, and the difference between being able to decrypt and requiring it.
 /// </summary>
-public class CryptoContractTests
+public class EncryptionTests
 {
     private static byte[] NewKey() => RandomNumberGenerator.GetBytes(32);
 
@@ -18,7 +17,7 @@ public class CryptoContractTests
             .WithEncryption(new Aes256Gcm(), key, keyId)
             .Build());
 
-    // --- S01: encryption capability is not encryption policy -----------------------------------
+    // --- capability is not policy ---------------------------------------------------------------
 
     [Fact]
     public void Deserialize_PlaintextPayload_IsAcceptedWhenEncryptionIsOnlyACapability()
@@ -49,36 +48,7 @@ public class CryptoContractTests
             () => BinarySerializerOptions.Configure().RequireEncryption().Build());
     }
 
-    // --- S02: the header is authenticated ------------------------------------------------------
-
-    [Fact]
-    public void Deserialize_EncryptedPayloadWithTamperedHeaderFlag_ThrowsIntegrity()
-    {
-        var serializer = Encrypted(NewKey());
-        byte[] payload = serializer.Serialize(123);
-
-        payload[15] = 1;   // PreserveReferences, outside the ciphertext
-
-        Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(payload));
-    }
-
-    [Fact]
-    public void Deserialize_EncryptedPayloadWithEveryHeaderByteFlipped_AlwaysFails()
-    {
-        var serializer = Encrypted(NewKey());
-        byte[] original = serializer.Serialize(new Person { Name = "Alice", Age = 30 });
-
-        // The header runs up to the on-disk payload; flipping any of it must be detected.
-        const int headerLength = 30;
-        for (int index = 8; index < headerLength; index++)
-        {
-            byte[] tampered = (byte[])original.Clone();
-            tampered[index] ^= 0xFF;
-
-            Assert.ThrowsAny<BinarySerializerException>(
-                () => serializer.Deserialize<Person>(tampered));
-        }
-    }
+    // --- authenticated metadata -----------------------------------------------------------------
 
     [Fact]
     public void Deserialize_EncryptedPayload_RoundTrips()
@@ -91,7 +61,64 @@ public class CryptoContractTests
         Assert.Equivalent(source, result);
     }
 
-    // --- S07: a key provider's buffer is never mutated ------------------------------------------
+    [Fact]
+    public void Deserialize_EncryptedPayloadWithTamperedHeaderFlag_ThrowsIntegrity()
+    {
+        var serializer = Encrypted(NewKey());
+        byte[] payload = serializer.Serialize(123);
+
+        byte[] tampered = Mutate.SetByte(payload, Wire.PreserveReferencesOffset, 1);
+
+        Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(tampered));
+    }
+
+    [Fact]
+    public void Deserialize_EncryptedPayloadWithAnyHeaderByteFlipped_AlwaysFails()
+    {
+        // The exception family is genuine here: flipping a version or an algorithm identifier is
+        // BinaryFormatNotSupportedException, a length is BinaryFormatException, and an authenticated
+        // field is BinaryIntegrityException. Contract §13.1 promises only that no flip is accepted.
+        var serializer = Encrypted(NewKey());
+        byte[] original = serializer.Serialize(new Person { Name = "Alice", Age = 30 });
+
+        for (int index = 8; index < Wire.PlainHeaderLength; index++)
+        {
+            byte[] tampered = Mutate.FlipByte(original, index);
+
+            Assert.ThrowsAny<BinarySerializerException>(
+                () => serializer.Deserialize<Person>(tampered));
+        }
+    }
+
+    [Fact]
+    public void Deserialize_EncryptedPayloadWithTamperedCiphertext_ThrowsIntegrity()
+    {
+        var serializer = Encrypted(NewKey());
+        byte[] payload = serializer.Serialize(new Person { Name = "Alice", Age = 30 });
+
+        byte[] tampered = Mutate.FlipByte(payload, payload.Length - 1);
+
+        Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<Person>(tampered));
+    }
+
+    [Fact]
+    public void Deserialize_WithTheWrongKey_ThrowsIntegrity()
+    {
+        byte[] payload = Encrypted(NewKey()).Serialize(123);
+
+        Assert.Throws<BinaryIntegrityException>(() => Encrypted(NewKey()).Deserialize<int>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_EncryptedPayloadWithoutAnyKey_ThrowsKeyException()
+    {
+        byte[] payload = Encrypted(NewKey()).Serialize(123);
+
+        Assert.Throws<BinaryEncryptionKeyException>(
+            () => new BinarySerializer().Deserialize<int>(payload));
+    }
+
+    // --- key ownership --------------------------------------------------------------------------
 
     [Fact]
     public void Encrypt_WithKeyResolver_LeavesTheCallersBufferIntact()
@@ -128,8 +155,6 @@ public class CryptoContractTests
         var zeroKeyed = Encrypted(new byte[32]);
         Assert.Throws<BinaryIntegrityException>(() => zeroKeyed.Deserialize<int>(second));
     }
-
-    // --- S08: disposal only clears what the serializer owns -------------------------------------
 
     [Fact]
     public void Dispose_KeyProvider_LeavesTheCallersKeyIntact()
@@ -172,30 +197,19 @@ public class CryptoContractTests
         Assert.Throws<BinaryEncryptionKeyException>(() => provider.Resolve("rotated"));
     }
 
-    // --- S09: decompression produces exactly the declared size ----------------------------------
-
     [Fact]
-    public void Decompress_OutputLongerThanDeclared_ThrowsFormat()
+    public void Deserialize_WithAKeyResolver_ReceivesTheHeaderKeyId()
     {
-        var deflate = new Deflate();
-        byte[] source = new byte[1024];
+        byte[] key = NewKey();
+        byte[] payload = Encrypted(key, "primary").Serialize(123);
 
-        byte[] compressed = new byte[deflate.GetMaxCompressedLength(source.Length)];
-        int length = deflate.Compress(source, compressed);
+        string? observed = null;
+        var reader = new BinarySerializer(
+            BinarySerializerOptions.Configure()
+                .WithEncryption(new Aes256Gcm(), id => { observed = id; return key; }, "primary")
+                .Build());
 
-        Assert.Throws<BinaryFormatException>(
-            () => deflate.Decompress(compressed.AsSpan(0, length), new byte[4]));
-    }
-
-    [Fact]
-    public void Deserialize_CompressedPayload_RoundTrips()
-    {
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build());
-
-        var source = new Person { Name = new string('x', 5_000), Age = 7 };
-        var result = serializer.Deserialize<Person>(serializer.Serialize(source));
-
-        Assert.Equivalent(source, result);
+        Assert.Equal(123, reader.Deserialize<int>(payload));
+        Assert.Equal("primary", observed);
     }
 }

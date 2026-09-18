@@ -1,12 +1,24 @@
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Hand-builds V1 frames so a test can present a payload no writer would ever produce.
-/// The layout mirrors <c>BinaryFormatHeaderV1</c>.
+/// Hand-builds V1 frames so a test can present a payload no writer would ever produce, and can assert
+/// the exact bytes a writer does produce. The layout mirrors <c>BinaryFormatHeaderV1</c>.
 /// </summary>
 internal static class Wire
 {
     public const int Magic = 0x52455342;
+
+    /// <summary>Byte offset of the <c>PreserveReferences</c> flag in a header with no optional strings.</summary>
+    public const int PreserveReferencesOffset = 15;
+
+    /// <summary>Length of a header with no optional strings and no checksum.</summary>
+    public const int PlainHeaderLength = 29;
+
+    /// <summary>Byte offset of <c>UncompressedLength</c> in a header with no optional strings.</summary>
+    public const int UncompressedLengthOffset = 16;
+
+    /// <summary>Byte offset of <c>CompressedLength</c> in a header with no optional strings.</summary>
+    public const int CompressedLengthOffset = 20;
 
     public static byte[] Payload(Action<BinaryWriter> write)
     {
@@ -17,12 +29,12 @@ internal static class Wire
         return buffer.ToArray();
     }
 
-    /// <summary>Wraps <paramref name="body"/> in a V1 frame, optionally lying about the lengths.</summary>
-    public static byte[] Frame(byte[] body, int? declaredLength = null, bool preserveReferences = false)
-    {
-        int length = declaredLength ?? body.Length;
-
-        return Payload(writer =>
+    /// <summary>
+    /// A V1 header with no compression, checksum or encryption, declaring
+    /// <paramref name="payloadLength"/> for all three phases.
+    /// </summary>
+    public static byte[] Header(int payloadLength, bool preserveReferences = false) =>
+        Payload(writer =>
         {
             writer.Write(Magic);
             writer.Write(1);
@@ -31,13 +43,15 @@ internal static class Wire
             writer.Write((byte)0); writer.Write(false);   // encryption + custom name
             writer.Write(false);                          // key id
             writer.Write(preserveReferences);
-            writer.Write(length);                         // uncompressed
-            writer.Write(length);                         // compressed
-            writer.Write(length);                         // on disk
+            writer.Write(payloadLength);                  // uncompressed
+            writer.Write(payloadLength);                  // compressed
+            writer.Write(payloadLength);                  // on disk
             writer.Write((byte)0);                        // checksum length
-            writer.Write(body);
         });
-    }
+
+    /// <summary>Wraps <paramref name="body"/> in a V1 frame, optionally lying about the lengths.</summary>
+    public static byte[] Frame(byte[] body, int? declaredLength = null, bool preserveReferences = false) =>
+        [.. Header(declaredLength ?? body.Length, preserveReferences), .. body];
 
     /// <summary>A payload of <paramref name="depth"/> nested single-element collections.</summary>
     public static byte[] NestedCollections(int depth) =>
@@ -51,6 +65,20 @@ internal static class Wire
             }
 
             writer.Write(0);            // innermost collection is empty
+        }));
+
+    /// <summary>A keyed object declaring <paramref name="fieldCount"/> fields of one <c>int32</c> each.</summary>
+    public static byte[] KeyedFields(int fieldCount) =>
+        Frame(Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write7BitEncodedInt(fieldCount);
+            for (int key = 0; key < fieldCount; key++)
+            {
+                writer.Write7BitEncodedInt(key);
+                writer.Write(4);
+                writer.Write(0);
+            }
         }));
 
     /// <summary>

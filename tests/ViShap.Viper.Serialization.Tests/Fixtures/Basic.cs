@@ -79,3 +79,64 @@ public class ContradictoryPositional
 
     public int Visible { get; set; }
 }
+
+[BinaryUnion(0, typeof(TaggedBase))]
+[BinaryUnion(1, typeof(TaggedDerived))]
+public class TaggedBase
+{
+    public int Z { get; set; }
+}
+
+public class TaggedDerived : TaggedBase
+{
+    public int A { get; set; }
+}
+
+public class WithDelegate
+{
+    public int Value { get; set; }
+    public Func<int>? Callback { get; set; }
+}
+
+public class WithIgnoredDelegate
+{
+    public int Value { get; set; }
+
+    [BinaryIgnore] public Func<int>? Callback { get; set; }
+}
+
+public class WithDelegateField
+{
+    public Action? Handler;
+}
+
+public class WithEvent
+{
+    public int Value { get; set; }
+
+    public event EventHandler? Changed;
+
+    public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+}
+
+[BinaryContract]
+public class ContractWithKeyedDelegate
+{
+    [BinaryKey(1)] public Func<int>? Callback { get; set; }
+}
+
+[BinaryContract]
+public class ContractWithIgnoredDelegate
+{
+    [BinaryKey(1)] public int Value { get; set; }
+
+    [BinaryIgnore] public Func<int>? Callback { get; set; }
+}
+
+[BinaryContract]
+public class ContractWithUnmarkedDelegate
+{
+    [BinaryKey(1)] public int Value { get; set; }
+
+    public Func<int>? Callback { get; set; }
+}
