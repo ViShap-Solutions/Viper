@@ -52,4 +52,39 @@ internal static class Wire
 
             writer.Write(0);            // innermost collection is empty
         }));
+
+    /// <summary>
+    /// A V1 header whose custom compression name declares <paramref name="declaredLength"/> bytes
+    /// while only <paramref name="actualBytes"/> of it are present. Nothing after the name is
+    /// written, because no conforming reader should get that far.
+    /// </summary>
+    public static byte[] FrameWithOversizedCustomName(int declaredLength, int actualBytes) =>
+        Payload(writer =>
+        {
+            writer.Write(Magic);
+            writer.Write(1);
+            writer.Write((byte)255);              // CompressionAlgorithm.Custom
+            writer.Write(true);                   // the custom name is present
+            writer.Write7BitEncodedInt(declaredLength);
+            writer.Write(new byte[actualBytes]);
+        });
+
+    /// <summary>
+    /// A complete V1 header declaring <paramref name="declaredChecksumLength"/> checksum bytes while
+    /// only <paramref name="actualBytes"/> follow.
+    /// </summary>
+    public static byte[] FrameWithOversizedChecksum(int declaredChecksumLength, int actualBytes) =>
+        Payload(writer =>
+        {
+            writer.Write(Magic);
+            writer.Write(1);
+            writer.Write((byte)0); writer.Write(false);
+            writer.Write((byte)0); writer.Write(false);
+            writer.Write((byte)0); writer.Write(false);
+            writer.Write(false);                  // key id
+            writer.Write(false);                  // preserve references
+            writer.Write(0); writer.Write(0); writer.Write(0);
+            writer.Write((byte)declaredChecksumLength);
+            writer.Write(new byte[actualBytes]);
+        });
 }
