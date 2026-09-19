@@ -269,7 +269,6 @@ determined by the options that were built, not by global state another component
 - a write version that is not a supported wire format;
 - `RequireEncryption` without an encryption algorithm;
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
-- an encryption algorithm without key material;
 - `RequireChecksum` without a checksum algorithm;
 - `RequireEncryption` or `RequireChecksum` together with `WithVersion(0)`;
 - `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`.
@@ -278,6 +277,17 @@ The last two close both directions of the same contradiction: a headerless paylo
 protection, so a policy demanding protection could be satisfied neither when writing one nor when
 reading one (§10.2, §21.1). A configured algorithm without a policy is a capability, not a demand,
 and stays legal under version 0 — it simply does not apply to what version 0 writes.
+
+Missing key material is **not** among them. Every `WithEncryption` overload takes the key source in
+the same call as the algorithm and rejects a null one with `ArgumentNullException`, so a builder
+holding an algorithm without key material is not a state a caller can produce. `Build()` keeps the
+guard as an invariant over the options it constructs, but no configuration reaches it.
+
+Options derived from a payload rather than built — `FromHeader` and `FromStream` (§4.3) — may well
+name an encryption algorithm the caller supplied no key for. That is a reader missing a key, not a
+contradictory configuration: it is diagnosed when the payload is read, as
+`BinaryEncryptionKeyException` (§8.7), alongside a key provider that resolves to nothing and a key
+that does not match the header's `keyId`.
 
 `WithVersion(n)` selects the format used for **writing** only, and is validated here rather than at
 the first `Serialize`. `AllowV0Fallback` is the separate, **read-side** choice of whether a stream

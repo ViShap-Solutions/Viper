@@ -240,49 +240,49 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 
 ## 9.1 Hierarchy
 
-- [ ] EXC-01 — the hierarchy matches §8 exactly, branch for branch *(§8)*
-- [x] EXC-02 — `BinaryLimitException` derives from `BinaryFormatException` *(§8.3)* — `Api/PublicSurfaceTests`
-- [x] EXC-03 — `BinaryEncryptionKeyException` derives from `BinaryEncryptionException` *(§8.7)* — `Api/PublicSurfaceTests`
-- [x] EXC-04 — every Viper exception derives from `BinarySerializerException` and none from another framework base *(§8)* — `Api/PublicSurfaceTests`
-- [ ] EXC-05 — every exception type is public and catchable from an external assembly *(§3)*
+- [x] EXC-01 — the hierarchy matches §8 exactly, branch for branch *(§8)* — `Exceptions/ExceptionHierarchyTests`
+- [x] EXC-02 — `BinaryLimitException` derives from `BinaryFormatException` *(§8.3)* — `Exceptions/ExceptionHierarchyTests`
+- [x] EXC-03 — `BinaryEncryptionKeyException` derives from `BinaryEncryptionException` *(§8.7)* — `Exceptions/ExceptionHierarchyTests`
+- [x] EXC-04 — every Viper exception derives from `BinarySerializerException` and none from another framework base *(§8)* — `Exceptions/ExceptionHierarchyTests`, over every type in both assemblies, not only the exported ones
+- [x] EXC-05 — every exception type is public and catchable from an external assembly *(§3)* — `Exceptions/ExceptionHierarchyTests`
 
 ## 9.2 Cause → type mapping
 
-- [ ] EXC-06 — malformed structure → `BinaryFormatException` *(§8.2)*
-- [ ] EXC-07 — parseable but over a configured ceiling → `BinaryLimitException` *(§8.3)*
-- [ ] EXC-08 — recognized but unsupported version or algorithm → `BinaryFormatNotSupportedException` *(§8.4)*
-- [ ] EXC-09 — checksum or AEAD tag failure → `BinaryIntegrityException` *(§8.5)*
-- [ ] EXC-10 — key missing, unresolvable or mismatched → `BinaryEncryptionKeyException` *(§8.7)*
-- [ ] EXC-11 — caller-stream I/O failure → `BinaryStreamException` *(§8.8)*
-- [ ] EXC-12 — invalid CLR type, contract or graph semantics → `BinaryTypeException` *(§8.9)*
-- [ ] EXC-13 — invalid configuration → `BinaryConfigurationException` *(§8.1)*
-- [ ] EXC-14 — a null public argument → `ArgumentNullException`, never a Viper type *(§8.10)*
-- [ ] EXC-15 — a required capability such as seekability → `NotSupportedException` *(§8.10)*
+- [x] EXC-06 — malformed structure → `BinaryFormatException` *(§8.2)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-07 — parseable but over a configured ceiling → `BinaryLimitException` *(§8.3)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-08 — recognized but unsupported version or algorithm → `BinaryFormatNotSupportedException` *(§8.4)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-09 — checksum or AEAD tag failure → `BinaryIntegrityException` *(§8.5)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-10 — key missing, unresolvable or mismatched → `BinaryEncryptionKeyException` *(§8.7)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-11 — caller-stream I/O failure → `BinaryStreamException` *(§8.8)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-12 — invalid CLR type, contract or graph semantics → `BinaryTypeException` *(§8.9)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-13 — invalid configuration → `BinaryConfigurationException` *(§8.1)* — `Exceptions/ExceptionMappingTests`, `Exceptions/ConfigurationValidationTests`
+- [x] EXC-14 — a null public argument → `ArgumentNullException`, never a Viper type *(§8.10)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-15 — a required capability such as seekability → `NotSupportedException` *(§8.10)* — `Exceptions/ExceptionMappingTests`
 
 ## 9.3 Leakage and preservation
 
-- [ ] EXC-16 — `EndOfStreamException` never escapes a truncated read *(§8.2)*
-- [ ] EXC-17 — `ArgumentException` from a parser never escapes *(§24)*
-- [ ] EXC-18 — `IOException` is preserved as `BinaryStreamException.InnerException` *(§9)*
-- [ ] EXC-19 — `CryptographicException` is preserved as `BinaryIntegrityException.InnerException` *(§9)*
-- [ ] EXC-20 — `InvalidDataException` is preserved as `BinaryFormatException.InnerException` *(§9)*
-- [ ] EXC-21 — no production path wraps the whole codec operation in a blanket `IOException` catch *(§8.8, §10.3)*
-- [ ] EXC-22 — no production path contains a bare `catch (BinarySerializerException) { throw; }` *(§9)*
+- [x] EXC-16 — `EndOfStreamException` never escapes a truncated read *(§8.2)* — `Exceptions/ExceptionLeakageTests`, every proper prefix of a V1 and a V0 payload
+- [x] EXC-17 — `ArgumentException` from a parser never escapes *(§24)* — `Exceptions/ExceptionLeakageTests`
+- [x] EXC-18 — `IOException` is preserved as `BinaryStreamException.InnerException` *(§9)* — `Exceptions/ExceptionLeakageTests`
+- [x] EXC-19 — `CryptographicException` is preserved as `BinaryIntegrityException.InnerException` *(§9)* — `Exceptions/ExceptionLeakageTests`
+- [x] EXC-20 — `InvalidDataException` is preserved as `BinaryFormatException.InnerException` *(§9)* — `Exceptions/ExceptionLeakageTests`
+- [x] EXC-21 — no production path wraps the whole codec operation in a blanket `IOException` catch *(§8.8, §10.3)* — `Exceptions/SourceInvariantTests`
+- [x] EXC-22 — no production path contains a bare `catch (BinarySerializerException) { throw; }` *(§9)* — `Exceptions/SourceInvariantTests`
 
 ---
 
 # 10. Configuration validation — `Exceptions/`
 
-- [ ] CFG-01 — every limit at `0` → `BinaryConfigurationException`, one test per limit *(§5)*
-- [ ] CFG-02 — every limit negative → `BinaryConfigurationException`, one test per limit *(§5)*
-- [ ] CFG-03 — the message names the offending limit *(§5)*
-- [ ] CFG-04 — a valid positive policy builds *(§5)*
+- [x] CFG-01 — every limit at `0` → `BinaryConfigurationException`, one test per limit *(§5)* — `Exceptions/ConfigurationValidationTests`, discovered by reflection over every numeric limit
+- [x] CFG-02 — every limit negative → `BinaryConfigurationException`, one test per limit *(§5)* — `Exceptions/ConfigurationValidationTests`
+- [x] CFG-03 — the message names the offending limit *(§5)* — `Exceptions/ConfigurationValidationTests`
+- [x] CFG-04 — a valid positive policy builds *(§5)* — `Exceptions/ConfigurationValidationTests`
 - [x] CFG-05 — `RequireEncryption` without an encryption algorithm → `BinaryConfigurationException` *(§4.1)* — `Algorithms/EncryptionTests`
-- [ ] CFG-06 — `RequireEncryption` with an algorithm reporting `AuthenticatesAssociatedData == false` → `BinaryConfigurationException` *(§4.1, §13.1)*
-- [ ] CFG-07 — an encryption algorithm without key material → `BinaryConfigurationException` *(§4.1)*
-- [ ] CFG-08 — `RequireChecksum` without a checksum algorithm → `BinaryConfigurationException` *(§4.1)*
-- [ ] CFG-09 — validation happens exactly once, when options are built *(§2.1)* — `Api/OptionsTests` proves the builder validates; "exactly once" needs the M2 configuration suite
-- [ ] CFG-10 — the default policy matches the §5 table value for value *(§5)*
+- [x] CFG-06 — `RequireEncryption` with an algorithm reporting `AuthenticatesAssociatedData == false` → `BinaryConfigurationException` *(§4.1, §13.1)* — `Exceptions/ConfigurationValidationTests`
+- [x] CFG-07 — no builder overload can leave an encryption algorithm without key material *(§4.1, §8.7)* — `Exceptions/ConfigurationValidationTests`; the reader-side form is `BinaryEncryptionKeyException`, see EXC-10. Rewritten under Q10
+- [x] CFG-08 — `RequireChecksum` without a checksum algorithm → `BinaryConfigurationException` *(§4.1)* — `Exceptions/ConfigurationValidationTests`
+- [x] CFG-09 — validation happens exactly once, when options are built *(§2.1)* — `Exceptions/SourceInvariantTests` pins `Validate()` to the configuration boundaries; `Api/OptionsTests` proves the builder validates
+- [x] CFG-10 — the default policy matches the §5 table value for value *(§5)* — `Exceptions/ConfigurationValidationTests`
 - [x] CFG-11 — a protection policy with `WithVersion(0)` → `BinaryConfigurationException` *(§4.1, §10.2)* — `Api/OptionsTests`, see D2-01 and D2-03
 - [x] CFG-12 — a protection policy with `AllowV0Fallback` → `BinaryConfigurationException` *(§4.1, §10.2)* — `Api/OptionsTests`, see D2-02 and D2-03
 - [x] CFG-13 — an algorithm configured under version 0 without a policy builds *(§4.1, §21.1)* — `Api/OptionsTests`, see D2-04
@@ -1036,6 +1036,7 @@ same change as the test that pins them. Kept as the record of why the behavior i
 | **Q7** | `Lazy<T>` write semantics were unspecified | Writing materializes the value and a factory exception is the caller's own, propagating unwrapped; reading yields a `Lazy<T>` that already holds the value, with `IsValueCreated` false until asked | §23 |
 | **Q8** | §23 rejected a delegate member while `CLAUDE.md` and `TypeContract` skipped it silently | Reject, when the contract is built, naming the member. A delegate is eligible under the positional inclusion rules, so dropping it would lose state those rules said was included; `[BinaryIgnore]` states the intent. Decided at plan-build time, never per value, because a null callback must not serialize where a set one fails. Events are unaffected: their backing field is private | §14.1, §23 |
 | **Q9** | V0 refused `[BinaryContract]` as if keyed encoding were a format capability, although the keyed layout is payload-level and needs no header | Keyed contracts belong to the type and apply under both wire formats; the pipeline flag that could refuse them is removed, since it could no longer be `false`. The one format-visible consequence is the seekable-payload requirement: a field's length is patched after the field is written, which V1 hides by buffering the payload and V0 passes to the caller's destination as `NotSupportedException`. Reference preservation stays V1-only for the opposite reason — it is an options-level switch that silently changes the bytes, and a headerless format cannot announce it, so a reader configured differently would decode wrong data with no diagnostic | §10.2, §14.2, §22.8 |
+| **Q10** | §4.1 listed "an encryption algorithm without key material" among the rejections `Build()` performs, but every `WithEncryption` overload assigns the key source together with the algorithm and refuses a null one, so no caller could reach the guard | Contract narrowed: the bullet is removed and §4.1 states that missing key material is not a configuration contradiction. The guard stays as an invariant over the constructed options. A reader whose options name an algorithm it has no key for — `FromHeader`/`FromStream` with no keys, a resolver that yields nothing, a mismatched `keyId` — fails at the operation as `BinaryEncryptionKeyException`. CFG-07 is rewritten to assert the overloads leave no gap | §4.1, §8.7 |
 
 # 31. Cross-entry-point equivalence — `Api/`
 
