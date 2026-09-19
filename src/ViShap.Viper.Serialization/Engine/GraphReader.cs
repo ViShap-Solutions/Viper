@@ -238,10 +238,11 @@ internal sealed class GraphReader
     private static object Construct(Type runtimeType)
     {
         var contract = TypeContractCache.Get(runtimeType);
-        if (!contract.HasParameterlessConstructor)
+        if (!contract.CanBeConstructed)
             throw new BinaryTypeException(
-                $"'{runtimeType}' cannot be constructed during deserialization — a public or " +
-                "non-public parameterless constructor is required.");
+                $"'{runtimeType}' cannot be constructed during deserialization — a concrete type " +
+                "with a public or non-public parameterless constructor is required. An interface or " +
+                "an abstract class needs a [BinaryUnion] map naming the type to build.");
 
         try
         {

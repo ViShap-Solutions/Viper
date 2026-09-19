@@ -31,7 +31,7 @@ internal sealed class TypeContract
     public required MemberLayout Layout { get; init; }
     public required MemberBinding[] Members { get; init; }
     public IReadOnlyDictionary<int, MemberBinding>? MembersByKey { get; init; }
-    public required bool HasParameterlessConstructor { get; init; }
+    public required bool CanBeConstructed { get; init; }
 }
 
 /// <summary>Tag ↔ type map declared by <see cref="BinaryUnionAttribute"/> on a base type.</summary>
@@ -99,22 +99,23 @@ internal static class TypeContractCache
     {
         var candidates = Candidates(type).ToArray();
         bool isContract = type.GetCustomAttribute<BinaryContractAttribute>() is not null;
-
-        bool hasParameterlessConstructor =
+ 
+        bool canBeConstructed =
             type.IsValueType ||
-            type.GetConstructor(
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-                Type.EmptyTypes) is not null;
+            (!type.IsAbstract &&
+             type.GetConstructor(
+                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                 Type.EmptyTypes) is not null);
 
         return isContract
-            ? BuildKeyed(type, candidates, hasParameterlessConstructor)
-            : BuildPositional(type, candidates, hasParameterlessConstructor);
+            ? BuildKeyed(type, candidates, canBeConstructed)
+            : BuildPositional(type, candidates, canBeConstructed);
     }
 
     private static TypeContract BuildPositional(
         Type type,
         Candidate[] candidates,
-        bool hasParameterlessConstructor)
+        bool canBeConstructed)
     {
         var stray = candidates.Where(c => c.Key is not null).ToArray();
         if (stray.Length > 0)
@@ -156,14 +157,14 @@ internal static class TypeContractCache
                 .Select(c => c.Binding)
                 .ToArray(),
             MembersByKey = null,
-            HasParameterlessConstructor = hasParameterlessConstructor
+            CanBeConstructed = canBeConstructed
         };
     }
 
     private static TypeContract BuildKeyed(
         Type type,
         Candidate[] candidates,
-        bool hasParameterlessConstructor)
+        bool canBeConstructed)
     {
         var strayInclude = candidates.Where(c => c.HasInclude).ToArray();
         if (strayInclude.Length > 0)
@@ -214,7 +215,7 @@ internal static class TypeContractCache
             Layout = MemberLayout.Keyed,
             Members = ordered.Select(c => c.Binding).ToArray(),
             MembersByKey = ordered.ToDictionary(c => c.Key!.Value, c => c.Binding),
-            HasParameterlessConstructor = hasParameterlessConstructor
+            CanBeConstructed = canBeConstructed
         };
     }
 

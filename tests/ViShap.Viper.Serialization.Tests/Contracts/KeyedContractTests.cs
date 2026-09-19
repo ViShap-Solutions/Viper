@@ -3,14 +3,36 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Contracts;
 
 /// <summary>
-/// Pins KEY-01, KEY-02, KEY-04, KEY-17 and KEY-18: a keyed payload tolerates a reader whose schema
-/// has moved on, skipping a field it does not know can never strand a reference, and the encoding
-/// belongs to the payload rather than to a wire format version.
+/// Pins CTR-13, KEY-01, KEY-02, KEY-03, KEY-17 and KEY-18: a keyed payload tolerates a reader whose
+/// schema has moved on, skipping a field it does not know can never strand a reference, and the
+/// encoding belongs to the payload rather than to a wire format version.
 /// </summary>
 public class KeyedContractTests
 {
     private static BinarySerializer WithReferences() =>
         new(BinarySerializerOptions.Configure().PreserveReferences().Build());
+
+    [Fact]
+    public void Deserialize_CompleteContract_RoundTrips()
+    {
+        var source = new CompleteContract
+        {
+            Number = 42,
+            Text = "a contract",
+            Numbers = [1, 2, 3],
+            Child = new Node { Value = 7 },
+            Excluded = 99
+        };
+
+        var result = new BinarySerializer().Deserialize<CompleteContract>(
+            new BinarySerializer().Serialize(source))!;
+
+        Assert.Equal(42, result.Number);
+        Assert.Equal("a contract", result.Text);
+        Assert.Equal([1, 2, 3], result.Numbers!);
+        Assert.Equal(7, result.Child!.Value);
+        Assert.Equal(0, result.Excluded);
+    }
 
     [Fact]
     public void Deserialize_SameSchema_RoundTrips()

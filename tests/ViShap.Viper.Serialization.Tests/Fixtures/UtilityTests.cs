@@ -264,6 +264,58 @@ public class UtilityTests
         Assert.Equal(body.Length, header.OnDiskLength);
     }
 
+    // --- UTIL-10: the keyed and reference frame builders -----------------------------------------
+
+    [Fact]
+    public void KeyedBody_IsAcceptedByARealReader()
+    {
+        byte[] frame = Wire.Frame(
+        [
+            .. Wire.NotNull,
+            .. Wire.KeyedBody(
+            [
+                new Wire.KeyedField(1, Wire.Payload(writer => writer.Write(11))),
+                new Wire.KeyedField(3, Wire.Payload(writer => writer.Write(33)))
+            ])
+        ]);
+
+        var result = new BinarySerializer().Deserialize<OuterKeys>(frame)!;
+
+        Assert.Equal(11, result.First);
+        Assert.Equal(33, result.Last);
+    }
+
+    [Fact]
+    public void KeyedBody_DeclaresTheLengthsItWasGivenRatherThanTheRealOnes()
+    {
+        byte[] body = Wire.KeyedBody(
+            [new Wire.KeyedField(2, [1, 2, 3, 4], DeclaredLength: 1024)],
+            declaredFieldCount: 9);
+
+        Assert.Equal(9, body[0]);                          // the field count it was told to claim
+        Assert.Equal(2, body[1]);                          // the key
+        Assert.Equal(1024, BitConverter.ToInt32(body, 2)); // the length it was told to claim
+        Assert.Equal<byte[]>([1, 2, 3, 4], body[6..]);     // the bytes actually present
+    }
+
+    [Fact]
+    public void ReferenceFrame_IsTheMarkerThenTheId()
+    {
+        byte[] frame = Wire.ReferenceFrame(1, 258);
+
+        Assert.Equal(5, frame.Length);
+        Assert.Equal(1, frame[0]);
+        Assert.Equal(258, BitConverter.ToInt32(frame, 1));
+    }
+
+    [Fact]
+    public void DoesNotContainBytes_FindsASubsequenceWhereverItSits()
+    {
+        AssertEx.DoesNotContainBytes([1, 2, 3], [4, 5]);
+        Assert.ThrowsAny<Exception>(
+            static () => AssertEx.DoesNotContainBytes([1, 2, 3, 4], [3, 4]));
+    }
+
     // --- UTIL-09: the committed compatibility fixtures -------------------------------------------
 
     [Fact]

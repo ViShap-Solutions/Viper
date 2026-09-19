@@ -192,6 +192,43 @@ internal static class Wire
             writer.Write(0);            // innermost collection is empty
         }));
 
+    /// <summary>The one-byte "value is present" flag every nullable value carries (§22.2).</summary>
+    public static readonly byte[] NotNull = [1];
+
+    /// <summary>One field of a hand-built keyed object.</summary>
+    /// <param name="Key">The 7-bit encoded key.</param>
+    /// <param name="Payload">The field's bytes.</param>
+    /// <param name="DeclaredLength">The length the field claims, when it is not the real one.</param>
+    internal readonly record struct KeyedField(int Key, byte[] Payload, int? DeclaredLength = null);
+
+    /// <summary>
+    /// The body of a keyed object: a 7-bit field count, then each field as key, <c>int32</c> declared
+    /// length and payload. Both counts can lie, which is why the builder takes them separately.
+    /// </summary>
+    public static byte[] KeyedBody(IEnumerable<KeyedField> fields, int? declaredFieldCount = null)
+    {
+        var materialized = fields.ToArray();
+
+        return Payload(writer =>
+        {
+            writer.Write7BitEncodedInt(declaredFieldCount ?? materialized.Length);
+            foreach (var field in materialized)
+            {
+                writer.Write7BitEncodedInt(field.Key);
+                writer.Write(field.DeclaredLength ?? field.Payload.Length);
+                writer.Write(field.Payload);
+            }
+        });
+    }
+
+    /// <summary>A reference frame: the marker byte, then the object id (§22.2).</summary>
+    public static byte[] ReferenceFrame(byte marker, int id) =>
+        Payload(writer =>
+        {
+            writer.Write(marker);
+            writer.Write(id);
+        });
+
     /// <summary>A keyed object declaring <paramref name="fieldCount"/> fields of one <c>int32</c> each.</summary>
     public static byte[] KeyedFields(int fieldCount) =>
         Frame(Payload(writer =>

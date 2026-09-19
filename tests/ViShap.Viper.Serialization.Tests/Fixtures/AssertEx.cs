@@ -50,6 +50,17 @@ internal static class AssertEx
         }
     }
 
+    /// <summary>
+    /// Asserts that <paramref name="needle"/> appears nowhere in <paramref name="haystack"/>, which
+    /// is how a test shows that a name or a value never reached the wire.
+    /// </summary>
+    public static void DoesNotContainBytes(byte[] haystack, ReadOnlySpan<byte> needle)
+    {
+        int at = haystack.AsSpan().IndexOf(needle);
+
+        Assert.True(at < 0, $"Expected the bytes to be absent, but they start at offset {at}.");
+    }
+
     /// <summary>Asserts that two sequences hold the same elements, whatever their order.</summary>
     public static void SameContents<T>(IEnumerable<T> expected, IEnumerable<T>? actual)
     {

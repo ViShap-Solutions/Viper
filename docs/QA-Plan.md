@@ -421,32 +421,32 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 # 15. Contracts and members — `Contracts/`
 
-- [ ] CTR-01 — public read/write properties are included *(§14.1)*
-- [ ] CTR-02 — public non-readonly fields are included *(§14.1)*
-- [ ] CTR-03 — read-only and get-only members are excluded *(§14.1)*
-- [ ] CTR-04 — compiler-generated fields, delegates and indexers are skipped *(§14.1)*
-- [ ] CTR-05 — `[BinaryIgnore]` excludes a member *(§14.1)*
-- [ ] CTR-06 — `[BinaryInclude]` includes a non-public property *(§14.1)*
-- [ ] CTR-07 — `[BinaryInclude]` includes a non-public field *(§14.1)*
-- [ ] CTR-08 — `[BinaryOrder]` fixes positional order *(§14.1, §22.3)*
-- [ ] CTR-09 — unordered members fall back to ordinal name order, deterministically *(§14.1)*
-- [ ] CTR-10 — duplicate `[BinaryOrder]` values → `BinaryTypeException` *(§14.1)*
-- [ ] CTR-11 — `[BinaryKey]` without `[BinaryContract]` → `BinaryTypeException` *(§14.1)*
+- [x] CTR-01 — public read/write properties are included *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-02 — public non-readonly fields are included *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-03 — read-only and get-only members are excluded *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-04 — compiler-generated fields, delegates and indexers are skipped *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-05 — `[BinaryIgnore]` excludes a member *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-06 — `[BinaryInclude]` includes a non-public property *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-07 — `[BinaryInclude]` includes a non-public field *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-08 — `[BinaryOrder]` fixes positional order *(§14.1, §22.3)* — `Contracts/MemberPlanTests`
+- [x] CTR-09 — unordered members fall back to ordinal name order, deterministically *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-10 — duplicate `[BinaryOrder]` values → `BinaryTypeException` *(§14.1)* — `Contracts/MemberPlanTests`
+- [x] CTR-11 — `[BinaryKey]` without `[BinaryContract]` → `BinaryTypeException` *(§14.1)* — `Contracts/MemberPlanTests`
 - [x] CTR-12 — `[BinaryInclude]` together with `[BinaryIgnore]` → `BinaryTypeException` *(§14.1)* — `Contracts/AttributeContractTests`
-- [ ] CTR-13 — a complete keyed contract round-trips *(§14.2)*
-- [ ] CTR-14 — a keyed contract member with neither `[BinaryKey]` nor `[BinaryIgnore]` → `BinaryTypeException` *(§14.2)*
-- [ ] CTR-15 — `[BinaryContract]` with `[BinaryInclude]` → `BinaryTypeException` *(§14.2)*
-- [ ] CTR-16 — `[BinaryContract]` with `[BinaryOrder]` → `BinaryTypeException` *(§14.2)*
-- [ ] CTR-17 — duplicate `[BinaryKey]` values → `BinaryTypeException` *(§14.2)*
+- [x] CTR-13 — a complete keyed contract round-trips *(§14.2)* — `Contracts/KeyedContractTests`
+- [x] CTR-14 — a keyed contract member with neither `[BinaryKey]` nor `[BinaryIgnore]` → `BinaryTypeException` *(§14.2)* — `Contracts/AttributeContractTests`
+- [x] CTR-15 — `[BinaryContract]` with `[BinaryInclude]` → `BinaryTypeException` *(§14.2)* — `Contracts/AttributeContractTests`
+- [x] CTR-16 — `[BinaryContract]` with `[BinaryOrder]` → `BinaryTypeException` *(§14.2)* — `Contracts/AttributeContractTests`
+- [x] CTR-17 — duplicate `[BinaryKey]` values → `BinaryTypeException` *(§14.2)* — `Contracts/AttributeContractTests`
 - [x] CTR-18 — `[BinaryKey]` together with `[BinaryIgnore]` → `BinaryTypeException`, and the member never reaches the payload *(§14.2, C05)* — `Contracts/AttributeContractTests`
-- [ ] CTR-19 — every contradiction is rejected when the contract is built, not on first field write *(§14.2)*
-- [ ] CTR-20 — a member-encoded type without a parameterless constructor → `BinaryTypeException` on read *(§23)*
-- [x] CTR-21 — an interface or abstract class without a union map → `BinaryTypeException` on read *(§23)* — `Contracts/AttributeContractTests`
+- [x] CTR-19 — every contradiction is rejected when the contract is built, not on first field write *(§14.2)* — `Contracts/MemberPlanTests`, `Contracts/AttributeContractTests`
+- [x] CTR-20 — a member-encoded type without a parameterless constructor → `BinaryTypeException` on read *(§23)* — `Contracts/TypeSupportTests`
+- [x] CTR-21 — an interface or abstract class without a union map → `BinaryTypeException` on read *(§23, D3)* — `Contracts/AttributeContractTests`
 - [x] CTR-22 — a delegate as root, member or element → `BinaryTypeException` *(§14.1, §23)* — `Contracts/DelegateMemberTests`
-- [ ] CTR-23 — an unsupported type is `BinaryTypeException` at first use, never silently member-encoded into nothing *(§23)*
-- [ ] CTR-24 — `FormatterRegistry.Resolve` returning `null` means member encoding; no catch-all shadows a specific formatter *(L2, §2.4)*
-- [ ] CTR-25 — a struct containing a reference member round-trips *(§23)*
-- [ ] CTR-26 — nested member-encoded graphs of three or more formatter families round-trip *(§23)*
+- [x] CTR-23 — an unsupported type is `BinaryTypeException` at first use, never silently member-encoded into nothing *(§23)* — `Contracts/TypeSupportTests`
+- [x] CTR-24 — `FormatterRegistry.Resolve` returning `null` means member encoding; no catch-all shadows a specific formatter *(L2, §2.4)* — `Contracts/TypeSupportTests`
+- [x] CTR-25 — a struct containing a reference member round-trips *(§23)* — `Contracts/MemberPlanTests`
+- [x] CTR-26 — nested member-encoded graphs of three or more formatter families round-trip *(§23)* — `Contracts/MemberPlanTests`
 
 ---
 
@@ -455,19 +455,19 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] KEY-01 — the same schema round-trips *(§14.2)* — `Contracts/KeyedContractTests`
 - [x] KEY-02 — a member removed from the reader's schema is skipped by declared length *(§14.2)* — `Contracts/KeyedContractTests`
 - [x] KEY-03 — a member absent from the payload keeps its CLR default *(§14.2)* — `Contracts/KeyedContractTests`
-- [ ] KEY-04 — an unknown key between two known keys is skipped without disturbing them *(§14.2)*
-- [ ] KEY-05 — an unknown field whose payload is a nested structure is skipped whole *(§14.2, §7.3)*
-- [ ] KEY-06 — an unknown field is skipped in bounded chunks, never copied into one attacker-sized array *(§7.3)*
-- [ ] KEY-07 — an unknown field is skipped without resolving a formatter for its unavailable type *(§14.2)*
-- [ ] KEY-08 — a truncated unknown field → `BinaryFormatException` *(§14.2)*
-- [ ] KEY-09 — a duplicate key on the wire → `BinaryFormatException` *(§14.2)*
-- [ ] KEY-10 — a malformed 7-bit key encoding → `BinaryFormatException` *(§22.1)*
-- [ ] KEY-11 — key value boundaries: `0`, `127`, `128`, and the largest supported key *(§14.2)*
-- [ ] KEY-12 — a known field is decoded through a window and cannot read into the next field *(§7.3)*
-- [ ] KEY-13 — a known field decoded through a window shares the parent budget and reference state *(§7.3)*
-- [ ] KEY-14 — a polymorphic member inside a keyed field round-trips *(§15)*
-- [ ] KEY-15 — a cycle that crosses a keyed field boundary resolves through the ancestor chain *(§16.2)*
-- [ ] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)*
+- [x] KEY-04 — an unknown key between two known keys is skipped without disturbing them *(§14.2)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-05 — an unknown field whose payload is a nested structure is skipped whole *(§14.2, §7.3)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-06 — an unknown field is skipped in bounded chunks, never copied into one attacker-sized array *(§7.3)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-07 — an unknown field is skipped without resolving a formatter for its unavailable type *(§14.2)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-08 — a truncated unknown field → `BinaryFormatException` *(§14.2)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-09 — a duplicate key on the wire → `BinaryFormatException` *(§14.2)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-10 — a malformed 7-bit key encoding → `BinaryFormatException` *(§22.1)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-11 — key value boundaries: `0`, `127`, `128`, and the largest supported key *(§14.2)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-12 — a known field is decoded through a window and cannot read into the next field *(§7.3)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-13 — a known field decoded through a window shares the parent budget and reference state *(§7.3)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-14 — a polymorphic member inside a keyed field round-trips *(§15)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-15 — a cycle that crosses a keyed field boundary resolves through the ancestor chain *(§16.2)* — `Contracts/KeyedEvolutionTests`
+- [x] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)* — `Contracts/KeyedEvolutionTests`
 - [x] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)* — `Contracts/KeyedContractTests`
 - [x] KEY-18 — the keyed encoding belongs to the payload, not to a wire format version: a contract encodes byte-identically under V0 and V1 *(§10.2, §14.2, §22.8)* — `Contracts/KeyedContractTests`
 
@@ -476,21 +476,21 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 # 17. Polymorphism — `Contracts/`
 
 - [x] PM-01 — a registered derived type round-trips with its runtime type intact *(§15)* — `Contracts/PolymorphismTests`
-- [ ] PM-02 — several derived types under one base are distinguished by tag *(§15)*
+- [x] PM-02 — several derived types under one base are distinguished by tag *(§15)* — `Contracts/UnionDeclarationTests`
 - [x] PM-03 — a union declared on an interface resolves the implementation *(§15)* — `Contracts/PolymorphismTests`
 - [x] PM-04 — a union inside a collection element *(§15)* — `Contracts/PolymorphismTests`
 - [x] PM-05 — a union inside a dictionary value *(§15)* — `Contracts/PolymorphismTests`
-- [ ] PM-06 — a union inside a keyed member *(§15)*
-- [ ] PM-07 — an unknown discriminator on read → `BinaryTypeException` *(§15)*
+- [x] PM-06 — a union inside a keyed member *(§15)* — `Contracts/KeyedEvolutionTests`
+- [x] PM-07 — an unknown discriminator on read → `BinaryTypeException` *(§15)* — `Contracts/UnionDeclarationTests`
 - [x] PM-08 — a runtime type differing from the declared type with no union map → `BinaryTypeException` **on write** *(§15, C04)* — `Contracts/PolymorphismTests`
 - [x] PM-09 — a value written through `object` without a map → `BinaryTypeException` *(§15, A03)* — `Contracts/PolymorphismTests`
 - [x] PM-10 — a derived value inside a collection without a map → `BinaryTypeException` on write *(§15)* — `Contracts/PolymorphismTests`
-- [ ] PM-11 — duplicate union tags → `BinaryTypeException` *(§15)*
-- [ ] PM-12 — a tag outside the byte range → `BinaryTypeException` *(§15)*
-- [ ] PM-13 — a derived type not assignable to the declared base → `BinaryTypeException` *(§15)*
-- [ ] PM-14 — only tags travel; no type name appears anywhere in the payload *(§15)*
-- [ ] PM-15 — the tag precedes the member layout by exactly one byte *(§22.3)*
-- [ ] PM-16 — concurrent first-touch of a union map is safe and yields one consistent map *(L4, §28)*
+- [x] PM-11 — duplicate union tags → `BinaryTypeException` *(§15)* — `Contracts/UnionDeclarationTests`
+- [x] PM-12 — a tag outside the byte range → `BinaryTypeException` *(§15)* — `Contracts/UnionDeclarationTests`
+- [x] PM-13 — a derived type not assignable to the declared base → `BinaryTypeException` *(§15)* — `Contracts/UnionDeclarationTests`
+- [x] PM-14 — only tags travel; no type name appears anywhere in the payload *(§15)* — `Contracts/UnionDeclarationTests`
+- [x] PM-15 — the tag precedes the member layout by exactly one byte *(§22.3)* — `Contracts/UnionDeclarationTests`
+- [x] PM-16 — concurrent first-touch of a union map is safe and yields one consistent map *(L4, §28)* — `Contracts/UnionDeclarationTests`
 
 ---
 
@@ -500,25 +500,25 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] REF-02 — without it, a shared object is duplicated into distinct instances *(§16)* — `References/ReferenceIdentityTests`
 - [x] REF-03 — identity covers member-encoded objects *(§16)* — `References/ReferenceIdentityTests`
 - [x] REF-04 — identity covers arrays, collections and dictionaries *(§16, C02)* — `References/ReferenceIdentityTests`
-- [ ] REF-05 — value types are never framed, boxed or otherwise *(§16)*
-- [ ] REF-06 — strings are never framed *(§16)*
-- [x] REF-07 — identity is reference identity; an overridden `Equals` does not merge two distinct objects *(§16)* — `References/ReferenceIdentityTests`
-- [ ] REF-08 — the header's `PreserveReferences` flag, not local configuration, drives payload interpretation *(§16, §2.2)*
-- [ ] REF-09 — a mutable container is registered **before** its children, so a cycle through it closes *(§16.1)*
-- [ ] REF-10 — an array, immutable or frozen collection, or tuple is registered **after** completion *(§16.1)*
-- [ ] REF-11 — a reference resolving to a still-building object → deterministic `BinaryFormatException`, never a half-built instance *(§16.1)*
-- [ ] REF-12 — an unknown reference id → `BinaryFormatException` *(§16)*
-- [ ] REF-13 — a negative reference id → `BinaryFormatException` *(§16)*
-- [ ] REF-14 — an invalid marker byte → `BinaryFormatException` *(§16)*
-- [ ] REF-15 — ids are visible only along the ancestor chain *(§16.2)*
-- [ ] REF-16 — a back reference is never emitted between sibling keyed fields *(§16.2)*
+- [x] REF-05 — value types are never framed, boxed or otherwise *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-06 — strings are never framed *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-07 — identity is reference identity; an overridden `Equals` does not merge two distinct objects *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-08 — the header's `PreserveReferences` flag, not local configuration, drives payload interpretation *(§16, §2.2)* — `References/ReferenceFramingTests`
+- [x] REF-09 — a mutable container is registered **before** its children, so a cycle through it closes *(§16.1)* — `References/RegistrationOrderTests`
+- [x] REF-10 — an array, immutable or frozen collection, or tuple is registered **after** completion *(§16.1)* — `References/RegistrationOrderTests`
+- [x] REF-11 — a reference resolving to a still-building object → deterministic `BinaryFormatException`, never a half-built instance *(§16.1)* — `References/RegistrationOrderTests`
+- [x] REF-12 — an unknown reference id → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-13 — a negative reference id → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-14 — an invalid marker byte → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-15 — ids are visible only along the ancestor chain *(§16.2)* — `References/ReferenceFramingTests`
+- [x] REF-16 — a back reference is never emitted between sibling keyed fields *(§16.2)* — `References/ReferenceFramingTests`
 - [x] REF-17 — a repeated reference does not consume a second graph node *(§5.8)* — `Limits/DepthAndNodeTests`
 - [x] CYC-01 — a direct self-reference round-trips under `PreserveReferences` *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-02 — a two-object cycle round-trips *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-03 — a cycle through a collection round-trips *(§16.1)* — `References/ReferenceIdentityTests`
-- [ ] CYC-04 — a cycle through a dictionary round-trips *(§16.1)*
-- [ ] CYC-05 — a cycle through a polymorphic member round-trips *(§15, §16)*
-- [ ] CYC-06 — a cycle through a struct wrapper behaves per §16 *(§16)*
+- [x] CYC-04 — a cycle through a dictionary round-trips *(§16.1)* — `References/RegistrationOrderTests`
+- [x] CYC-05 — a cycle through a polymorphic member round-trips *(§15, §16)* — `References/RegistrationOrderTests`
+- [x] CYC-06 — a cycle through a struct wrapper behaves per §16 *(§16)* — `References/RegistrationOrderTests`
 - [x] CYC-07 — a shared DAG without a cycle succeeds *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-08 — equal-but-distinct objects stay distinct *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-09 — a cycle without `PreserveReferences` → `BinaryTypeException` on write *(§16)* — `References/ReferenceIdentityTests`
@@ -891,11 +891,13 @@ Implemented centrally in M0; every helper with logic of its own is itself tested
 ```text
 AssertEx.Throws<TException>(messageSubstring, act)
 AssertEx.AllocatesLessThan(ceiling, act)
+AssertEx.DoesNotContainBytes(haystack, needle)
 AssertEx.SameContents<T>()
 AssertEx.PopsInOrder<T>() · DequeuesInOrder<T>() · DequeuesInPriorityOrder<TElement,TPriority>()
 
 Wire.Payload · Wire.Header · Wire.Frame · Wire.FrameWith · Wire.NestedCollections · Wire.KeyedFields
 Wire.FrameWithOversizedCustomName · Wire.FrameWithOversizedChecksum
+Wire.NotNull · Wire.ReferenceFrame · Wire.KeyedField · Wire.KeyedBody              (added by M4)
 Wire.ReadHeader (an independent header decoder) · Wire.Fixture (committed *.bin)
 Wire.PlainHeaderLength · PreserveReferencesOffset · UncompressedLengthOffset
 CompressedLengthOffset · OnDiskLengthOffset · ChecksumLengthOffset
@@ -922,6 +924,7 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-07 — `FailingStream` raises `IOException` at the configured offset, on read and on write — `Fixtures/UtilityTests`
 - [ ] UTIL-08 — byte-observing stream wrappers, only if a suite needs them *(deferred; nothing so far does)*
 - [x] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test — `Fixtures/UtilityTests`
+- [x] UTIL-10 — the keyed and reference frame builders declare the counts and lengths they were given, not the real ones — `Fixtures/UtilityTests`
 
 ---
 
@@ -1027,6 +1030,37 @@ itself a contradiction; §10.2 states that it does not apply to a V0 write.
 - [x] D2-03 — `RequireChecksum` is refused on both sides the same way *(§4.1, §21.1)* — `Api/OptionsTests`
 - [x] D2-04 — a configured algorithm without a policy builds under version 0 and leaves no trace in the bytes *(§10.2, §21.1)* — `Api/OptionsTests`
 
+### D3 — an abstract class is handed to the activator instead of being refused — **FIXED**
+
+Found while working M4 (CTR-21), reproduced against `src/` at `15aeb66`.
+
+**Contract:** §23 — "Types without a parameterless constructor, including interfaces and abstract
+classes without a `[BinaryUnion]` map, are `BinaryTypeException` on read." §8.10 admits no standard
+.NET exception here.
+
+**Actual:** an interface is refused correctly, an abstract class is not. Reading a payload as an
+abstract type without a union map leaves the library through
+`InvalidOperationException: Can't compile a NewExpression with a constructor declared on an abstract
+class`, thrown by the expression compiler inside `ActivatorCache`, with no exception of the
+documented taxonomy anywhere in the chain.
+
+**Cause:** `TypeContract.Build` decided constructibility by looking for a parameterless constructor
+alone. An abstract class declares one — the implicit protected constructor its subclasses chain to —
+so `GetConstructor` finds it and the guard in `GraphReader.Construct` never fires. An interface only
+escaped because it declares no constructor at all.
+
+**Fix applied** in `Engine/TypeContract.cs`, at the layer that owns the member plan. Nothing on the
+wire changed and the write path is untouched:
+
+- the flag is now `CanBeConstructed`, and a type qualifies only when it is a value type, or a
+  non-abstract class with a public or non-public parameterless constructor. `IsAbstract` covers
+  interfaces and static classes alike, so the interface case keeps its behaviour by the same rule
+  rather than by accident;
+- the message in `GraphReader.Construct` now names what is missing — a concrete type, or a
+  `[BinaryUnion]` map that says which type to build.
+
+- [x] D3-01 — an abstract class without a union map is `BinaryTypeException` on read, not an activator failure *(§23, §8.10)* — `Contracts/AttributeContractTests`
+
 ## 30.2 Resolved contract questions
 
 Raised while aligning the plan, decided on the project, and written into `System-Contract.md` in the
@@ -1085,10 +1119,10 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Contracts
 
-- [ ] Every attribute rule and every contradiction is covered.
-- [ ] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered.
-- [ ] Polymorphism is covered on both read and write, including write-side rejection.
-- [ ] Reference scopes and cycle behavior are covered.
+- [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-26)*
+- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-18)*
+- [x] Polymorphism is covered on both read and write, including write-side rejection. *(PM-01…PM-16)*
+- [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-17, CYC-01…CYC-10)*
 
 ## Security
 
