@@ -131,7 +131,7 @@ SerializationLimits.Default with
 
 ## P6 — full V1
 
-- [ ] P6-01 — Brotli + Crc32 + Aes256Gcm *(§22.6)*
+- [x] P6-01 — Brotli + Crc32 + Aes256Gcm *(§22.6)* — `RoundTrip/ProtectedCorpusTests`, over the whole §19 corpus
 - [ ] P6-02 — Deflate + Crc32 + Aes256Gcm *(§22.6)*
 
 ## P7 — V0
@@ -143,7 +143,7 @@ peer of P1–P6, not as a degraded mode.
 BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()
 ```
 
-- [ ] P7-01 — V0 write and V0 read *(§10.2, §22.8)*
+- [x] P7-01 — V0 write and V0 read *(§10.2, §22.8)* — `RoundTrip/HeaderlessCorpusTests`, over the whole §19 corpus
 - [ ] P7-02 — V0 write and V0 read of a `[BinaryContract]` type, against the same type under P1 *(§14.2)*
 
 ---
@@ -154,7 +154,7 @@ The 94 tests present today were written by hand as smoke checks, before this pla
 
 - [x] BASE-01 — `API/BinarySerializerApiTests.cs` (8 tests): entry-point smoke checks with no boundary or failure assertions → superseded by §6 and §31; delete after §6 is green — `deleted; replaced by Api/SerializerApiTests and Api/ExistingInstanceTests`
 - [x] BASE-02 — `API/StreamExtensionsApiTests.cs` (13 tests): same → superseded by §8; delete after §8 is green — `deleted; replaced by Api/StreamExtensionsTests`
-- [x] BASE-03 — `Correctness/RoundTripCorpusTests.cs` (17 tests): family-level round trips → split into the per-family suites of §19; keep the assertions that already check runtime type and ordering — `RoundTrip/ScalarTests, RoundTrip/ContainerTests`
+- [x] BASE-03 — `Correctness/RoundTripCorpusTests.cs` (17 tests): family-level round trips → split into the per-family suites of §19; keep the assertions that already check runtime type and ordering — `RoundTrip/Corpus` (the two M0 holding files it first became were absorbed by M5)
 - [x] BASE-04 — `Correctness/TypeContractTests.cs` (17 tests): contract, polymorphism, reference and populate-in-place behavior → split into §15, §17, §18 — `Contracts/, References/, Api/ExistingInstanceTests`
 - [x] BASE-05 — `Correctness/WireFormatTests.cs` (9 tests): byte-level pins → move to §14, extend to every row of §22 — `Format/WireFormatTests`
 - [x] BASE-06 — `Security/CryptoContractTests.cs` (14 tests): crypto and compression contract → split into §23 and §25 — `Algorithms/CompressionTests, Algorithms/EncryptionTests`
@@ -530,80 +530,95 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 Every family of §23. Each item means: value round-trips, runtime type is the contractual one, and boundary values are included.
 
+The corpus is written once, in `RoundTrip/Corpus` and its partials, and run under three profiles —
+`DefaultCorpusTests` (P0), `HeaderlessCorpusTests` (P7, RT-C08) and `ProtectedCorpusTests` (P6,
+RT-C09). An item ticked against `RoundTrip/Corpus` is therefore proven under all three at once.
+
 ## 19.1 Primitives
 
-- [ ] RT-01 `bool` · [ ] RT-02 `byte` · [ ] RT-03 `sbyte` · [ ] RT-04 `short` · [ ] RT-05 `ushort`
-- [ ] RT-06 `int` · [ ] RT-07 `uint` · [ ] RT-08 `long` · [ ] RT-09 `ulong` · [ ] RT-10 `float`
-- [ ] RT-11 `double` · [ ] RT-12 `decimal` · [ ] RT-13 `char` · [ ] RT-14 `string` · [ ] RT-15 enum
-- [ ] RT-16 `Half` · [ ] RT-17 `Int128` · [ ] RT-18 `UInt128` · [ ] RT-19 `IntPtr` · [ ] RT-20 `UIntPtr`
-- [ ] RT-21 `Rune` · [ ] RT-22 `BigInteger`
+- [x] RT-01 `bool` · [x] RT-02 `byte` · [x] RT-03 `sbyte` · [x] RT-04 `short` · [x] RT-05 `ushort`
+- [x] RT-06 `int` · [x] RT-07 `uint` · [x] RT-08 `long` · [x] RT-09 `ulong` · [x] RT-10 `float`
+- [x] RT-11 `double` · [x] RT-12 `decimal` · [x] RT-13 `char` · [x] RT-14 `string` · [x] RT-15 enum
+- [x] RT-16 `Half` · [x] RT-17 `Int128` · [x] RT-18 `UInt128` · [x] RT-19 `IntPtr` · [x] RT-20 `UIntPtr`
+- [x] RT-21 `Rune` · [x] RT-22 `BigInteger` — all of §19.1 in `RoundTrip/Corpus` (`CorpusPrimitives`)
 
 Boundaries, applied across the above:
 
-- [ ] RT-B01 — zero, `MinValue`, `MaxValue`, and `-1` where signed *(§23)*
-- [ ] RT-B02 — `NaN`, `+∞`, `-∞`, negative zero for floating-point *(§22.4)*
-- [ ] RT-B03 — empty string, surrogate pairs, and a string at exactly `MaxStringBytes` *(§5.5)*
-- [ ] RT-B04 — `BigInteger` zero, negative, and multi-byte magnitudes *(§22.4)*
-- [ ] RT-B05 — enums with each underlying integral type, including undefined values *(§22.4)*
-- [ ] RT-B06 — `Nullable<T>` null and non-null for each value-type family *(§22.2)*
+- [x] RT-B01 — zero, `MinValue`, `MaxValue`, and `-1` where signed *(§23)* — `RoundTrip/Corpus`
+- [x] RT-B02 — `NaN`, `+∞`, `-∞`, negative zero for floating-point, asserted on the bits *(§22.4)* — `RoundTrip/Corpus`
+- [x] RT-B03 — empty string, surrogate pairs, and a string at exactly `MaxStringBytes` *(§5.5)* — `RoundTrip/Corpus`
+- [x] RT-B04 — `BigInteger` zero, negative, and multi-byte magnitudes *(§22.4)* — `RoundTrip/Corpus`
+- [x] RT-B05 — enums with each underlying integral type, including undefined values *(§22.4)* — `RoundTrip/Corpus`
+- [x] RT-B06 — `Nullable<T>` null and non-null for each value-type family *(§22.2)* — `RoundTrip/Corpus`
 
 ## 19.2 Time, numerics, system
 
-- [ ] RT-23 `DateTime` including each `DateTimeKind`, min and max *(§22.4)*
-- [ ] RT-24 `DateTimeOffset` including extreme offsets
-- [ ] RT-25 `TimeSpan` min, max, negative, fractional
-- [ ] RT-26 `DateOnly` · [ ] RT-27 `TimeOnly` · [ ] RT-28 `TimeZoneInfo`
-- [ ] RT-29 `Complex` · [ ] RT-30 `Vector2` · [ ] RT-31 `Vector3` · [ ] RT-32 `Vector4`
-- [ ] RT-33 `Quaternion` · [ ] RT-34 `Plane` · [ ] RT-35 `Matrix3x2` · [ ] RT-36 `Matrix4x4`
-- [ ] RT-37 `Guid` · [ ] RT-38 `Uri` · [ ] RT-39 `Version` · [ ] RT-40 `StringBuilder`
-- [ ] RT-41 `CultureInfo` · [ ] RT-42 `BitArray` including 0, 1, 7, 8, 9 bits
+- [x] RT-23 `DateTime` including each `DateTimeKind`, min and max *(§22.4)*
+- [x] RT-24 `DateTimeOffset` including extreme offsets
+- [x] RT-25 `TimeSpan` min, max, negative, fractional
+- [x] RT-26 `DateOnly` · [x] RT-27 `TimeOnly` · [x] RT-28 `TimeZoneInfo`
+- [x] RT-29 `Complex` · [x] RT-30 `Vector2` · [x] RT-31 `Vector3` · [x] RT-32 `Vector4`
+- [x] RT-33 `Quaternion` · [x] RT-34 `Plane` · [x] RT-35 `Matrix3x2` · [x] RT-36 `Matrix4x4`
+- [x] RT-37 `Guid` · [x] RT-38 `Uri` · [x] RT-39 `Version` · [x] RT-40 `StringBuilder`
+- [x] RT-41 `CultureInfo` · [x] RT-42 `BitArray` including 0, 1, 7, 8, 9 bits
+- all of §19.2 in `RoundTrip/Corpus` (`CorpusTimeAndSystem`)
 
-Every numeric component is asserted individually.
+Every numeric component is asserted individually. `TimeZoneInfo` uses a custom zone rather than a
+machine zone, so the corpus does not depend on the host's time-zone data.
 
 ## 19.3 Arrays and memory
 
-- [ ] RT-43 one-dimensional primitive arrays, including empty
-- [ ] RT-44 one-dimensional reference arrays, including null elements
-- [ ] RT-45 `null` array
-- [ ] RT-46 multidimensional rank 2 and rank 3, row-major
-- [ ] RT-47 a multidimensional array with a zero dimension
-- [ ] RT-48 `Memory<T>` · [ ] RT-49 `ReadOnlyMemory<T>`
-- [ ] RT-50 `ArraySegment<T>` with a non-zero offset and partial count
-- [ ] RT-51 single-segment `ReadOnlySequence<T>` · [ ] RT-52 multi-segment `ReadOnlySequence<T>`
+- [x] RT-43 one-dimensional primitive arrays, including empty
+- [x] RT-44 one-dimensional reference arrays, including null elements
+- [x] RT-45 `null` array
+- [x] RT-46 multidimensional rank 2 and rank 3, row-major
+- [x] RT-47 a multidimensional array with a zero dimension
+- [x] RT-48 `Memory<T>` · [x] RT-49 `ReadOnlyMemory<T>`
+- [x] RT-50 `ArraySegment<T>` with a non-zero offset and partial count
+- [x] RT-51 single-segment `ReadOnlySequence<T>` · [x] RT-52 multi-segment `ReadOnlySequence<T>`
+- all of §19.3 in `RoundTrip/Corpus` (`CorpusArrays`)
+
+A memory-like value is the sequence of §22.3 — a count and its elements — so its backing storage is
+not part of the value (§23, Q11). RT-50 and RT-52 therefore assert the offset and the segment count
+as well as the elements: a segment comes back at offset zero, a multi-segment sequence as one
+segment.
 
 ## 19.4 Composites
 
-- [ ] RT-53 `KeyValuePair<,>` · [ ] RT-54 `Tuple<…>` · [ ] RT-55 `ValueTuple<…>`
-- [ ] RT-56 nested and long tuples (`TRest`) · [ ] RT-57 nullable tuple elements
+- [x] RT-53 `KeyValuePair<,>` · [x] RT-54 `Tuple<…>` · [x] RT-55 `ValueTuple<…>`
+- [x] RT-56 nested and long tuples (`TRest`) · [x] RT-57 nullable tuple elements
 - [x] RT-58 `Lazy<T>` materialized · [x] RT-59 `Lazy<T>` unmaterialized, faulted factory, and deferred restore *(§22.5, §23)* — `RoundTrip/LazyTests`
-- [ ] RT-60 `ImmutableArray<T>` populated, empty, and `default` *(§22.5)*
+- [x] RT-60 `ImmutableArray<T>` populated, empty, and `default` *(§22.5)*
+- RT-53…RT-57 and RT-60 in `RoundTrip/Corpus` (`CorpusComposites`)
 
 ## 19.5 Collections
 
-- [ ] RT-61 `List<>` · [ ] RT-62 `HashSet<>` · [ ] RT-63 `SortedSet<>` · [ ] RT-64 `LinkedList<>`
-- [ ] RT-65 `ObservableCollection<>` · [ ] RT-66 `Stack<>` · [ ] RT-67 `Queue<>`
-- [ ] RT-68 `ReadOnlyCollection<>` · [ ] RT-69 `ReadOnlyObservableCollection<>`
-- [ ] RT-70 a custom `ICollection<T>` with a parameterless constructor and `Add`
-- [ ] RT-71 `ConcurrentBag<>` · [ ] RT-72 `ConcurrentQueue<>` · [ ] RT-73 `ConcurrentStack<>`
-- [ ] RT-74 `Dictionary<,>` · [ ] RT-75 `SortedDictionary<,>` · [ ] RT-76 `SortedList<,>`
-- [ ] RT-77 `ConcurrentDictionary<,>` · [ ] RT-78 `ReadOnlyDictionary<,>`
-- [x] RT-79 `PriorityQueue<,>`: entries round-trip and dequeue order is reconstructed from priorities *(§23)* — `RoundTrip/ContainerTests`
-- [ ] RT-80 `ImmutableList<>` · [ ] RT-81 `ImmutableHashSet<>` · [ ] RT-82 `ImmutableSortedSet<>`
-- [ ] RT-83 `ImmutableStack<>` · [ ] RT-84 `ImmutableQueue<>`
-- [ ] RT-85 `ImmutableDictionary<,>` · [ ] RT-86 `ImmutableSortedDictionary<,>`
-- [ ] RT-87 `FrozenSet<>` · [ ] RT-88 `FrozenDictionary<,>`
+- [x] RT-61 `List<>` · [x] RT-62 `HashSet<>` · [x] RT-63 `SortedSet<>` · [x] RT-64 `LinkedList<>`
+- [x] RT-65 `ObservableCollection<>` · [x] RT-66 `Stack<>` · [x] RT-67 `Queue<>`
+- [x] RT-68 `ReadOnlyCollection<>` · [x] RT-69 `ReadOnlyObservableCollection<>`
+- [x] RT-70 a custom `ICollection<T>` with a parameterless constructor and `Add` — `Fixtures/Containers.Bag<T>`
+- [x] RT-71 `ConcurrentBag<>` · [x] RT-72 `ConcurrentQueue<>` · [x] RT-73 `ConcurrentStack<>`
+- [x] RT-74 `Dictionary<,>` · [x] RT-75 `SortedDictionary<,>` · [x] RT-76 `SortedList<,>`
+- [x] RT-77 `ConcurrentDictionary<,>` · [x] RT-78 `ReadOnlyDictionary<,>`
+- [x] RT-79 `PriorityQueue<,>`: entries round-trip and dequeue order is reconstructed from priorities *(§23)*
+- [x] RT-80 `ImmutableList<>` · [x] RT-81 `ImmutableHashSet<>` · [x] RT-82 `ImmutableSortedSet<>`
+- [x] RT-83 `ImmutableStack<>` · [x] RT-84 `ImmutableQueue<>`
+- [x] RT-85 `ImmutableDictionary<,>` · [x] RT-86 `ImmutableSortedDictionary<,>`
+- [x] RT-87 `FrozenSet<>` · [x] RT-88 `FrozenDictionary<,>`
+- all of §19.5 in `RoundTrip/Corpus` (`CorpusCollections`)
 
 Cross-cutting:
 
-- [x] RT-C01 — every container round-trips empty *(§23)* — `RoundTrip/ContainerTests`
-- [x] RT-C02 — stack ordering is preserved; elements are written bottom-up for `Stack`, `ConcurrentStack`, `ImmutableStack` *(§23)* — `RoundTrip/ContainerTests`
-- [x] RT-C03 — unordered containers assert contents, never iteration order *(§23)* — `RoundTrip/ContainerTests`
-- [x] RT-C04 — each interface resolves to its documented concrete type: `IList<T>`/`ICollection<T>`/`IEnumerable<T>`/`IReadOnlyList<T>`/`IReadOnlyCollection<T>` → `List<T>`; `ISet<T>` → `HashSet<T>`; `IDictionary<K,V>` → `Dictionary<K,V>`; `IReadOnlyDictionary<K,V>` → `ReadOnlyDictionary<K,V>`; immutable interfaces → their immutable types *(§23)* — `RoundTrip/ContainerTests`
-- [ ] RT-C05 — reference identity across an interface-typed member is preserved; the concrete type is not *(§23)*
-- [ ] RT-C06 — `ImmutableArray<T>` is the only container distinguishing default from empty *(§23)*
-- [ ] RT-C07 — nested containers: collection of dictionaries, dictionary of collections, array of objects *(§23)*
-- [ ] RT-C08 — the whole corpus also round-trips under V0 for every shape V0 supports *(§10.2)*
-- [ ] RT-C09 — the whole corpus round-trips under P6 (compression + checksum + encryption) *(§22.6)*
+- [x] RT-C01 — every container round-trips empty *(§23)* — `RoundTrip/Corpus`
+- [x] RT-C02 — stack ordering is preserved; elements are written bottom-up for `Stack`, `ConcurrentStack`, `ImmutableStack` *(§23)* — `RoundTrip/Corpus`
+- [x] RT-C03 — unordered containers assert contents, never iteration order *(§23)* — `RoundTrip/Corpus`
+- [x] RT-C04 — each interface resolves to its documented concrete type: `IList<T>`/`ICollection<T>`/`IEnumerable<T>`/`IReadOnlyList<T>`/`IReadOnlyCollection<T>` → `List<T>`; `ISet<T>` → `HashSet<T>`; `IDictionary<K,V>` → `Dictionary<K,V>`; `IReadOnlyDictionary<K,V>` → `ReadOnlyDictionary<K,V>`; immutable interfaces → their immutable types *(§23)* — `RoundTrip/Corpus`
+- [x] RT-C05 — reference identity across an interface-typed member is preserved; the concrete type is not *(§23)* — `RoundTrip/InterfaceMemberTests`
+- [x] RT-C06 — `ImmutableArray<T>` is the only container distinguishing default from empty *(§23)* — `RoundTrip/Corpus`
+- [x] RT-C07 — nested containers: collection of dictionaries, dictionary of collections, array of objects *(§23)* — `RoundTrip/Corpus`
+- [x] RT-C08 — the whole corpus also round-trips under V0 for every shape V0 supports *(§10.2)* — `RoundTrip/HeaderlessCorpusTests`
+- [x] RT-C09 — the whole corpus round-trips under P6 (compression + checksum + encryption) *(§22.6)* — `RoundTrip/ProtectedCorpusTests`
+- [x] RT-C10 — the object shape itself: a member-encoded type, nested and with a null member, under every profile *(§23)* — `RoundTrip/Corpus`
 
 ---
 
@@ -906,6 +921,8 @@ Mutate.FlipByte · SetByte · SetInt32 · Truncate · Prefixes · SevenBitEncode
 
 NonSeekableStream · PartialReadStream · FailingStream · NonSeekableWriteStream · TrackingStream
 
+Sequences.Of (a multi-segment ReadOnlySequence<T>) · Bag<T> (a custom ICollection<T>)   (added by M5)
+
 Sum8 · WideChecksum · IdentityCompression · UnauthenticatedCipher   (custom algorithm doubles)
 ```
 
@@ -925,6 +942,7 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [ ] UTIL-08 — byte-observing stream wrappers, only if a suite needs them *(deferred; nothing so far does)*
 - [x] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test — `Fixtures/UtilityTests`
 - [x] UTIL-10 — the keyed and reference frame builders declare the counts and lengths they were given, not the real ones — `Fixtures/UtilityTests`
+- [x] UTIL-11 — `Sequences.Of` chains its segments in order and reports more than one — `Fixtures/UtilityTests`
 
 ---
 
@@ -1061,10 +1079,37 @@ wire changed and the write path is untouched:
 
 - [x] D3-01 — an abstract class without a union map is `BinaryTypeException` on read, not an activator failure *(§23, §8.10)* — `Contracts/AttributeContractTests`
 
+### D4 — a default `ArraySegment<T>` leaves the library as `InvalidOperationException` — **FIXED**
+
+Found while working M5 (RT-C06), reproduced against `src/` at `fb6e12c`.
+
+**Contract:** §23 lists `ArraySegment<T>` among the supported types and carves out no state of it,
+and its notes say `ImmutableArray<T>` is the only container that distinguishes default from empty —
+so every other container's default instance is an ordinary empty one. §8.10 admits no standard .NET
+exception here. Q11 has since made the clause explicit: a default `ArraySegment<T>` is written as an
+empty segment.
+
+**Actual:** serializing `default(ArraySegment<int>)` left the library through
+`InvalidOperationException: The underlying array is null.`, with nothing of the documented taxonomy
+in the chain. `Memory<T>` and `ReadOnlyMemory<T>` were unaffected: their default instance is empty
+and their `ToArray()` returns an empty array.
+
+**Cause:** `MemoryLikeFormatter.Enumerate` reached the elements through the value's own `ToArray()`.
+`ArraySegment<T>.ToArray()` — alone among the three — refuses a default instance, because a default
+segment has no backing array to copy from.
+
+**Fix applied** in `Formatters/Sequences/SequenceFormatters.cs`, in the formatter that owns the
+shape. A default segment now enumerates as empty, which is what §23 says it is. Nothing on the wire
+changed: a value that previously could not be written at all is now written as the empty sequence of
+§22.3, and no existing payload decodes differently.
+
+- [x] D4-01 — a default `ArraySegment<T>` round-trips as an empty segment rather than failing *(§23, §8.10)* — `RoundTrip/Corpus`
+
 ## 30.2 Resolved contract questions
 
-Raised while aligning the plan, decided on the project, and written into `System-Contract.md` in the
-same change as the test that pins them. Kept as the record of why the behavior is what it is.
+Raised while aligning the plan or while working it, decided on the project, and written into
+`System-Contract.md` in the same change as the test that pins them. Kept as the record of why the
+behavior is what it is.
 
 | | Question | Decision | Contract |
 |---|---|---|---|
@@ -1078,6 +1123,9 @@ same change as the test that pins them. Kept as the record of why the behavior i
 | **Q8** | §23 rejected a delegate member while `CLAUDE.md` and `TypeContract` skipped it silently | Reject, when the contract is built, naming the member. A delegate is eligible under the positional inclusion rules, so dropping it would lose state those rules said was included; `[BinaryIgnore]` states the intent. Decided at plan-build time, never per value, because a null callback must not serialize where a set one fails. Events are unaffected: their backing field is private | §14.1, §23 |
 | **Q9** | V0 refused `[BinaryContract]` as if keyed encoding were a format capability, although the keyed layout is payload-level and needs no header | Keyed contracts belong to the type and apply under both wire formats; the pipeline flag that could refuse them is removed, since it could no longer be `false`. The one format-visible consequence is the seekable-payload requirement: a field's length is patched after the field is written, which V1 hides by buffering the payload and V0 passes to the caller's destination as `NotSupportedException`. Reference preservation stays V1-only for the opposite reason — it is an options-level switch that silently changes the bytes, and a headerless format cannot announce it, so a reader configured differently would decode wrong data with no diagnostic | §10.2, §14.2, §22.8 |
 | **Q10** | §4.1 listed "an encryption algorithm without key material" among the rejections `Build()` performs, but every `WithEncryption` overload assigns the key source together with the algorithm and refuses a null one, so no caller could reach the guard | Contract narrowed: the bullet is removed and §4.1 states that missing key material is not a configuration contradiction. The guard stays as an invariant over the constructed options. A reader whose options name an algorithm it has no key for — `FromHeader`/`FromStream` with no keys, a resolver that yields nothing, a mismatched `keyId` — fails at the operation as `BinaryEncryptionKeyException`. CFG-07 is rewritten to assert the overloads leave no gap | §4.1, §8.7 |
+| **Q11** | §23 listed the memory-like types and §22.3 encoded them as a bare count and elements, so a segment's offset into a larger array and a sequence's segment boundaries could not survive a round trip — derivable, but never stated, and invisible to anyone reading §23 alone | Contract states it: a memory-like value travels as its elements alone, so the backing storage is not part of the value. A read builds a fresh array and wraps the whole of it — an `ArraySegment<T>` comes back at offset zero over an array exactly as long as the segment, a multi-segment `ReadOnlySequence<T>` comes back as one segment, and a default `ArraySegment<T>`, which has no backing array, is written as empty. That last clause is the rule D4 was fixed against, now said outright rather than inferred from the `ImmutableArray<T>` note. RT-50 and RT-52 assert the offset and the segment count, not only the elements | §23 |
+
+---
 
 # 31. Cross-entry-point equivalence — `Api/`
 
@@ -1104,9 +1152,9 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Correctness
 
-- [ ] Every formatter family in `FormatterRegistry` has mapped coverage.
-- [ ] Every §23 family round-trips, including nullability and empty containers.
-- [ ] Interface resolution and ordering guarantees are asserted, not assumed.
+- [x] Every formatter family in `FormatterRegistry` has mapped coverage. *(RT-01…RT-88, RT-C10; the delegate rejection in CTR-22)*
+- [x] Every §23 family round-trips, including nullability and empty containers. *(RT-01…RT-88, RT-B06, RT-C01, RT-C10)*
+- [x] Interface resolution and ordering guarantees are asserted, not assumed. *(RT-C02…RT-C05)*
 - [ ] Every public entry point is covered and mutually consistent.
 
 ## Format

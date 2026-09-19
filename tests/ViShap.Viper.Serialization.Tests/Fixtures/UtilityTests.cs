@@ -1,7 +1,9 @@
+using System.Buffers;
+
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-09. A helper with a bug passes every suite that uses it, so the helpers are
+/// Pins UTIL-01…UTIL-11. A helper with a bug passes every suite that uses it, so the helpers are
 /// tested before anything is allowed to rely on them.
 /// </summary>
 public class UtilityTests
@@ -314,6 +316,25 @@ public class UtilityTests
         AssertEx.DoesNotContainBytes([1, 2, 3], [4, 5]);
         Assert.ThrowsAny<Exception>(
             static () => AssertEx.DoesNotContainBytes([1, 2, 3, 4], [3, 4]));
+    }
+
+    // --- UTIL-11: the multi-segment sequence builder ---------------------------------------------
+
+    [Fact]
+    public void Sequences_Of_ChainsTheSegmentsInOrder()
+    {
+        var sequence = Sequences.Of([1, 2], [3], [4, 5]);
+
+        Assert.False(sequence.IsSingleSegment);
+        Assert.Equal(5, sequence.Length);
+        Assert.Equal([1, 2, 3, 4, 5], sequence.ToArray());
+    }
+
+    [Fact]
+    public void Sequences_Of_NoSegments_IsEmpty()
+    {
+        Assert.Equal(0, Sequences.Of<int>().Length);
+        Assert.Equal([], Sequences.Of<int>([]).ToArray());
     }
 
     // --- UTIL-09: the committed compatibility fixtures -------------------------------------------

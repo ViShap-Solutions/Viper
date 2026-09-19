@@ -258,6 +258,9 @@ internal sealed class MemoryLikeFormatter : ListBackedSequenceFormatter
 
     public override IEnumerable<object?> Enumerate(object value, Type declaredType)
     {
+        if (IsDefaultSegment(value, declaredType))
+            return [];
+
         var array = (Array)MethodInvokerCache
             .GetInstanceFinalizerInvoker(declaredType, "ToArray")(value);
         return array.Cast<object?>();
@@ -269,6 +272,15 @@ internal sealed class MemoryLikeFormatter : ListBackedSequenceFormatter
         return ActivatorCache.GetOneArgConstructor(declaredType, elementType.MakeArrayType())(
             SequenceSupport.ToArray(builder, elementType));
     }
+
+    /// <summary>
+    /// A default <c>ArraySegment&lt;T&gt;</c> has no backing array and refuses every accessor that
+    /// would reach one. It is an empty segment here, because <c>ImmutableArray&lt;T&gt;</c> is the
+    /// only container whose default state is distinct from empty on the wire.
+    /// </summary>
+    private static bool IsDefaultSegment(object value, Type declaredType) =>
+        declaredType.GetGenericTypeDefinition() == typeof(ArraySegment<>) &&
+        MethodInvokerCache.GetInstanceFinalizerInvoker(declaredType, "get_Array")(value) is null;
 }
 
 internal sealed class ReadOnlySequenceFormatter : ListBackedSequenceFormatter

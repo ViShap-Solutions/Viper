@@ -1424,6 +1424,12 @@ Notes that belong to the contract:
   `[BinaryIgnore]` on the member that holds one.
 - **Types without a parameterless constructor**, including interfaces and abstract classes without a
   `[BinaryUnion]` map, are `BinaryTypeException` on read.
+- **Memory-like values** — `Memory<T>`, `ReadOnlyMemory<T>`, `ArraySegment<T>` and
+  `ReadOnlySequence<T>` — travel as their elements alone (§22.3), so their backing storage is not
+  part of the value. A read builds a fresh array and wraps the whole of it: an `ArraySegment<T>`
+  comes back at offset zero over an array exactly as long as the segment, and a multi-segment
+  `ReadOnlySequence<T>` comes back as a single segment. A default `ArraySegment<T>`, which has no
+  backing array at all, is written as an empty segment.
 - **`ImmutableArray<T>`** distinguishes default from empty; every other container does not.
 
 # 24. Release checklist
