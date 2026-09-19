@@ -1,10 +1,12 @@
+using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins V0-02, V0-03, V0-04, V0-12, V0-23 and V0-24: version 0 carries the same payload encoding as
-/// version 1, keyed contracts included, and is never read by accident.
+/// Pins V0-02, V0-03, V0-04, V0-08, V0-09, V0-12, V0-23 and V0-24: version 0 carries the same
+/// payload encoding as version 1, keyed contracts included, is bounded by the same limits, and is
+/// never read by accident.
 /// </summary>
 public class V0FormatTests
 {
@@ -150,5 +152,49 @@ public class V0FormatTests
         stream.Position = 0;
 
         Assert.Equal(123, serializer.Deserialize<int>(stream));
+    }
+
+    [Fact]
+    public void Serialize_V0PayloadOverMaxPayloadBytes_ThrowsLimit()
+    {
+        // The string itself is well within MaxStringBytes, so only the payload ceiling can fire.
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure()
+                .WithVersion(0)
+                .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 16 })
+                .Build());
+
+        AssertEx.Throws<BinaryLimitException>(
+            "payload byte budget of 16", () => serializer.Serialize(new string('a', 64)));
+    }
+
+    [Fact]
+    public void Serialize_V0PayloadAtMaxPayloadBytes_Succeeds()
+    {
+        // A null flag, a 7-bit length of 1 and fourteen UTF-8 bytes are exactly sixteen.
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure()
+                .WithVersion(0)
+                .AllowV0Fallback()
+                .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 16 })
+                .Build());
+
+        byte[] payload = serializer.Serialize(new string('a', 14));
+
+        Assert.Equal(16, payload.Length);
+        Assert.Equal(new string('a', 14), serializer.Deserialize<string>(payload));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(7)]
+    public void Deserialize_TruncatedV0Payload_ThrowsFormat(int length)
+    {
+        var serializer = V0();
+        byte[] payload = serializer.Serialize(new Person { Name = "Alice", Age = 30 });
+
+        Assert.Throws<BinaryFormatException>(
+            () => serializer.Deserialize<Person>(Mutate.Truncate(payload, length)));
     }
 }

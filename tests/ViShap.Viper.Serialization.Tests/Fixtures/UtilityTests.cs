@@ -63,7 +63,7 @@ public class UtilityTests
         AssertEx.DequeuesInPriorityOrder(["high", "low"], queue);
     }
 
-    // --- UTIL-02, UTIL-03: byte mutation and truncation -----------------------------------------
+    // --- UTIL-03, UTIL-04: byte mutation and truncation -----------------------------------------
 
     [Fact]
     public void FlipByte_ChangesOnlyTheTargetedByte()
@@ -110,7 +110,7 @@ public class UtilityTests
         Assert.Equal([0x80, 0x01], Mutate.SevenBitEncoded(128));
     }
 
-    // --- UTIL-04…UTIL-06: stream doubles --------------------------------------------------------
+    // --- UTIL-05…UTIL-07: stream doubles --------------------------------------------------------
 
     [Fact]
     public void NonSeekableStream_CannotSeekButReads()
@@ -157,7 +157,7 @@ public class UtilityTests
         Assert.Throws<IOException>(() => stream.ReadExactly(new byte[8]));
     }
 
-    // --- UTIL-09: the frame builders produce bytes a real reader accepts -------------------------
+    // --- UTIL-02: the frame builders produce bytes a real reader accepts -------------------------
 
     [Fact]
     public void Header_MatchesWhatTheWriterProduces()
@@ -219,5 +219,66 @@ public class UtilityTests
         Assert.Equal(Wire.PlainHeaderLength + 4 + body.Length, frame.Length);
         Assert.Equal<byte[]>([1, 2, 3, 4], frame[Wire.PlainHeaderLength..(Wire.PlainHeaderLength + 4)]);
         Assert.Equal(body, frame[(Wire.PlainHeaderLength + 4)..]);
+    }
+
+    [Fact]
+    public void ReadHeader_RecoversEveryFieldTheFrameBuilderWrote()
+    {
+        byte[] body = Wire.Payload(writer => writer.Write(123));
+
+        var header = Wire.ReadHeader(Wire.FrameWith(
+            body,
+            compression: 255, customCompressionName: "zip",
+            checksumAlgorithm: 255, customChecksumName: "sum",
+            encryption: 255, customEncryptionName: "box",
+            keyId: "ring",
+            preserveReferences: true,
+            uncompressedLength: 11,
+            compressedLength: 22,
+            onDiskLength: 33,
+            checksum: [7, 8]));
+
+        Assert.Equal(1, header.Version);
+        Assert.Equal(255, header.Compression);
+        Assert.Equal("zip", header.CustomCompressionName);
+        Assert.Equal(255, header.ChecksumAlgorithm);
+        Assert.Equal("sum", header.CustomChecksumName);
+        Assert.Equal(255, header.Encryption);
+        Assert.Equal("box", header.CustomEncryptionName);
+        Assert.Equal("ring", header.KeyId);
+        Assert.True(header.PreserveReferences);
+        Assert.Equal(11, header.UncompressedLength);
+        Assert.Equal(22, header.CompressedLength);
+        Assert.Equal(33, header.OnDiskLength);
+        Assert.Equal<byte[]>([7, 8], header.Checksum);
+    }
+
+    [Fact]
+    public void ReadHeader_OnAPlainFrame_ReportsTheHeaderLengthThePayloadStartsAt()
+    {
+        byte[] body = Wire.Payload(writer => writer.Write(123));
+
+        var header = Wire.ReadHeader(Wire.Frame(body));
+
+        Assert.Equal(Wire.PlainHeaderLength, header.HeaderLength);
+        Assert.Equal(body.Length, header.OnDiskLength);
+    }
+
+    // --- UTIL-09: the committed compatibility fixtures -------------------------------------------
+
+    [Fact]
+    public void Fixture_LoadsTheCommittedBytesRatherThanRegeneratingThem()
+    {
+        // The expected bytes are transcribed from §22 here as they are in the file, so a writer
+        // change cannot quietly move both sides at once.
+        Assert.Equal<byte[]>(
+            [0x01, 0x24, 0x00, 0x00, 0x00, 0x01, 0x03, 0x41, 0x64, 0x61],
+            Wire.Fixture("person-v0.bin"));
+
+        byte[] framed = Wire.Fixture("person-v1.bin");
+
+        Assert.Equal(Wire.PlainHeaderLength + 10, framed.Length);
+        Assert.Equal(Wire.Fixture("person-v0.bin"), framed[Wire.PlainHeaderLength..]);
+        Assert.Equal(Wire.Magic, BitConverter.ToInt32(framed));
     }
 }

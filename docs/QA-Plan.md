@@ -294,39 +294,39 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 Field order, types and invariants per §22.6.
 
 - [x] HDR-01 — a written header has the documented field order and byte layout *(§22.6)* — `Format/WireFormatTests`
-- [ ] HDR-02 — magic mismatch → `BinaryFormatException` *(§22.6)*
-- [ ] HDR-03 — an unknown version → `BinaryFormatNotSupportedException` *(§22.6)*
-- [ ] HDR-04 — truncation at every prefix length of the fixed header → `BinaryFormatException` *(§11)*
-- [ ] HDR-05 — an undefined compression identifier → `BinaryFormatNotSupportedException` *(§22.6)*
-- [ ] HDR-06 — an undefined checksum identifier → `BinaryFormatNotSupportedException` *(§22.6)*
-- [ ] HDR-07 — an undefined encryption identifier → `BinaryFormatNotSupportedException` *(§22.6)*
-- [ ] HDR-08 — optional strings: absent, empty, and populated all round-trip *(§22.1)*
+- [x] HDR-02 — magic mismatch → `BinaryFormatException` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-03 — an unknown version → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-04 — truncation at every prefix length of the fixed header → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
+- [x] HDR-05 — an undefined compression identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-06 — an undefined checksum identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-07 — an undefined encryption identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-08 — optional strings: absent, empty, and populated all round-trip *(§22.1)* — `Format/HeaderTests`
 - [x] HDR-09 — an optional string declaring a length beyond the stream → `BinaryFormatException` before allocation *(§2.3, §17)* — D1-02
 - [x] HDR-10 — a header string over the 256-byte format ceiling → `BinaryFormatException`, and an unwritable configured value → `BinaryConfigurationException` *(§11, §22.6)* — `Format/HeaderStringTests`
-- [ ] HDR-11 — a negative `UncompressedLength` / `CompressedLength` / `OnDiskLength` → `BinaryFormatException` *(§22.6)*
-- [ ] HDR-12 — each length above its phase limit → `BinaryLimitException`, before allocation *(§22.6, §17)*
-- [ ] HDR-13 — `Compression == None` with `CompressedLength != UncompressedLength` → `BinaryFormatException` *(§11)*
-- [ ] HDR-14 — `Encryption == None` with `OnDiskLength != CompressedLength` → `BinaryFormatException` *(§11)*
+- [x] HDR-11 — a negative `UncompressedLength` / `CompressedLength` / `OnDiskLength` → `BinaryFormatException` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-12 — each length above its phase limit → `BinaryLimitException`, before allocation *(§22.6, §17)* — `Format/HeaderTests`
+- [x] HDR-13 — `Compression == None` with `CompressedLength != UncompressedLength` → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
+- [x] HDR-14 — `Encryption == None` with `OnDiskLength != CompressedLength` → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
 - [x] HDR-15 — `OnDiskLength` beyond the bytes physically present → `BinaryFormatException` before allocation *(§17)* — D1-01
-- [ ] HDR-16 — `checksumLength` round-trips, including `0` and `255` *(§22.6)*
+- [x] HDR-16 — `checksumLength` round-trips, including `0` and `255` *(§22.6)* — `Format/HeaderTests`
 - [x] HDR-17 — a checksum truncated below its declared length → `BinaryFormatException` before allocation *(§11)* — D1-03
-- [ ] HDR-18 — a checksum longer than the byte representation allows → `BinaryConfigurationException` on write *(§11)*
-- [ ] HDR-19 — `PreserveReferences` in the header, not the local configuration, decides payload interpretation *(§2.2, §16)*
+- [x] HDR-18 — a checksum longer than the byte representation allows → `BinaryConfigurationException` on write *(§11)* — `Format/HeaderTests`
+- [x] HDR-19 — `PreserveReferences` in the header, not the local configuration, decides payload interpretation *(§2.2, §16)* — `Format/HeaderTests`
 
 ---
 
 # 12. V1 envelope and canonicity — `Format/`
 
-- [ ] ENV-01 — write order is serialize → checksum raw → compress → AAD → encrypt → header *(§22.6)*
-- [ ] ENV-02 — read reverses that order *(§22.6)*
+- [x] ENV-01 — write order is serialize → checksum raw → compress → AAD → encrypt → header *(§22.6)* — `Format/EnvelopeTests`
+- [x] ENV-02 — read reverses that order *(§22.6)* — `Format/EnvelopeTests`
 - [x] ENV-03 — trailing bytes after the root value → `BinaryFormatException` *(§10.1)* — `Hostile/MalformedPayloadTests`
-- [ ] ENV-04 — a payload shorter than the root value demands → `BinaryFormatException` *(§10.1)*
-- [ ] ENV-05 — extra bytes **after** the declared `OnDiskLength` in the source stream are not consumed and not an error *(§3.1, §20)*
-- [ ] ENV-06 — a decompressed payload shorter than declared → rejected *(§12)*
-- [ ] ENV-07 — a decompressed payload longer than declared → rejected *(§12)*
-- [ ] ENV-08 — the declared plaintext length never exceeds the ciphertext delivered *(§13)*
+- [x] ENV-04 — a payload shorter than the root value demands → `BinaryFormatException` *(§10.1)* — `Format/EnvelopeTests`
+- [x] ENV-05 — extra bytes **after** the declared `OnDiskLength` in the source stream are not consumed and not an error *(§3.1, §20)* — `Format/EnvelopeTests`
+- [x] ENV-06 — a decompressed payload shorter than declared → rejected *(§12)* — `Format/EnvelopeTests`
+- [x] ENV-07 — a decompressed payload longer than declared → rejected *(§12)* — `Format/EnvelopeTests`
+- [x] ENV-08 — the declared plaintext length never exceeds the ciphertext delivered *(§13)* — `Format/EnvelopeTests`
 - [x] ENV-09 — `MaxWireBytes` is charged relative to the operation's start position on write *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [ ] ENV-10 — `MaxWireBytes` is charged from zero on read regardless of the source's absolute position *(§7.1)*
+- [x] ENV-10 — `MaxWireBytes` is charged from zero on read regardless of the source's absolute position *(§7.1)* — `Format/EnvelopeTests`
 
 ---
 
@@ -344,20 +344,23 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-05 — V0 ignores `PreserveReferences`; a cycle is a `BinaryTypeException`, not a reference frame *(§10.2, §16)* — `Format/V0FormatTests`
 - [x] V0-06 — V0 may be embedded: bytes after the payload are neither required nor rejected *(§22.8)* — `Format/V0FormatTests`
 - [x] V0-07 — `MaxPayloadBytes` applies to V0 on read *(§7.1, S05)* — `Limits/BudgetTests`
-- [ ] V0-08 — `MaxPayloadBytes` applies to V0 on write *(§7.2)*
-- [ ] V0-09 — V0 truncation → `BinaryFormatException` *(§8.2)*
+- [x] V0-08 — `MaxPayloadBytes` applies to V0 on write *(§7.2)* — `Format/V0FormatTests`
+- [x] V0-09 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Format/V0FormatTests`
 - [x] V0-10 — routing selects V1 when the magic and version are recognized *(§10.3)* — `Format/V0FormatTests`
 - [x] V0-11 — routing selects V0 only when the read fallback is enabled; writing V0 does not enable it *(§10.2, §10.3)* — `Api/WriteVersionTests`
 - [x] V0-12 — no magic with the fallback disabled → `BinaryFormatException` *(§10.3)* — `Format/V0FormatTests`
-- [ ] V0-13 — a recognized but unregistered version → `BinaryFormatNotSupportedException` *(§10.3)*
-- [ ] V0-14 — routing on a non-seekable stream → `NotSupportedException` *(§10.3)*
-- [ ] V0-15 — the version probe restores the stream position before dispatch *(§10.3)*
-- [ ] V0-16 — an `IOException` from the probe → `BinaryStreamException` *(§10.3)*
-- [ ] V0-17 — a V0 payload whose first eight bytes coincidentally resemble a header is not misrouted *(§10.2)*
-- [ ] V0-18 — committed fixed-byte V0 and V1 fixtures decode correctly; the fixture is never regenerated by the writer under test *(§10.2)*
-- [ ] V0-19 — a V0 payload is byte-identical to the payload a V1 frame carries for the same value under the same positional layout *(§22.8)*
-- [ ] V0-20 — `[BinaryUnion]` polymorphism round-trips on V0 *(§10.2, §15)*
-- [ ] V0-21 — every §23 family V0 supports round-trips through it; see RT-C08 *(§10.2)*
+- [x] V0-13 — a recognized but unregistered version → `BinaryFormatNotSupportedException` *(§10.3)* — `Format/RoutingTests`
+- [x] V0-14 — routing on a non-seekable stream → `NotSupportedException` *(§10.3)* — `Format/RoutingTests`
+- [x] V0-15 — the version probe restores the stream position before dispatch *(§10.3)* — `Format/RoutingTests`
+- [x] V0-16 — an `IOException` from the probe → `BinaryStreamException` *(§10.3)* — `Format/RoutingTests`
+- [x] V0-17 — the probe matches the eight header bytes exactly, so a V0 payload that is shorter
+  than the probe window or differs from the magic in any byte is not misrouted; one that literally
+  opens with the magic and version 1 *is* read as V1, which is the documented consequence of a V0
+  payload carrying no identity of its own *(§10.2, §10.3)* — `Format/RoutingTests`
+- [x] V0-18 — committed fixed-byte V0 and V1 fixtures decode correctly; the fixture is never regenerated by the writer under test *(§10.2)* — `Format/RoutingTests`, `Fixtures/Wire/person-v0.bin`, `Fixtures/Wire/person-v1.bin`
+- [x] V0-19 — a V0 payload is byte-identical to the payload a V1 frame carries for the same value under the same positional or keyed layout *(§22.8)* — `Format/RoutingTests`
+- [x] V0-20 — `[BinaryUnion]` polymorphism round-trips on V0 *(§10.2, §15)* — `Format/V0CorpusTests`
+- [x] V0-21 — every §23 family V0 supports round-trips through it, and each one produces the same payload bytes as V1; RT-C08 extends this to the whole corpus *(§10.2)* — `Format/V0CorpusTests`
 - [x] V0-22 — `RequireEncryption` or `RequireChecksum` together with V0 is rejected when the options are built, on the write side and on the read side alike *(§4.1, §10.2, §21.1, D2)* — `Api/OptionsTests`
 - [x] V0-23 — a keyed contract nested inside a keyed contract round-trips on V0, so field windowing works over the metered V0 payload and not only over V1's buffered one *(§7.3, §10.2)* — `Format/V0FormatTests`
 - [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.8)* — `Format/V0FormatTests`
@@ -371,19 +374,19 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 ## 14.1 Primitives and framing
 
-- [ ] WF-01 — each fixed-size primitive encoding of §22.1, little-endian, exact width *(§22.1)*
-- [ ] WF-02 — `decimal` is four `int32` in `GetBits` order *(§22.1)*
+- [x] WF-01 — each fixed-size primitive encoding of §22.1, little-endian, exact width *(§22.1)* — `Format/ScalarWireTests`
+- [x] WF-02 — `decimal` is four `int32` in `GetBits` order *(§22.1)* — `Format/ScalarWireTests`
 - [x] WF-03 — a string is a 7-bit length prefix then UTF-8 bytes *(§22.1)* — `Format/WireFormatTests`
-- [ ] WF-04 — a blob is a 7-bit length prefix then bytes *(§22.1)*
-- [ ] WF-05 — a count is a raw `int32` *(§22.1)*
-- [ ] WF-06 — an optional string is a present flag then the string *(§22.1)*
-- [ ] WF-07 — 7-bit integers use the shortest form on write, and boundary values round-trip *(§22)*
-- [ ] WF-08 — the null flag is present for reference types and `Nullable<T>`, absent for non-nullable value types *(§22.2)*
-- [ ] WF-09 — a `false` null flag ends the value with no further bytes *(§22.2)*
-- [ ] WF-10 — a reference frame is a marker byte plus an `int32` id, present only under `PreserveReferences` and only for structural reference types *(§22.2)*
-- [ ] WF-11 — scalars, strings included, and all value types are never reference-framed *(§22.2, §16)*
-- [ ] WF-12 — marker `0` precedes the shape payload; marker `1` ends the value *(§22.2)*
-- [ ] WF-13 — any other marker → `BinaryFormatException` *(§22.2)*
+- [x] WF-04 — a blob is a 7-bit length prefix then bytes *(§22.1)* — `Format/ScalarWireTests`
+- [x] WF-05 — a count is a raw `int32` *(§22.1)* — `Format/WireFormatTests`
+- [x] WF-06 — an optional string is a present flag then the string *(§22.1)* — `Format/WireFormatTests`
+- [x] WF-07 — 7-bit integers use the shortest form on write, and boundary values round-trip *(§22)* — `Format/WireFormatTests`
+- [x] WF-08 — the null flag is present for reference types and `Nullable<T>`, absent for non-nullable value types *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-09 — a `false` null flag ends the value with no further bytes *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-10 — a reference frame is a marker byte plus an `int32` id, present only under `PreserveReferences` and only for structural reference types *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-11 — scalars, strings included, and all value types are never reference-framed *(§22.2, §16)* — `Format/WireFormatTests`
+- [x] WF-12 — marker `0` precedes the shape payload; marker `1` ends the value *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-13 — any other marker → `BinaryFormatException` *(§22.2)* — `Format/WireFormatTests`
 
 ## 14.2 Shapes
 
@@ -391,28 +394,28 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] WF-15 — a map is an entry count then framed key/value pairs *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-16 — a positional object writes members in plan order: `[BinaryOrder]` ascending first, then ordinal name order *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-17 — a keyed object is a 7-bit field count then `key, int32 length, payload` per field *(§22.3)* — `Format/WireFormatTests`
-- [ ] WF-18 — keyed fields are written in ascending key order *(§22.3)*
+- [x] WF-18 — keyed fields are written in ascending key order *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-19 — a union writes one tag byte before the member layout *(§22.3)* — `Format/WireFormatTests`
-- [ ] WF-20 — a field payload is exactly its declared length; trailing bytes inside a field → `BinaryFormatException` *(§22.3)*
+- [x] WF-20 — a field payload is exactly its declared length; trailing bytes inside a field → `BinaryFormatException` *(§22.3)* — `Format/WireFormatTests`
 
 ## 14.3 Scalar encodings
 
-- [ ] WF-21 — every row of the §22.4 table is pinned by a byte-level assertion *(§22.4)*
-- [ ] WF-22 — an enum is encoded as its underlying primitive, for every underlying type in use *(§22.4)*
-- [ ] WF-23 — `Rune` with an invalid scalar value → `BinaryFormatException` *(§22.4)*
-- [ ] WF-24 — `BitArray` is an `int32` bit count then `ceil(bits/8)` blob bytes *(§22.4)*
+- [x] WF-21 — every row of the §22.4 table is pinned by a byte-level assertion *(§22.4)* — `Format/ScalarWireTests`
+- [x] WF-22 — an enum is encoded as its underlying primitive, for every underlying type in use *(§22.4)* — `Format/ScalarWireTests`
+- [x] WF-23 — `Rune` with an invalid scalar value → `BinaryFormatException` *(§22.4)* — `Format/ScalarWireTests`
+- [x] WF-24 — `BitArray` is an `int32` bit count then `ceil(bits/8)` blob bytes *(§22.4)* — `Format/ScalarWireTests`
 
 ## 14.4 Composites
 
-- [ ] WF-25 — `KeyValuePair`, `Tuple`, `ValueTuple`, `Lazy<T>` per §22.5 *(§22.5)*
-- [ ] WF-26 — `ImmutableArray<T>` writes a present flag; `default` writes `false` and stays distinct from empty *(§22.5)*
-- [ ] WF-27 — a rank > 1 array writes rank, per-dimension lengths, then row-major elements *(§22.5)*
+- [x] WF-25 — `KeyValuePair`, `Tuple`, `ValueTuple`, `Lazy<T>` per §22.5 *(§22.5)* — `Format/CompositeWireTests`
+- [x] WF-26 — `ImmutableArray<T>` writes a present flag; `default` writes `false` and stays distinct from empty *(§22.5)* — `Format/CompositeWireTests`
+- [x] WF-27 — a rank > 1 array writes rank, per-dimension lengths, then row-major elements *(§22.5)* — `Format/CompositeWireTests`
 
 ## 14.5 Associated data
 
-- [ ] WF-28 — the AAD image covers exactly the §22.7 fields, in order *(§22.7)*
-- [ ] WF-29 — `OnDiskLength` is excluded from the AAD *(§22.7)*
-- [ ] WF-30 — the AAD is recomputed, never stored on the wire *(§22.7)*
+- [x] WF-28 — the AAD image covers exactly the §22.7 fields, in order *(§22.7)* — `Format/AssociatedDataTests`
+- [x] WF-29 — `OnDiskLength` is excluded from the AAD *(§22.7)* — `Format/AssociatedDataTests`
+- [x] WF-30 — the AAD is recomputed, never stored on the wire *(§22.7)* — `Format/AssociatedDataTests`
 
 ---
 
@@ -891,20 +894,24 @@ AssertEx.AllocatesLessThan(ceiling, act)
 AssertEx.SameContents<T>()
 AssertEx.PopsInOrder<T>() · DequeuesInOrder<T>() · DequeuesInPriorityOrder<TElement,TPriority>()
 
-Wire.Payload · Wire.Header · Wire.Frame · Wire.NestedCollections · Wire.KeyedFields
+Wire.Payload · Wire.Header · Wire.Frame · Wire.FrameWith · Wire.NestedCollections · Wire.KeyedFields
 Wire.FrameWithOversizedCustomName · Wire.FrameWithOversizedChecksum
-Wire.PlainHeaderLength · PreserveReferencesOffset · UncompressedLengthOffset · CompressedLengthOffset
+Wire.ReadHeader (an independent header decoder) · Wire.Fixture (committed *.bin)
+Wire.PlainHeaderLength · PreserveReferencesOffset · UncompressedLengthOffset
+CompressedLengthOffset · OnDiskLengthOffset · ChecksumLengthOffset
 
 Mutate.FlipByte · SetByte · SetInt32 · Truncate · Prefixes · SevenBitEncoded
 
-NonSeekableStream · PartialReadStream · FailingStream
+NonSeekableStream · PartialReadStream · FailingStream · NonSeekableWriteStream · TrackingStream
+
+Sum8 · WideChecksum · IdentityCompression · UnauthenticatedCipher   (custom algorithm doubles)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
 a wrapper that restates it would only invite the assumption that the plain form is loose.
 
-Helpers a later stage needs — committed `*.bin` compatibility fixtures (M3) and byte-observing stream
-wrappers, if a suite turns out to need them — are added by that stage rather than built ahead of use.
+Helpers a later stage needs — byte-observing stream wrappers, if a suite turns out to need them — are
+added by that stage rather than built ahead of use. The committed `*.bin` fixtures arrived with M3.
 
 - [x] UTIL-01 — assertion helpers behave correctly, including their negative cases — `Fixtures/UtilityTests`
 - [x] UTIL-02 — frame builders produce bytes a real reader accepts — `Fixtures/UtilityTests`
@@ -914,7 +921,7 @@ wrappers, if a suite turns out to need them — are added by that stage rather t
 - [x] UTIL-06 — `PartialReadStream` returns short reads without losing data — `Fixtures/UtilityTests`
 - [x] UTIL-07 — `FailingStream` raises `IOException` at the configured offset, on read and on write — `Fixtures/UtilityTests`
 - [ ] UTIL-08 — byte-observing stream wrappers, only if a suite needs them *(deferred; nothing so far does)*
-- [ ] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test *(M3; no fixture is committed yet)*
+- [x] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test — `Fixtures/UtilityTests`
 
 ---
 
@@ -1070,11 +1077,11 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Format
 
-- [ ] Every row of §22 is pinned at the byte level.
-- [ ] V1 header validation is deterministic and ordered.
-- [ ] V0 is never confused with V1 and is never selected without the caller's opt-in.
-- [ ] V0 carries the same type set, unions, keyed contracts, limits and budgets as V1 — only the envelope is absent.
-- [ ] Committed fixed-byte fixtures decode; none is regenerated by the code under test.
+- [x] Every row of §22 is pinned at the byte level. *(WF-01…WF-30)*
+- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-19, ENV-01, ENV-02)*
+- [x] V0 is never confused with V1 and is never selected without the caller's opt-in. *(V0-10…V0-17)*
+- [x] V0 carries the same type set, unions, keyed contracts, limits and budgets as V1 — only the envelope is absent. *(V0-03, V0-07, V0-08, V0-19…V0-21)*
+- [x] Committed fixed-byte fixtures decode; none is regenerated by the code under test. *(V0-18, UTIL-09)*
 
 ## Contracts
 

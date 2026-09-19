@@ -1,4 +1,4 @@
-﻿namespace ViShap.Viper.Serialization.Tests.Fixtures;
+namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 public class Person
 {
@@ -38,6 +38,14 @@ public class NewSchema
 public class OldSchema
 {
     [BinaryKey(2)] public Node? Kept { get; set; }
+}
+
+[BinaryContract]
+public class UnsortedKeys
+{
+    [BinaryKey(5)] public int Late { get; set; }
+
+    [BinaryKey(1)] public int Early { get; set; }
 }
 
 [BinaryContract]
