@@ -192,4 +192,32 @@ public class UtilityTests
 
         Assert.NotNull(new BinarySerializer().Deserialize<EmptyContract>(frame));
     }
+
+    [Fact]
+    public void FrameWith_AtItsDefaults_ProducesThePlainFrame()
+    {
+        byte[] body = Wire.Payload(writer => writer.Write(123));
+
+        Assert.Equal(Wire.Frame(body), Wire.FrameWith(body));
+    }
+
+    [Fact]
+    public void FrameWith_IsAcceptedByARealReader()
+    {
+        byte[] frame = Wire.FrameWith(Wire.Payload(writer => writer.Write(123)));
+
+        Assert.Equal(123, new BinarySerializer().Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void FrameWith_PlacesTheChecksumBeforeThePayload()
+    {
+        byte[] body = Wire.Payload(writer => writer.Write(123));
+
+        byte[] frame = Wire.FrameWith(body, checksumAlgorithm: 1, checksum: [1, 2, 3, 4]);
+
+        Assert.Equal(Wire.PlainHeaderLength + 4 + body.Length, frame.Length);
+        Assert.Equal<byte[]>([1, 2, 3, 4], frame[Wire.PlainHeaderLength..(Wire.PlainHeaderLength + 4)]);
+        Assert.Equal(body, frame[(Wire.PlainHeaderLength + 4)..]);
+    }
 }

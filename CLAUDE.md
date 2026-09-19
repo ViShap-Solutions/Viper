@@ -135,7 +135,7 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
 
 ## Conventions
 
-- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern under `tests/.../API/`, `Security/` and `Correctness/`, with shared types in `Fixtures/`.
+- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern into the `QA-Plan.md` §2 folders listed above, with shared types in `Fixtures/`.
 - Work happens on `feature/*` / `bugfix/*` branches merged into `main` via PR.
 - Any change to what goes on the wire (formatter encoding, header fields, member ordering, reference framing) is a compatibility break unless it goes behind a new format version or a keyed contract.
 - Exception constructors keep the inner exception on the same line as the message, never on its own line.
@@ -144,5 +144,9 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
   engineer reading the file. Nothing in `src/` or `tests/` addresses the reader personally or records
   history — no "note:", no "before the fix", no audit or refactoring narrative. Findings and the
   reasoning behind a decision belong in `docs/`.
-- The repository owner makes every commit. Leave finished work in the working tree and report the
-  changed paths.
+- The repository owner makes every commit. Never commit, push, or open a PR. Leave finished work in
+  the working tree and report the changed paths.
+- Whenever the work reaches a natural commit point — a QA-plan section or stage closed, a defect
+  fixed, a session wrapped up — end the report with a ready commit message in English. Keep it
+  terse, as the history is: one subject line, optionally a short clause after a dash naming the
+  consequence. No body, no bullet list, no trailer. The detail belongs in the report and in `docs/`.

@@ -245,9 +245,8 @@ public sealed class BinarySerializerOptionsBuilder
     /// <exception cref="BinaryConfigurationException">
     /// A limit is not positive; the write version is not a supported wire format; encryption is
     /// required but not configured, or is configured with an algorithm that cannot authenticate
-    /// format metadata; encryption is configured without key material; a checksum is required but
-    /// not configured; or a protection policy is combined with format version 0, which has no header
-    /// in which to carry protection.
+    /// format metadata; a checksum is required but not configured; or a protection policy is
+    /// combined with format version 0, which has no header in which to carry protection.
     /// </exception>
     public BinarySerializerOptions Build()
     {

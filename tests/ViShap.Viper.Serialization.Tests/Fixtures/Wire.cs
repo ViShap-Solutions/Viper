@@ -53,6 +53,48 @@ internal static class Wire
     public static byte[] Frame(byte[] body, int? declaredLength = null, bool preserveReferences = false) =>
         [.. Header(declaredLength ?? body.Length, preserveReferences), .. body];
 
+    /// <summary>
+    /// A V1 frame with every header field chosen by the caller, for the cases the convenience
+    /// builders above cannot express: a declared algorithm the body does not honour, a checksum that
+    /// does not match, or a version this build does not know.
+    /// </summary>
+    public static byte[] FrameWith(
+        byte[] body,
+        int version = 1,
+        byte compression = 0,
+        byte checksumAlgorithm = 0,
+        byte encryption = 0,
+        string? keyId = null,
+        bool preserveReferences = false,
+        int? uncompressedLength = null,
+        int? compressedLength = null,
+        int? onDiskLength = null,
+        byte[]? checksum = null)
+    {
+        byte[] checksumBytes = checksum ?? [];
+
+        return Payload(writer =>
+        {
+            writer.Write(Magic);
+            writer.Write(version);
+            writer.Write(compression); writer.Write(false);
+            writer.Write(checksumAlgorithm); writer.Write(false);
+            writer.Write(encryption); writer.Write(false);
+
+            writer.Write(keyId is not null);
+            if (keyId is not null)
+                writer.Write(keyId);
+
+            writer.Write(preserveReferences);
+            writer.Write(uncompressedLength ?? body.Length);
+            writer.Write(compressedLength ?? body.Length);
+            writer.Write(onDiskLength ?? body.Length);
+            writer.Write((byte)checksumBytes.Length);
+            writer.Write(checksumBytes);
+            writer.Write(body);
+        });
+    }
+
     /// <summary>A payload of <paramref name="depth"/> nested single-element collections.</summary>
     public static byte[] NestedCollections(int depth) =>
         Frame(Payload(writer =>

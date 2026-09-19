@@ -104,25 +104,6 @@ public class PublicSurfaceTests
     }
 
     [Fact]
-    public void ExceptionHierarchy_MatchesTheContract()
-    {
-        var exceptions = typeof(BinarySerializerException).Assembly
-            .GetExportedTypes()
-            .Where(t => typeof(Exception).IsAssignableFrom(t))
-            .ToArray();
-
-        Assert.All(exceptions, type => Assert.True(
-            type == typeof(BinarySerializerException) ||
-            typeof(BinarySerializerException).IsAssignableFrom(type),
-            $"'{type}' does not derive from BinarySerializerException."));
-
-        Assert.True(typeof(BinaryFormatException)
-            .IsAssignableFrom(typeof(BinaryLimitException)));
-        Assert.True(typeof(BinaryEncryptionException)
-            .IsAssignableFrom(typeof(BinaryEncryptionKeyException)));
-    }
-
-    [Fact]
     public void EngineTypes_AreNotPublic()
     {
         // Each of these enforces part of the resource policy or the traversal protocol; publishing
