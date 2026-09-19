@@ -116,18 +116,18 @@ SerializationLimits.Default with
 
 ## P3 — compression
 
-- [ ] P3-01 — `Deflate` *(§12)*
-- [ ] P3-02 — `Brotli` *(§12)*
+- [x] P3-01 — `Deflate` *(§12)* — `Algorithms/CompressionTests`
+- [x] P3-02 — `Brotli` *(§12)* — `Algorithms/CompressionTests`
 
 ## P4 — checksum
 
-- [ ] P4-01 — `Crc32` *(§11, §22.6)*
+- [x] P4-01 — `Crc32` *(§11, §22.6)* — `Algorithms/ChecksumTests`
 
 ## P5 — encryption
 
-- [ ] P5-01 — `Aes256Gcm` with a fixed 32-byte key *(§13)*
-- [ ] P5-02 — `Aes256Gcm` with a key resolver and a `KeyId` *(§13.2)*
-- [ ] P5-03 — `RequireEncryption` + `RequireChecksum` *(§21.1)*
+- [x] P5-01 — `Aes256Gcm` with a fixed 32-byte key *(§13)* — `Algorithms/EncryptionTests`
+- [x] P5-02 — `Aes256Gcm` with a key resolver and a `KeyId` *(§13.2)* — `Algorithms/EncryptionTests`
+- [x] P5-03 — `RequireEncryption` + `RequireChecksum` *(§21.1)* — `Algorithms/EncryptionTests`; the profile accepts only a payload carrying both, and refuses one missing either
 
 ## P6 — full V1
 
@@ -268,6 +268,7 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 - [x] EXC-20 — `InvalidDataException` is preserved as `BinaryFormatException.InnerException` *(§9)* — `Exceptions/ExceptionLeakageTests`
 - [x] EXC-21 — no production path wraps the whole codec operation in a blanket `IOException` catch *(§8.8, §10.3)* — `Exceptions/SourceInvariantTests`
 - [x] EXC-22 — no production path contains a bare `catch (BinarySerializerException) { throw; }` *(§9)* — `Exceptions/SourceInvariantTests`
+- [x] EXC-23 — an exception from a registered algorithm factory, which a payload selects, does not escape the taxonomy *(§4.1, §9)* — `Algorithms/AlgorithmCatalogTests` (added by M7, Q13)
 
 ---
 
@@ -786,72 +787,74 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 # 23. Compression — `Algorithms/`
 
-- [ ] CMP-01 — `NoCompression` round-trips and still honors phase limits *(§12)* — round trip proven by `Algorithms/CompressionTests`; the phase-limit half lands in M7
+- [x] CMP-01 — `NoCompression` round-trips and still honors phase limits *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-02 — `Deflate` round-trips *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-03 — `Brotli` round-trips *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-04 — malformed Deflate input → `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-05 — malformed Brotli input → `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`
-- [ ] CMP-06 — raw input above `MaxPayloadBytes` → `BinaryLimitException` *(§12)*
-- [ ] CMP-07 — compressed output above `MaxCompressedBytes` → `BinaryLimitException` *(§12)*
-- [ ] CMP-08 — compressed input above `MaxCompressedBytes` → `BinaryLimitException` *(§12)*
-- [ ] CMP-09 — an expected decompressed length above `MaxPayloadBytes` → `BinaryLimitException` before allocation *(§12)*
+- [x] CMP-06 — raw input above `MaxPayloadBytes` → `BinaryLimitException` *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-07 — compressed output above `MaxCompressedBytes` → `BinaryLimitException` *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-08 — compressed input above `MaxCompressedBytes` → `BinaryLimitException` *(§12)* — `Limits/PhaseLimitTests`, which reads a DEFLATE frame declaring more compressed bytes than the ceiling
+- [x] CMP-09 — an expected decompressed length above `MaxPayloadBytes` → `BinaryLimitException` before allocation *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-10 — decompression producing **fewer** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
 - [x] CMP-11 — decompression producing **more** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
-- [ ] CMP-12 — `ICompressionAlgorithm` receives no limits and is invoked inside the phase barrier *(§2.5, §12)*
-- [ ] CMP-13 — a custom compression algorithm round-trips and its name is recorded in the header *(§4.1, §11)*
+- [x] CMP-12 — `ICompressionAlgorithm` receives no limits and is invoked inside the phase barrier *(§2.5, §12)* — `Algorithms/CompressionTests`; the algorithm primitives live in an assembly that does not reference the one holding `SerializationLimits`, and a frame refused by a phase limit never reaches the codec
+- [x] CMP-13 — a custom compression algorithm round-trips and its name is recorded in the header *(§4.1, §11)* — `Algorithms/CompressionTests`
 
 ---
 
 # 24. Checksum — `Algorithms/`
 
-- [ ] CHK-01 — `NoChecksum` writes a zero-length checksum *(§22.6)*
-- [ ] CHK-02 — `Crc32` round-trips *(§22.6)*
-- [ ] CHK-03 — a checksum mismatch → `BinaryIntegrityException` *(§8.5)*
-- [ ] CHK-04 — a checksum of unexpected length → the documented failure *(§11)*
-- [ ] CHK-05 — the checksum is computed over the **raw** payload, before compression *(§22.6)*
-- [ ] CHK-06 — a custom checksum round-trips under its registered name *(§4.1)*
-- [ ] CHK-07 — a payload naming an unregistered custom checksum → `BinaryFormatNotSupportedException` *(§8.4)*
-- [ ] CHK-08 — `RequireChecksum` rejects a payload with `ChecksumAlgorithm.None` → `BinaryIntegrityException` *(§21.1)*
+- [x] CHK-01 — `NoChecksum` writes a zero-length checksum *(§22.6)* — `Format/HeaderTests`
+- [x] CHK-02 — `Crc32` round-trips *(§22.6)* — `Algorithms/ChecksumTests`
+- [x] CHK-03 — a checksum mismatch → `BinaryIntegrityException` *(§8.5)* — `Exceptions/ExceptionMappingTests` for a frame declaring a checksum that never matched, `Algorithms/ChecksumTests` for a written frame whose body changed afterwards
+- [x] CHK-04 — a checksum of unexpected length → the documented failure *(§11)* — `Algorithms/ChecksumTests`; a width the named algorithm never produces is `BinaryFormatException`
+- [x] CHK-05 — the checksum is computed over the **raw** payload, before compression *(§22.6)* — `Format/EnvelopeTests`, from both directions
+- [x] CHK-06 — a custom checksum round-trips under its registered name *(§4.1)* — `Api/OptionsTests`
+- [x] CHK-07 — a payload naming an unregistered custom checksum → `BinaryFormatNotSupportedException` *(§8.4)* — `Exceptions/ExceptionMappingTests`, `Algorithms/AlgorithmCatalogTests`
+- [x] CHK-08 — `RequireChecksum` rejects a payload with `ChecksumAlgorithm.None` → `BinaryIntegrityException` *(§21.1)* — `Algorithms/ChecksumTests`, with the capability-only counterpart beside it
 
 ---
 
 # 25. Encryption — `Algorithms/`
 
 - [x] ENC-01 — `Aes256Gcm` with a 32-byte key round-trips *(§13)* — `Algorithms/EncryptionTests`
-- [ ] ENC-02 — an invalid direct key size → `ArgumentException` *(§8.10)*
+- [x] ENC-02 — key material the configured algorithm cannot use → `BinaryEncryptionKeyException` *(§8.7)* — `Algorithms/EncryptionTests`; a wrong-sized key on either direction and an empty one at the builder. Reworded: no public entry point validates a key size, because the size belongs to the algorithm, so the failure is the §8.7 key-usability one rather than the `ArgumentException` of §8.10 this item first cited. §13.2 now says so outright
 - [x] ENC-03 — a wrong key → `BinaryIntegrityException` at the authentication boundary *(§8.5)* — `Algorithms/EncryptionTests`
 - [x] ENC-04 — tampered ciphertext → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
 - [x] ENC-05 — any altered authenticated header byte → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
-- [ ] ENC-06 — `OnDiskLength` is not authenticated, and a wrong value still fails by truncation or tag *(§22.7)*
+- [x] ENC-06 — `OnDiskLength` is not authenticated, and a wrong value still fails by truncation or tag *(§22.7)* — `Format/AssociatedDataTests`
 - [x] ENC-07 — no key configured for an encrypted payload → `BinaryEncryptionKeyException` *(§8.7)* — `Algorithms/EncryptionTests`
-- [ ] ENC-08 — a resolver returning null → `BinaryEncryptionKeyException` *(§8.7)*
+- [x] ENC-08 — a resolver returning null → `BinaryEncryptionKeyException` *(§8.7)* — `Exceptions/ExceptionMappingTests`
 - [x] ENC-09 — a `KeyId` mismatch against the provider's configured id → `BinaryEncryptionKeyException` *(§13.2)* — `Algorithms/EncryptionTests`
 - [x] ENC-10 — the resolver receives the header's `KeyId` *(§13.2)* — `Algorithms/EncryptionTests`
-- [ ] ENC-11 — `SecretKey` always holds its own copy *(§13.2)*
+- [x] ENC-11 — `SecretKey` always holds its own copy *(§13.2)* — `Algorithms/EncryptionTests`; clearing the caller's array afterwards changes neither the key nor what the serializer can still read
 - [x] ENC-12 — a resolver's returned buffer is not mutated or zeroed by the serializer *(§13.2, S07)* — `Algorithms/EncryptionTests`
 - [x] ENC-13 — disposing a provider clears only its own copy; the caller's array is untouched *(§13.2)* — `Algorithms/EncryptionTests`
 - [x] ENC-14 — using a disposed provider → `ObjectDisposedException` *(§13.2, S08)* — `Algorithms/EncryptionTests`
-- [ ] ENC-15 — each resolved key is disposed at the end of the phase that requested it *(§13.2)*
-- [ ] ENC-16 — serializer-owned temporary crypto buffers are cleared when their lifetime ends *(§13.2)*
-- [ ] ENC-17 — a second payload with a different key id does not fall back to a previously resolved key *(§13.2)* — M7
-- [ ] ENC-18 — `AuthenticatesAssociatedData == false` is rejected under `RequireEncryption` *(§13.1)*
+- [x] ENC-15 — each resolved key is disposed at the end of the phase that requested it *(§13.2)* — `Algorithms/EncryptionTests`, through a provider that keeps every key it hands out
+- [x] ENC-16 — serializer-owned temporary crypto buffers are cleared when their lifetime ends *(§13.2)* — `Algorithms/EncryptionTests`; a disposed `SecretKey` releases its material, and every pooled phase buffer in `src/` is asserted to be returned with `clearArray: true`. The pooled half is a source invariant, like LIM-39 and LIM-44: once a buffer is back in the pool nothing can observe it without depending on how the pool hands arrays back
+- [x] ENC-17 — a second payload with a different key id does not fall back to a previously resolved key *(§13.2)* — `Algorithms/EncryptionTests`
+- [x] ENC-18 — `AuthenticatesAssociatedData == false` is rejected under `RequireEncryption` *(§13.1)* — `Exceptions/ConfigurationValidationTests`, at `Build()`; the read side of the same rule is ENC-23
 - [x] ENC-19 — `NoEncryption` with `RequireEncryption` on the read path → `BinaryIntegrityException` *(§21.1)* — `Algorithms/EncryptionTests`
 - [x] ENC-20 — an encryption **capability** does not force encryption: a plaintext payload is read normally without the policy *(§21.1, S01)* — `Algorithms/EncryptionTests`
-- [ ] ENC-21 — plaintext input ≤ `MaxCompressedBytes`, ciphertext ≤ `MaxEncryptedBytes`, both directions *(§13)*
-- [ ] ENC-22 — a custom encryption algorithm round-trips under its registered name *(§4.1)*
+- [x] ENC-21 — plaintext input ≤ `MaxCompressedBytes`, ciphertext ≤ `MaxEncryptedBytes`, both directions *(§13)* — `Algorithms/EncryptionTests`, with encryption actually applied rather than a hand-built header
+- [x] ENC-22 — a custom encryption algorithm round-trips under its registered name *(§4.1)* — `Algorithms/EncryptionTests`
+- [x] ENC-23 — a payload naming an algorithm that does not authenticate metadata, read under `RequireEncryption` → `BinaryIntegrityException` naming that algorithm *(§13.1, §21.1)* — `Algorithms/EncryptionTests`, with the capability-only counterpart beside it. Q12
 
 ---
 
 # 26. Algorithm catalog — `Algorithms/`
 
-- [ ] CAT-01 — built-in algorithms resolve from the enum identifier *(§4.1)*
-- [ ] CAT-02 — a custom name resolves through the options' catalog *(§4.1)*
-- [ ] CAT-03 — a payload naming an unregistered custom algorithm → `BinaryFormatNotSupportedException` *(§8.4)*
-- [ ] CAT-04 — the catalog is a snapshot: registering after `Build()` changes nothing *(§4.1)*
-- [ ] CAT-05 — two options instances have independent catalogs *(§4.1)*
-- [ ] CAT-06 — no process-wide mutable state can substitute a built-in algorithm *(§4.1)*
-- [ ] CAT-07 — a factory is invoked per resolution as documented, and a throwing factory surfaces a defined exception *(§4.1)*
-- [ ] CAT-08 — concurrent resolution from one catalog is safe *(L4)*
+- [x] CAT-01 — built-in algorithms resolve from the enum identifier *(§4.1)* — `Algorithms/AlgorithmCatalogTests`
+- [x] CAT-02 — a custom name resolves through the options' catalog *(§4.1)* — `Algorithms/AlgorithmCatalogTests`
+- [x] CAT-03 — a payload naming an unregistered custom algorithm → `BinaryFormatNotSupportedException` *(§8.4)* — `Algorithms/AlgorithmCatalogTests` for the name and for no name at all, `Exceptions/ExceptionMappingTests` for the whole read
+- [x] CAT-04 — the catalog is a snapshot: registering after `Build()` changes nothing *(§4.1)* — `Algorithms/AlgorithmCatalogTests`
+- [x] CAT-05 — two options instances have independent catalogs *(§4.1)* — `Algorithms/AlgorithmCatalogTests`, `Api/OptionsTests` for the same claim through a whole read
+- [x] CAT-06 — no process-wide mutable state can substitute a built-in algorithm *(§4.1)* — `Algorithms/AlgorithmCatalogTests`; no static field of the catalog can be reassigned and every static member reachable from the engine produces a catalog rather than editing one, with `Api/OptionsTests` proving a custom registration cannot claim a built-in name
+- [x] CAT-07 — a factory is invoked per resolution as documented *(§4.1)* — `Algorithms/AlgorithmCatalogTests`; writing uses the configured instance, so only a read resolves, once per read
+- [x] CAT-09 — a registered factory that throws, or returns null → `BinaryConfigurationException` naming the registration, the cause preserved *(§4.1, §9)* — `Algorithms/AlgorithmCatalogTests`. Split out of CAT-07, whose second half named no exception the contract defined. Q13
+- [x] CAT-08 — concurrent resolution from one catalog is safe *(L4)* — `Algorithms/AlgorithmCatalogTests`, 256 real parallel reads through one serializer
 
 ---
 
@@ -927,6 +930,7 @@ Wire.Container · Wire.StringValue · Wire.BitArrayValue · Wire.MultiDimensiona
 WriteOnlyStream (a seekable destination that cannot be read)                          (added by M6)
 
 Sum8 · WideChecksum · IdentityCompression · UnauthenticatedCipher   (custom algorithm doubles)
+IdentityCompression.CompressCalls · DecompressCalls · RecordingKeyProvider          (added by M7)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
@@ -948,6 +952,7 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-11 — `Sequences.Of` chains its segments in order and reports more than one — `Fixtures/UtilityTests`
 - [x] UTIL-12 — the value frame builders declare the counts, lengths and ranks they were given, not the real ones — `Fixtures/UtilityTests`
 - [x] UTIL-13 — `WriteOnlyStream` accepts writes, seeks, and refuses reads — `Fixtures/UtilityTests`
+- [x] UTIL-14 — the algorithm doubles count the calls they receive, and `RecordingKeyProvider` hands out an owned copy per resolution while recording the id it was asked — `Fixtures/UtilityTests`
 
 ---
 
@@ -1180,6 +1185,8 @@ behavior is what it is.
 | **Q9** | V0 refused `[BinaryContract]` as if keyed encoding were a format capability, although the keyed layout is payload-level and needs no header | Keyed contracts belong to the type and apply under both wire formats; the pipeline flag that could refuse them is removed, since it could no longer be `false`. The one format-visible consequence is the seekable-payload requirement: a field's length is patched after the field is written, which V1 hides by buffering the payload and V0 passes to the caller's destination as `NotSupportedException`. Reference preservation stays V1-only for the opposite reason — it is an options-level switch that silently changes the bytes, and a headerless format cannot announce it, so a reader configured differently would decode wrong data with no diagnostic | §10.2, §14.2, §22.8 |
 | **Q10** | §4.1 listed "an encryption algorithm without key material" among the rejections `Build()` performs, but every `WithEncryption` overload assigns the key source together with the algorithm and refuses a null one, so no caller could reach the guard | Contract narrowed: the bullet is removed and §4.1 states that missing key material is not a configuration contradiction. The guard stays as an invariant over the constructed options. A reader whose options name an algorithm it has no key for — `FromHeader`/`FromStream` with no keys, a resolver that yields nothing, a mismatched `keyId` — fails at the operation as `BinaryEncryptionKeyException`. CFG-07 is rewritten to assert the overloads leave no gap | §4.1, §8.7 |
 | **Q11** | §23 listed the memory-like types and §22.3 encoded them as a bare count and elements, so a segment's offset into a larger array and a sequence's segment boundaries could not survive a round trip — derivable, but never stated, and invisible to anyone reading §23 alone | Contract states it: a memory-like value travels as its elements alone, so the backing storage is not part of the value. A read builds a fresh array and wraps the whole of it — an `ArraySegment<T>` comes back at offset zero over an array exactly as long as the segment, a multi-segment `ReadOnlySequence<T>` comes back as one segment, and a default `ArraySegment<T>`, which has no backing array, is written as empty. That last clause is the rule D4 was fixed against, now said outright rather than inferred from the `ImmutableArray<T>` note. RT-50 and RT-52 assert the offset and the segment count, not only the elements | §23 |
+| **Q12** | §13.1 rejected an algorithm reporting `AuthenticatesAssociatedData == false` "when `RequireEncryption` is configured" and §4.1 placed that rejection at `Build()`, but a payload can name such an algorithm and the read-side refusal named no exception. It was `BinaryConfigurationException`, while the sibling downgrade — a payload carrying `Encryption = None` — is `BinaryIntegrityException` | The read side is `BinaryIntegrityException`: the message failed the policy, the reader's configuration did not, and substituting a cipher that cannot authenticate the header is the same downgrade as substituting no cipher. The diagnostic names the algorithm the payload named, custom name included. The check stays on the read rather than moving to registration, because the instance that decrypts a payload is the one the factory produces at that resolution. §13.1 also states what the flag is: a declaration the engine cannot verify, and an undertaking on whoever returns `true` | §13.1, §21.1 |
+| **Q13** | §4.1 documented a custom algorithm factory as "called once per resolution" and said nothing about one that throws or returns null, although the header decides which factory runs. A throwing factory left `Deserialize` under its own type, while a null return was already `BinaryConfigurationException` | Both are `BinaryConfigurationException` naming the registration, with the cause as `InnerException`; an exception already inside the taxonomy propagates unchanged. What separates this from the `Lazy<T>` rule of Q7 is who chose the moment: a `Lazy<T>` factory runs on the write path over the caller's own value, an algorithm factory runs on the read path at a moment untrusted bytes chose | §4.1, §9, §24 |
 
 ---
 

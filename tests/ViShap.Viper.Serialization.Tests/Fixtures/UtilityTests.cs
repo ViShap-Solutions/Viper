@@ -3,7 +3,7 @@ using System.Buffers;
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-13. A helper with a bug passes every suite that uses it, so the helpers are
+/// Pins UTIL-01…UTIL-14. A helper with a bug passes every suite that uses it, so the helpers are
 /// tested before anything is allowed to rely on them.
 /// </summary>
 public class UtilityTests
@@ -460,5 +460,42 @@ public class UtilityTests
         Assert.Equal(Wire.PlainHeaderLength + 10, framed.Length);
         Assert.Equal(Wire.Fixture("person-v0.bin"), framed[Wire.PlainHeaderLength..]);
         Assert.Equal(Wire.Magic, BitConverter.ToInt32(framed));
+    }
+
+    // --- UTIL-14: the algorithm doubles that count and record --------------------------------------
+
+    [Fact]
+    public void IdentityCompression_CountsEveryCallItReceives()
+    {
+        var compression = new IdentityCompression();
+        byte[] destination = new byte[3];
+
+        compression.Compress([1, 2, 3], destination);
+        compression.Decompress([4, 5, 6], destination);
+        compression.Decompress([7, 8, 9], destination);
+
+        Assert.Equal(1, compression.CompressCalls);
+        Assert.Equal(2, compression.DecompressCalls);
+        Assert.Equal<byte[]>([7, 8, 9], destination);
+    }
+
+    [Fact]
+    public void RecordingKeyProvider_HandsOutAnOwnedCopyAndRecordsTheIdItWasAsked()
+    {
+        byte[] material = [1, 2, 3, 4];
+        var provider = new RecordingKeyProvider(material);
+
+        using (var first = provider.Resolve("ring-7"))
+            Assert.Equal(material, first.Span.ToArray());
+
+        var second = provider.Resolve(null);
+
+        Assert.Equal<string?[]>(["ring-7", null], [.. provider.RequestedIds]);
+        Assert.Equal(2, provider.Issued.Count);
+        Assert.NotSame(provider.Issued[0], provider.Issued[1]);
+
+        // Disposing the first key left the second one and the caller's material untouched.
+        Assert.Equal(material, second.Span.ToArray());
+        Assert.Equal<byte[]>([1, 2, 3, 4], material);
     }
 }

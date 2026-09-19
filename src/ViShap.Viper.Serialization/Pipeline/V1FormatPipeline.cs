@@ -128,13 +128,15 @@ internal sealed class V1FormatPipeline(
                 "The payload carries no checksum, but this serializer requires one.");
 
         var payloadEncryption = catalog.ResolveEncryption(header.Encryption, header.CustomEncryptionName);
+
         if (operation.RequireEncryption && !payloadEncryption.AuthenticatesAssociatedData)
-            throw new BinaryConfigurationException(
-                $"Encryption algorithm '{header.Encryption}' does not authenticate format metadata, " +
-                "so it cannot satisfy RequireEncryption.");
+            throw new BinaryIntegrityException(
+                "The payload is encrypted with " +
+                $"'{header.CustomEncryptionName ?? header.Encryption.ToString()}', which does not " +
+                "authenticate format metadata, but this serializer requires encrypted input.");
 
         // Two-phase framing: the declared size is compared with the configured maximum and with the
-        // bytes that can still arrive, before the buffer for it is allocated.
+        // bytes that can still arrive before the buffer for it is allocated.
         reader.RequireAvailable(header.OnDiskLength, "On-disk payload");
         byte[] onDisk = reader.ReadBytes(header.OnDiskLength, "On-disk payload");
 

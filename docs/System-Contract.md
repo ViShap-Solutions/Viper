@@ -264,6 +264,16 @@ Custom algorithms are registered **on the builder** and snapshotted into the opt
 process-wide registry, and built-in algorithms cannot be substituted: what encrypts a payload is
 determined by the options that were built, not by global state another component may have mutated.
 
+A registration is a factory, and it is invoked once per resolution — that is, while a payload is
+being read, because the header names the algorithm and writing uses the configured instance. What
+runs, and how often, is therefore decided by the payload rather than by the caller, so a factory is
+not allowed to take an operation outside the exception taxonomy: a factory that throws, and one that
+returns `null`, are both `BinaryConfigurationException` naming the registration, with whatever the
+factory threw preserved as `InnerException` (§9). An exception that is already part of the taxonomy
+propagates unchanged, since wrapping it would add nothing the caller could not already catch. This is
+the read-side counterpart of the rule for a `Lazy<T>` factory (§23), which propagates unwrapped
+because it runs on the write path, over the caller's own value, at a point the caller chose.
+
 `Build()` rejects contradictory configuration with `BinaryConfigurationException`:
 
 - a write version that is not a supported wire format;
@@ -671,6 +681,9 @@ CryptographicException
 
 InvalidDataException
     → BinaryFormatException.InnerException
+
+custom algorithm factory exception
+    → BinaryConfigurationException.InnerException
 ```
 
 An unqualified:
@@ -896,8 +909,29 @@ wrong value either truncates the read or fails the authentication tag.
 Altering any authenticated header byte fails with `BinaryIntegrityException`.
 
 `IEncryptionAlgorithm` exposes AAD-aware overloads with default implementations that ignore the
-associated data, together with `AuthenticatesAssociatedData`. An algorithm that reports `false`
-cannot protect metadata, and is therefore rejected when `RequireEncryption` is configured.
+associated data, together with `AuthenticatesAssociatedData`. The pipeline always builds the image
+and always hands it to the AAD-aware overload, whatever the flag says, so the flag is a declaration
+about the algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's
+undertaking that the associated data takes part in the authentication tag; the engine cannot verify
+it. An algorithm that reports `false` — including one that simply does not implement the AAD-aware
+overloads — leaves the V1 header as unauthenticated metadata.
+
+`RequireEncryption` refuses such an algorithm from both sides, and the two sides are different
+failures:
+
+- configured locally, it is refused by `Build()` with `BinaryConfigurationException` (§4.1): the
+  configuration would write metadata the policy claims to protect, and nothing is wrong with the
+  data, because there is none yet;
+- named by a payload, it is refused while that payload is read, with `BinaryIntegrityException`.
+  Nothing is wrong with the reader's configuration there. The message failed the policy, exactly as a
+  payload carrying `Encryption = None` does (§21.1) — substituting a cipher that cannot authenticate
+  the header is the same downgrade as substituting no cipher at all. The diagnostic names the
+  algorithm the payload named, its custom name included.
+
+The second check belongs to the read rather than to registration, because the instance that decrypts
+a payload is the one the registered factory produces at that resolution (§4.1). A build-time check
+could not run the factory without making registration side-effecting, and could not bind the
+instances the same factory returns later.
 
 ## 13.2 Key ownership
 
@@ -911,6 +945,9 @@ which hands out owned copies.
 - Disposing a provider clears only its own copy; the caller's array is untouched.
 - Using a disposed provider throws `ObjectDisposedException`.
 - Temporary cryptographic buffers owned by the serializer are cleared when their lifetime ends.
+- Key material the configured algorithm cannot use — a wrong length, or none at all — is
+  `BinaryEncryptionKeyException` (§8.7), raised where the algorithm is used rather than where the key
+  was supplied: a key size belongs to the algorithm, so no entry point validates it on the way in.
 
 ---
 
@@ -1141,10 +1178,11 @@ BinarySerializerOptions.Configure()
     .Build();
 ```
 
-With the policy set, an unencrypted payload is `BinaryIntegrityException`, and an algorithm that
-cannot authenticate the header is refused at configuration time. Without it, authenticated metadata
-still prevents tampering with an encrypted message, but not substitution of a plaintext one — which
-is exactly what the policy exists for.
+With the policy set, an unencrypted payload is `BinaryIntegrityException`, and so is one encrypted
+by an algorithm that does not authenticate the header (§13.1) — both are the same downgrade. The
+same algorithm configured locally is refused earlier, at configuration time. Without the policy,
+authenticated metadata still prevents tampering with an encrypted message, but not substitution of a
+plaintext one — which is exactly what the policy exists for.
 
 `RequireChecksum` is the analogous policy for integrity metadata.
 
@@ -1465,7 +1503,8 @@ A box is checked only when source and a test prove it.
 - [x] Key-selection failures are `BinaryEncryptionKeyException`.
 - [x] Underlying stream I/O is `BinaryStreamException`.
 - [x] CLR/contract/reference semantics use `BinaryTypeException`.
-- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`) do not escape.
+- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`) do not escape, and neither
+  does an exception raised by a registered algorithm factory that a payload selected.
 - [x] No generic exception normalization exists in production.
 
 ## Limits and resources
