@@ -1,9 +1,9 @@
 namespace ViShap.Viper.Pipeline;
 
 /// <summary>
-/// Selects the wire format. Reading is self-describing: the magic number and version are peeked
-/// without consuming the stream, and a stream without them is only treated as V0 when the caller
-/// opted into that fallback.
+/// Selects the wire format. A V1 payload describes itself: the magic number and version are peeked
+/// without consuming the stream. A V0 payload does not, so a stream without them is read as V0 only
+/// when the caller opted in, and is otherwise rejected rather than guessed at.
 /// </summary>
 internal sealed class FormatRouter(
     IReadOnlyDictionary<int, IFormatPipeline> pipelines,

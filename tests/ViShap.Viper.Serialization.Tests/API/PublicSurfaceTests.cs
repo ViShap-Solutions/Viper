@@ -63,7 +63,7 @@ public class PublicSurfaceTests
     ];
 
     private static string[] ActualSurface() =>
-        [.. new[] { typeof(BinarySerializer).Assembly, typeof(Exceptions.BinarySerializerException).Assembly }
+        [.. new[] { typeof(BinarySerializer).Assembly, typeof(BinarySerializerException).Assembly }
             .Distinct()
             .SelectMany(assembly => assembly.GetExportedTypes())
             .Where(type => !type.IsNested)
@@ -93,7 +93,7 @@ public class PublicSurfaceTests
     [Fact]
     public void PublicSurface_ExposesNoNestedPublicTypes()
     {
-        var nested = new[] { typeof(BinarySerializer).Assembly, typeof(Exceptions.BinarySerializerException).Assembly }
+        var nested = new[] { typeof(BinarySerializer).Assembly, typeof(BinarySerializerException).Assembly }
             .Distinct()
             .SelectMany(assembly => assembly.GetExportedTypes())
             .Where(type => type.IsNested)
@@ -106,20 +106,20 @@ public class PublicSurfaceTests
     [Fact]
     public void ExceptionHierarchy_MatchesTheContract()
     {
-        var exceptions = typeof(Exceptions.BinarySerializerException).Assembly
+        var exceptions = typeof(BinarySerializerException).Assembly
             .GetExportedTypes()
             .Where(t => typeof(Exception).IsAssignableFrom(t))
             .ToArray();
 
         Assert.All(exceptions, type => Assert.True(
-            type == typeof(Exceptions.BinarySerializerException) ||
-            typeof(Exceptions.BinarySerializerException).IsAssignableFrom(type),
+            type == typeof(BinarySerializerException) ||
+            typeof(BinarySerializerException).IsAssignableFrom(type),
             $"'{type}' does not derive from BinarySerializerException."));
 
-        Assert.True(typeof(Exceptions.BinaryFormatException)
-            .IsAssignableFrom(typeof(Exceptions.BinaryLimitException)));
-        Assert.True(typeof(Exceptions.BinaryEncryptionException)
-            .IsAssignableFrom(typeof(Exceptions.BinaryEncryptionKeyException)));
+        Assert.True(typeof(BinaryFormatException)
+            .IsAssignableFrom(typeof(BinaryLimitException)));
+        Assert.True(typeof(BinaryEncryptionException)
+            .IsAssignableFrom(typeof(BinaryEncryptionKeyException)));
     }
 
     [Fact]

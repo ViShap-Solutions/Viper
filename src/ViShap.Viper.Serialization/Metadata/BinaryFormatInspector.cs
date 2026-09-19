@@ -23,7 +23,7 @@ public static class BinaryFormatInspector
     /// </param>
     /// <returns>
     /// The metadata, or <see langword="null"/> when the stream does not start with a recognized
-    /// header — for example a legacy version 0 payload, which carries none.
+    /// header — for example a version 0 payload, which carries none.
     /// </returns>
     /// <exception cref="NotSupportedException"><paramref name="source"/> cannot seek.</exception>
     /// <exception cref="BinaryFormatException">The header is recognized but malformed.</exception>

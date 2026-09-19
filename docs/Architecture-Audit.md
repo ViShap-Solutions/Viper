@@ -730,12 +730,12 @@ Blast radius public additive (default-методы интерфейса), кри
 | Незашифрованный вход при `RequireEncryption` | `BinaryIntegrityException` | `FormatPipeline` | — |
 | Ключ недоступен / несовпадение `keyId` | `BinaryEncryptionKeyException` | `IKeyProvider` | — |
 | Прочий операционный сбой шифрования | `BinaryEncryptionException` | `FormatPipeline` | по ситуации |
-| Неизвестная версия/алгоритм/keyed в V0 | `BinaryFormatNotSupportedException` | Router / Header / движок | — |
+| Неизвестная версия или алгоритм | `BinaryFormatNotSupportedException` | Router / Header | — |
 | Неверный контракт типа, union, runtime≠declared, цикл без `PreserveReferences`, populate-in-place неприменим | `BinaryTypeException` | `TypeContract` / `PayloadEngine` | — |
 | Ввод-вывод нижележащего потока | `BinaryStreamException` | `ByteMeter` / `ByteWindow` | `IOException` |
 | Использование после `Dispose` | `ObjectDisposedException` | публичный тип | — |
 | `null` в обязательном публичном аргументе | `ArgumentNullException` | публичный API | — |
-| Требуется seekable-поток | `NotSupportedException` | Router / Inspector | — |
+| Требуется seekable-поток | `NotSupportedException` | Router / Inspector / `GraphWriter` (keyed-запись) | — |
 
 Изменения против текущего состояния: три ранее «протекавших» случая (`ArgumentException` из `Guid`,
 `ArgumentOutOfRangeException` из `Int128/UInt128`, `EndOfStreamException` из keyed-длины) закрываются

@@ -121,10 +121,16 @@ public sealed class BinarySerializerOptionsBuilder
 
     /// <summary>Selects the wire format version used for writing. Reading always detects it from the payload.</summary>
     /// <remarks>
-    /// Selecting version 0 is enough to write the legacy format; <see cref="AllowV0Fallback"/> is a
-    /// separate, read-side choice. An unsupported version is rejected by <see cref="Build"/>.
+    /// Selecting version 0 is enough to write the headerless format; <see cref="AllowV0Fallback"/>
+    /// is a separate, read-side choice. An unsupported version is rejected by <see cref="Build"/>.
     /// </remarks>
-    /// <param name="version">1 for the current format, 0 for the legacy headerless one.</param>
+    /// <param name="version">
+    /// 1 for the self-describing envelope, or 0 for the compact headerless one, which carries no
+    /// reference framing and no compression, checksum or encryption, since a headerless payload has
+    /// nowhere to record them, which also makes version 0 incompatible with
+    /// <see cref="RequireEncryption"/> and <see cref="RequireChecksum"/>. Keyed contracts do work
+    /// under version 0, but writing one needs a seekable destination stream.
+    /// </param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder WithVersion(int version)
     {
@@ -157,10 +163,16 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>
-    /// Reads a stream without the format magic number as a legacy version 0 payload instead of
-    /// rejecting it.
+    /// Reads a stream without the format magic number as a version 0 payload instead of rejecting it.
     /// </summary>
-    /// <param name="allow">Whether to allow the fallback.</param>
+    /// <remarks>
+    /// A version 0 payload has no header to recognize, so only this opt-in separates one from
+    /// unrelated bytes. It affects reading alone; writing version 0 is selected with
+    /// <see cref="WithVersion"/>. Because such a payload carries no protection,
+    /// <see cref="Build"/> refuses this together with <see cref="RequireEncryption"/> or
+    /// <see cref="RequireChecksum"/>.
+    /// </remarks>
+    /// <param name="allow">Whether headerless input is accepted.</param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder AllowV0Fallback(bool allow = true)
     {
@@ -172,7 +184,9 @@ public sealed class BinarySerializerOptionsBuilder
     /// <remarks>
     /// Configuring encryption alone only means the serializer <em>can</em> decrypt. Without this
     /// policy an attacker can replace an encrypted message with a plaintext one and still be read.
-    /// Requires an algorithm that authenticates format metadata.
+    /// Requires an algorithm that authenticates format metadata, and rules out format version 0 on
+    /// both sides: <see cref="Build"/> rejects it together with <see cref="WithVersion"/><c>(0)</c>
+    /// or <see cref="AllowV0Fallback"/>, because a headerless payload has no metadata to protect.
     /// </remarks>
     /// <param name="require">Whether encryption is mandatory.</param>
     /// <returns>The same builder.</returns>
@@ -183,6 +197,10 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>Rejects payloads that carry no checksum.</summary>
+    /// <remarks>
+    /// Like <see cref="RequireEncryption"/> this rules out format version 0 on both sides, since a
+    /// headerless payload carries no checksum to verify.
+    /// </remarks>
     /// <param name="require">Whether a checksum is mandatory.</param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder RequireChecksum(bool require = true)
@@ -227,8 +245,9 @@ public sealed class BinarySerializerOptionsBuilder
     /// <exception cref="BinaryConfigurationException">
     /// A limit is not positive; the write version is not a supported wire format; encryption is
     /// required but not configured, or is configured with an algorithm that cannot authenticate
-    /// format metadata; encryption is configured without key material; or a checksum is required but
-    /// not configured.
+    /// format metadata; encryption is configured without key material; a checksum is required but
+    /// not configured; or a protection policy is combined with format version 0, which has no header
+    /// in which to carry protection.
     /// </exception>
     public BinarySerializerOptions Build()
     {
@@ -258,6 +277,9 @@ public sealed class BinarySerializerOptionsBuilder
             throw new BinaryConfigurationException(
                 "RequireChecksum is set, but no checksum algorithm is configured.");
 
+        RejectHeaderlessProtection(_requireEncryption, nameof(RequireEncryption));
+        RejectHeaderlessProtection(_requireChecksum, nameof(RequireChecksum));
+
         return new BinarySerializerOptions
         {
             Compression = _compression ?? new NoCompression(),
@@ -273,6 +295,28 @@ public sealed class BinarySerializerOptionsBuilder
             RequireChecksum = _requireChecksum,
             Catalog = AlgorithmCatalog.Create(_customCompression, _customChecksum, _customEncryption)
         };
+    }
+
+    /// <summary>
+    /// Refuses a protection policy that a headerless payload could never satisfy, on whichever side
+    /// of the operation version 0 was allowed in.
+    /// </summary>
+    private void RejectHeaderlessProtection(bool policyRequested, string policy)
+    {
+        if (!policyRequested)
+            return;
+
+        if (_writeVersion == V0FormatPipeline.Version)
+            throw new BinaryConfigurationException(
+                $"{policy} is set, but format version 0 is selected for writing. A headerless " +
+                "payload has no metadata to record protection, so the data would be written " +
+                "unprotected. Write version 1, or drop the policy.");
+
+        if (_allowV0Fallback)
+            throw new BinaryConfigurationException(
+                $"{policy} is set together with AllowV0Fallback. A headerless payload carries no " +
+                "protection, so reading one would return unprotected data under a policy that " +
+                "forbids it. Drop the fallback, or drop the policy.");
     }
 
     private BinarySerializerOptionsBuilder Register<T>(

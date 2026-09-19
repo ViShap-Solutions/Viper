@@ -10,9 +10,15 @@ namespace ViShap.Viper;
 /// so a long-lived instance is faster than a fresh one per call.
 /// </para>
 /// <para>
-/// Payloads are self-describing: the header records the format version and the algorithms used, so a
-/// reader configured differently still knows how to unwrap the data. Reading therefore needs a
-/// seekable stream, since the version is inspected before anything is consumed.
+/// Version 1 payloads are self-describing: the header records the format version and the algorithms
+/// used, so a reader configured differently still knows how to unwrap the data. Reading therefore
+/// needs a seekable stream, since the version is inspected before anything is consumed.
+/// </para>
+/// <para>
+/// Version 0 is the compact alternative for a transport that already supplies its own context: a
+/// bare positional payload with no header at all. Nothing in it identifies it, so a reader accepts
+/// one only when configured with
+/// <see cref="BinarySerializerOptionsBuilder.AllowV0Fallback(bool)"/>.
 /// </para>
 /// <para>
 /// Deserialization of untrusted input is bounded by <see cref="Security.SerializationLimits"/>. A
@@ -69,11 +75,16 @@ public sealed class BinarySerializer
     /// <param name="data">The value to write. May be <see langword="null"/> for reference types.</param>
     /// <param name="destination">
     /// The stream to append to. It is left open, and its position is not reset; only the bytes this
-    /// call produces count against <see cref="Security.SerializationLimits.MaxWireBytes"/>.
+    /// call produces count against <see cref="Security.SerializationLimits.MaxWireBytes"/>. Writing a
+    /// <see cref="BinaryContractAttribute"/> type under format version 0 needs it to be seekable,
+    /// because that version writes through instead of buffering the payload.
     /// </param>
     /// <exception cref="Exceptions.BinaryTypeException">The type or the object graph cannot be encoded.</exception>
     /// <exception cref="Exceptions.BinaryLimitException">A configured limit was exceeded.</exception>
     /// <exception cref="Exceptions.BinaryStreamException">The destination stream failed.</exception>
+    /// <exception cref="NotSupportedException">
+    /// A keyed contract is written under format version 0 to a stream that cannot seek.
+    /// </exception>
     public void Serialize<T>(Stream destination, T data) =>
         _router.ForWriting(_options.WriteVersion).Write(destination, data, BeginOperation());
 

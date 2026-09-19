@@ -40,6 +40,13 @@ public class OldSchema
     [BinaryKey(2)] public Node? Kept { get; set; }
 }
 
+[BinaryContract]
+public class NestedSchema
+{
+    [BinaryKey(1)] public NewSchema? Inner { get; set; }
+    [BinaryKey(2)] public string? Tag { get; set; }
+}
+
 public class Base
 {
     public int Z { get; set; }

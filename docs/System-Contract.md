@@ -270,7 +270,14 @@ determined by the options that were built, not by global state another component
 - `RequireEncryption` without an encryption algorithm;
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
 - an encryption algorithm without key material;
-- `RequireChecksum` without a checksum algorithm.
+- `RequireChecksum` without a checksum algorithm;
+- `RequireEncryption` or `RequireChecksum` together with `WithVersion(0)`;
+- `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`.
+
+The last two close both directions of the same contradiction: a headerless payload carries no
+protection, so a policy demanding protection could be satisfied neither when writing one nor when
+reading one (§10.2, §21.1). A configured algorithm without a policy is a capability, not a demand,
+and stays legal under version 0 — it simply does not apply to what version 0 writes.
 
 `WithVersion(n)` selects the format used for **writing** only, and is validated here rather than at
 the first `Serialize`. `AllowV0Fallback` is the separate, **read-side** choice of whether a stream
@@ -574,8 +581,7 @@ Examples:
 
 - unsupported format version;
 - unknown built-in algorithm enum;
-- missing custom registration;
-- V0 keyed-contract use.
+- missing custom registration.
 
 ## 8.5 `BinaryIntegrityException`
 
@@ -632,7 +638,9 @@ These remain intentionally outside `BinarySerializerException`:
 
 - `ArgumentNullException` — required public argument is null;
 - `ArgumentException` — invalid direct caller argument;
-- `NotSupportedException` — unsupported API capability, e.g. required seekability.
+- `NotSupportedException` — unsupported API capability, e.g. required seekability: reading, which
+  must detect the format version before consuming anything, and writing a keyed contract under a
+  format that does not buffer the payload (§10.2, §14.2).
 
 Do not wrap every exception merely to force taxonomy symmetry.
 
@@ -672,22 +680,30 @@ A `catch` that performs required cleanup before rethrow is valid.
 
 # 10. Version and wire-format contract
 
+Two wire formats ship in v1.0. They are peers with different jobs, not a current format and a
+deprecated one: V1 is the self-describing envelope, V0 the compact headerless codec. Neither is
+derived from the other, neither is scheduled for removal, and a reader never guesses which one it is
+holding (§10.3).
+
 ## 10.1 V1
 
-V1 is the default/latest format.
+V1 is the default format, and the one to use whenever the payload outlives the context that produced
+it: stored data, data crossing a trust boundary, data whose schema will move, data read by a party
+that was not configured by the writer.
 
-It provides:
+Beyond the payload itself it provides:
 
 - V1 header metadata;
 - compression selection;
 - checksum selection;
 - encryption selection;
 - `KeyId`;
-- `PreserveReferences` metadata;
-- logical/physical length metadata;
-- keyed contracts;
-- polymorphism;
-- configurable resource limits.
+- `PreserveReferences` metadata and reference framing;
+- logical/physical length metadata.
+
+The type system, `[BinaryUnion]` polymorphism, keyed contracts and the configurable resource limits
+are not V1 features — they belong to the payload and to the engine, and apply to every format
+(§10.2).
 
 The V1 header is a security/format boundary and must validate all attacker-controlled lengths before they can drive an allocation.
 
@@ -696,18 +712,62 @@ Trailing bytes are `BinaryFormatException`. The same rule already applies inside
 
 ## 10.2 V0
 
-V0 is positional-only and intentionally minimal.
+V0 is a self-contained compact codec: the payload and nothing else. It is the deliberate choice for a
+caller who wants the smallest representation the engine can produce and who already knows, out of
+band, what the bytes are.
 
-It has:
+It fits when:
 
-- no V1 metadata header;
-- no keyed-contract support;
-- no V1 compression/checksum/encryption metadata;
-- no reference-preservation mode.
+- the transport is private or tightly coordinated, so both ends are configured together;
+- framing and context already exist outside the payload — a message type, a length prefix, a channel;
+- a compact codec path is worth more than a metadata-carrying envelope;
+- IPC or another low-overhead channel is part of the design.
 
-V0 must reject `[BinaryContract]` / `[BinaryKey]` operations with `BinaryFormatNotSupportedException`.
+It is the wrong choice for data at rest, for anything that must be compressed, checksummed or
+encrypted, and for anything read by a party the writer did not configure — those are V1's job.
+Schema evolution is not on that list: a keyed contract (§14.2) is payload-level and works under V0
+too.
+
+What V0 does not have:
+
+- a header of any kind: no magic number, no version, no algorithm names, no length metadata;
+- a compression, checksum or encryption phase. Algorithms configured on the options are not applied
+  to a V0 write, because a V0 reader has nowhere to learn that they were;
+- reference preservation: `PreserveReferences` does not apply, and a cycle is `BinaryTypeException`
+  (§16).
+
+What V0 keeps is everything that lives below the envelope: the whole type system of §23,
+`[BinaryUnion]` polymorphism, keyed contracts, the limits and budgets of §5–6, and metering on both
+directions (§7.1). V0 is not a reduced engine — it is the same engine without a header, and for one
+value under one layout the payload bytes are identical in both formats (§22.8).
+
+Keyed contracts are a property of the type, not of the format, so a `[BinaryContract]` type encodes
+identically under both. One consequence is visible to the caller: a keyed field's length is written
+ahead of the field and patched once the field's size is known, so the payload stream must be
+seekable. V1 buffers the payload and always satisfies this; under V0, which writes straight to the
+destination, the requirement falls on the caller's destination stream, and one that cannot seek is
+`NotSupportedException` (§8.10). The `byte[]` entry points of §3 buffer into memory, so they are
+always seekable and are never affected. Positional writing carries no such requirement under either
+format.
 
 V0 and V1 must remain distinct wire formats. V1-specific behavior must not be accidentally required to parse valid V0 payloads.
+
+A V0 payload is **unauthenticated by construction**. There is no header, so there is no associated
+data to authenticate, no tag and no checksum; nothing about the bytes can be verified before they are
+decoded, and the reader's only assurance that they are a V0 payload at all is that the caller said so.
+V0 is therefore only appropriate on a channel that authenticates itself — a local IPC endpoint, a
+mutually authenticated session, a file the process alone controls. This is a boundary of the format,
+not a gap in it: a payload that must carry its own protection is a V1 payload.
+
+That boundary is enforced at configuration time rather than left to be discovered. `Build()` rejects
+`RequireEncryption` or `RequireChecksum` combined with `WithVersion(0)` or with `AllowV0Fallback`
+(§4.1), which closes both directions: a serializer carrying a protection policy can neither produce
+nor accept a V0 payload, so §21.1 needs no exception for the headerless format.
+
+The cost of carrying no metadata is that nothing in a V0 payload identifies it. Reading V0 is
+therefore an explicit decision and never an inference: `AllowV0Fallback` is what separates a
+deliberate compact payload from unrelated bytes, and without it a stream that does not present the
+V1 magic number is rejected rather than parsed (§10.3). The name is read-side only.
 
 Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether a stream
 without the magic number may be *read* as V0, so the two choices are independent in both directions.
@@ -718,7 +778,10 @@ Format routing first identifies the version from a seekable source.
 
 If V1 magic/version is recognized, V1 is selected.
 
-Otherwise, V0 is selected only when V0 fallback is enabled and V0 is registered.
+Otherwise the bytes are unidentified, and the serializer does not guess: V0 is selected only when the
+caller enabled `AllowV0Fallback` and V0 is registered. Without that opt-in, unidentified input is
+`BinaryFormatException`. The opt-in is a statement about the source, not about the format — it says
+the caller knows that this channel carries headerless payloads.
 
 Unsupported recognized versions produce `BinaryFormatNotSupportedException`.
 
@@ -888,6 +951,12 @@ Duplicate keys are invalid.
 Keys are ordered numerically and encoded with 7-bit variable-length integers.
 
 Unknown keyed fields are skipped according to their declared payload length and do not invoke a formatter for an unavailable/unknown member type.
+
+Keyed mode is independent of the wire format version: the encoding lives in the payload, so it
+applies under V0 and V1 alike. It does require a seekable payload stream, because each field's length
+is patched after the field is written. V1 buffers the payload, so the requirement never reaches the
+caller; under V0 it falls on the caller's destination stream, and one that cannot seek is
+`NotSupportedException` (§10.2, §8.10).
 
 ---
 
@@ -1066,6 +1135,12 @@ still prevents tampering with an encrypted message, but not substitution of a pl
 is exactly what the policy exists for.
 
 `RequireChecksum` is the analogous policy for integrity metadata.
+
+Both policies are statements about a payload's *metadata*, so both are confined to a format that has
+metadata. A headerless V0 payload can carry neither, which is why `Build()` refuses either policy
+together with `WithVersion(0)` or `AllowV0Fallback` (§4.1, §10.2) instead of letting the operation
+produce or accept unprotected data. Within V1 the rule is unchanged: with the policy set, an
+unencrypted payload is `BinaryIntegrityException`.
 
 ## 21.2 Keyed-field count vs total-element budget
 
@@ -1276,10 +1351,22 @@ wrong value either truncates the read or fails the tag.
 
 ## 22.8 V0 envelope
 
-No header: the payload is written as-is, with no magic number, and reading requires the caller to
-opt into the fallback. V0 has no metadata, so it supports neither keyed contracts nor reference
-framing, and it may be embedded in a larger stream, which is why it does not require the source to
-end with the payload.
+No envelope at all: the payload of §22.1–22.5 is written as-is, with no magic number and no leading
+or trailing bytes of any kind. A V0 payload is therefore byte-identical to the payload a V1 frame
+carries for the same value under the same member layout, positional or keyed, when that frame uses
+no compression, checksum, encryption or reference framing — the four things V0 does not have.
+Nothing identifies those bytes, so reading them as V0 requires the caller to opt in (§10.2).
+
+Having no header, V0 encodes no reference frames and no compression, checksum or encryption phase.
+The keyed object layout of §22.3 is payload-level and appears under V0 unchanged.
+
+Because the payload is not length-delimited by an envelope, a V0 payload may be embedded in a larger
+stream: the reader stops when the root value is complete and does not require the source to end
+there. Root canonicity (§10.1) is a V1 rule and does not apply. A keyed field's declared length is
+still checked against the bytes that can physically arrive before anything is allocated (§17), but
+for an embedded payload those bytes are the remainder of the containing stream rather than of a
+declared payload, so the check is weaker under V0 than under V1. The field window (§7.3) bounds what
+the field's decoder may actually consume in both cases.
 
 ---
 
@@ -1372,7 +1459,7 @@ A box is checked only when source and a test prove it.
 ## Formats
 
 - [x] V0 positional contract remains stable.
-- [x] V0 rejects keyed contracts.
+- [x] V0 carries the same payload encoding as V1, keyed contracts included.
 - [x] V1 header validation is deterministic.
 - [x] Header lengths are validated before phase allocation.
 - [x] V0/V1 routing is deterministic.
@@ -1387,7 +1474,8 @@ A box is checked only when source and a test prove it.
 - [x] Unknown keyed payloads are skipped without whole-payload allocation.
 - [x] Reference markers/IDs are validated; references are ancestor-scoped.
 - [x] The V1 header is authenticated when an AEAD algorithm is used.
-- [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades.
+- [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades, and are refused at
+  configuration time against a format that cannot carry protection.
 - [x] Temporary crypto buffers are cleared.
 - [x] Caller-owned key buffers are never destroyed by serializer-owned cleanup.
 - [x] Disposed crypto components cannot continue using invalid internal state.

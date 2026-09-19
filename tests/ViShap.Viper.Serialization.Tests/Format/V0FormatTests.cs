@@ -3,8 +3,8 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins V0-02, V0-03 and V0-12: the legacy format stays positional and headerless, rejects keyed
-/// contracts, and is never read by accident.
+/// Pins V0-02, V0-03, V0-04, V0-12, V0-23 and V0-24: version 0 carries the same payload encoding as
+/// version 1, keyed contracts included, and is never read by accident.
 /// </summary>
 public class V0FormatTests
 {
@@ -26,10 +26,84 @@ public class V0FormatTests
     }
 
     [Fact]
-    public void Serialize_KeyedContractOnV0_ThrowsNotSupported()
+    public void Serialize_KeyedContractOnV0_RoundTrips()
     {
-        Assert.Throws<BinaryFormatNotSupportedException>(
-            () => V0().Serialize(new OldSchema { Kept = new Node { Value = 1 } }));
+        var serializer = V0();
+
+        var result = serializer.Deserialize<NewSchema>(
+            serializer.Serialize(new NewSchema
+            {
+                Removed = new Node { Value = 1 },
+                Kept = new Node { Value = 7 }
+            }))!;
+
+        Assert.Equal(1, result.Removed!.Value);
+        Assert.Equal(7, result.Kept!.Value);
+    }
+
+    [Fact]
+    public void Deserialize_KeyedContractOnV0_SkipsAKeyTheReaderDoesNotKnow()
+    {
+        var serializer = V0();
+
+        byte[] payload = serializer.Serialize(new NewSchema
+        {
+            Removed = new Node { Value = 1 },
+            Kept = new Node { Value = 7 }
+        });
+
+        Assert.Equal(7, serializer.Deserialize<OldSchema>(payload)!.Kept!.Value);
+    }
+
+    [Fact]
+    public void Deserialize_NestedKeyedContractOnV0_RoundTrips()
+    {
+        var serializer = V0();
+        var value = new NestedSchema
+        {
+            Inner = new NewSchema { Kept = new Node { Value = 7 } },
+            Tag = "outer"
+        };
+
+        var result = serializer.Deserialize<NestedSchema>(serializer.Serialize(value))!;
+
+        Assert.Equal("outer", result.Tag);
+        Assert.Equal(7, result.Inner!.Kept!.Value);
+        Assert.Null(result.Inner.Removed);
+    }
+
+    [Fact]
+    public void Deserialize_KeyedContractOnV0EmbeddedInALargerStream_StopsAtTheRootValue()
+    {
+        var serializer = V0();
+        using var stream = new MemoryStream();
+
+        serializer.Serialize(stream, new OldSchema { Kept = new Node { Value = 7 } });
+        stream.Write([9, 9, 9, 9]);
+        stream.Position = 0;
+
+        Assert.Equal(7, serializer.Deserialize<OldSchema>(stream)!.Kept!.Value);
+    }
+
+    [Fact]
+    public void Serialize_KeyedContractOnV0ToANonSeekableDestination_ThrowsNotSupported()
+    {
+        using var destination = new NonSeekableWriteStream();
+
+        var ex = Assert.Throws<NotSupportedException>(
+            () => V0().Serialize(destination, new OldSchema { Kept = new Node { Value = 1 } }));
+
+        Assert.Contains("seekable payload stream", ex.Message);
+    }
+
+    [Fact]
+    public void Serialize_PositionalDataOnV0ToANonSeekableDestination_Succeeds()
+    {
+        using var destination = new NonSeekableWriteStream();
+
+        V0().Serialize(destination, new Person { Name = "Alice", Age = 30 });
+
+        Assert.NotEmpty(destination.Written);
     }
 
     [Fact]

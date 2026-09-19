@@ -3,8 +3,9 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Contracts;
 
 /// <summary>
-/// Pins KEY-01, KEY-02, KEY-04, KEY-17 and V0-03: a keyed payload tolerates a reader whose schema has
-/// moved on, and skipping a field it does not know can never strand a reference.
+/// Pins KEY-01, KEY-02, KEY-04, KEY-17 and KEY-18: a keyed payload tolerates a reader whose schema
+/// has moved on, skipping a field it does not know can never strand a reference, and the encoding
+/// belongs to the payload rather than to a wire format version.
 /// </summary>
 public class KeyedContractTests
 {
@@ -69,12 +70,14 @@ public class KeyedContractTests
     }
 
     [Fact]
-    public void Serialize_KeyedContractOnV0_ThrowsNotSupported()
+    public void Serialize_KeyedContract_EncodesIdenticallyUnderBothWireFormats()
     {
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithVersion(0).Build());
+        var value = new NewSchema { Removed = new Node { Value = 1 }, Kept = new Node { Value = 7 } };
 
-        Assert.Throws<BinaryFormatNotSupportedException>(
-            () => serializer.Serialize(new OldSchema { Kept = new Node { Value = 1 } }));
+        byte[] v0 = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithVersion(0).Build()).Serialize(value);
+        byte[] v1 = new BinarySerializer().Serialize(value);
+
+        Assert.Equal(v0, v1[^v0.Length..]);
     }
 }

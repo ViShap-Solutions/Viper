@@ -15,9 +15,10 @@ namespace ViShap.Viper;
 /// compressor or cipher cannot weaken the protections that bound untrusted input.
 /// </para>
 /// <para>
-/// Reading is self-describing: a payload's header names the algorithms it needs, and the serializer
-/// resolves them from this configuration. Reading a payload produced with different settings works as
-/// long as the algorithms it names are available here.
+/// Reading a version 1 payload is self-describing: its header names the algorithms it needs, and the
+/// serializer resolves them from this configuration. Reading a payload produced with different
+/// settings works as long as the algorithms it names are available here. A version 0 payload names
+/// nothing, so what applies to it is decided entirely by this configuration.
 /// </para>
 /// <example>
 /// <code>
@@ -87,9 +88,16 @@ public sealed record BinarySerializerOptions
     public SerializationLimits Limits { get; internal init; } = SerializationLimits.Default;
 
     /// <summary>
-    /// Whether a stream without the format magic number is read as a legacy version 0 payload instead
-    /// of being rejected.
+    /// Whether a stream without the format magic number is read as a version 0 payload instead of
+    /// being rejected.
     /// </summary>
+    /// <remarks>
+    /// A version 0 payload carries no header, so nothing in the bytes says what they are. This opt-in
+    /// is what separates a deliberate compact payload from unrelated data, and it governs reading
+    /// only: writing version 0 is selected with the write version. It cannot be combined with
+    /// <see cref="RequireEncryption"/> or <see cref="RequireChecksum"/>, since such a payload carries
+    /// neither.
+    /// </remarks>
     public bool AllowV0Fallback { get; internal init; }
 
     /// <summary>

@@ -168,15 +168,93 @@ public class OptionsTests
     {
         var options = BinarySerializerOptions.Configure()
             .PreserveReferences()
-            .AllowV0Fallback()
             .RequireChecksum()
             .WithChecksum(new Crc32())
             .Build();
 
         Assert.True(options.PreserveReferences);
-        Assert.True(options.AllowV0Fallback);
         Assert.True(options.RequireChecksum);
         Assert.False(options.RequireEncryption);
+        Assert.False(options.AllowV0Fallback);
+    }
+
+    [Fact]
+    public void AllowV0Fallback_FlipsWithTheNoArgumentOverload()
+    {
+        var options = BinarySerializerOptions.Configure().AllowV0Fallback().Build();
+
+        Assert.True(options.AllowV0Fallback);
+    }
+
+    // --- protection policies vs the headerless format -------------------------------------------------
+
+    [Fact]
+    public void Build_RequireEncryptionWithTheHeaderlessWriteVersion_ThrowsConfiguration()
+    {
+        var ex = Assert.Throws<BinaryConfigurationException>(
+            () => BinarySerializerOptions.Configure()
+                .WithEncryption(new Aes256Gcm(), NewKey())
+                .RequireEncryption()
+                .WithVersion(0)
+                .Build());
+
+        Assert.Contains("format version 0 is selected for writing", ex.Message);
+    }
+
+    [Fact]
+    public void Build_RequireEncryptionWithTheHeaderlessReadFallback_ThrowsConfiguration()
+    {
+        var ex = Assert.Throws<BinaryConfigurationException>(
+            () => BinarySerializerOptions.Configure()
+                .WithEncryption(new Aes256Gcm(), NewKey())
+                .RequireEncryption()
+                .AllowV0Fallback()
+                .Build());
+
+        Assert.Contains("AllowV0Fallback", ex.Message);
+    }
+
+    [Fact]
+    public void Build_RequireChecksumWithTheHeaderlessFormat_ThrowsConfigurationOnBothSides()
+    {
+        Assert.Throws<BinaryConfigurationException>(
+            () => BinarySerializerOptions.Configure()
+                .WithChecksum(new Crc32()).RequireChecksum().WithVersion(0).Build());
+
+        Assert.Throws<BinaryConfigurationException>(
+            () => BinarySerializerOptions.Configure()
+                .WithChecksum(new Crc32()).RequireChecksum().AllowV0Fallback().Build());
+    }
+
+    [Fact]
+    public void Build_AlgorithmsWithTheHeaderlessFormatButNoPolicy_IsAccepted()
+    {
+        // An algorithm is a capability, not a demand, so it is not a contradiction on its own.
+        var options = BinarySerializerOptions.Configure()
+            .WithEncryption(new Aes256Gcm(), NewKey())
+            .WithChecksum(new Crc32())
+            .WithVersion(0)
+            .AllowV0Fallback()
+            .Build();
+
+        Assert.Equal(0, options.WriteVersion);
+        Assert.False(options.RequireEncryption);
+    }
+
+    [Fact]
+    public void Serialize_ConfiguredAlgorithmsUnderTheHeaderlessFormat_LeaveNoTraceInTheBytes()
+    {
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithEncryption(new Aes256Gcm(), NewKey())
+            .WithChecksum(new Crc32())
+            .WithVersion(0)
+            .AllowV0Fallback()
+            .Build());
+
+        byte[] plain = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithVersion(0).AllowV0Fallback().Build()).Serialize(12345);
+
+        Assert.Equal(plain, serializer.Serialize(12345));
     }
 
     // --- custom algorithm registration ----------------------------------------------------------------
