@@ -628,65 +628,65 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ## 20.1 Per-value limits
 
-- [ ] LIM-01 `MaxArrayLength` — the four cases *(§5.2)*
-- [ ] LIM-02 `MaxCollectionLength` — the four cases *(§5.3)*
-- [ ] LIM-03 `MaxDictionaryEntries` — the four cases *(§5.4)*
-- [ ] LIM-04 `MaxStringBytes` — measured in UTF-8 bytes, not characters *(§5.5)*
-- [ ] LIM-05 `MaxByteBlobBytes` — the four cases *(§5.6)*
-- [ ] LIM-06 bit counts: 0, 1, 7, 8, 9, exact byte boundary, one above *(§22.4)*
-- [ ] LIM-07 — a negative wire count → `BinaryFormatException`, never `BinaryLimitException` *(§5)*
-- [ ] LIM-08 — a negative wire length → `BinaryFormatException` *(§5)*
-- [ ] LIM-09 — zero succeeds wherever the shape admits an empty value *(§5)*
+- [x] LIM-01 `MaxArrayLength` — the four cases *(§5.2)* — `Limits/ValueLimitTests`
+- [x] LIM-02 `MaxCollectionLength` — the four cases *(§5.3)* — `Limits/ValueLimitTests`
+- [x] LIM-03 `MaxDictionaryEntries` — the four cases *(§5.4)* — `Limits/ValueLimitTests`
+- [x] LIM-04 `MaxStringBytes` — measured in UTF-8 bytes, not characters *(§5.5)* — `Limits/ValueLimitTests`
+- [x] LIM-05 `MaxByteBlobBytes` — the four cases *(§5.6)* — `Limits/ValueLimitTests`
+- [x] LIM-06 bit counts: 0, 1, 7, 8, 9, exact byte boundary, one above *(§22.4)* — `Limits/ValueLimitTests`
+- [x] LIM-07 — a negative wire count → `BinaryFormatException`, never `BinaryLimitException` *(§5)* — `Limits/ValueLimitTests`
+- [x] LIM-08 — a negative wire length → `BinaryFormatException` *(§5)* — `Limits/ValueLimitTests`
+- [x] LIM-09 — zero succeeds wherever the shape admits an empty value *(§5)* — `Limits/ValueLimitTests`
 
 ## 20.2 Multidimensional arrays
 
-- [ ] LIM-10 — a negative dimension → `BinaryFormatException` *(§17)*
-- [ ] LIM-11 — a zero dimension yields the documented empty array without overflowing the product *(§17)*
-- [ ] LIM-12 — a product exactly at `MaxArrayLength` succeeds *(§17)*
-- [ ] LIM-13 — a product one above → `BinaryLimitException` *(§17)*
-- [ ] LIM-14 — a product that would overflow `long` → `BinaryLimitException`, computed overflow-safe *(§17)*
+- [x] LIM-10 — a negative dimension → `BinaryFormatException` *(§17)* — `Limits/ArrayShapeTests`
+- [x] LIM-11 — a zero dimension yields the documented empty array without overflowing the product *(§17)* — `Limits/ArrayShapeTests`
+- [x] LIM-12 — a product exactly at `MaxArrayLength` succeeds *(§17)* — `Limits/ArrayShapeTests`
+- [x] LIM-13 — a product one above → `BinaryLimitException` *(§17)* — `Limits/ArrayShapeTests`
+- [x] LIM-14 — a product that would overflow `long` → `BinaryLimitException`, computed overflow-safe *(§17)* — `Limits/ArrayShapeTests`
 
 ## 20.3 Cumulative budgets
 
 - [x] LIM-15 — two individually legal collections exceeding `MaxTotalElements` → `BinaryLimitException` *(§5.7)* — `Limits/BudgetTests`
-- [ ] LIM-16 — the element count is charged exactly once per validated count *(§6)*
-- [ ] LIM-17 — the element budget never decreases within an operation *(§6)*
+- [x] LIM-16 — the element count is charged exactly once per validated count *(§6)* — `Limits/BudgetAccountingTests`
+- [x] LIM-17 — the element budget never decreases within an operation *(§6)* — `Limits/BudgetAccountingTests`
 - [x] LIM-18 — `MaxObjectGraphNodes` counts member-encoded objects **and** container instances *(§5.8, S04)* — `Limits/DepthAndNodeTests`
 - [x] LIM-19 — a back reference does not create another node *(§5.8)* — `Limits/DepthAndNodeTests`
 - [x] LIM-20 — `MaxKeyedFields` bounds one keyed object, on read and on write *(§5.9)* — `Limits/KeyedFieldLimitTests`
-- [ ] LIM-21 — `MaxTotalKeyedFields` bounds the operation, including skipped unknown fields *(§5.9a, S12)* — known fields done by `Limits/KeyedFieldLimitTests`; skipped-field half outstanding
+- [x] LIM-21 — `MaxTotalKeyedFields` bounds the operation, including skipped unknown fields *(§5.9a, S12)* — known fields by `Limits/KeyedFieldLimitTests`, skipped ones by `Limits/BudgetTests` and `Hostile/AmplificationTests`
 - [x] LIM-22 — unknown keyed fields do **not** consume `MaxTotalElements` *(§21.2)* — `Limits/BudgetTests`
 - [x] LIM-23 — the per-object ceiling is evaluated before the cumulative one, on both directions *(§5.9)* — `Limits/KeyedFieldLimitTests`
 - [x] LIM-24 — a fresh budget per public call; a prior failure cannot poison a later one *(§2.2)* — `Limits/BudgetTests`
-- [ ] LIM-25 — a header declaring a different reference mode keeps the same budget object *(§2.2)*
+- [x] LIM-25 — a header declaring a different reference mode keeps the same budget object *(§2.2)* — `Limits/BudgetAccountingTests`
 
 ## 20.4 Depth
 
-- [ ] LIM-26 — every structural shape enters a depth scope; scalars do not *(§5.1)*
-- [ ] LIM-27 — the exact configured depth succeeds; one deeper → `BinaryLimitException` *(§5.1)*
-- [ ] LIM-28 — depth unwinds to the previous value on success *(L2, §6)*
-- [ ] LIM-29 — depth unwinds to the previous value on exception *(L2, §6)*
-- [ ] LIM-30 — a failed `EnterDepth` leaves depth unchanged *(L2, §6)*
-- [ ] LIM-31 — sibling nesting unwinds independently *(§5.1)*
+- [x] LIM-26 — every structural shape enters a depth scope; scalars do not *(§5.1)* — `Limits/DepthTests`
+- [x] LIM-27 — the exact configured depth succeeds; one deeper → `BinaryLimitException` *(§5.1)* — `Limits/DepthTests`
+- [x] LIM-28 — depth unwinds to the previous value on success *(L2, §6)* — `Limits/DepthTests`
+- [x] LIM-29 — depth unwinds to the previous value on exception *(L2, §6)* — `Limits/DepthTests`
+- [x] LIM-30 — a failed `EnterDepth` leaves depth unchanged *(L2, §6)* — `Limits/DepthTests`
+- [x] LIM-31 — sibling nesting unwinds independently *(§5.1)* — `Limits/DepthTests`
 - [x] LIM-32 — a recursive container type (`class Tree : List<Tree>`) is bounded exactly like a recursive object *(§5.1, S03)* — `Limits/DepthAndNodeTests`
 - [x] LIM-33 — depth applies on write as well as read *(§5.1)* — `Limits/DepthAndNodeTests`
 
 ## 20.5 Phases
 
-- [ ] LIM-34 `MaxPayloadBytes` — read and write *(§5.10)*
-- [ ] LIM-35 `MaxCompressedBytes` — read and write *(§5.10)*
-- [ ] LIM-36 `MaxEncryptedBytes` — read and write *(§5.10)*
-- [ ] LIM-37 `MaxWireBytes` — read and write *(§5.10)*
-- [ ] LIM-38 — a header-declared phase length above its limit is rejected **before** the buffer is allocated *(§22.6, S06)*
-- [ ] LIM-39 — the phase check runs in the pipeline, not in an algorithm *(§2.5, §12)*
+- [x] LIM-34 `MaxPayloadBytes` — read and write *(§5.10)* — `Limits/PhaseLimitTests`
+- [x] LIM-35 `MaxCompressedBytes` — read and write *(§5.10)* — `Limits/PhaseLimitTests`
+- [x] LIM-36 `MaxEncryptedBytes` — read and write *(§5.10)* — `Limits/PhaseLimitTests`
+- [x] LIM-37 `MaxWireBytes` — read and write *(§5.10)* — `Limits/PhaseLimitTests`
+- [x] LIM-38 — a header-declared phase length above its limit is rejected **before** the buffer is allocated *(§22.6, S06)* — `Limits/PhaseLimitTests`
+- [x] LIM-39 — the phase check runs in the pipeline, not in an algorithm *(§2.5, §12)* — `Limits/PhaseLimitTests`, `Limits/StructuralBarrierTests`
 
 ## 20.6 Internal invariants (L2)
 
-- [ ] LIM-40 — an `ElementCount` can only be obtained through `Validate`, which checks and charges together *(§6, §17)*
-- [ ] LIM-41 — `CountKind` selects the correct limit for array, collection and dictionary counts *(L2, §6)*
-- [ ] LIM-42 — `ElementCount.CapacityHint` bounds initial capacity; a declared count never allocates its full size up front *(§17)*
-- [ ] LIM-43 — no type below `Pipeline/` references `SerializationLimits` *(§2, architecture invariant)*
-- [ ] LIM-44 — payload bytes are reachable only through `ValueReader` / `ValueWriter` *(§2.3)*
+- [x] LIM-40 — an `ElementCount` can only be obtained through `Validate`, which checks and charges together *(§6, §17)* — `Limits/StructuralBarrierTests`
+- [x] LIM-41 — `CountKind` selects the correct limit for array, collection and dictionary counts *(L2, §6)* — `Limits/BudgetAccountingTests`
+- [x] LIM-42 — `ElementCount.CapacityHint` bounds initial capacity; a declared count never allocates its full size up front *(§17)* — `Limits/BudgetAccountingTests`
+- [x] LIM-43 — no type below `Pipeline/` references `SerializationLimits` *(§2, architecture invariant)* — `Exceptions/SourceInvariantTests`
+- [x] LIM-44 — payload bytes are reachable only through `ValueReader` / `ValueWriter` *(§2.3)* — `Limits/StructuralBarrierTests`
 
 ---
 
@@ -694,43 +694,43 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ## 21.1 `MeteredReadStream`
 
-- [ ] STR-01 — counts from zero regardless of the caller stream's absolute position *(§7.1)*
-- [ ] STR-02 — reads under budget succeed; the exact budget succeeds *(§7.1)*
+- [x] STR-01 — counts from zero regardless of the caller stream's absolute position *(§7.1)* — `Streams/MeteredReadStreamTests`
+- [x] STR-02 — reads under budget succeed; the exact budget succeeds *(§7.1)* — `Streams/MeteredReadStreamTests`
 - [x] STR-03 — an over-read against the budget → `BinaryLimitException`, not a format error *(§7.1)* — D1-05
 - [x] STR-04 — `RemainingBytes` reflects what may still be read: the lesser of the remaining budget and the physical remainder *(§7.1, §17)* — D1-04
-- [ ] STR-05 — an underlying `IOException` → `BinaryStreamException` with the original preserved *(§7.1, §9)*
-- [ ] STR-06 — the caller's stream is never disposed *(§7.1)*
-- [ ] STR-07 — nesting (V0 wire over payload) applies both ceilings independently *(§7.1)*
-- [ ] STR-08 — a partial-read source is handled without data loss *(§7.1)*
+- [x] STR-05 — an underlying `IOException` → `BinaryStreamException` with the original preserved *(§7.1, §9)* — `Streams/MeteredReadStreamTests`
+- [x] STR-06 — the caller's stream is never disposed *(§7.1)* — `Streams/MeteredReadStreamTests`
+- [x] STR-07 — nesting (V0 wire over payload) applies both ceilings independently *(§7.1)* — `Streams/MeteredReadStreamTests`
+- [x] STR-08 — a partial-read source is handled without data loss *(§7.1)* — `Streams/MeteredReadStreamTests`
 
 ## 21.2 `MeteredWriteStream`
 
 - [x] STR-09 — the budget is relative to the destination's starting position *(§7.2, C06)* — `Streams/MeteredWriteStreamTests`
 - [x] STR-10 — appending to a non-empty stream costs the operation nothing for pre-existing bytes *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [ ] STR-11 — writes under budget succeed; the exact budget succeeds *(§7.2)*
+- [x] STR-11 — writes under budget succeed; the exact budget succeeds *(§7.2)* — `Streams/MeteredWriteStreamTests`
 - [x] STR-12 — exceeding the budget → `BinaryLimitException` *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [ ] STR-13 — a rewind for keyed-length patching does not double-charge; the budget follows the high-water mark *(§7.2)*
+- [x] STR-13 — a rewind for keyed-length patching does not double-charge; the budget follows the high-water mark *(§7.2)* — `Streams/MeteredWriteStreamTests`
 - [x] STR-14 — an underlying `IOException` → `BinaryStreamException` *(§7.2, §9)* — `Streams/MeteredWriteStreamTests`
-- [ ] STR-15 — the caller's stream is never disposed *(§7.2)*
-- [ ] STR-16 — `CanSeek` follows the inner stream *(§7.2)*
+- [x] STR-15 — the caller's stream is never disposed *(§7.2)* — `Streams/MeteredWriteStreamTests`
+- [x] STR-16 — `CanSeek` follows the inner stream *(§7.2)* — `Streams/MeteredWriteStreamTests`
 
 ## 21.3 `WindowReadStream`
 
-- [ ] STR-17 — a field decoder may read exactly the declared length *(§7.3)*
-- [ ] STR-18 — reading past the window → `BinaryFormatException`, not a limit error *(§7.3)*
-- [ ] STR-19 — a decoder cannot reach into the next field *(§7.3)*
-- [ ] STR-20 — `SkipRemaining` consumes the rest in bounded chunks *(§7.3)*
-- [ ] STR-21 — a window never materializes the field payload merely to enforce the boundary *(§7.3)*
-- [ ] STR-22 — a window shares the parent operation's budget and reference state *(§7.3)*
+- [x] STR-17 — a field decoder may read exactly the declared length *(§7.3)* — `Streams/WindowReadStreamTests`
+- [x] STR-18 — reading past the window → `BinaryFormatException`, not a limit error *(§7.3)* — `Streams/WindowReadStreamTests`
+- [x] STR-19 — a decoder cannot reach into the next field *(§7.3)* — `Streams/WindowReadStreamTests`
+- [x] STR-20 — `SkipRemaining` consumes the rest in bounded chunks *(§7.3)* — `Streams/WindowReadStreamTests`
+- [x] STR-21 — a window never materializes the field payload merely to enforce the boundary *(§7.3)* — `Streams/WindowReadStreamTests`
+- [x] STR-22 — a window shares the parent operation's budget and reference state *(§7.3)* — `Streams/WindowReadStreamTests`
 
 ## 21.4 Public stream behavior
 
-- [ ] STR-23 — a seekable `MemoryStream` round-trips *(§20)*
-- [ ] STR-24 — a non-seekable source is rejected only by APIs that require seekability *(§10.3)*
-- [ ] STR-25 — a stream returning short reads round-trips correctly *(§7.1)*
-- [ ] STR-26 — premature EOF → `BinaryFormatException` *(§8.2)*
-- [ ] STR-27 — a non-readable source and a non-writable destination fail with normal BCL semantics *(§20)*
-- [ ] STR-28 — an inspection API restores position even on failure *(§20)*
+- [x] STR-23 — a seekable `MemoryStream` round-trips *(§20)* — `Streams/PublicStreamTests`
+- [x] STR-24 — a non-seekable source is rejected only by APIs that require seekability *(§10.3)* — `Streams/PublicStreamTests`
+- [x] STR-25 — a stream returning short reads round-trips correctly *(§7.1)* — `Streams/PublicStreamTests`
+- [x] STR-26 — premature EOF → `BinaryFormatException` *(§8.2)* — `Streams/PublicStreamTests`
+- [x] STR-27 — a non-readable source and a non-writable destination fail with normal BCL semantics *(§20)* — `Streams/PublicStreamTests`
+- [x] STR-28 — an inspection API restores position even on failure *(§20)* — `Streams/PublicStreamTests`
 
 ---
 
@@ -738,49 +738,49 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ## 22.1 Mutation
 
-- [ ] HST-01 — a mutated magic → `BinaryFormatException` *(§22.6)*
-- [ ] HST-02 — a mutated version → `BinaryFormatNotSupportedException` *(§22.6)*
-- [ ] HST-03 — a mutated algorithm identifier → `BinaryFormatNotSupportedException` *(§22.6)*
-- [ ] HST-04 — a mutated optional-string presence flag, length or content → deterministic documented failure *(§22.1)*
-- [ ] HST-05 — a mutated `PreserveReferences` flag → deterministic failure or correct alternate interpretation *(§16)*
-- [ ] HST-06 — each mutated length field → the documented exception *(§22.6)*
-- [ ] HST-07 — a mutated checksum → `BinaryIntegrityException` *(§8.5)*
-- [ ] HST-08 — mutated ciphertext → `BinaryIntegrityException` *(§13.1)*
-- [ ] HST-09 — **every byte** of an encrypted frame's header flipped in turn always fails *(§13.1)*
+- [x] HST-01 — a mutated magic → `BinaryFormatException` *(§22.6)* — `Hostile/MutationTests`
+- [x] HST-02 — a mutated version → `BinaryFormatNotSupportedException` *(§22.6)* — `Hostile/MutationTests`
+- [x] HST-03 — a mutated algorithm identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Hostile/MutationTests`
+- [x] HST-04 — a mutated optional-string presence flag, length or content → deterministic documented failure *(§22.1)* — `Hostile/MutationTests`
+- [x] HST-05 — a mutated `PreserveReferences` flag → deterministic failure or correct alternate interpretation *(§16)* — `Hostile/MutationTests`
+- [x] HST-06 — each mutated length field → the documented exception *(§22.6)* — `Hostile/MutationTests`
+- [x] HST-07 — a mutated checksum → `BinaryIntegrityException` *(§8.5)* — `Hostile/MutationTests`
+- [x] HST-08 — mutated ciphertext → `BinaryIntegrityException` *(§13.1)* — `Hostile/MutationTests`
+- [x] HST-09 — **every byte** of an encrypted frame's header flipped in turn always fails *(§13.1)* — `Hostile/MutationTests`
 
 ## 22.2 Truncation
 
-- [ ] HST-10 — every prefix of a valid V1 frame has a deterministic, documented outcome *(§8.2)*
-- [ ] HST-11 — a truncated fixed-size primitive → `BinaryFormatException`, one case per primitive width *(§2.3, C07)* — `Hostile/MalformedPayloadTests` covers Guid, Int128, UInt128 and int64; the remaining widths land in M6
-- [ ] HST-12 — a truncated 7-bit integer → `BinaryFormatException` *(§22.1)*
-- [ ] HST-13 — excessive 7-bit continuation bytes → `BinaryFormatException` *(§22.1)*
-- [ ] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)*
-- [ ] HST-15 — V0 truncation → `BinaryFormatException` *(§8.2)*
-- [ ] HST-16 — a failed `ReadExact` retains no partial output *(§2.3)*
+- [x] HST-10 — every prefix of a valid V1 frame has a deterministic, documented outcome *(§8.2)* — `Hostile/TruncationTests`
+- [x] HST-11 — a truncated fixed-size primitive → `BinaryFormatException`, one case per primitive width *(§2.3, C07)* — `Hostile/TruncationTests` covers 1, 2, 4, 8 and 16 bytes; `Hostile/MalformedPayloadTests` keeps the original Guid, Int128, UInt128 and int64 cases
+- [x] HST-12 — a truncated 7-bit integer → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
+- [x] HST-13 — excessive 7-bit continuation bytes → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
+- [x] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
+- [x] HST-15 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Hostile/TruncationTests`
+- [x] HST-16 — a failed `ReadExact` retains no partial output *(§2.3)* — `Hostile/TruncationTests`
 
 ## 22.3 Amplification
 
-- [ ] HST-17 — a declared count at the limit with a truncated element stream allocates nothing proportional to the count *(§17)*
-- [ ] HST-18 — a declared string or blob length beyond the bytes physically present → `BinaryFormatException` before allocation, on the wire as well as inside the payload *(§17)* — wire half done by D1-02; payload half outstanding
+- [x] HST-17 — a declared count at the limit with a truncated element stream allocates nothing proportional to the count *(§17)* — `Hostile/AmplificationTests`
+- [x] HST-18 — a declared string or blob length beyond the bytes physically present → `BinaryFormatException` before allocation, on the wire as well as inside the payload *(§17)* — wire half by D1-02, payload and keyed-window halves by `Hostile/AmplificationTests`
 - [x] HST-19 — a declared phase length above its limit → `BinaryLimitException` before allocation *(§22.6)* — `Hostile/MalformedPayloadTests`
-- [ ] HST-20 — a declared plaintext length exceeding the ciphertext delivered → rejected before allocation *(§13)*
-- [ ] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver `CompressedLength` real bytes *(§12)*
-- [ ] HST-22 — nested individually-valid containers cannot bypass the cumulative element budget *(§5.7)*
-- [ ] HST-23 — many small keyed objects cannot bypass `MaxTotalKeyedFields` *(§5.9a)*
-- [ ] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)*
+- [x] HST-20 — a declared plaintext length exceeding the ciphertext delivered → rejected before allocation *(§13)* — `Hostile/AmplificationTests`
+- [x] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver `CompressedLength` real bytes *(§12)* — `Hostile/AmplificationTests`
+- [x] HST-22 — nested individually-valid containers cannot bypass the cumulative element budget *(§5.7)* — `Hostile/AmplificationTests`
+- [x] HST-23 — many small keyed objects cannot bypass `MaxTotalKeyedFields` *(§5.9a)* — `Hostile/AmplificationTests`
+- [x] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)* — `Streams/WindowReadStreamTests`
 - [x] HST-25 — a hostile deeply nested payload fails as a limit violation, never a stack overflow *(§5.1)* — `Limits/DepthAndNodeTests`
 - [x] HST-26 — an oversized or infinite `IEnumerable<T>` on write is abandoned at the limit, not enumerated *(§17, S11)* — `Limits/BudgetTests`
 
 ## 22.4 Property and metamorphic (L3)
 
-- [ ] HST-27 — primitive round-trip closure over generated values *(§23)*
-- [ ] HST-28 — collection round-trip closure within limits *(§23)*
-- [ ] HST-29 — acyclic nested graph closure *(§23)*
-- [ ] HST-30 — hash-container round trip is order-independent *(§23)*
-- [ ] HST-31 — sorted-container ordering is deterministic *(§23)*
-- [ ] HST-32 — tightening a limit never turns a failure into a success *(§5)*
-- [ ] HST-33 — entry points agree for the same value and configuration *(§3)*
-- [ ] HST-34 — a malformed-byte corpus never causes an uncontrolled process failure, and every outcome is a Viper exception *(§8)*
+- [x] HST-27 — primitive round-trip closure over generated values *(§23)* — `Hostile/PropertyTests`
+- [x] HST-28 — collection round-trip closure within limits *(§23)* — `Hostile/PropertyTests`
+- [x] HST-29 — acyclic nested graph closure *(§23)* — `Hostile/PropertyTests`
+- [x] HST-30 — hash-container round trip is order-independent *(§23)* — `Hostile/PropertyTests`
+- [x] HST-31 — sorted-container ordering is deterministic *(§23)* — `Hostile/PropertyTests`
+- [x] HST-32 — tightening a limit never turns a failure into a success *(§5)* — `Hostile/PropertyTests`
+- [x] HST-33 — entry points agree for the same value and configuration *(§3)* — `Hostile/PropertyTests`
+- [x] HST-34 — a malformed-byte corpus never causes an uncontrolled process failure, and every outcome is a Viper exception *(§8)* — `Hostile/PropertyTests`
 
 ---
 
@@ -923,6 +923,9 @@ NonSeekableStream · PartialReadStream · FailingStream · NonSeekableWriteStrea
 
 Sequences.Of (a multi-segment ReadOnlySequence<T>) · Bag<T> (a custom ICollection<T>)   (added by M5)
 
+Wire.Container · Wire.StringValue · Wire.BitArrayValue · Wire.MultiDimensionalArray   (added by M6)
+WriteOnlyStream (a seekable destination that cannot be read)                          (added by M6)
+
 Sum8 · WideChecksum · IdentityCompression · UnauthenticatedCipher   (custom algorithm doubles)
 ```
 
@@ -943,6 +946,8 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test — `Fixtures/UtilityTests`
 - [x] UTIL-10 — the keyed and reference frame builders declare the counts and lengths they were given, not the real ones — `Fixtures/UtilityTests`
 - [x] UTIL-11 — `Sequences.Of` chains its segments in order and reports more than one — `Fixtures/UtilityTests`
+- [x] UTIL-12 — the value frame builders declare the counts, lengths and ranks they were given, not the real ones — `Fixtures/UtilityTests`
+- [x] UTIL-13 — `WriteOnlyStream` accepts writes, seeks, and refuses reads — `Fixtures/UtilityTests`
 
 ---
 
@@ -1104,6 +1109,57 @@ changed: a value that previously could not be written at all is now written as t
 §22.3, and no existing payload decodes differently.
 
 - [x] D4-01 — a default `ArraySegment<T>` round-trips as an empty segment rather than failing *(§23, §8.10)* — `RoundTrip/Corpus`
+
+### D5 — a zero-element multidimensional shape can still name a dimension the runtime refuses — **FIXED**
+
+Found while working M6 (LIM-11), reproduced against `src/` at `09dd4c1`.
+
+**Contract:** §5.2 says `MaxArrayLength` "limits one-dimensional array length and is also used for
+array-specific dimension/product validation", and §17 requires every dimension non-negative, an
+overflow-safe product, and the product within `MaxArrayLength`. §8.10 admits no standard .NET
+exception for malformed wire data.
+
+**Actual:** a 25-byte frame declaring the shape `[0, int.MaxValue]` passed validation — the product
+collapses to zero, so neither the per-dimension check nor the product check had anything to refuse —
+and then left the library as `System.OutOfMemoryException: Array dimensions exceeded supported
+range.`, raised by `Array.CreateInstance`.
+
+**Cause:** `ElementCount.ValidateShape` bounded the product but never a dimension on its own. §5.2
+named dimension validation; only the product half was implemented.
+
+**Fix applied** in `Io/ElementCount.cs`, the sole factory for a validated count. Each dimension is
+now compared with `MaxArrayLength` before the product is computed, so the shape is refused as
+`BinaryLimitException`. Nothing on the wire changed; the set of accepted payloads narrows, which is
+what a limit does. §17 now states the per-dimension bound outright rather than leaving it to §5.2,
+and the `MaxArrayLength` XML docs say it too.
+
+- [x] D5-01 — a zero dimension beside an oversized one is a limit violation, not an `OutOfMemoryException` *(§5.2, §17)* — `Limits/ArrayShapeTests`
+- [x] D5-02 — a zero dimension beside one exactly at the limit still succeeds *(§17)* — `Limits/ArrayShapeTests`
+
+### D6 — a boolean accepted any non-zero byte, leaving authenticated header flags malleable — **FIXED**
+
+Found while working M6 (HST-09), reproduced against `src/` at `09dd4c1`.
+
+**Contract:** §22.1 encodes `bool` as "1 byte: `0` false, `1` true" — two encodings, not one and a
+family. §13.1 binds the V1 header as associated data so that no header field can be altered without
+breaking the tag.
+
+**Actual:** flipping byte 14 of an encrypted, authenticated frame — the `KeyId` presence flag —
+changed `0x01` to `0xFE` and the payload still decrypted and deserialized successfully. The
+associated data is built from the *decoded* header fields, and `0xFE` decoded to the same `true`, so
+the tag never saw the edit. Every boolean on the wire was affected the same way: the three optional
+string flags, `PreserveReferences`, every null flag, and every `bool` value in a payload.
+
+**Cause:** `ValueReader.ReadBoolean` returned `ReadOneByte(...) != 0`, which admits 255 spellings of
+`true` where §22.1 admits one.
+
+**Fix applied** in `Io/ValueReader.cs`, the single type that reads payload bytes. Only `0` and `1`
+are accepted; anything else is `BinaryFormatException`. No writer ever produced another byte, so no
+valid payload changes meaning — the reader simply stops accepting non-canonical input. §22.1 now
+states the rejection and why it matters under §13.1.
+
+- [x] D6-01 — every byte of an encrypted frame flipped in turn always fails *(§13.1, §22.1)* — `Hostile/MutationTests`
+- [x] D6-02 — every byte of an encrypted header flipped in turn always fails *(§13.1)* — `Hostile/MutationTests`
 
 ## 30.2 Resolved contract questions
 

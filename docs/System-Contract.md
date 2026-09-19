@@ -1059,6 +1059,8 @@ crosses its limit, so an oversized or infinite `IEnumerable<T>` is rejected inst
 Multidimensional arrays require:
 
 - every dimension non-negative;
+- every dimension within `MaxArrayLength` on its own, independently of the product: a shape such as
+  `[0, int.MaxValue]` has no elements at all and yet describes an array the runtime cannot create;
 - overflow-safe product calculation;
 - product within `MaxArrayLength`;
 - zero-dimension behavior explicitly covered.
@@ -1221,6 +1223,12 @@ restricted to non-negative `Int32`.
 
 A count is read as an `int32` and is immediately validated against its limit and charged to the
 element budget; a negative count is `BinaryFormatException`.
+
+A boolean admits exactly the two encodings above. A reader rejects any other byte with
+`BinaryFormatException` rather than treating it as a second spelling of `true`, so the encoding is
+canonical. This is what keeps every header flag unforgeable: authenticated encryption binds the
+header's decoded fields (§13.1), so a non-canonical flag byte would otherwise be an edit the tag
+does not cover.
 
 ## 22.2 Value framing
 

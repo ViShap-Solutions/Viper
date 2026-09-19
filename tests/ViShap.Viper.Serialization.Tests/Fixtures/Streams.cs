@@ -133,6 +133,34 @@ internal sealed class NonSeekableWriteStream : Stream
     }
 }
 
+/// <summary>
+/// A seekable destination that cannot be read from, so a caller that hands one to a read API meets
+/// the ordinary BCL failure rather than a serializer exception.
+/// </summary>
+internal sealed class WriteOnlyStream : Stream
+{
+    private readonly MemoryStream _inner = new();
+
+    public override bool CanRead => false;
+    public override bool CanSeek => true;
+    public override bool CanWrite => true;
+    public override long Length => _inner.Length;
+
+    public override long Position
+    {
+        get => _inner.Position;
+        set => _inner.Position = value;
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override int Read(Span<byte> buffer) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+    public override void Write(ReadOnlySpan<byte> buffer) => _inner.Write(buffer);
+    public override void Flush() => _inner.Flush();
+    public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+    public override void SetLength(long value) => _inner.SetLength(value);
+}
+
 /// <summary>A seekable stream that records whether the serializer disposed it.</summary>
 internal sealed class TrackingStream(byte[]? content = null) : Stream
 {

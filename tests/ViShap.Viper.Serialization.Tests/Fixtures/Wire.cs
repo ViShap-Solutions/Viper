@@ -178,6 +178,61 @@ internal static class Wire
             writer.Write(value);
     }
 
+    /// <summary>
+    /// A frame holding one non-null container: the declared <c>int32</c> count, then
+    /// <paramref name="int32Values"/> four-byte values as its body. A dictionary entry carries two of
+    /// them, which is why the body is measured in values rather than in elements.
+    /// </summary>
+    public static byte[] Container(int declaredCount, int int32Values) =>
+        Frame(Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write(declaredCount);
+            for (int value = 0; value < int32Values; value++)
+                writer.Write(value);
+        }));
+
+    /// <summary>
+    /// A frame holding one non-null string that declares <paramref name="declaredByteLength"/> UTF-8
+    /// bytes while only <paramref name="content"/> follows.
+    /// </summary>
+    public static byte[] StringValue(int declaredByteLength, params byte[] content) =>
+        Frame(Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write7BitEncodedInt(declaredByteLength);
+            writer.Write(content);
+        }));
+
+    /// <summary>
+    /// A frame holding one non-null <see cref="System.Collections.BitArray"/>: the <c>int32</c> bit
+    /// count, then a blob of <paramref name="dataBytes"/> bytes (§22.4).
+    /// </summary>
+    public static byte[] BitArrayValue(int declaredBits, int dataBytes) =>
+        Frame(Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write(declaredBits);
+            writer.Write7BitEncodedInt(dataBytes);
+            writer.Write(new byte[dataBytes]);
+        }));
+
+    /// <summary>
+    /// A frame holding one non-null array of rank greater than one: the <c>int32</c> rank, one
+    /// <c>int32</c> per dimension, then <paramref name="int32Elements"/> elements in row-major order.
+    /// </summary>
+    public static byte[] MultiDimensionalArray(int[] lengths, int int32Elements, int? declaredRank = null) =>
+        Frame(Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write(declaredRank ?? lengths.Length);
+            foreach (int length in lengths)
+                writer.Write(length);
+
+            for (int element = 0; element < int32Elements; element++)
+                writer.Write(element);
+        }));
+
     /// <summary>A payload of <paramref name="depth"/> nested single-element collections.</summary>
     public static byte[] NestedCollections(int depth) =>
         Frame(Payload(writer =>

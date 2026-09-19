@@ -3,7 +3,7 @@ using System.Buffers;
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-11. A helper with a bug passes every suite that uses it, so the helpers are
+/// Pins UTIL-01…UTIL-13. A helper with a bug passes every suite that uses it, so the helpers are
 /// tested before anything is allowed to rely on them.
 /// </summary>
 public class UtilityTests
@@ -335,6 +335,113 @@ public class UtilityTests
     {
         Assert.Equal(0, Sequences.Of<int>().Length);
         Assert.Equal([], Sequences.Of<int>([]).ToArray());
+    }
+
+    // --- UTIL-12: the value frame builders --------------------------------------------------------
+
+    [Fact]
+    public void Container_DeclaresTheCountItWasGivenRatherThanTheBodyItHolds()
+    {
+        byte[] frame = Wire.Container(declaredCount: 9, int32Values: 2);
+        byte[] body = frame[Wire.PlainHeaderLength..];
+
+        Assert.Equal(1, body[0]);                       // the container is non-null
+        Assert.Equal(9, BitConverter.ToInt32(body, 1)); // the count it was told to claim
+        Assert.Equal(1 + 4 + (2 * 4), body.Length);     // two four-byte values actually present
+    }
+
+    [Fact]
+    public void Container_IsAcceptedByARealReader()
+    {
+        var restored = new BinarySerializer().Deserialize<List<int>>(Wire.Container(3, 3));
+
+        Assert.Equal([0, 1, 2], restored);
+    }
+
+    [Fact]
+    public void StringValue_DeclaresTheLengthItWasGivenRatherThanTheBytesItHolds()
+    {
+        byte[] body = Wire.StringValue(200, 0x61, 0x62)[Wire.PlainHeaderLength..];
+
+        Assert.Equal(1, body[0]);                       // the string is non-null
+        Assert.Equal<byte[]>([0xC8, 0x01], body[1..3]); // 200, 7-bit encoded
+        Assert.Equal<byte[]>([0x61, 0x62], body[3..]);
+    }
+
+    [Fact]
+    public void StringValue_IsAcceptedByARealReader()
+    {
+        byte[] frame = Wire.StringValue(2, 0x61, 0x62);
+
+        Assert.Equal("ab", new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    [Fact]
+    public void BitArrayValue_IsTheBitCountThenTheBlob()
+    {
+        byte[] body = Wire.BitArrayValue(declaredBits: 12, dataBytes: 2)[Wire.PlainHeaderLength..];
+
+        Assert.Equal(1, body[0]);                        // the BitArray is non-null
+        Assert.Equal(12, BitConverter.ToInt32(body, 1)); // the bit count
+        Assert.Equal(2, body[5]);                        // the blob length
+        Assert.Equal(1 + 4 + 1 + 2, body.Length);
+    }
+
+    [Fact]
+    public void BitArrayValue_IsAcceptedByARealReader()
+    {
+        var restored = new BinarySerializer()
+            .Deserialize<System.Collections.BitArray>(Wire.BitArrayValue(12, 2));
+
+        Assert.Equal(12, restored!.Length);
+    }
+
+    [Fact]
+    public void MultiDimensionalArray_IsTheRankThenTheDimensionsThenTheElements()
+    {
+        byte[] body = Wire.MultiDimensionalArray([2, 3], int32Elements: 6)[Wire.PlainHeaderLength..];
+
+        Assert.Equal(1, body[0]);                       // the array is non-null
+        Assert.Equal(2, BitConverter.ToInt32(body, 1)); // the rank
+        Assert.Equal(2, BitConverter.ToInt32(body, 5));
+        Assert.Equal(3, BitConverter.ToInt32(body, 9));
+        Assert.Equal(1 + 4 + (2 * 4) + (6 * 4), body.Length);
+    }
+
+    [Fact]
+    public void MultiDimensionalArray_DeclaresTheRankItWasGiven()
+    {
+        byte[] body = Wire.MultiDimensionalArray([2, 3], int32Elements: 0, declaredRank: 7)
+            [Wire.PlainHeaderLength..];
+
+        Assert.Equal(7, BitConverter.ToInt32(body, 1));
+    }
+
+    [Fact]
+    public void MultiDimensionalArray_IsAcceptedByARealReader()
+    {
+        var restored = new BinarySerializer()
+            .Deserialize<int[,]>(Wire.MultiDimensionalArray([2, 3], int32Elements: 6));
+
+        Assert.Equal(2, restored!.GetLength(0));
+        Assert.Equal(3, restored.GetLength(1));
+        Assert.Equal(5, restored[1, 2]);
+    }
+
+    // --- UTIL-13: the write-only stream double ----------------------------------------------------
+
+    [Fact]
+    public void WriteOnlyStream_AcceptsWritesAndRefusesReads()
+    {
+        using var stream = new WriteOnlyStream();
+
+        stream.Write([1, 2, 3]);
+        stream.Position = 0;
+
+        Assert.True(stream.CanSeek);
+        Assert.False(stream.CanRead);
+        Assert.Equal(3, stream.Length);
+        Assert.Throws<NotSupportedException>(() => stream.ReadByte());
     }
 
     // --- UTIL-09: the committed compatibility fixtures -------------------------------------------

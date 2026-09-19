@@ -33,7 +33,18 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
 
     public long? Position => _source.CanSeek ? _source.Position : null;
 
-    public bool ReadBoolean() => ReadOneByte("Boolean") != 0;
+    /// <summary>
+    /// Reads a boolean. The wire admits exactly two encodings, so any other byte is a malformed
+    /// payload rather than a second spelling of <see langword="true"/> — which is what keeps a flag
+    /// unforgeable under authenticated encryption, where the tag covers the decoded fields.
+    /// </summary>
+    public bool ReadBoolean() => ReadOneByte("Boolean") switch
+    {
+        0 => false,
+        1 => true,
+        var other => throw new BinaryFormatException(
+            $"Boolean value {other} is not a valid encoding; only 0 and 1 are admitted.")
+    };
 
     public byte ReadByte() => ReadOneByte("Byte");
 
