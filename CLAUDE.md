@@ -34,7 +34,9 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
 - `docs/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
   staged M0–M8; §30 records confirmed defects and the resolved contract questions. The method for
   working it lives in the `viper_tester` skill, not in the plan.
-- `docs/Benchmark-Plan.md` — the release-gate benchmark plan, realigned with the contract. Checkpoint
+- `docs/Benchmark-Plan.md` — the post-release performance plan, realigned with the contract, measured
+  against the `v1.0.0` tag and re-run per v1.x. It gates no release: correctness ships a version,
+  and an open item here blocks only a performance *claim* (§28, and the quality gate of §24). Checkpoint
   list only, staged B0–B9: the competitor roster and why each library is in or out, the capability
   tiers that keep a comparison like-for-like, the data corpus, the workloads, the fairness rules and
   §27 for findings. The method for working it lives in the `viper_bencher` skill, not in the plan.

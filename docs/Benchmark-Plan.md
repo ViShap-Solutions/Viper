@@ -1,9 +1,10 @@
 # ViShap.Viper — Benchmark Plan
 
-**Target release:** v1.0.0
+**Baseline target:** the `v1.0.0` tag, measured after the release, then re-run per v1.x
 **Status:** Realigned with the reworked architecture — B0 open, nothing measured yet
 **Framework:** BenchmarkDotNet 0.15.8 · `net10.0`
 **Scope:** the published performance of `src/`, measured against the current market and frozen as the v1.0.0 baseline
+**Gates:** no release. This plan gates what may be *claimed* about performance, never whether a version ships *(§28)*
 **Normative source:** `System-Contract.md` — a benchmark measures behavior the contract defines; it never defines behavior
 **Method:** `.claude/skills/viper_bencher.md` — this document holds items and gates only
 
@@ -27,6 +28,8 @@ Rules that govern the boxes:
 - An item is never deleted to make a gate pass. It is rewritten, split, or blocked.
 - A benchmark measures the library; it never changes it. **Nothing in `src/` and nothing in `docs/System-Contract.md` is modified while working this plan.** An optimization, an extension point that would make something measurable, a suspected defect — each is written up as a proposal in `docs/performance/` (§27.4) and left for the repository owner to decide.
 - A benchmark asserts nothing about correctness, and a measurement is never evidence that behavior is right.
+- **No item here blocks a release.** Correctness and safety are settled before a version ships; performance is measured after it, against the tag. What an open item blocks is a performance claim — a number in the README, in a package description, in a release note or in an issue reply (§28).
+- A baseline belongs to a revision, not to a date. Measuring the `v1.0.0` tag two months after it shipped produces the v1.0.0 record, because the revision, the lock and the manifest say so (§4, §25).
 
 Measurement layers used below:
 
@@ -175,7 +178,7 @@ Versions verified against nuget.org on 2026-09-20. The latest publication date i
 | 6 | **Microsoft.Orleans.Serialization** | 10.3.1 | 2026-08-28 | Version tolerance, polymorphism and reference preservation as shipped by Microsoft in a production framework; the package is usable standalone |
 | 7 | **System.Text.Json** | in-box `net10.0` | — | The baseline every .NET team already has, with a source-generated context and, in T3, `ReferenceHandler.Preserve`. Not a binary format: it is here to make the cost of the default choice visible, not to be beaten |
 
-This set of seven was approved on 2026-09-20 and is the one the release gate measures. A library joins or leaves it only by the owner's decision, recorded here.
+This set of seven was approved on 2026-09-20 and is the one the publication gate measures. A library joins or leaves it only by the owner's decision, recorded here.
 
 - [ ] RST-01 — every mandatory library has an adapter that passes verification (§7.6) on every dataset of its tiers
 - [ ] RST-02 — every mandatory library runs in its own documented best production mode, recorded per §7.3
@@ -695,9 +698,12 @@ Generated from the raw files, never drawn by hand.
 
 A baseline belongs to one source revision, runtime, hardware, package lock and BenchmarkDotNet version. Later releases are compared only against a compatible baseline environment.
 
-The v1.0.0 publication run becomes the frozen baseline. It is never regenerated: a rebuilt baseline agrees with whatever the code became, and so proves nothing.
+The run against the `v1.0.0` tag becomes the frozen baseline, whenever it happens. It is never regenerated afterwards: a rebuilt baseline agrees with whatever the code became, and so proves nothing.
 
-- [ ] BASE-01 — the v1.0.0 baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23
+Every later v1.x is measured the same way, against its own tag, and published as a delta against the baseline it is compatible with. That is what this plan is for once v1.0.0 has shipped: not a gate in front of a release, a record behind each one.
+
+- [ ] BASE-01 — the baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23, produced from a checkout of the `v1.0.0` tag
+- [ ] BASE-06 — each subsequent v1.x run is committed under its own `Baselines/<tag>/`, with the delta against the previous one and an entry in §27.3 for every threshold it crosses
 - [ ] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error
 - [ ] BASE-03 — a comparison against an incompatible environment is refused rather than printed
 - [ ] BASE-04 — review thresholds, as triggers for investigation and not automatic failures:
@@ -706,7 +712,7 @@ The v1.0.0 publication run becomes the frozen baseline. It is never regenerated:
   - any payload-size increase at all, since size is a wire property and a change may be a compatibility break;
   - a statistically significant cold-start regression;
   - a Gen2 or LOH increase that was not there before
-- [ ] BASE-05 — a crossed threshold is recorded in §27 with its cause, before the release proceeds
+- [ ] BASE-05 — a crossed threshold is recorded in §27 with its cause; it informs the next version, and never holds a release hostage
 
 ---
 
@@ -762,7 +768,11 @@ One file per proposal, `PERF-nn-<slug>.md`, indexed by `docs/performance/README.
 
 ---
 
-# 28. Release gate
+# 28. Publication gate
+
+Nothing here decides whether a version ships. It decides whether the project may say anything about its own speed, allocation or payload size — in the README, in a package description, in a release note, in an issue reply or in a chart.
+
+Until it is green, the answer to "how fast is it?" is "not measured yet", and that is an acceptable answer.
 
 Checked only when a committed raw result proves it.
 
@@ -813,3 +823,5 @@ Checked only when a committed raw result proves it.
 Benchmarking is complete when the raw results, the environment manifest, the capability matrix, the baselines and the generated charts exist together, trace to one source revision and one locked environment, and every cell is either a number or a stated reason.
 
 The report presents measurements. It does not reduce the outcome to a winner, and it does not omit a result because of what the result is.
+
+Complete for a version, not for the project: the plan is worked again against each v1.x tag, and what changes between runs is the corpus only where a new capability needs one — never the fairness rules, and never mid-flight.
