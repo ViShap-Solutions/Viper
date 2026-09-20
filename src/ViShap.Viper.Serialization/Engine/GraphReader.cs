@@ -9,27 +9,20 @@ internal sealed class GraphReader
 {
     private readonly ValueReader _values;
     private readonly SerializationOperation _operation;
-    private readonly bool _keyedContractsSupported;
     private readonly ReadReferenceTable? _references;
 
-    public GraphReader(
-        ValueReader values,
-        SerializationOperation operation,
-        bool keyedContractsSupported)
-        : this(values, operation, keyedContractsSupported,
-            operation.PreserveReferences ? new ReadReferenceTable() : null)
+    public GraphReader(ValueReader values, SerializationOperation operation)
+        : this(values, operation, operation.PreserveReferences ? new ReadReferenceTable() : null)
     {
     }
 
     private GraphReader(
         ValueReader values,
         SerializationOperation operation,
-        bool keyedContractsSupported,
         ReadReferenceTable? references)
     {
         _values = values;
         _operation = operation;
-        _keyedContractsSupported = keyedContractsSupported;
         _references = references;
     }
 
@@ -245,10 +238,11 @@ internal sealed class GraphReader
     private static object Construct(Type runtimeType)
     {
         var contract = TypeContractCache.Get(runtimeType);
-        if (!contract.HasParameterlessConstructor)
+        if (!contract.CanBeConstructed)
             throw new BinaryTypeException(
-                $"'{runtimeType}' cannot be constructed during deserialization — a public or " +
-                "non-public parameterless constructor is required.");
+                $"'{runtimeType}' cannot be constructed during deserialization — a concrete type " +
+                "with a public or non-public parameterless constructor is required. An interface or " +
+                "an abstract class needs a [BinaryUnion] map naming the type to build.");
 
         try
         {
@@ -275,11 +269,6 @@ internal sealed class GraphReader
 
     private void ReadKeyedMembers(object instance, TypeContract contract)
     {
-        if (!_keyedContractsSupported)
-            throw new BinaryFormatNotSupportedException(
-                $"Type '{contract.Type}' uses [BinaryContract]/[BinaryKey], which requires the V1 " +
-                "keyed wire encoding to provide schema-evolution tolerance.");
-
         int fieldCount = _values.Read7BitEncodedInt("keyed field count");
         if (fieldCount > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
@@ -314,7 +303,7 @@ internal sealed class GraphReader
     private void ReadKeyedFieldPayload(object instance, MemberBinding member, int key, int payloadLength)
     {
         var window = _values.OpenWindow(payloadLength, $"Key {key} payload");
-        var child = new GraphReader(window.Reader, _operation, _keyedContractsSupported, _references);
+        var child = new GraphReader(window.Reader, _operation, _references);
 
         object? value;
         if (_references is null)

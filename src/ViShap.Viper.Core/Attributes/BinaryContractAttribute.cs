@@ -22,7 +22,13 @@ namespace ViShap.Viper;
 /// removing one, therefore stays compatible in both directions — unlike the default positional
 /// layout, where member order <em>is</em> the format.
 /// </para>
-/// <para>Keyed contracts require format version 1 and a seekable payload stream.</para>
+/// <para>
+/// Keyed contracts work in every wire format version, but the payload stream must be seekable: each
+/// field's length is written ahead of the field and patched once its size is known. Version 1
+/// buffers the payload and always satisfies this. Version 0 writes straight to the destination, so
+/// there the destination stream itself must be seekable, or the write throws
+/// <see cref="NotSupportedException"/>.
+/// </para>
 /// <example>
 /// <code>
 /// [BinaryContract]

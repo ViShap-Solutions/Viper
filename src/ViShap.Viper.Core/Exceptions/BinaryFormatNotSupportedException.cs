@@ -5,8 +5,7 @@ namespace ViShap.Viper.Exceptions;
 /// </summary>
 /// <remarks>
 /// Typical causes: a format version this library does not implement, an algorithm identifier it does
-/// not know, a custom algorithm name that was never registered on the options builder, or a keyed
-/// contract used with format version 0, which has no metadata to carry keys.
+/// not know, or a custom algorithm name that was never registered on the options builder.
 /// </remarks>
 public sealed class BinaryFormatNotSupportedException : BinarySerializerException
 {

@@ -147,16 +147,19 @@ formatter contracts, the algorithm orchestrators, and the operation and budget t
 them enforces part of the resource policy or the traversal protocol, and publishing any of them would
 let a caller step around it.
 
-Every public type and member carries XML documentation, and the projects build with
-`GenerateDocumentationFile`, so an undocumented public member fails the build as CS1591.
+Every public type and member carries XML documentation. Both packages build with
+`GenerateDocumentationFile`, so the documentation ships beside the assembly and a consumer sees it on
+hover; the compiler reports an undocumented public member as a CS1591 warning. The documentation is
+written for that consumer: what the member does, what it takes, what it returns and which exception
+it raises. It does not cite this document, and it does not record how the code came to look the way
+it does.
 
 ## 3.1 Serializer
 
 The public `BinarySerializer` surface includes:
 
 ```csharp
-BinarySerializer();
-BinarySerializer(BinarySerializerOptions? options);
+BinarySerializer(BinarySerializerOptions? options = null);
 
 void Serialize<T>(Stream destination, T data);
 byte[] Serialize<T>(T data);
@@ -178,7 +181,10 @@ Exact overloads exposed by the compiled public assembly are authoritative.
 Caller-provided streams are never disposed, never rewound, and are read only as far as the payload
 extends.
 
-Empty `byte[]` behavior is explicit API behavior and must remain covered by QA; it must not be inferred from internal parser behavior.
+An **empty `byte[]` is not a payload**: no wire version encodes a value in zero bytes, not even a
+null root, which costs one byte. Every byte-array read overload therefore rejects it with
+`BinaryFormatException` before any routing happens, and the existing instance or `ref` target is left
+untouched. A zero-length array is never silently read as `default(T)`.
 
 Populate-in-place semantics:
 
@@ -188,6 +194,41 @@ Populate-in-place semantics:
 - `Deserialize<T>(…, ref T existingInstance)` reads the root exactly as the writer framed it and
   assigns the result. A struct is copied by value, so this is observationally identical to populating
   in place, and it stays correct under every framing the writer may add.
+
+## 3.2 Stream extensions
+
+`StreamExtensions` builds a serializer per call, for occasional use and for payloads that describe
+their own configuration. The surface is:
+
+```csharp
+void Serialize<T>(this Stream destination, T data, BinarySerializerOptions? options = null);
+
+T? Deserialize<T>(this Stream source, BinarySerializerOptions options);
+T? Deserialize<T>(this Stream source, SerializationLimits? limits = null);
+T? Deserialize<T>(this Stream source, byte[]? key, SerializationLimits? limits = null);
+T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null);
+
+T? Deserialize<T>(this Stream source, T existingInstance, BinarySerializerOptions options) where T : class;
+T? Deserialize<T>(this Stream source, T existingInstance, SerializationLimits? limits = null) where T : class;
+T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : class;
+T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : class;
+
+void Deserialize<T>(this Stream source, ref T existingInstance, BinarySerializerOptions options) where T : struct;
+void Deserialize<T>(this Stream source, ref T existingInstance, SerializationLimits? limits = null) where T : struct;
+void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : struct;
+void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : struct;
+```
+
+The overloads that take a key, a key resolver, or neither configure themselves from the payload's
+header through `BinarySerializerOptions.FromStream` and therefore require a seekable stream.
+
+**The header supplies algorithms, never policy.** It says how the payload was wrapped — compression,
+checksum, encryption, key id — and nothing it contains can raise a resource ceiling. The limits
+applied are the caller's `limits` argument, or `SerializationLimits.Default` when it is omitted. An
+application reading untrusted data through these overloads passes its own policy exactly as it would
+through `BinarySerializerOptions`.
+
+Every overload leaves the caller's stream open.
 
 ---
 
@@ -227,12 +268,45 @@ Custom algorithms are registered **on the builder** and snapshotted into the opt
 process-wide registry, and built-in algorithms cannot be substituted: what encrypts a payload is
 determined by the options that were built, not by global state another component may have mutated.
 
+A registration is a factory, and it is invoked once per resolution — that is, while a payload is
+being read, because the header names the algorithm and writing uses the configured instance. What
+runs, and how often, is therefore decided by the payload rather than by the caller, so a factory is
+not allowed to take an operation outside the exception taxonomy: a factory that throws, and one that
+returns `null`, are both `BinaryConfigurationException` naming the registration, with whatever the
+factory threw preserved as `InnerException` (§9). An exception that is already part of the taxonomy
+propagates unchanged, since wrapping it would add nothing the caller could not already catch. This is
+the read-side counterpart of the rule for a `Lazy<T>` factory (§23), which propagates unwrapped
+because it runs on the write path, over the caller's own value, at a point the caller chose.
+
 `Build()` rejects contradictory configuration with `BinaryConfigurationException`:
 
+- a write version that is not a supported wire format;
 - `RequireEncryption` without an encryption algorithm;
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
-- an encryption algorithm without key material;
-- `RequireChecksum` without a checksum algorithm.
+- `RequireChecksum` without a checksum algorithm;
+- `RequireEncryption` or `RequireChecksum` together with `WithVersion(0)`;
+- `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`.
+
+The last two close both directions of the same contradiction: a headerless payload carries no
+protection, so a policy demanding protection could be satisfied neither when writing one nor when
+reading one (§10.2, §21.1). A configured algorithm without a policy is a capability, not a demand,
+and stays legal under version 0 — it simply does not apply to what version 0 writes.
+
+Missing key material is **not** among them. Every `WithEncryption` overload takes the key source in
+the same call as the algorithm and rejects a null one with `ArgumentNullException`, so a builder
+holding an algorithm without key material is not a state a caller can produce. `Build()` keeps the
+guard as an invariant over the options it constructs, but no configuration reaches it.
+
+Options derived from a payload rather than built — `FromHeader` and `FromStream` (§4.3) — may well
+name an encryption algorithm the caller supplied no key for. That is a reader missing a key, not a
+contradictory configuration: it is diagnosed when the payload is read, as
+`BinaryEncryptionKeyException` (§8.7), alongside a key provider that resolves to nothing and a key
+that does not match the header's `keyId`.
+
+`WithVersion(n)` selects the format used for **writing** only, and is validated here rather than at
+the first `Serialize`. `AllowV0Fallback` is the separate, **read-side** choice of whether a stream
+without the magic number may be read as V0; writing V0 does not require it, and enabling it does not
+change what is written.
 
 ## 4.2 Default configuration
 
@@ -361,6 +435,10 @@ Limits the number of fields in **one** keyed object.
 
 It is a structural field-count limit, not a replacement for the cumulative element budget.
 
+It is evaluated **before** `MaxTotalKeyedFields`, on both directions, so an object that breaches both
+at once reports the per-object ceiling. A caller therefore always learns which limit the payload
+actually broke.
+
 ## 5.9a `MaxTotalKeyedFields`
 
 Cumulative per-operation count of keyed fields, including unknown fields that are skipped. It bounds
@@ -417,9 +495,14 @@ There are two mechanisms, in three types.
 > Caps the bytes this operation reads from a caller-owned stream.
 
 - counts from zero regardless of the caller stream's absolute position;
-- exposes `RemainingBytes`, so a declared length can be rejected before it drives an allocation;
-- classifies an over-read as `BinaryLimitException`, because exceeding a configured ceiling is a
-  limit violation and not a truncated payload;
+- exposes `RemainingBytes` — the lesser of the remaining budget and the bytes the source can still
+  physically deliver — so a declared length is rejected before it drives an allocation. A chain of
+  meters propagates the physical truth, because each one answers for itself;
+- classifies a declaration it cannot satisfy by which bound it broke: beyond the configured ceiling
+  is `BinaryLimitException`, while within the ceiling but beyond the remaining bytes means the
+  payload is shorter than it claims, which is `BinaryFormatException`;
+- bounds a *read* by the budget alone, so an ordinary short read stays a truncation for the caller
+  to report rather than being reclassified as a limit violation;
 - wraps underlying `IOException` as `BinaryStreamException`;
 - never disposes the caller's stream.
 
@@ -522,8 +605,7 @@ Examples:
 
 - unsupported format version;
 - unknown built-in algorithm enum;
-- missing custom registration;
-- V0 keyed-contract use.
+- missing custom registration.
 
 ## 8.5 `BinaryIntegrityException`
 
@@ -580,7 +662,9 @@ These remain intentionally outside `BinarySerializerException`:
 
 - `ArgumentNullException` — required public argument is null;
 - `ArgumentException` — invalid direct caller argument;
-- `NotSupportedException` — unsupported API capability, e.g. required seekability.
+- `NotSupportedException` — unsupported API capability, e.g. required seekability: reading, which
+  must detect the format version before consuming anything, and writing a keyed contract under a
+  format that does not buffer the payload (§10.2, §14.2).
 
 Do not wrap every exception merely to force taxonomy symmetry.
 
@@ -601,6 +685,9 @@ CryptographicException
 
 InvalidDataException
     → BinaryFormatException.InnerException
+
+custom algorithm factory exception
+    → BinaryConfigurationException.InnerException
 ```
 
 An unqualified:
@@ -620,22 +707,30 @@ A `catch` that performs required cleanup before rethrow is valid.
 
 # 10. Version and wire-format contract
 
+Two wire formats ship in v1.0. They are peers with different jobs, not a current format and a
+deprecated one: V1 is the self-describing envelope, V0 the compact headerless codec. Neither is
+derived from the other, neither is scheduled for removal, and a reader never guesses which one it is
+holding (§10.3).
+
 ## 10.1 V1
 
-V1 is the default/latest format.
+V1 is the default format, and the one to use whenever the payload outlives the context that produced
+it: stored data, data crossing a trust boundary, data whose schema will move, data read by a party
+that was not configured by the writer.
 
-It provides:
+Beyond the payload itself it provides:
 
 - V1 header metadata;
 - compression selection;
 - checksum selection;
 - encryption selection;
 - `KeyId`;
-- `PreserveReferences` metadata;
-- logical/physical length metadata;
-- keyed contracts;
-- polymorphism;
-- configurable resource limits.
+- `PreserveReferences` metadata and reference framing;
+- logical/physical length metadata.
+
+The type system, `[BinaryUnion]` polymorphism, keyed contracts and the configurable resource limits
+are not V1 features — they belong to the payload and to the engine, and apply to every format
+(§10.2).
 
 The V1 header is a security/format boundary and must validate all attacker-controlled lengths before they can drive an allocation.
 
@@ -644,18 +739,65 @@ Trailing bytes are `BinaryFormatException`. The same rule already applies inside
 
 ## 10.2 V0
 
-V0 is positional-only and intentionally minimal.
+V0 is a self-contained compact codec: the payload and nothing else. It is the deliberate choice for a
+caller who wants the smallest representation the engine can produce and who already knows, out of
+band, what the bytes are.
 
-It has:
+It fits when:
 
-- no V1 metadata header;
-- no keyed-contract support;
-- no V1 compression/checksum/encryption metadata;
-- no reference-preservation mode.
+- the transport is private or tightly coordinated, so both ends are configured together;
+- framing and context already exist outside the payload — a message type, a length prefix, a channel;
+- a compact codec path is worth more than a metadata-carrying envelope;
+- IPC or another low-overhead channel is part of the design.
 
-V0 must reject `[BinaryContract]` / `[BinaryKey]` operations with `BinaryFormatNotSupportedException`.
+It is the wrong choice for data at rest, for anything that must be compressed, checksummed or
+encrypted, and for anything read by a party the writer did not configure — those are V1's job.
+Schema evolution is not on that list: a keyed contract (§14.2) is payload-level and works under V0
+too.
+
+What V0 does not have:
+
+- a header of any kind: no magic number, no version, no algorithm names, no length metadata;
+- a compression, checksum or encryption phase. Algorithms configured on the options are not applied
+  to a V0 write, because a V0 reader has nowhere to learn that they were;
+- reference preservation: `PreserveReferences` does not apply, and a cycle is `BinaryTypeException`
+  (§16).
+
+What V0 keeps is everything that lives below the envelope: the whole type system of §23,
+`[BinaryUnion]` polymorphism, keyed contracts, the limits and budgets of §5–6, and metering on both
+directions (§7.1). V0 is not a reduced engine — it is the same engine without a header, and for one
+value under one layout the payload bytes are identical in both formats (§22.8).
+
+Keyed contracts are a property of the type, not of the format, so a `[BinaryContract]` type encodes
+identically under both. One consequence is visible to the caller: a keyed field's length is written
+ahead of the field and patched once the field's size is known, so the payload stream must be
+seekable. V1 buffers the payload and always satisfies this; under V0, which writes straight to the
+destination, the requirement falls on the caller's destination stream, and one that cannot seek is
+`NotSupportedException` (§8.10). The `byte[]` entry points of §3 buffer into memory, so they are
+always seekable and are never affected. Positional writing carries no such requirement under either
+format.
 
 V0 and V1 must remain distinct wire formats. V1-specific behavior must not be accidentally required to parse valid V0 payloads.
+
+A V0 payload is **unauthenticated by construction**. There is no header, so there is no associated
+data to authenticate, no tag and no checksum; nothing about the bytes can be verified before they are
+decoded, and the reader's only assurance that they are a V0 payload at all is that the caller said so.
+V0 is therefore only appropriate on a channel that authenticates itself — a local IPC endpoint, a
+mutually authenticated session, a file the process alone controls. This is a boundary of the format,
+not a gap in it: a payload that must carry its own protection is a V1 payload.
+
+That boundary is enforced at configuration time rather than left to be discovered. `Build()` rejects
+`RequireEncryption` or `RequireChecksum` combined with `WithVersion(0)` or with `AllowV0Fallback`
+(§4.1), which closes both directions: a serializer carrying a protection policy can neither produce
+nor accept a V0 payload, so §21.1 needs no exception for the headerless format.
+
+The cost of carrying no metadata is that nothing in a V0 payload identifies it. Reading V0 is
+therefore an explicit decision and never an inference: `AllowV0Fallback` is what separates a
+deliberate compact payload from unrelated bytes, and without it a stream that does not present the
+V1 magic number is rejected rather than parsed (§10.3). The name is read-side only.
+
+Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether a stream
+without the magic number may be *read* as V0, so the two choices are independent in both directions.
 
 ## 10.3 Routing
 
@@ -663,7 +805,10 @@ Format routing first identifies the version from a seekable source.
 
 If V1 magic/version is recognized, V1 is selected.
 
-Otherwise, V0 is selected only when V0 fallback is enabled and V0 is registered.
+Otherwise the bytes are unidentified, and the serializer does not guess: V0 is selected only when the
+caller enabled `AllowV0Fallback` and V0 is registered. Without that opt-in, unidentified input is
+`BinaryFormatException`. The opt-in is a statement about the source, not about the format — it says
+the caller knows that this channel carries headerless payloads.
 
 Unsupported recognized versions produce `BinaryFormatNotSupportedException`.
 
@@ -700,6 +845,13 @@ Encryption == None   → OnDiskLength == CompressedLength
 Lengths must be non-negative and within their corresponding phase limits.
 
 Checksum length must fit the header representation.
+
+Each header string — `CustomCompressionName`, `CustomChecksumName`, `CustomEncryptionName` and
+`KeyId` — is limited to **256 UTF-8 bytes**. The ceiling is fixed by the format, not configured:
+these fields name an algorithm or select a key, so `MaxStringBytes`, which bounds payload data, does
+not apply to them. A declared header string above the ceiling is `BinaryFormatException`, because a
+fixed format bound describes malformed input rather than a policy breach; a configured value too
+large to write is `BinaryConfigurationException`.
 
 Header truncation is `BinaryFormatException`.
 
@@ -761,8 +913,29 @@ wrong value either truncates the read or fails the authentication tag.
 Altering any authenticated header byte fails with `BinaryIntegrityException`.
 
 `IEncryptionAlgorithm` exposes AAD-aware overloads with default implementations that ignore the
-associated data, together with `AuthenticatesAssociatedData`. An algorithm that reports `false`
-cannot protect metadata, and is therefore rejected when `RequireEncryption` is configured.
+associated data, together with `AuthenticatesAssociatedData`. The pipeline always builds the image
+and always hands it to the AAD-aware overload, whatever the flag says, so the flag is a declaration
+about the algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's
+undertaking that the associated data takes part in the authentication tag; the engine cannot verify
+it. An algorithm that reports `false` — including one that simply does not implement the AAD-aware
+overloads — leaves the V1 header as unauthenticated metadata.
+
+`RequireEncryption` refuses such an algorithm from both sides, and the two sides are different
+failures:
+
+- configured locally, it is refused by `Build()` with `BinaryConfigurationException` (§4.1): the
+  configuration would write metadata the policy claims to protect, and nothing is wrong with the
+  data, because there is none yet;
+- named by a payload, it is refused while that payload is read, with `BinaryIntegrityException`.
+  Nothing is wrong with the reader's configuration there. The message failed the policy, exactly as a
+  payload carrying `Encryption = None` does (§21.1) — substituting a cipher that cannot authenticate
+  the header is the same downgrade as substituting no cipher at all. The diagnostic names the
+  algorithm the payload named, its custom name included.
+
+The second check belongs to the read rather than to registration, because the instance that decrypts
+a payload is the one the registered factory produces at that resolution (§4.1). A build-time check
+could not run the factory without making registration side-effecting, and could not bind the
+instances the same factory returns later.
 
 ## 13.2 Key ownership
 
@@ -776,6 +949,9 @@ which hands out owned copies.
 - Disposing a provider clears only its own copy; the caller's array is untouched.
 - Using a disposed provider throws `ObjectDisposedException`.
 - Temporary cryptographic buffers owned by the serializer are cleared when their lifetime ends.
+- Key material the configured algorithm cannot use — a wrong length, or none at all — is
+  `BinaryEncryptionKeyException` (§8.7), raised where the algorithm is used rather than where the key
+  was supplied: a key size belongs to the algorithm, so no entry point validates it on the way in.
 
 ---
 
@@ -784,6 +960,13 @@ which hands out owned copies.
 ## 14.1 Positional/default mode
 
 Eligible members include public fields/properties according to the accessor rules.
+
+Compiler-generated fields and indexers are not members. A **delegate-typed** member is eligible and
+is therefore rejected with `BinaryTypeException` naming it: a delegate carries behaviour rather than
+data, and silently dropping it would lose state the inclusion rules said was included. Marking it
+`[BinaryIgnore]` states that it is not part of the serialized value. The rejection is decided when the
+contract is built, so it never depends on whether the member happens to be null. An event is
+unaffected, because its backing field is private and was never eligible.
 
 `[BinaryIgnore]` excludes a member.
 
@@ -819,6 +1002,12 @@ Duplicate keys are invalid.
 Keys are ordered numerically and encoded with 7-bit variable-length integers.
 
 Unknown keyed fields are skipped according to their declared payload length and do not invoke a formatter for an unavailable/unknown member type.
+
+Keyed mode is independent of the wire format version: the encoding lives in the payload, so it
+applies under V0 and V1 alike. It does require a seekable payload stream, because each field's length
+is patched after the field is written. V1 buffers the payload, so the requirement never reaches the
+caller; under V0 it falls on the caller's destination stream, and one that cannot seek is
+`NotSupportedException` (§10.2, §8.10).
 
 ---
 
@@ -911,6 +1100,8 @@ crosses its limit, so an oversized or infinite `IEnumerable<T>` is rejected inst
 Multidimensional arrays require:
 
 - every dimension non-negative;
+- every dimension within `MaxArrayLength` on its own, independently of the product: a shape such as
+  `[0, int.MaxValue]` has no elements at all and yet describes an array the runtime cannot create;
 - overflow-safe product calculation;
 - product within `MaxArrayLength`;
 - zero-dimension behavior explicitly covered.
@@ -991,12 +1182,19 @@ BinarySerializerOptions.Configure()
     .Build();
 ```
 
-With the policy set, an unencrypted payload is `BinaryIntegrityException`, and an algorithm that
-cannot authenticate the header is refused at configuration time. Without it, authenticated metadata
-still prevents tampering with an encrypted message, but not substitution of a plaintext one — which
-is exactly what the policy exists for.
+With the policy set, an unencrypted payload is `BinaryIntegrityException`, and so is one encrypted
+by an algorithm that does not authenticate the header (§13.1) — both are the same downgrade. The
+same algorithm configured locally is refused earlier, at configuration time. Without the policy,
+authenticated metadata still prevents tampering with an encrypted message, but not substitution of a
+plaintext one — which is exactly what the policy exists for.
 
 `RequireChecksum` is the analogous policy for integrity metadata.
+
+Both policies are statements about a payload's *metadata*, so both are confined to a format that has
+metadata. A headerless V0 payload can carry neither, which is why `Build()` refuses either policy
+together with `WithVersion(0)` or `AllowV0Fallback` (§4.1, §10.2) instead of letting the operation
+produce or accept unprotected data. Within V1 the rule is unchanged: with the policy set, an
+unencrypted payload is `BinaryIntegrityException`.
 
 ## 21.2 Keyed-field count vs total-element budget
 
@@ -1067,6 +1265,20 @@ restricted to non-negative `Int32`.
 
 A count is read as an `int32` and is immediately validated against its limit and charged to the
 element budget; a negative count is `BinaryFormatException`.
+
+A boolean admits exactly the two encodings above. A reader rejects any other byte with
+`BinaryFormatException` rather than treating it as a second spelling of `true`, so the encoding is
+canonical. This is what keeps every header flag unforgeable: authenticated encryption binds the
+header's decoded fields (§13.1), so a non-canonical flag byte would otherwise be an edit the tag
+does not cover.
+
+A string is canonical for the same reason. Its bytes must be valid UTF-8, and a reader that meets a
+sequence which is not rejects it with `BinaryFormatException` instead of substituting U+FFFD. Lenient
+decoding would map an unbounded set of byte sequences onto one string — `C3 28`, `E0 80 28` and
+`F0 80 80 28` all become `�(` — and since the tag is computed over the decoded field, every one
+of those sequences would carry the same tag. The rule applies to every string read off the wire,
+payload and header alike, and costs no valid payload anything: no writer has ever produced a byte
+sequence that is not valid UTF-8.
 
 ## 22.2 Value framing
 
@@ -1150,12 +1362,12 @@ length; reading one consumes it exactly, and trailing bytes inside a field are
 magic            int32   0x52455342
 version          int32   1
 compression      byte    CompressionAlgorithm
-customCompression        optional string
+customCompression        optional string, <= 256 UTF-8 bytes
 checksum         byte    ChecksumAlgorithm
-customChecksum           optional string
+customChecksum           optional string, <= 256 UTF-8 bytes
 encryption       byte    EncryptionAlgorithm
-customEncryption         optional string
-keyId                    optional string
+customEncryption         optional string, <= 256 UTF-8 bytes
+keyId                    optional string, <= 256 UTF-8 bytes
 preserveReferences bool
 uncompressedLength int32
 compressedLength   int32
@@ -1173,6 +1385,7 @@ Header invariants, each `BinaryFormatException` unless noted:
 - the magic must match, otherwise the stream is not a Viper payload;
 - an unknown version is `BinaryFormatNotSupportedException`;
 - an undefined algorithm identifier is `BinaryFormatNotSupportedException`;
+- every optional header string is at most 256 UTF-8 bytes;
 - all three lengths are non-negative and within their phase limits, otherwise `BinaryLimitException`;
 - `Compression = None` implies `compressedLength = uncompressedLength`;
 - `Encryption = None` implies `onDiskLength = compressedLength`;
@@ -1206,10 +1419,22 @@ wrong value either truncates the read or fails the tag.
 
 ## 22.8 V0 envelope
 
-No header: the payload is written as-is, with no magic number, and reading requires the caller to
-opt into the fallback. V0 has no metadata, so it supports neither keyed contracts nor reference
-framing, and it may be embedded in a larger stream, which is why it does not require the source to
-end with the payload.
+No envelope at all: the payload of §22.1–22.5 is written as-is, with no magic number and no leading
+or trailing bytes of any kind. A V0 payload is therefore byte-identical to the payload a V1 frame
+carries for the same value under the same member layout, positional or keyed, when that frame uses
+no compression, checksum, encryption or reference framing — the four things V0 does not have.
+Nothing identifies those bytes, so reading them as V0 requires the caller to opt in (§10.2).
+
+Having no header, V0 encodes no reference frames and no compression, checksum or encryption phase.
+The keyed object layout of §22.3 is payload-level and appears under V0 unchanged.
+
+Because the payload is not length-delimited by an envelope, a V0 payload may be embedded in a larger
+stream: the reader stops when the root value is complete and does not require the source to end
+there. Root canonicity (§10.1) is a V1 rule and does not apply. A keyed field's declared length is
+still checked against the bytes that can physically arrive before anything is allocated (§17), but
+for an embedded payload those bytes are the remainder of the containing stream rather than of a
+declared payload, so the check is weaker under V0 than under V1. The field window (§7.3) bounds what
+the field's decoder may actually consume in both cases.
 
 ---
 
@@ -1248,10 +1473,21 @@ Notes that belong to the contract:
   not their iteration order.
 - **`PriorityQueue<TElement,TPriority>`** round trips its unordered element/priority pairs, so
   dequeue order is reconstructed from the priorities rather than copied.
+- **`Lazy<T>`** travels as its value, so writing one **materializes** it: an unevaluated instance has
+  its factory run, and an exception from that factory is the caller's own and propagates unchanged
+  rather than being wrapped. Reading produces a `Lazy<T>` that already holds the value, so it never
+  fails and never runs a factory, though `IsValueCreated` is `false` until the value is first asked
+  for.
 - **Delegates** are rejected with `BinaryTypeException` as a root value, a member, or an element. Use
   `[BinaryIgnore]` on the member that holds one.
 - **Types without a parameterless constructor**, including interfaces and abstract classes without a
   `[BinaryUnion]` map, are `BinaryTypeException` on read.
+- **Memory-like values** — `Memory<T>`, `ReadOnlyMemory<T>`, `ArraySegment<T>` and
+  `ReadOnlySequence<T>` — travel as their elements alone (§22.3), so their backing storage is not
+  part of the value. A read builds a fresh array and wraps the whole of it: an `ArraySegment<T>`
+  comes back at offset zero over an array exactly as long as the segment, and a multi-segment
+  `ReadOnlySequence<T>` comes back as a single segment. A default `ArraySegment<T>`, which has no
+  backing array at all, is written as an empty segment.
 - **`ImmutableArray<T>`** distinguishes default from empty; every other container does not.
 
 # 24. Release checklist
@@ -1266,7 +1502,7 @@ A box is checked only when source and a test prove it.
 - [x] `FromHeader` / `FromStream` semantics are verified.
 - [x] Populate-in-place rejects non-member-encoded types.
 - [x] No hidden required API exists outside this document (§3 lists the whole surface).
-- [x] Every public member carries XML documentation; CS1591 is a build error gate.
+- [x] Every public member carries XML documentation, and it ships with the package.
 
 ## Exceptions
 
@@ -1279,7 +1515,8 @@ A box is checked only when source and a test prove it.
 - [x] Key-selection failures are `BinaryEncryptionKeyException`.
 - [x] Underlying stream I/O is `BinaryStreamException`.
 - [x] CLR/contract/reference semantics use `BinaryTypeException`.
-- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`) do not escape.
+- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`) do not escape, and neither
+  does an exception raised by a registered algorithm factory that a payload selected.
 - [x] No generic exception normalization exists in production.
 
 ## Limits and resources
@@ -1297,7 +1534,7 @@ A box is checked only when source and a test prove it.
 ## Formats
 
 - [x] V0 positional contract remains stable.
-- [x] V0 rejects keyed contracts.
+- [x] V0 carries the same payload encoding as V1, keyed contracts included.
 - [x] V1 header validation is deterministic.
 - [x] Header lengths are validated before phase allocation.
 - [x] V0/V1 routing is deterministic.
@@ -1312,7 +1549,10 @@ A box is checked only when source and a test prove it.
 - [x] Unknown keyed payloads are skipped without whole-payload allocation.
 - [x] Reference markers/IDs are validated; references are ancestor-scoped.
 - [x] The V1 header is authenticated when an AEAD algorithm is used.
-- [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades.
+- [x] Every field the tag covers has one encoding only: a boolean admits two bytes and a string
+  admits valid UTF-8, so no field can be rewritten into a second spelling of itself.
+- [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades, and are refused at
+  configuration time against a format that cannot carry protection.
 - [x] Temporary crypto buffers are cleared.
 - [x] Caller-owned key buffers are never destroyed by serializer-owned cleanup.
 - [x] Disposed crypto components cannot continue using invalid internal state.
@@ -1332,6 +1572,9 @@ A box is checked only when source and a test prove it.
 - [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test.
 - [x] Round-trip corpus covers every supported type family in V0 and V1.
 - [x] The byte-level wire format of §22 is pinned by tests.
-- [ ] `QA-Plan.md` mandatory cases pass (plan still to be realigned with §2).
+- [x] `QA-Plan.md` mandatory cases pass — M0 through M8 are closed and every checkpoint in the plan is proven.
 - [ ] `Benchmark-Plan.md` mandatory baseline is captured after the rework.
-- [ ] Release artifact includes reproducible environment/version metadata.
+- [x] Release artifact includes reproducible environment/version metadata — both packages that
+  carry code build deterministically, publish a `.snupkg` of their symbols, and record the
+  repository and the exact commit through Source Link, so a published package can be traced
+  back to the source it was built from and stepped into.

@@ -13,7 +13,9 @@ namespace ViShap.Viper;
 /// <para>
 /// The overloads that take a key, a key resolver, or nothing at all first inspect the payload's
 /// header and configure themselves from it — useful when you read data written elsewhere and do not
-/// know up front whether it is compressed or encrypted.
+/// know up front whether it is compressed or encrypted. The header decides only which algorithms
+/// unwrap the payload; the resource policy stays yours, so pass <c>limits</c> when reading data you
+/// do not trust and do not want bounded by <see cref="SerializationLimits.Default"/>.
 /// </para>
 /// </remarks>
 public static class StreamExtensions
@@ -55,19 +57,24 @@ public static class StreamExtensions
     /// <typeparam name="T">The declared type the payload was written with.</typeparam>
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <returns>The value, or <see langword="null"/> if the payload holds a null root.</returns>
-    public static T? Deserialize<T>(this Stream source) =>
-        source.Deserialize<T>((byte[]?)null);
+    /// <param name="limits">
+    /// Resource policy for the read, or <see langword="null"/> for <see cref="SerializationLimits.Default"/>.
+    /// The header supplies the algorithms the payload was written with; it never supplies the policy.
+    /// </param>
+    public static T? Deserialize<T>(this Stream source, SerializationLimits? limits = null) =>
+        source.Deserialize<T>((byte[]?)null, limits);
 
     /// <summary>Reads a value, configuring the reader from the header and decrypting with <paramref name="key"/>.</summary>
     /// <typeparam name="T">The declared type the payload was written with.</typeparam>
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="key">Key material, copied immediately; <see langword="null"/> when the payload is not encrypted.</param>
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
     /// <returns>The value, or <see langword="null"/> if the payload holds a null root.</returns>
-    public static T? Deserialize<T>(this Stream source, byte[]? key)
+    public static T? Deserialize<T>(this Stream source, byte[]? key, SerializationLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        var options = BinarySerializerOptions.FromStream(source, key);
+        var options = BinarySerializerOptions.FromStream(source, key, limits);
         return source.Deserialize<T>(options);
     }
 
@@ -78,13 +85,14 @@ public static class StreamExtensions
     /// <typeparam name="T">The declared type the payload was written with.</typeparam>
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="keyResolver">Returns the key for a given id.</param>
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
     /// <returns>The value, or <see langword="null"/> if the payload holds a null root.</returns>
-    public static T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver)
+    public static T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(keyResolver);
 
-        var options = BinarySerializerOptions.FromStream(source, keyResolver);
+        var options = BinarySerializerOptions.FromStream(source, keyResolver, limits);
         return source.Deserialize<T>(options);
     }
 
@@ -111,21 +119,23 @@ public static class StreamExtensions
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="existingInstance">The instance to populate.</param>
     /// <returns>The same instance, populated.</returns>
-    public static T? Deserialize<T>(this Stream source, T existingInstance) where T : class =>
-        source.Deserialize(existingInstance, (byte[]?)null);
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
+    public static T? Deserialize<T>(this Stream source, T existingInstance, SerializationLimits? limits = null) where T : class =>
+        source.Deserialize(existingInstance, (byte[]?)null, limits);
 
     /// <summary>Reads a payload into an object you already have, decrypting with <paramref name="key"/>.</summary>
     /// <typeparam name="T">A member-encoded type.</typeparam>
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="existingInstance">The instance to populate.</param>
     /// <param name="key">Key material, copied immediately; <see langword="null"/> when the payload is not encrypted.</param>
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
     /// <returns>The same instance, populated.</returns>
-    public static T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key) where T : class
+    public static T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : class
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(existingInstance);
 
-        var options = BinarySerializerOptions.FromStream(source, key);
+        var options = BinarySerializerOptions.FromStream(source, key, limits);
         return source.Deserialize(existingInstance, options);
     }
 
@@ -134,14 +144,15 @@ public static class StreamExtensions
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="existingInstance">The instance to populate.</param>
     /// <param name="keyResolver">Returns the key for a given id.</param>
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
     /// <returns>The same instance, populated.</returns>
-    public static T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver) where T : class
+    public static T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : class
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(existingInstance);
         ArgumentNullException.ThrowIfNull(keyResolver);
 
-        var options = BinarySerializerOptions.FromStream(source, keyResolver);
+        var options = BinarySerializerOptions.FromStream(source, keyResolver, limits);
         return source.Deserialize(existingInstance, options);
     }
 
@@ -165,19 +176,21 @@ public static class StreamExtensions
     /// <typeparam name="T">The value type the payload was written with.</typeparam>
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="existingInstance">Receives the value read.</param>
-    public static void Deserialize<T>(this Stream source, ref T existingInstance) where T : struct =>
-        source.Deserialize(ref existingInstance, (byte[]?)null);
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
+    public static void Deserialize<T>(this Stream source, ref T existingInstance, SerializationLimits? limits = null) where T : struct =>
+        source.Deserialize(ref existingInstance, (byte[]?)null, limits);
 
     /// <summary>Reads a value type, assigning the result, decrypting with <paramref name="key"/>.</summary>
     /// <typeparam name="T">The value type the payload was written with.</typeparam>
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="existingInstance">Receives the value read.</param>
     /// <param name="key">Key material, copied immediately; <see langword="null"/> when the payload is not encrypted.</param>
-    public static void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key) where T : struct
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
+    public static void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : struct
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        var options = BinarySerializerOptions.FromStream(source, key);
+        var options = BinarySerializerOptions.FromStream(source, key, limits);
         source.Deserialize(ref existingInstance, options);
     }
 
@@ -186,12 +199,13 @@ public static class StreamExtensions
     /// <param name="source">A seekable stream positioned at the start of a payload.</param>
     /// <param name="existingInstance">Receives the value read.</param>
     /// <param name="keyResolver">Returns the key for a given id.</param>
-    public static void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver) where T : struct
+    /// <param name="limits">Resource policy for the read, or <see langword="null"/> for the defaults.</param>
+    public static void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : struct
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(keyResolver);
 
-        var options = BinarySerializerOptions.FromStream(source, keyResolver);
+        var options = BinarySerializerOptions.FromStream(source, keyResolver, limits);
         source.Deserialize(ref existingInstance, options);
     }
 }

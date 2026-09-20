@@ -16,14 +16,47 @@ internal sealed class MeteredReadStream(
         : throw new ArgumentOutOfRangeException(nameof(maxBytes));
     private long _bytesRead;
 
-    public long RemainingBytes => _maxBytes - _bytesRead;
+    /// <summary>
+    /// What a declared length may still claim: the lesser of the operation's remaining budget and the
+    /// bytes the source can physically still yield.
+    /// </summary>
+    public long RemainingBytes
+    {
+        get
+        {
+            long budget = BudgetRemaining;
+            return PhysicalRemaining is { } physical && physical < budget ? physical : budget;
+        }
+    }
+
     public long BytesRead => _bytesRead;
 
-    /// <summary>Exceeding an operation budget is a limit violation, not a truncated payload.</summary>
+    private long BudgetRemaining => _maxBytes - _bytesRead;
+
+    /// <summary>
+    /// What the source can still deliver, or <see langword="null"/> when it cannot say. A nested meter
+    /// answers for itself, so the physical truth propagates through a chain of them.
+    /// </summary>
+    private long? PhysicalRemaining => _inner switch
+    {
+        IRemainingBytes bounded => bounded.RemainingBytes,
+        { CanSeek: true } => Math.Max(0, _inner.Length - _inner.Position),
+        _ => null
+    };
+
+    /// <summary>
+    /// Classifies a declaration this source cannot satisfy. Exceeding the operation budget is a limit
+    /// violation; fitting the budget but not the remaining bytes means the payload is shorter than it
+    /// claims, which is a malformed payload.
+    /// </summary>
     public BinaryFormatException Exceeded(long requested, string what) =>
-        new BinaryLimitException(
-            $"{what} needs {requested} byte(s), which would exceed the {resourceName} byte budget " +
-            $"of {_maxBytes}.");
+        requested > BudgetRemaining
+            ? new BinaryLimitException(
+                $"{what} needs {requested} byte(s), which would exceed the {resourceName} byte budget " +
+                $"of {_maxBytes}.")
+            : new BinaryFormatException(
+                $"{what} declares {requested} byte(s) but only {RemainingBytes} remain in the " +
+                $"{resourceName} stream.");
 
     public override bool CanRead => true;
     public override bool CanSeek => false;
@@ -44,7 +77,7 @@ internal sealed class MeteredReadStream(
         if (buffer.Length == 0)
             return 0;
 
-        if (buffer.Length > RemainingBytes)
+        if (buffer.Length > BudgetRemaining)
             throw new BinaryLimitException(
                 $"The {resourceName} byte budget of {_maxBytes} would be exceeded by reading " +
                 $"{buffer.Length} more bytes.");

@@ -50,7 +50,11 @@ public sealed record SerializationLimits
     /// </remarks>
     public int MaxDepth { get; init; } = 512;
 
-    /// <summary>Maximum length of a single array, and of the element product of a multi-dimensional one. Default 1,000,000.</summary>
+    /// <summary>
+    /// Maximum length of a single array. Default 1,000,000. For an array of rank greater than one it
+    /// bounds every dimension and the product of them all, so a shape with no elements still cannot
+    /// declare a dimension the runtime could not create.
+    /// </summary>
     public int MaxArrayLength { get; init; } = 1_000_000;
 
     /// <summary>Maximum number of elements in a single collection. Default 1,000,000.</summary>

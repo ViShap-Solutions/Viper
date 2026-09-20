@@ -6,12 +6,20 @@
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+        
         <PackageId>ViShap.Viper.Core</PackageId>
         <Authors>Vahe Babayan (0xVahe)</Authors>
         <Company>ViShap Solutions</Company>
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
         <Description>Core contracts, attributes, algorithm interfaces, and exceptions for Viper.</Description>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
         <PackageIcon>icon.png</PackageIcon>

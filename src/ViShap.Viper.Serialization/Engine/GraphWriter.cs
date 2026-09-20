@@ -9,18 +9,13 @@ internal sealed class GraphWriter
 {
     private readonly ValueWriter _values;
     private readonly SerializationOperation _operation;
-    private readonly bool _keyedContractsSupported;
     private readonly WriteReferenceTable? _references;
     private readonly HashSet<object>? _activeAncestors;
 
-    public GraphWriter(
-        ValueWriter values,
-        SerializationOperation operation,
-        bool keyedContractsSupported)
+    public GraphWriter(ValueWriter values, SerializationOperation operation)
     {
         _values = values;
         _operation = operation;
-        _keyedContractsSupported = keyedContractsSupported;
         _references = operation.PreserveReferences ? new WriteReferenceTable() : null;
         _activeAncestors = operation.PreserveReferences
             ? null
@@ -247,14 +242,11 @@ internal sealed class GraphWriter
 
     private void WriteKeyedMembers(object value, TypeContract contract)
     {
-        if (!_keyedContractsSupported)
-            throw new BinaryFormatNotSupportedException(
-                $"Type '{contract.Type}' uses [BinaryContract]/[BinaryKey], which requires the V1 " +
-                "keyed wire encoding to provide schema-evolution tolerance.");
-
         if (!_values.CanSeek)
             throw new NotSupportedException(
-                "Keyed contract encoding requires a seekable payload stream.");
+                $"Type '{contract.Type}' uses [BinaryContract]/[BinaryKey], which requires a " +
+                "seekable payload stream: each field's length is written ahead of the field and " +
+                "patched once the field's size is known.");
 
         var members = contract.Members;
         if (members.Length > _operation.Limits.MaxKeyedFields)

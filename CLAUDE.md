@@ -31,15 +31,37 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
   the same commit when behavior changes.
 - `docs/Architecture-Audit.md` — why the architecture looks like this: the audit that produced it,
   the alternatives that were rejected and why, the invariants, and the implementation status.
-- `docs/QA-Plan.md`, `docs/Benchmark-Plan.md` — **not yet realigned** with the reworked architecture.
-  Treat them as stale until they are.
+- `docs/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
+  staged M0–M8; §30 records confirmed defects and the resolved contract questions. The method for
+  working it lives in the `viper_tester` skill, not in the plan.
+- `docs/Benchmark-Plan.md` — **not yet realigned** with the reworked architecture. Treat it as stale.
 - `docs/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
 
 Current state: the architecture rework described in the audit is complete and `src/` matches the
-contract. 94 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
-so an undocumented public member breaks the build (CS1591).
+contract. The public API is fully XML-documented and `GenerateDocumentationFile` is on, so the docs
+ship beside the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` is what holds the line,
+by comparing the exported surface with the generated XML file.
+
+Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
+what it takes, what it returns, which exception it raises. It never cites `System-Contract.md` and
+never records project history.
+
+The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Concurrency/`,
+`Contracts/`, `Diagnostics/`, `Exceptions/`, `Fixtures/`, `Format/`, `Hostile/`, `Limits/`,
+`Metadata/`, `References/`, `RoundTrip/`, `Streams/`. Shared helpers live in `Fixtures/` (`AssertEx`,
+`Wire`, `Mutate`, `Concurrent`, `Cultures`, stream doubles) and are themselves tested. A test names no
+culture and no time zone: those come from the host, so the suite is green with and without
+globalization data (`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`).
+
+`Fixtures/Wire/*.bin` are the frozen v1.0.0 payloads, read by `Format/CompatibilityTests` against the
+frozen shapes in `Fixtures/Compatibility.cs`. They are never regenerated: a rebuilt fixture agrees
+with whatever the code became, so a failure there is a compatibility break, not a fixture to refresh.
+
+Every stage M0 through M8 is closed: nothing hand-written survives, and
+`Api/PublicSurfaceTests` compares the exported surface against §3 by reflection, so adding a public
+type fails the build's test run until the contract lists it.
 
 ## Projects
 
@@ -90,10 +112,12 @@ No shape fits a plain object: a type no formatter claims is member-encoded throu
 
 ### Versioned envelope
 
-`BinarySerializer` builds one pipeline per supported version. Writing uses `options.WriteVersion` (default `BinaryFormatConstants.LatestVersion` = 1). Reading is *self-describing*: `FormatRouter` peeks magic `0x52455342` + version and dispatches; a stream without the magic falls back to V0 only when `AllowV0Fallback` is set. **Reads therefore require a seekable stream.**
+`BinarySerializer` builds one pipeline per supported version. Writing uses `options.WriteVersion` (default `BinaryFormatConstants.LatestVersion` = 1). Reading a V1 payload is *self-describing*: `FormatRouter` peeks magic `0x52455342` + version and dispatches; a stream without the magic is read as V0 only when `AllowV0Fallback` is set, and is otherwise rejected rather than guessed at. **Reads therefore require a seekable stream.**
 
-- **V1** (`V1FormatPipeline`) — full envelope: `BinaryFormatHeaderV1` followed by the payload. Write order is serialize → checksum over the raw payload → compress → build AAD → encrypt → header. Read reverses it, verifies every declared length, and requires the payload to be consumed exactly. Only V1 supports keyed contracts and reference framing. The header is bound to authenticated encryption as associated data, so no header field can be altered without breaking the tag.
-- **V0** (`V0FormatPipeline`) — headerless raw payload, legacy compatibility only: positional layout, no references, no keyed contracts. It may be embedded in a larger stream, so it does not require the source to end with the payload.
+V0 and V1 are peers with different jobs, not a current format and a deprecated one — see `System-Contract.md` §10.
+
+- **V1** (`V1FormatPipeline`) — full envelope: `BinaryFormatHeaderV1` followed by the payload. Write order is serialize → checksum over the raw payload → compress → build AAD → encrypt → header. Read reverses it, verifies every declared length, and requires the payload to be consumed exactly. Only V1 supports reference framing. The header is bound to authenticated encryption as associated data, so no header field can be altered without breaking the tag.
+- **V0** (`V0FormatPipeline`) — the compact codec: a bare payload with no header at all, for transports that already supply their own context (private or tightly coordinated channels, IPC, protocols with their own framing). Having no header it has no reference framing and no compression/checksum/encryption phase — configured algorithms are simply not applied on a V0 write. Everything the payload itself expresses is unchanged: the full §23 type set, unions, **keyed contracts**, limits, budgets and metering, and for one value under one layout the payload bytes are identical to V1's. Because V0 writes straight through instead of buffering, a keyed write needs a seekable destination, otherwise `NotSupportedException`. A V0 payload is unauthenticated by construction, so `Build()` refuses `RequireEncryption`/`RequireChecksum` together with `WithVersion(0)` or `AllowV0Fallback` — both directions, so no operation-time check is needed. It may be embedded in a larger stream, so it does not require the source to end with the payload, and nothing in it identifies it, which is why reading one takes an explicit `AllowV0Fallback`.
 
 Adding a format version means a pipeline registered in `BinarySerializer`; the router picks it up. Formatters, the engine, the algorithms and the limits are untouched.
 
@@ -101,8 +125,8 @@ Adding a format version means a pipeline registered in `BinarySerializer`; the r
 
 `TypeContract` (`Engine/`) is the single materialized description of a concrete type, used identically by reader and writer:
 
-- **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields, delegates and indexers are skipped. Field order *is* the wire format.
-- **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Requires a seekable payload stream and V1.
+- **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields and indexers are skipped. A delegate-typed member is **rejected** — it carries behaviour, not data — so it must be marked `[BinaryIgnore]`. Field order *is* the wire format.
+- **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Payload-level, so it works under both format versions; the length is patched after the field is written, so it requires a seekable payload stream — invisible under V1, which buffers, but under V0 the caller's destination must seek.
 
 The two are mutually exclusive, and every contradiction is rejected when the contract is built: `[BinaryKey]` without `[BinaryContract]`, `[BinaryOrder]`/`[BinaryInclude]` on a contract, an unmarked contract member, `[BinaryKey]` together with `[BinaryIgnore]`, `[BinaryInclude]` together with `[BinaryIgnore]`, duplicate keys or orders.
 
@@ -124,8 +148,18 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
 
 ## Conventions
 
-- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern under `tests/.../API/`, `Security/` and `Correctness/`, with shared types in `Fixtures/`.
+- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern into the `QA-Plan.md` §2 folders listed above, with shared types in `Fixtures/`.
 - Work happens on `feature/*` / `bugfix/*` branches merged into `main` via PR.
 - Any change to what goes on the wire (formatter encoding, header fields, member ordering, reference framing) is a compatibility break unless it goes behind a new format version or a keyed contract.
 - Exception constructors keep the inner exception on the same line as the message, never on its own line.
 - Do not add `catch (BinarySerializerException) { throw; }` unless the catch performs real cleanup.
+- Comments describe what the code does, for the NuGet consumer reading XML docs on hover or the next
+  engineer reading the file. Nothing in `src/` or `tests/` addresses the reader personally or records
+  history — no "note:", no "before the fix", no audit or refactoring narrative. Findings and the
+  reasoning behind a decision belong in `docs/`.
+- The repository owner makes every commit. Never commit, push, or open a PR. Leave finished work in
+  the working tree and report the changed paths.
+- Whenever the work reaches a natural commit point — a QA-plan section or stage closed, a defect
+  fixed, a session wrapped up — end the report with a ready commit message in English. Keep it
+  terse, as the history is: one subject line, optionally a short clause after a dash naming the
+  consequence. No body, no bullet list, no trailer. The detail belongs in the report and in `docs/`.

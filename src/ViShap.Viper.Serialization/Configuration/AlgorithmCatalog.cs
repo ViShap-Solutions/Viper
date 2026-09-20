@@ -82,7 +82,18 @@ internal sealed class AlgorithmCatalog
                 $"'{customName ?? "(none)"}'. Register it on the options builder before reading a " +
                 "payload that names it.");
 
-        return factory()
+        T? algorithm;
+        try
+        {
+            algorithm = factory();
+        }
+        catch (Exception ex) when (ex is not BinarySerializerException)
+        {
+            throw new BinaryConfigurationException(
+                $"The custom {what} algorithm factory for '{customName}' failed.", ex);
+        }
+
+        return algorithm
                ?? throw new BinaryConfigurationException(
                    $"The custom {what} algorithm factory for '{customName}' returned null.");
     }

@@ -28,12 +28,12 @@ internal readonly record struct BinaryFormatHeaderV1(
         writer.WriteInt32(BinaryFormatConstants.Magic);
         writer.WriteInt32(Version);
         writer.WriteByte((byte)Compression);
-        WriteOptionalString(writer, CustomCompressionName);
+        WriteOptionalString(writer, CustomCompressionName, nameof(CustomCompressionName));
         writer.WriteByte((byte)ChecksumAlgorithm);
-        WriteOptionalString(writer, CustomChecksumName);
+        WriteOptionalString(writer, CustomChecksumName, nameof(CustomChecksumName));
         writer.WriteByte((byte)Encryption);
-        WriteOptionalString(writer, CustomEncryptionName);
-        WriteOptionalString(writer, KeyId);
+        WriteOptionalString(writer, CustomEncryptionName, nameof(CustomEncryptionName));
+        WriteOptionalString(writer, KeyId, nameof(KeyId));
         writer.WriteBoolean(PreserveReferences);
         writer.WriteInt32(UncompressedLength);
         writer.WriteInt32(CompressedLength);
@@ -60,12 +60,12 @@ internal readonly record struct BinaryFormatHeaderV1(
                 $"Expected format version {Version}, but found {formatVersion}.");
 
         var compression = ReadEnum<CompressionAlgorithm>(reader, "compression");
-        string? customCompression = ReadOptionalString(reader);
+        string? customCompression = ReadOptionalString(reader, nameof(CustomCompressionName));
         var checksumAlgorithm = ReadEnum<ChecksumAlgorithm>(reader, "checksum");
-        string? customChecksum = ReadOptionalString(reader);
+        string? customChecksum = ReadOptionalString(reader, nameof(CustomChecksumName));
         var encryption = ReadEnum<EncryptionAlgorithm>(reader, "encryption");
-        string? customEncryption = ReadOptionalString(reader);
-        string? keyId = ReadOptionalString(reader);
+        string? customEncryption = ReadOptionalString(reader, nameof(CustomEncryptionName));
+        string? keyId = ReadOptionalString(reader, nameof(KeyId));
         bool preserveReferences = reader.ReadBoolean();
 
         int uncompressedLength = reader.ReadInt32();
@@ -150,14 +150,16 @@ internal readonly record struct BinaryFormatHeaderV1(
         return value;
     }
 
-    private static void WriteOptionalString(ValueWriter writer, string? value)
+    private static void WriteOptionalString(ValueWriter writer, string? value, string what)
     {
         bool hasValue = !string.IsNullOrEmpty(value);
         writer.WriteBoolean(hasValue);
         if (hasValue)
-            writer.WriteString(value!);
+            writer.WriteString(value!, BinaryFormatConstants.MaxHeaderStringBytes, what);
     }
 
-    private static string? ReadOptionalString(ValueReader reader) =>
-        reader.ReadBoolean() ? reader.ReadString() : null;
+    private static string? ReadOptionalString(ValueReader reader, string what) =>
+        reader.ReadBoolean()
+            ? reader.ReadString(BinaryFormatConstants.MaxHeaderStringBytes, what)
+            : null;
 }

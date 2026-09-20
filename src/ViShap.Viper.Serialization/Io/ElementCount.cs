@@ -58,8 +58,10 @@ internal readonly struct ElementCount
     }
 
     /// <summary>
-    /// Validates a multi-dimensional shape: every dimension, the overflow-safe product, and the
-    /// resulting element budget.
+    /// Validates a multi-dimensional shape: every dimension against <c>MaxArrayLength</c>, the
+    /// overflow-safe product, and the resulting element budget. A dimension is bounded on its own as
+    /// well as through the product, because a shape such as <c>[0, int.MaxValue]</c> has no elements
+    /// yet still describes an array the runtime cannot create.
     /// </summary>
     internal static ElementCount ValidateShape(
         int[] lengths,
@@ -76,6 +78,11 @@ internal readonly struct ElementCount
             if (length < 0)
                 throw new BinaryFormatException(
                     $"{what}: a dimension length {length} must be non-negative.");
+
+            if (length > maximum)
+                throw new BinaryLimitException(
+                    $"{what}: a dimension length {length} exceeds the configured maximum of " +
+                    $"{maximum}.");
 
             if (length == 0)
             {

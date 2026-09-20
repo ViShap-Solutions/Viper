@@ -1,9 +1,9 @@
-using System.Text;
+﻿using System.Text;
 
 namespace ViShap.Viper.Diagnostics;
 
 /// <summary>
-/// Diagnostic rendering of a payload's envelope. This is tooling, not production behaviour: it turns
+/// Diagnostic rendering of a payload's envelope. This is tooling, not production behavior: it turns
 /// a failure into readable output, so unlike the serializer it is allowed to report an error as text
 /// instead of propagating it.
 /// </summary>
@@ -15,6 +15,7 @@ public static class BinaryFormatDumper
     /// A short report naming the format version and the algorithms, or a description of why the header
     /// could not be read. This method does not throw for malformed input.
     /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="payload"/> is null.</exception>
     public static string DumpHeader(byte[] payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -31,6 +32,11 @@ public static class BinaryFormatDumper
     /// A short report naming the format version and the algorithms, or a description of why the header
     /// could not be read. This method does not throw for malformed input.
     /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="NotSupportedException">
+    /// <paramref name="source"/> cannot seek. Reading a header without consuming the stream needs
+    /// seekability, so this is a caller mistake rather than something to report as text.
+    /// </exception>
     public static string DumpHeader(Stream source)
     {
         ArgumentNullException.ThrowIfNull(source);

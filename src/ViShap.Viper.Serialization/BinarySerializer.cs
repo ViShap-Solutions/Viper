@@ -10,9 +10,15 @@ namespace ViShap.Viper;
 /// so a long-lived instance is faster than a fresh one per call.
 /// </para>
 /// <para>
-/// Payloads are self-describing: the header records the format version and the algorithms used, so a
-/// reader configured differently still knows how to unwrap the data. Reading therefore needs a
-/// seekable stream, since the version is inspected before anything is consumed.
+/// Version 1 payloads are self-describing: the header records the format version and the algorithms
+/// used, so a reader configured differently still knows how to unwrap the data. Reading therefore
+/// needs a seekable stream, since the version is inspected before anything is consumed.
+/// </para>
+/// <para>
+/// Version 0 is the compact alternative for a transport that already supplies its own context: a
+/// bare positional payload with no header at all. Nothing in it identifies it, so a reader accepts
+/// one only when configured with
+/// <see cref="BinarySerializerOptionsBuilder.AllowV0Fallback(bool)"/>.
 /// </para>
 /// <para>
 /// Deserialization of untrusted input is bounded by <see cref="Security.SerializationLimits"/>. A
@@ -55,10 +61,10 @@ public sealed class BinarySerializer
                 _options.Catalog)
         };
 
-        if (_options.AllowV0Fallback)
-            pipelines[0] = new V0FormatPipeline();
+        if (_options.AllowV0Fallback || _options.WriteVersion == V0FormatPipeline.Version)
+            pipelines[V0FormatPipeline.Version] = new V0FormatPipeline();
 
-        _router = new FormatRouter(pipelines);
+        _router = new FormatRouter(pipelines, _options.AllowV0Fallback);
     }
 
     /// <summary>Writes <paramref name="data"/> to <paramref name="destination"/>.</summary>
@@ -69,11 +75,16 @@ public sealed class BinarySerializer
     /// <param name="data">The value to write. May be <see langword="null"/> for reference types.</param>
     /// <param name="destination">
     /// The stream to append to. It is left open, and its position is not reset; only the bytes this
-    /// call produces count against <see cref="Security.SerializationLimits.MaxWireBytes"/>.
+    /// call produces count against <see cref="Security.SerializationLimits.MaxWireBytes"/>. Writing a
+    /// <see cref="BinaryContractAttribute"/> type under format version 0 needs it to be seekable,
+    /// because that version writes through instead of buffering the payload.
     /// </param>
     /// <exception cref="Exceptions.BinaryTypeException">The type or the object graph cannot be encoded.</exception>
     /// <exception cref="Exceptions.BinaryLimitException">A configured limit was exceeded.</exception>
     /// <exception cref="Exceptions.BinaryStreamException">The destination stream failed.</exception>
+    /// <exception cref="NotSupportedException">
+    /// A keyed contract is written under format version 0 to a stream that cannot seek.
+    /// </exception>
     public void Serialize<T>(Stream destination, T data) =>
         _router.ForWriting(_options.WriteVersion).Write(destination, data, BeginOperation());
 
@@ -106,13 +117,13 @@ public sealed class BinarySerializer
 
     /// <summary>Reads a value from a byte array.</summary>
     /// <typeparam name="T">The declared type the payload was written with.</typeparam>
-    /// <param name="bytes">The payload. An empty array yields the default of <typeparamref name="T"/>.</param>
+    /// <param name="bytes">The payload. An empty array is not one, and is rejected.</param>
     /// <returns>The value, or <see langword="null"/> if the payload holds a null root.</returns>
+    /// <exception cref="Exceptions.BinaryFormatException"><paramref name="bytes"/> is empty, malformed or truncated.</exception>
     public T? Deserialize<T>(byte[] bytes)
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        if (bytes.Length == 0)
-            return default;
+        RequireNonEmpty(bytes);
 
         using var buffer = new MemoryStream(bytes, writable: false);
         return Deserialize<T>(buffer);
@@ -137,15 +148,15 @@ public sealed class BinarySerializer
 
     /// <summary>Reads a payload into an object you already have.</summary>
     /// <typeparam name="T">A member-encoded type; see <see cref="Deserialize{T}(Stream, T)"/>.</typeparam>
-    /// <param name="bytes">The payload. An empty array leaves the instance untouched and returns <see langword="null"/>.</param>
+    /// <param name="bytes">The payload. An empty array is not one, and is rejected.</param>
     /// <param name="existingInstance">The instance to populate.</param>
     /// <returns>The same instance, populated.</returns>
+    /// <exception cref="Exceptions.BinaryFormatException"><paramref name="bytes"/> is empty, malformed or truncated.</exception>
     public T? Deserialize<T>(byte[] bytes, T existingInstance) where T : class
     {
         ArgumentNullException.ThrowIfNull(bytes);
         ArgumentNullException.ThrowIfNull(existingInstance);
-        if (bytes.Length == 0)
-            return null;
+        RequireNonEmpty(bytes);
 
         using var buffer = new MemoryStream(bytes, writable: false);
         return Deserialize(buffer, existingInstance);
@@ -164,15 +175,22 @@ public sealed class BinarySerializer
 
     /// <summary>Reads a value type from a byte array, assigning the result.</summary>
     /// <typeparam name="T">The value type the payload was written with.</typeparam>
-    /// <param name="bytes">The payload. An empty array leaves <paramref name="existingInstance"/> untouched.</param>
+    /// <param name="bytes">The payload. An empty array is not one, and is rejected.</param>
     /// <param name="existingInstance">Receives the value read.</param>
+    /// <exception cref="Exceptions.BinaryFormatException"><paramref name="bytes"/> is empty, malformed or truncated.</exception>
     public void Deserialize<T>(byte[] bytes, ref T existingInstance) where T : struct
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        if (bytes.Length == 0)
-            return;
+        RequireNonEmpty(bytes);
 
         existingInstance = Deserialize<T>(bytes);
+    }
+
+    private static void RequireNonEmpty(byte[] bytes)
+    {
+        if (bytes.Length == 0)
+            throw new BinaryFormatException(
+                "The payload is empty. No wire format encodes a value in zero bytes.");
     }
 
     private SerializationOperation BeginOperation() =>

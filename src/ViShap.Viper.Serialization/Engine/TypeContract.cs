@@ -31,7 +31,7 @@ internal sealed class TypeContract
     public required MemberLayout Layout { get; init; }
     public required MemberBinding[] Members { get; init; }
     public IReadOnlyDictionary<int, MemberBinding>? MembersByKey { get; init; }
-    public required bool HasParameterlessConstructor { get; init; }
+    public required bool CanBeConstructed { get; init; }
 }
 
 /// <summary>Tag ↔ type map declared by <see cref="BinaryUnionAttribute"/> on a base type.</summary>
@@ -99,22 +99,23 @@ internal static class TypeContractCache
     {
         var candidates = Candidates(type).ToArray();
         bool isContract = type.GetCustomAttribute<BinaryContractAttribute>() is not null;
-
-        bool hasParameterlessConstructor =
+ 
+        bool canBeConstructed =
             type.IsValueType ||
-            type.GetConstructor(
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-                Type.EmptyTypes) is not null;
+            (!type.IsAbstract &&
+             type.GetConstructor(
+                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                 Type.EmptyTypes) is not null);
 
         return isContract
-            ? BuildKeyed(type, candidates, hasParameterlessConstructor)
-            : BuildPositional(type, candidates, hasParameterlessConstructor);
+            ? BuildKeyed(type, candidates, canBeConstructed)
+            : BuildPositional(type, candidates, canBeConstructed);
     }
 
     private static TypeContract BuildPositional(
         Type type,
         Candidate[] candidates,
-        bool hasParameterlessConstructor)
+        bool canBeConstructed)
     {
         var stray = candidates.Where(c => c.Key is not null).ToArray();
         if (stray.Length > 0)
@@ -132,6 +133,8 @@ internal static class TypeContractCache
             .Where(c => !c.HasIgnore)
             .Where(c => c.IsPubliclyVisible || c.HasInclude)
             .ToArray();
+
+        RejectDelegates(type, eligible);
 
         var duplicateOrders = eligible
             .Where(c => c.Order != int.MaxValue)
@@ -154,14 +157,14 @@ internal static class TypeContractCache
                 .Select(c => c.Binding)
                 .ToArray(),
             MembersByKey = null,
-            HasParameterlessConstructor = hasParameterlessConstructor
+            CanBeConstructed = canBeConstructed
         };
     }
 
     private static TypeContract BuildKeyed(
         Type type,
         Candidate[] candidates,
-        bool hasParameterlessConstructor)
+        bool canBeConstructed)
     {
         var strayInclude = candidates.Where(c => c.HasInclude).ToArray();
         if (strayInclude.Length > 0)
@@ -190,6 +193,8 @@ internal static class TypeContractCache
 
         var keyed = candidates.Where(c => c.Key is not null).ToArray();
 
+        RejectDelegates(type, keyed);
+
         var negative = keyed.Where(c => c.Key!.Value < 0).ToArray();
         if (negative.Length > 0)
             throw new BinaryTypeException(
@@ -210,12 +215,25 @@ internal static class TypeContractCache
             Layout = MemberLayout.Keyed,
             Members = ordered.Select(c => c.Binding).ToArray(),
             MembersByKey = ordered.ToDictionary(c => c.Key!.Value, c => c.Binding),
-            HasParameterlessConstructor = hasParameterlessConstructor
+            CanBeConstructed = canBeConstructed
         };
     }
 
     private static string Join(IEnumerable<Candidate> candidates) =>
         string.Join(", ", candidates.Select(c => c.Name));
+
+    private static void RejectDelegates(Type type, IEnumerable<Candidate> members)
+    {
+        var delegates = members
+            .Where(c => typeof(Delegate).IsAssignableFrom(c.Binding.MemberType))
+            .ToArray();
+
+        if (delegates.Length > 0)
+            throw new BinaryTypeException(
+                $"'{type}' member(s) [{Join(delegates)}] are delegates, which carry behaviour rather " +
+                "than data and have no representation on the wire. Mark them [BinaryIgnore] to state " +
+                "that they are not part of the serialized state.");
+    }
 
     private static IEnumerable<Candidate> Candidates(Type type)
     {
@@ -225,7 +243,6 @@ internal static class TypeContractCache
         {
             if (!property.CanRead || !property.CanWrite) continue;
             if (property.GetIndexParameters().Length != 0) continue;
-            if (typeof(Delegate).IsAssignableFrom(property.PropertyType)) continue;
 
             yield return Candidate.From(
                 property.Name,
@@ -239,7 +256,6 @@ internal static class TypeContractCache
         foreach (var field in type.GetFields(flags))
         {
             if (field.IsInitOnly) continue;
-            if (typeof(Delegate).IsAssignableFrom(field.FieldType)) continue;
             if (field.GetCustomAttribute<CompilerGeneratedAttribute>() is not null) continue;
 
             yield return Candidate.From(

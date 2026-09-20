@@ -1,4 +1,4 @@
-﻿namespace ViShap.Viper.Serialization.Tests.Fixtures;
+namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 public class Person
 {
@@ -40,6 +40,21 @@ public class OldSchema
     [BinaryKey(2)] public Node? Kept { get; set; }
 }
 
+[BinaryContract]
+public class UnsortedKeys
+{
+    [BinaryKey(5)] public int Late { get; set; }
+
+    [BinaryKey(1)] public int Early { get; set; }
+}
+
+[BinaryContract]
+public class NestedSchema
+{
+    [BinaryKey(1)] public NewSchema? Inner { get; set; }
+    [BinaryKey(2)] public string? Tag { get; set; }
+}
+
 public class Base
 {
     public int Z { get; set; }
@@ -78,4 +93,65 @@ public class ContradictoryPositional
     [BinaryInclude, BinaryIgnore] private int _secret = 42;
 
     public int Visible { get; set; }
+}
+
+[BinaryUnion(0, typeof(TaggedBase))]
+[BinaryUnion(1, typeof(TaggedDerived))]
+public class TaggedBase
+{
+    public int Z { get; set; }
+}
+
+public class TaggedDerived : TaggedBase
+{
+    public int A { get; set; }
+}
+
+public class WithDelegate
+{
+    public int Value { get; set; }
+    public Func<int>? Callback { get; set; }
+}
+
+public class WithIgnoredDelegate
+{
+    public int Value { get; set; }
+
+    [BinaryIgnore] public Func<int>? Callback { get; set; }
+}
+
+public class WithDelegateField
+{
+    public Action? Handler;
+}
+
+public class WithEvent
+{
+    public int Value { get; set; }
+
+    public event EventHandler? Changed;
+
+    public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+}
+
+[BinaryContract]
+public class ContractWithKeyedDelegate
+{
+    [BinaryKey(1)] public Func<int>? Callback { get; set; }
+}
+
+[BinaryContract]
+public class ContractWithIgnoredDelegate
+{
+    [BinaryKey(1)] public int Value { get; set; }
+
+    [BinaryIgnore] public Func<int>? Callback { get; set; }
+}
+
+[BinaryContract]
+public class ContractWithUnmarkedDelegate
+{
+    [BinaryKey(1)] public int Value { get; set; }
+
+    public Func<int>? Callback { get; set; }
 }

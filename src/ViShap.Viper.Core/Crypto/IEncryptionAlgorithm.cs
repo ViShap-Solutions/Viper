@@ -39,8 +39,18 @@ public interface IEncryptionAlgorithm
     /// therefore protects the payload's format metadata against tampering.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Defaults to <see langword="false"/>, which is correct for an implementation that does not
-    /// override the associated-data overloads. Such an algorithm cannot satisfy <c>RequireEncryption</c>.
+    /// override the associated-data overloads. Such an algorithm leaves the format header as
+    /// unauthenticated metadata: it cannot satisfy <c>RequireEncryption</c>, and a payload written
+    /// with it is refused when read under that policy.
+    /// </para>
+    /// <para>
+    /// The associated data is always passed to the associated-data overloads, whatever this property
+    /// says, so returning <see langword="true"/> is an undertaking that those bytes take part in the
+    /// authentication tag. Nothing can verify that for you — an algorithm that claims it and ignores
+    /// the associated data silently removes the protection <c>RequireEncryption</c> exists to give.
+    /// </para>
     /// </remarks>
     bool AuthenticatesAssociatedData => false;
 

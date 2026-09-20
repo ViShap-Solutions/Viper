@@ -1,11 +1,13 @@
 namespace ViShap.Viper.Pipeline;
 
 /// <summary>
-/// Selects the wire format. Reading is self-describing: the magic number and version are peeked
-/// without consuming the stream, and a stream without them is only treated as V0 when the caller
-/// opted into that fallback.
+/// Selects the wire format. A V1 payload describes itself: the magic number and version are peeked
+/// without consuming the stream. A V0 payload does not, so a stream without them is read as V0 only
+/// when the caller opted in, and is otherwise rejected rather than guessed at.
 /// </summary>
-internal sealed class FormatRouter(IReadOnlyDictionary<int, IFormatPipeline> pipelines)
+internal sealed class FormatRouter(
+    IReadOnlyDictionary<int, IFormatPipeline> pipelines,
+    bool allowHeaderlessFallback)
 {
     public IFormatPipeline ForWriting(int version) =>
         pipelines.TryGetValue(version, out var pipeline)
@@ -26,7 +28,7 @@ internal sealed class FormatRouter(IReadOnlyDictionary<int, IFormatPipeline> pip
         {
             if (BinaryHeaderPeek.TryPeekMagicAndVersion(source, out int detected))
                 version = detected;
-            else if (pipelines.ContainsKey(0))
+            else if (allowHeaderlessFallback && pipelines.ContainsKey(0))
                 version = 0;
             else
                 throw new BinaryFormatException(
