@@ -233,3 +233,75 @@ public class SharingDensityBenchmarks
     [Benchmark(Description = "SCALE-07 deserialize")]
     public object? Deserialize() => _adapter.Deserialize<List<DagNode>>(_payload);
 }
+
+/// <summary>
+/// §19 SCALE-04 — member count, positional against keyed, at five sizes.
+/// </summary>
+/// <remarks>
+/// The two layouts are measured over the same member cycle in the same order, so a difference between
+/// them is the layout and nothing else: a keyed field carries its key and a patched length, a positional
+/// one carries neither. The 200-member positional type is DATA-18 itself, which makes the 200 row the
+/// steady-state half of DIFF-03; the first-use half is the contract construction the component runner
+/// reports for the same types.
+/// <para>
+/// The value is selected once and reached through a delegate, which costs one call per invocation in
+/// every cell of the table alike.
+/// </para>
+/// </remarks>
+[MemoryDiagnoser]
+public class MemberCountScalingBenchmarks
+{
+    private Func<byte[]> _serialize = null!;
+    private Func<byte[], object?> _deserialize = null!;
+    private byte[] _payload = [];
+
+    [Params(5, 20, 50, 100, 200)]
+    public int Members { get; set; }
+
+    [Params(false, true)]
+    public bool Keyed { get; set; }
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var adapter = new ViperAdapter(ViperProfile.Default);
+        var rng = new DeterministicRandom(0x0000_5004UL + (ulong)Members);
+
+        if (Keyed)
+        {
+            switch (Members)
+            {
+                case 5: Bind(WideModels.Populate(new WideKeyed005(), rng)); break;
+                case 20: Bind(WideModels.Populate(new WideKeyed020(), rng)); break;
+                case 50: Bind(WideModels.Populate(new WideKeyed050(), rng)); break;
+                case 100: Bind(WideModels.Populate(new WideKeyed100(), rng)); break;
+                default: Bind(WideModels.Populate(new WideKeyed200(), rng)); break;
+            }
+        }
+        else
+        {
+            switch (Members)
+            {
+                case 5: Bind(WideModels.Populate(new WidePositional005(), rng)); break;
+                case 20: Bind(WideModels.Populate(new WidePositional020(), rng)); break;
+                case 50: Bind(WideModels.Populate(new WidePositional050(), rng)); break;
+                case 100: Bind(WideModels.Populate(new WidePositional100(), rng)); break;
+                default: Bind(WideModels.Populate(new WideObject(), rng)); break;
+            }
+        }
+
+        _payload = _serialize();
+
+        void Bind<T>(T value)
+        {
+            _serialize = () => adapter.Serialize(value);
+            _deserialize = payload => adapter.Deserialize<T>(payload);
+        }
+    }
+
+    [Benchmark(Description = "SCALE-04 serialize")]
+    public byte[] Serialize() => _serialize();
+
+    [Benchmark(Description = "SCALE-04 deserialize")]
+    public object? Deserialize() => _deserialize(_payload);
+}

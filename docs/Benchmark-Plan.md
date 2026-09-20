@@ -6,13 +6,14 @@
 **Scope:** the published performance of `src/`, measured against the current market and frozen as the v1.0.0 baseline
 **Gates:** no release. This plan gates what may be *claimed* about performance, never whether a version ships *(§28)*
 **Normative source:** `System-Contract.md` — a benchmark measures behavior the contract defines; it never defines behavior
-**Method:** `.claude/skills/viper_bencher.md` — this document holds items and gates only
+**Contents:** items, the rules that define each experiment, and gates. Nothing else — no method, and no result
+**References:** a bare `§n` is a section of this plan; a section of the contract is written `Contract §n`
 
 ---
 
 # 1. How to read this plan
 
-This is a **checkpoint list**, worked through incrementally. It contains items, the rules that define the experiment, and gates. Investigation method, triage of a surprising number, profiling technique and reporting style live in the bencher skill.
+This is a **checkpoint list**, worked through incrementally. It contains items, the rules that define the experiment, and gates. Investigation method, triage of a surprising number, profiling technique and reporting style are not in this document.
 
 Every item has the form:
 
@@ -35,10 +36,10 @@ Measurement layers used below:
 
 | Layer | Meaning |
 |---|---|
-| **B1** | **Comparative.** Viper against another library, inside one capability tier (§6). |
-| **B2** | **Configuration.** Viper against Viper: format version, profile, options, member layout. |
-| **B3** | **Component.** One mechanism measured on its own: directly, below the public API through an `InternalsVisibleTo` grant — formatters, value primitives, contracts, budgets, header, metered streams — or, where no grant exists, by subtracting two public measurements that differ in that mechanism alone. |
-| **B4** | **System.** Process-level: cold start, parallel throughput, sustained load, working set. |
+| **L1** | **Comparative.** Viper against another library, inside one capability tier (§6). |
+| **L2** | **Configuration.** Viper against Viper: format version, profile, options, member layout. |
+| **L3** | **Component.** One mechanism measured on its own: directly, below the public API through an `InternalsVisibleTo` grant — formatters, value primitives, contracts, budgets, header, metered streams — or, where no grant exists, by subtracting two public measurements that differ in that mechanism alone. |
+| **L4** | **System.** Process-level: cold start, parallel throughput, sustained load, working set. |
 
 Result states, used in every published cell:
 
@@ -79,21 +80,23 @@ benchmarks/ViShap.Viper.Serialization.Benchmarks/
   Capabilities/                 the probes that produce the capability matrix
   Verification/                 round-trip and equivalence checks run before any timing
   Suites/                       the benchmark classes of §10
+    Components/                 the §18.1 component suites, kept apart from every market table
   Reporting/                    raw results → published report and charts
   Baselines/                    frozen baseline packages, one per release
+  Measurements/                 partial runs, one directory per run
+  reproduction/                 the containerised check of §26, run from a base image
 ```
 
 Constraints on the layout:
 
 - The benchmark project references `src/` by project reference, is never packable, and changes nothing in it.
 - Model variants are written per library, and all of them are checked against one `Schema/` description (§7.4), so "the same logical data" is a property the harness proves rather than a claim in prose.
-- Comparative suites (B1) use the public surface of §3 alone, because that is what a consumer has. Component suites (B3) reach below it through the `InternalsVisibleTo` grant of §18.3, and are never mixed into a market table.
+- Comparative suites (L1) use the public surface of §3 alone, because that is what a consumer has. Component suites (L3) reach below it through the `InternalsVisibleTo` grant of §18.3, and are never mixed into a market table.
 - No adapter for a competitor ever reaches into Viper internals; the two sides of a comparison always use the same kind of surface.
 
 - [x] LAY-01 — the layout above exists and the project builds in Release
 - [x] LAY-02 — `dotnet run -c Release -- --list flat` enumerates every suite of §10
-- [ ] LAY-03 — the benchmark project is excluded from packing and from the CI verification job
-- [ ] LAY-04 — a `--job Dry` smoke run of the whole switcher completes in CI on every push, proving the harness still runs; its numbers are never published
+- [x] LAY-03 — the benchmark project is never packable, so no part of it can reach a released package
 
 ---
 
@@ -106,17 +109,17 @@ A stage belongs to one track or to both (§29). A stage that contains Track B it
 | Stage | Content | Layer | Closes on | Gate |
 |---|---|---|---|---|
 | **B0** | Harness foundation — §2 layout, §4 environment lock, §7 fairness machinery, §8 profiles, §9 corpus, verification | — | A + B | Every dataset round-trips through every adapter and the capability matrix is generated from probes, before a single timing exists |
-| **B1** | Viper against Viper — §8 profiles over §9 corpus | B2 | **A** | Every profile measured on every dataset it supports; the cost of each envelope feature separated from the cost of the payload |
-| **B2** | Comparative core — §10 workloads inside the §6 tiers | B1 | **B** | Every mandatory library of §5.2 measured on every dataset of its tiers, or explicitly `Unsupported` |
-| **B3** | Size — §14 payload size and envelope accounting | B1, B2 | A + B | Size recorded for every (adapter, dataset) pair, with no timing in the same table |
-| **B4** | Algorithms — §15 compression, §16 checksum and encryption, §17 composed baselines | B2, B1 | A + B | Every phase measured separately and in combination; the protected envelope compared against a hand-composed equivalent |
-| **B5** | Resources — §13 allocation and GC, §20 working set | B2, B1, B4 | A + B | Allocation attributed per phase; no published number from a run without `MemoryDiagnoser` |
-| **B6** | Scaling — §19 curves over the §9 sweeps | B2, B1 | **A** | Each curve has at least five points and states where its slope changes |
-| **B7** | System — §20 cold start, §21 concurrency, §22 soak | B4 | A + B | Cold start measured in fresh processes, concurrency on real threads, soak showing no unbounded growth |
-| **B8** | Publication — §23 artifacts, §24 charts, §25 baseline, §26 reproduction | — | A + B | The report regenerates from the raw files with one command, and §28 is fully evaluated |
-| **B9** | Component measurements — §18 | B3 | **A** | Every mechanism of §18.1 measured for time and allocation, with §18.2 agreeing within margins. Diagnostic only; never published as a market comparison |
+| **B1** | Viper against Viper — §8 profiles over §9 corpus | L2 | **A** | Every profile measured on every dataset it supports; the cost of each envelope feature separated from the cost of the payload |
+| **B2** | Comparative core — §10 workloads inside the §6 tiers | L1 | **B** | Every mandatory library of §5.2 measured on every dataset of its tiers, or explicitly `Unsupported` |
+| **B3** | Size — §14 payload size and envelope accounting | L1, L2 | A + B | Size recorded for every (adapter, dataset) pair, with no timing in the same table |
+| **B4** | Algorithms — §15 compression, §16 checksum and encryption, §17 composed baselines | L2, L1 | A + B | Every phase measured separately and in combination; the protected envelope compared against a hand-composed equivalent |
+| **B5** | Component measurements — §18 | L3 | **A** | Every mechanism of §18.1 measured for time and allocation, with §18.2 agreeing within margins. Diagnostic only; never published as a market comparison |
+| **B6** | Resources — §13 allocation and GC, §20 working set | L2, L1, L4 | A + B | Allocation attributed per phase from B5, and no published number from a run without `MemoryDiagnoser` |
+| **B7** | Scaling — §19 curves over the §9 sweeps | L2, L1 | **A** | Each curve has at least five points and states where its slope changes |
+| **B8** | System — §20 cold start, §21 concurrency, §22 soak | L4 | A + B | Cold start measured in fresh processes, concurrency on real threads, soak showing no unbounded growth |
+| **B9** | Publication — §23 artifacts, §24 charts, §25 baseline, §26 reproduction | — | A + B | The report regenerates from the raw files with one command, and §28 is fully evaluated |
 
-B9 runs last on purpose: isolating a mechanism is only worth doing once the end-to-end picture says which mechanism matters. Its results are kept whatever they say — they are the per-component record a later version measures its own changes against.
+The order is the dependency order: a stage needs only stages before it. B5 follows the end-to-end stages because isolating a mechanism is only worth doing once the end-to-end picture says which mechanism matters, and it precedes B6 because attributing allocation to a phase is reading B5's figures. Its results are kept whatever they say — they are the per-component record a later version measures its own changes against.
 
 ---
 
@@ -238,7 +241,7 @@ Viper appears in every tier, in the configuration that belongs to that tier.
 |---|---|---|---|
 | **T0** | **Compact codec, closed world.** Both ends deployed together, schema fixed, no metadata on the wire, context supplied by the transport | V0 (B-P7) | MemoryPack, MessagePack, protobuf-net, Nerdbank.MessagePack, Google.Protobuf |
 | **T1** | **Self-describing envelope.** The payload states how it was produced — algorithms, lengths, flags — and a reader the writer never configured can act on it | V1 default (B-P0) | Orleans, System.Text.Json. A format that describes its values but not its production — MessagePack signals its own LZ4 compression and nothing else, MemoryPack signals nothing — is placed by its probe, and the cell names exactly what the payload does and does not carry |
-| **T2** | **Schema evolution.** A field added, removed or reordered on one side is tolerated by the other, and unknown data is skipped rather than fatal | V1 and V0 keyed contracts (B-P8) | protobuf-net, MessagePack keyed, Nerdbank.MessagePack, Orleans, System.Text.Json |
+| **T2** | **Schema evolution.** A field added, removed or reordered on one side is tolerated by the other, and unknown data is skipped rather than fatal | V1 and V0 over keyed models (B-P0, B-P7) | protobuf-net, MessagePack keyed, Nerdbank.MessagePack, Orleans, System.Text.Json |
 | **T3** | **Graph fidelity.** Shared references survive as identity, cycles are representable, polymorphic values restore their runtime type | V1 + `PreserveReferences` + `[BinaryUnion]` (B-P1) | Orleans, Nerdbank.MessagePack, System.Text.Json (`ReferenceHandler.Preserve`), and from §5.3 Newtonsoft.Json, Hyperion, DataContractSerializer |
 | **T4** | **Protected envelope.** Integrity and confidentiality bound to the metadata rather than bolted on beside it | V1 + Crc32 + AES-256-GCM (B-P6) | No library peer. Measured against the **composed baselines** of §17 |
 
@@ -314,7 +317,7 @@ The tier table of §6 is generated, not asserted.
 
 # 8. Viper configuration profiles under test
 
-The configurations a consumer can build, each measured as itself. Built with the real builder surface *(§4.1)*, and every published number names the profile it belongs to.
+The configurations a consumer can build, each measured as itself. Built with the real builder surface *(Contract §4.1)*, and every published number names the profile it belongs to. The keyed layout is not among them: it is a property of the model rather than of the configuration, so it is measured under B-P0 and B-P7 over the keyed datasets of §9.
 
 | Profile | Configuration | Tier | Purpose |
 |---|---|---|---|
@@ -326,16 +329,15 @@ The configurations a consumer can build, each measured as itself. Built with the
 | **B-P5** | `Configure().WithEncryption(Aes256Gcm, key)` | — | §16 |
 | **B-P6** | Brotli + Crc32 + Aes256Gcm, and Deflate + Crc32 + Aes256Gcm | T4 | The full protected envelope |
 | **B-P7** | `Configure().WithVersion(0).AllowV0Fallback()` | T0 | The compact codec |
-| **B-P8** | `[BinaryContract]` keyed models under V1 and V0 | T2 | The keyed layout against the positional one |
 
 - [ ] PROF-01 — every profile is measured on every dataset it supports, buffered and streaming
-- [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(§10.2, §22.8)*
-- [ ] PROF-03 — B-P8 against B-P0 isolates the keyed layout from the positional one, under both format versions *(§14.2)*
-- [ ] PROF-04 — B-P1 against B-P0 measures reference framing on a graph with no sharing at all, so the price of the option when it is not needed is visible *(§16)*
+- [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(Contract §10.2, §22.8)*
+- [ ] PROF-03 — keyed models against positional ones of the same shape isolate the keyed layout, under B-P0 and B-P7 alike *(Contract §14.2)*
+- [ ] PROF-04 — B-P1 against B-P0 measures reference framing on a graph with no sharing at all, so the price of the option when it is not needed is visible *(Contract §16)*
 - [ ] PROF-05 — B-P2 against B-P0 shows what limit accounting costs; if the difference is not measurable, that is the result and it is published
-- [ ] PROF-06 — the existing-instance and `ref` entry points are measured against their allocating counterparts *(§3.1)*
-- [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so the per-call `StreamExtensions` path has a number *(§3.2)*
-- [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(§15)*
+- [ ] PROF-06 — the existing-instance and `ref` entry points are measured against their allocating counterparts *(Contract §3.1)*
+- [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so the per-call `StreamExtensions` path has a number *(Contract §3.2)*
+- [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(Contract §15)*
 
 ---
 
@@ -350,7 +352,7 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 | **DATA-03** | RecordBatchSmall | 100–500 records of DATA-01 shape | ~10 KB | T0–T3 | Per-element cost at a realistic batch size |
 | **DATA-04** | RecordBatchLarge | 10k–30k records | ~1 MB | T0–T2 | Throughput, and where allocation strategy starts to dominate |
 | **DATA-05** | DictionaryHeavy | 10k+ entries, string keys, scalar values | ~1 MB | T0–T2 | Dictionary write and rebuild cost |
-| **DATA-06** | DeepGraph | nesting at depths 5, 10, 25, 50, 200, 511 | small | T0–T3 | Depth accounting and recursion cost up to just below `MaxDepth` *(§5.1)* |
+| **DATA-06** | DeepGraph | nesting at depths 5, 10, 25, 50, 200, 511 | small | T0–T3 | Depth accounting and recursion cost up to just below `MaxDepth` *(Contract §5.1)* |
 | **DATA-07** | UnicodeHeavy | multi-byte, CJK, emoji, combining sequences, with an ASCII twin | ~100 KB | T0–T2 | String encoding cost, and the honest ASCII-versus-UTF-8 difference |
 | **DATA-08** | Incompressible | high-entropy strings and blobs | ~1 MB | T0, T4 | Compression's worst case, and what the phase costs when it buys nothing |
 | **DATA-09** | HighlyCompressible | heavily repeated structure | ~1 MB | T0, T4 | Compression's best case |
@@ -358,18 +360,18 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 | **DATA-11** | CyclicGraph | parent/child cycles | ~50 KB | T3 | The scenario that is impossible without reference support |
 | **DATA-12** | PolymorphicBatch | a base type with 6–8 derived shapes | ~100 KB | T2, T3 | Discriminator cost and polymorphic dispatch |
 | **DATA-13** | KeyedEvolution | a v1/v2 schema pair: fields added, removed, reordered | ~10 KB | T2 | Evolution cost on the writing side and on the skipping side |
-| **DATA-14** | ByteBlob | one `byte[]` inside a small object, and a batch of four | 0.9 MB, 3.6 MB | T0–T2, T4 | Pure carrying cost, with traversal taken out of the picture. The sizes follow `MaxArrayLength` rather than the 16 MB the blob limit suggests — see O1 in §27.1 |
+| **DATA-14** | ByteBlob | one `byte[]` inside a small object, and a batch of four | 0.9 MB, 3.6 MB | T0–T2, T4 | Pure carrying cost, with traversal taken out of the picture. The sizes follow `MaxArrayLength` rather than the 16 MB the blob limit suggests — see PERF-01 in §27.1 |
 | **DATA-15** | NumericArrays | `int[]`, `double[]`, `long[]`, 100k elements | ~1 MB | T0–T2 | Where a memcpy-shaped serializer legitimately wins, shown rather than avoided |
 | **DATA-16** | StringTable | 50k short strings | ~1 MB | T0–T2 | String-dominated payloads and per-string overhead |
 | **DATA-17** | NullSparse | 40 members, most of them null | ~1 KB | T0–T2 | Null framing cost against formats that omit absent fields |
 | **DATA-18** | WideObject | 200 flat members | ~5 KB | T0, T2 | Member-plan cost, positional against keyed |
-| **DATA-19** | CollectionZoo | one instance of each §23 container family | ~50 KB | T0–T2 | Breadth over the supported-type table in a single measurement |
+| **DATA-19** | CollectionZoo | one instance of each Contract §23 container family | ~50 KB | T0–T2 | Breadth over the supported-type table in a single measurement |
 | **DATA-20** | TimeAndNumerics | `DateTime`, `DateTimeOffset`, `decimal`, `Int128`, `BigInteger`, vectors, matrices | ~10 KB | T0–T2 | The families other serializers most often lack natively |
 
 - [ ] DATA-00 — every generator is deterministic, culture-independent and time-independent, and produces byte-identical data on two machines
 - [ ] DATA-21 — every dataset is generated, verified through every adapter of its tiers, and its actual size published beside its target
 - [ ] DATA-22 — a dataset that misses its target by more than 2× is resized, or its target is corrected
-- [ ] DATA-23 — no dataset requires a limit above `SerializationLimits.Default`; one that would is split *(§5)*
+- [ ] DATA-23 — no dataset requires a limit above `SerializationLimits.Default`; one that would is split *(Contract §5)*
 - [ ] DATA-24 — a dataset that a mandatory library cannot express is recorded as `Unsupported` for that library with the reason, and is not removed from the corpus
 
 ---
@@ -380,21 +382,21 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 
 | ID | Workload | Layer | Notes |
 |---|---|---|---|
-| **WL-01** | Serialize to a new `byte[]` | B1, B2 | The primary comparative family |
-| **WL-02** | Serialize to a pre-sized `MemoryStream` | B1, B2 | The streaming family; the stream is reset, never reallocated, inside the timed region |
-| **WL-03** | Serialize to a non-seekable stream | B2 | Viper-specific: V0 with a keyed contract requires a seekable destination, which is measured as a supported refusal rather than a timing *(§10.2)* |
-| **WL-04** | Deserialize from `byte[]` | B1, B2 | Payload produced in setup by the same adapter |
-| **WL-05** | Deserialize from `MemoryStream` | B1, B2 | |
-| **WL-06** | Round trip | B1, B2 | Serialize and deserialize in one timed operation |
-| **WL-07** | Deserialize into an existing instance | B2 | `Unsupported` for most libraries; the cell says so *(§3.1)* |
-| **WL-08** | Steady state over one serializer instance | B1, B2 | The default for every comparative suite |
-| **WL-09** | First operation in a fresh process | B4 | §20 |
-| **WL-10** | First operation for a type not seen before | B4 | Type-plan and formatter-cache construction, measured in a fresh process per type family |
-| **WL-11** | Parallel throughput over a shared serializer | B4 | §21 |
-| **WL-12** | Large payload throughput in MB/s | B1, B2 | DATA-04, DATA-14, DATA-15 |
-| **WL-13** | Sustained load over a fixed duration | B4 | §22 |
-| **WL-14** | Serialize the same graph with reference framing on and off | B2 | DATA-10, DATA-11 |
-| **WL-15** | Read a payload whose schema differs from the model | B1 | DATA-13; the skipping side of evolution |
+| **WL-01** | Serialize to a new `byte[]` | L1, L2 | The primary comparative family |
+| **WL-02** | Serialize to a pre-sized `MemoryStream` | L1, L2 | The streaming family; the stream is reset, never reallocated, inside the timed region |
+| **WL-03** | Serialize to a non-seekable stream | L2 | Viper-specific: V0 with a keyed contract requires a seekable destination, which is measured as a supported refusal rather than a timing *(Contract §10.2)* |
+| **WL-04** | Deserialize from `byte[]` | L1, L2 | Payload produced in setup by the same adapter |
+| **WL-05** | Deserialize from `MemoryStream` | L1, L2 | |
+| **WL-06** | Round trip | L1, L2 | Serialize and deserialize in one timed operation |
+| **WL-07** | Deserialize into an existing instance | L2 | `Unsupported` for most libraries; the cell says so *(Contract §3.1)* |
+| **WL-08** | Steady state over one serializer instance | L1, L2 | The default for every comparative suite |
+| **WL-09** | First operation in a fresh process | L4 | §20 |
+| **WL-10** | First operation for a type not seen before | L4 | Type-plan and formatter-cache construction, measured in a fresh process per type family |
+| **WL-11** | Parallel throughput over a shared serializer | L4 | §21 |
+| **WL-12** | Large payload throughput in MB/s | L1, L2 | DATA-04, DATA-14, DATA-15 |
+| **WL-13** | Sustained load over a fixed duration | L4 | §22 |
+| **WL-14** | Serialize the same graph with reference framing on and off | L2 | DATA-10, DATA-11 |
+| **WL-15** | Read a payload whose schema differs from the model | L1 | DATA-13; the skipping side of evolution |
 
 - [ ] WL-00 — every workload above has a suite, and every suite states which of WL-01…WL-15 it implements
 - [ ] WL-16 — no suite mixes two workloads in one timed method
@@ -462,8 +464,8 @@ Allocation is a first-class result here, not a footnote: the engine's structural
 - [ ] ALLOC-01 — every comparative suite runs with `MemoryDiagnoser`, and allocation is published per operation
 - [ ] ALLOC-02 — Viper's write allocation is attributed by phase — payload write, checksum, compression, encryption, header, final `byte[]` assembly — from the §18.1 component measurements, and cross-checked against the profile differentials of §18.2, never inferred from a total
 - [ ] ALLOC-03 — the read path is attributed the same way: routing, header, decryption, decompression, payload read, materialization
-- [ ] ALLOC-04 — allocation is reported for the streaming family separately from the `byte[]` family, because the `byte[]` entry point's copy is part of what it costs *(§3.1)*
-- [ ] ALLOC-05 — the buffering V1 performs on write is measured against V0's straight-through write, so what the envelope costs in memory is visible *(§10.2)*
+- [ ] ALLOC-04 — allocation is reported for the streaming family separately from the `byte[]` family, because the `byte[]` entry point's copy is part of what it costs *(Contract §3.1)*
+- [ ] ALLOC-05 — the buffering V1 performs on write is measured against V0's straight-through write, so what the envelope costs in memory is visible *(Contract §10.2)*
 - [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named
 - [ ] ALLOC-07 — the tight-limits profile B-P2 is measured for allocation as well as time, so the accounting structures have a number
 - [ ] ALLOC-08 — no allocation number is published from a run that also produced a timing in the same iteration when the diagnoser is known to perturb it; where it does, the timing comes from a separate run and the report says so
@@ -487,28 +489,28 @@ encrypted bytes and the overhead over the plaintext
 ```
 
 - [ ] SIZE-01 — every (adapter, dataset) pair has a size, or a result state explaining its absence
-- [ ] SIZE-02 — the V1 envelope's fixed cost is stated in bytes, measured as B-P0 minus B-P7 on the same value *(§22.6, §22.8)*
-- [ ] SIZE-03 — the reference-framing cost is stated in bytes, as B-P1 minus B-P0 on a graph with no sharing, and as the saving on DATA-10 where sharing exists *(§16)*
-- [ ] SIZE-04 — the keyed layout's cost is stated in bytes against the positional layout on the same type, and against the evolution tolerance it buys *(§14.2)*
+- [ ] SIZE-02 — the V1 envelope's fixed cost is stated in bytes, measured as B-P0 minus B-P7 on the same value *(Contract §22.6, §22.8)*
+- [ ] SIZE-03 — the reference-framing cost is stated in bytes, as B-P1 minus B-P0 on a graph with no sharing, and as the saving on DATA-10 where sharing exists *(Contract §16)*
+- [ ] SIZE-04 — the keyed layout's cost is stated in bytes against the positional layout on the same type, and against the evolution tolerance it buys *(Contract §14.2)*
 - [ ] SIZE-05 — the per-string, per-element and per-null framing costs are derived from DATA-16, DATA-15 and DATA-17 and published as a table
 - [ ] SIZE-06 — a size comparison against a self-describing text format states that the comparison is between formats of different kinds
 - [ ] SIZE-07 — compressed sizes are only compared with compressed sizes, and the algorithm is named in the cell
-- [ ] SIZE-08 — encrypted sizes name the tag and nonce overhead separately from the ciphertext *(§13)*
+- [ ] SIZE-08 — encrypted sizes name the tag and nonce overhead separately from the ciphertext *(Contract §13)*
 
 ---
 
 # 15. Compression
 
-Layer B2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
+Layer L2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
 
-- [ ] CMP-01 — `Deflate` compress and decompress: time, ratio, allocation, at every corpus size *(§12)*
-- [ ] CMP-02 — `Brotli` compress and decompress: the same *(§12)*
+- [ ] CMP-01 — `Deflate` compress and decompress: time, ratio, allocation, at every corpus size *(Contract §12)*
+- [ ] CMP-02 — `Brotli` compress and decompress: the same *(Contract §12)*
 - [ ] CMP-03 — the no-compression path is measured on the same datasets, so the phase's cost is a difference rather than an estimate
-- [ ] CMP-04 — the incompressible dataset shows what compression costs when it saves nothing, including the case where output exceeds input *(§12)*
+- [ ] CMP-04 — the incompressible dataset shows what compression costs when it saves nothing, including the case where output exceeds input *(Contract §12)*
 - [ ] CMP-05 — compression throughput is published in MB/s of input, on both directions
-- [ ] CMP-06 — decompression is measured against its declared uncompressed length, since the exact-length rule is part of the read path *(§12)*
+- [ ] CMP-06 — decompression is measured against its declared uncompressed length, since the exact-length rule is part of the read path *(Contract §12)*
 - [ ] CMP-07 — where a competitor offers built-in compression, it appears in this section and nowhere else *(FAIR-16)*
-- [ ] CMP-08 — a custom registered algorithm is measured once, so the extension path's overhead over a built-in is known *(§4.1)*
+- [ ] CMP-08 — a custom registered algorithm is measured once, so the extension path's overhead over a built-in is known *(Contract §4.1)*
 
 ---
 
@@ -516,11 +518,11 @@ Layer B2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
 
 - [ ] SEC-01 — `Crc32` over each corpus size: time, throughput, allocation *(§11)*
 - [ ] SEC-02 — the checksum's share of a full V1 write and read, as a difference against B-P0
-- [ ] SEC-03 — `Aes256Gcm` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(§13)*
-- [ ] SEC-04 — the AAD image build, measured on its own (MICRO-08) and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(§13.1)*
-- [ ] SEC-05 — key resolution through `IKeyProvider` measured against a static key, including the per-operation copy `SecretKey` makes *(§13.2)*
+- [ ] SEC-03 — `Aes256Gcm` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(Contract §13)*
+- [ ] SEC-04 — the AAD image build, measured on its own (MICRO-08) and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(Contract §13.1)*
+- [ ] SEC-05 — key resolution through `IKeyProvider` measured against a static key, including the per-operation copy `SecretKey` makes *(Contract §13.2)*
 - [ ] SEC-06 — the full protected envelope B-P6 against B-P0, per dataset, so the price of protection is one number a reader can act on
-- [ ] SEC-07 — the order of phases is the contract's, and no benchmark measures a reordered pipeline *(§10.1)*
+- [ ] SEC-07 — the order of phases is the contract's, and no benchmark measures a reordered pipeline *(Contract §10.1)*
 - [ ] SEC-08 — hardware-accelerated AES is reported as present or absent in the environment manifest, since it moves this section by an order of magnitude
 
 ---
@@ -539,52 +541,52 @@ serialize with the competitor
 ```
 
 - [ ] COMP-01 — the composed baseline exists for each of the three libraries and passes verification
-- [ ] COMP-02 — the composed header carries the same information the V1 header does, so the size comparison is between equivalents *(§11)*
+- [ ] COMP-02 — the composed header carries the same information the V1 header does, so the size comparison is between equivalents *(Contract §11)*
 - [ ] COMP-03 — the composed baseline is measured on the same datasets as B-P6, with the same statistics
-- [ ] COMP-04 — the report states plainly what the composed baseline does **not** provide: no authenticated metadata binding, no algorithm negotiation, no key id, no limits, no budget accounting *(§13.1, §5)*
+- [ ] COMP-04 — the report states plainly what the composed baseline does **not** provide: no authenticated metadata binding, no algorithm negotiation, no key id, no limits, no budget accounting *(Contract §13.1, §5)*
 - [ ] COMP-05 — where Viper is slower than a composed baseline, the difference is published with the features that account for it named, and never hidden behind a feature argument alone
 
 ---
 
-# 18. Component measurements — B3
+# 18. Component measurements
 
-Diagnostic, never a market comparison. They exist for two readers: the engineer explaining a B1/B2 result, and the next version, which needs a per-component record of this one to know what a change actually improved. Each item names the end-to-end number it explains.
+Diagnostic, never a market comparison. They exist for two readers: the engineer explaining an L1 or L2 result, and the next version, which needs a per-component record of this one to know what a change actually improved. Each item names the end-to-end number it explains.
 
 ## 18.1 Microbenchmarks, below the public API
 
 Measured directly on the internal type that owns the mechanism, through the grant of §18.3.
 
-- [ ] MICRO-01 — `ValueWriter`/`ValueReader` primitives: varint, fixed-width, string, blob, on both directions *(§22.1)*
-- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop *(§6)*
-- [ ] MICRO-03 — depth scope entry and exit, and the unwind on the exceptional path *(§5.1)*
-- [ ] MICRO-04 — `TypeContract` construction for a cold type, and lookup once cached, positional and keyed *(§14)*
+- [ ] MICRO-01 — `ValueWriter`/`ValueReader` primitives: varint, fixed-width, string, blob, on both directions *(Contract §22.1)*
+- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop *(Contract §6)*
+- [ ] MICRO-03 — depth scope entry and exit, and the unwind on the exceptional path *(Contract §5.1)*
+- [ ] MICRO-04 — `TypeContract` construction for a cold type, and lookup once cached, positional and keyed *(Contract §14)*
 - [ ] MICRO-05 — `FormatterRegistry.Resolve` for a claimed type and for a member-encoded one
 - [ ] MICRO-06 — one formatter per shape family: scalar, sequence, map, composite
-- [ ] MICRO-07 — reference identity tracking: registration, lookup, scope exit, at several sharing densities *(§16)*
-- [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(§11, §13.1)*
-- [ ] MICRO-09 — `MeteredReadStream`, `MeteredWriteStream` and `WindowReadStream` against the bare stream *(§7)*
-- [ ] MICRO-10 — the algorithm primitives over spans, outside the pipeline: `Deflate`, `Brotli`, `Crc32`, `Aes256Gcm` *(§12, §13)*
-- [ ] MICRO-11 — allocation is recorded for every microbenchmark above, not only time, since the per-component allocation record is what a later version compares against
-- [ ] MICRO-12 — every microbenchmark names the end-to-end measurement it explains; one that explains nothing is deleted
+- [ ] MICRO-07 — reference identity tracking: registration, lookup, scope exit, at several sharing densities *(Contract §16)*
+- [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(Contract §11, §13.1)*
+- [ ] MICRO-09 — `MeteredReadStream`, `MeteredWriteStream` and `WindowReadStream` against the bare stream *(Contract §7)*
+- [ ] MICRO-10 — the algorithm primitives over spans, outside the pipeline: `Deflate`, `Brotli`, `Crc32`, `Aes256Gcm` *(Contract §12, §13)*
+- [x] MICRO-11 — allocation is recorded for every microbenchmark above, not only time, since the per-component allocation record is what a later version compares against
+- [x] MICRO-12 — every microbenchmark names the end-to-end measurement it explains; one that explains nothing is deleted
 
 ## 18.2 Differentials, through the public API
 
 The same mechanisms seen from outside, by subtracting two public measurements that differ in one thing alone. They are not a substitute for §18.1 — they are its cross-check, and they are what remains measurable if a grant is ever withdrawn.
 
-- [ ] DIFF-01 — the V1 envelope: B-P0 minus B-P7 on one value, with and without custom algorithm names and a key id *(§11, §22.8)*
-- [ ] DIFF-02 — each algorithm phase: B-P3, B-P4, B-P5 against B-P0 *(§12, §13)*
-- [ ] DIFF-03 — the member plan: DATA-18 positional against keyed, first use against steady state *(§14)*
-- [ ] DIFF-04 — reference framing: B-P1 against B-P0 by sharing density *(§16, SCALE-07)*
-- [ ] DIFF-05 — limit accounting: B-P2 against B-P0 *(§5)*
-- [ ] DIFF-06 — stream metering: the stream family against the `byte[]` family on the same value *(§7)*
+- [ ] DIFF-01 — the V1 envelope: B-P0 minus B-P7 on one value, with and without custom algorithm names and a key id *(Contract §11, §22.8)*
+- [ ] DIFF-02 — each algorithm phase: B-P3, B-P4, B-P5 against B-P0 *(Contract §12, §13)*
+- [ ] DIFF-03 — the member plan: DATA-18 positional against keyed, first use against steady state *(Contract §14)*
+- [ ] DIFF-04 — reference framing: B-P1 against B-P0 by sharing density *(Contract §16, and SCALE-07)*
+- [ ] DIFF-05 — limit accounting: B-P2 against B-P0 *(Contract §5)*
+- [ ] DIFF-06 — stream metering: the stream family against the `byte[]` family on the same value *(Contract §7)*
 - [ ] DIFF-07 — each differential agrees with the §18.1 measurement of the same mechanism within their combined margins of error; a disagreement is investigated before either number is published
 
 ## 18.3 Access
 
 The component suites see internals through `src/ViShap.Viper.Serialization/Properties/AssemblyInfo.QA.cs`, which names `ViShap.Viper.Serialization.Benchmarks`. The grant is the owner's to give; this plan does not edit `src/` (§1).
 
-- [x] MICRO-00 — the grant exists for `ViShap.Viper.Serialization.Benchmarks`, added by the repository owner on 2026-09-20, and an internal type resolves from the benchmark project in a Release build *(Q1)*
-- [ ] MICRO-13 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `docs/performance/` (§27.4)
+- [x] MICRO-13 — the grant exists for `ViShap.Viper.Serialization.Benchmarks`, added by the repository owner on 2026-09-20, and an internal type resolves from the benchmark project in a Release build *(Q1)*
+- [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `docs/performance/` (§27.4)
 
 ---
 
@@ -593,12 +595,12 @@ The component suites see internals through `src/ViShap.Viper.Serialization/Prope
 A single size is a point; a curve is a property. Each curve has at least five points and states where the slope changes.
 
 - [ ] SCALE-01 — element count: 1, 10, 100, 1k, 10k, 100k records — time, allocation, bytes
-- [ ] SCALE-02 — payload size: 1 KB, 64 KB, 1 MB, 16 MB, 64 MB — throughput MB/s, against `MaxPayloadBytes` *(§5)*
-- [ ] SCALE-03 — depth: 1, 5, 25, 100, 500 — time and allocation per level *(§5.1)*
-- [ ] SCALE-04 — member count: 5, 20, 50, 100, 200 members — positional against keyed *(§14)*
+- [ ] SCALE-02 — payload size: 1 KB, 64 KB, 1 MB, 16 MB, 64 MB — throughput MB/s, against `MaxPayloadBytes` *(Contract §5)*
+- [ ] SCALE-03 — depth: 1, 5, 25, 100, 500 — time and allocation per level *(Contract §5.1)*
+- [ ] SCALE-04 — member count: 5, 20, 50, 100, 200 members — positional against keyed *(Contract §14)*
 - [ ] SCALE-05 — string length: 8 B, 256 B, 4 KB, 64 KB, 1 MB — ASCII against multi-byte
 - [ ] SCALE-06 — dictionary size: 10, 100, 1k, 10k, 100k entries
-- [ ] SCALE-07 — sharing density in a DAG: 0%, 10%, 50%, 90% shared nodes — B-P1 time and size against B-P0 *(§16)*
+- [ ] SCALE-07 — sharing density in a DAG: 0%, 10%, 50%, 90% shared nodes — B-P1 time and size against B-P0 *(Contract §16)*
 - [ ] SCALE-08 — every curve is published with both axes' units and states whether the growth it shows is linear
 - [ ] SCALE-09 — the large end of SCALE-02 is run under Server GC as well, and both are published *(ENV-06)*
 
@@ -642,7 +644,7 @@ Real parallelism, on a shared serializer, since the contract makes the serialize
 - [ ] SOAK-01 — a fixed-duration run per profile, at least 10 minutes, recording throughput over time
 - [ ] SOAK-02 — managed heap size and working set sampled throughout, published as a curve
 - [ ] SOAK-03 — no unbounded growth in either curve; growth that appears is investigated before publication and recorded in §27
-- [ ] SOAK-04 — the same run with encryption and compression enabled, since those phases own the temporary buffers *(§13.2)*
+- [ ] SOAK-04 — the same run with encryption and compression enabled, since those phases own the temporary buffers *(Contract §13.2)*
 - [ ] SOAK-05 — throughput at the end of the run is within the margin of error of throughput at the start, or the difference is explained
 
 ---
@@ -651,21 +653,39 @@ Real parallelism, on a shared serializer, since the contract makes the serialize
 
 A run produces raw artifacts and a report generated from them. Nothing in the report is typed by hand.
 
+Both directories below live inside the benchmark project, beside the layout of §2:
+`benchmarks/ViShap.Viper.Serialization.Benchmarks/`. Neither is ignored by git.
+
 ```text
-Baselines/<revision>/
+Baselines/<tag>/
   environment.json          §4 manifest
   capabilities.csv          §7.5 probe results
   verification.csv          §7.6 outcomes, per (adapter, dataset)
-  results.csv               every cell, raw
-  results.json              the BDN export
+  results/                  the BenchmarkDotNet export, one csv, json, md and html per suite
+  results.csv               every timed cell of the run, in one table
   payload-sizes.csv         §14
   memory.csv                §13
   components.csv            §18 per-mechanism time and allocation
+  contract-cold.csv         §18 member-plan construction, per type
+  cold-start.csv            §20 per launch, aggregated
+  soak.csv                  §22 throughput and heap over time
   configuration.md          §7.3 rationales, verbatim
   report.md                 the generated report
-  report.html               the same, with charts
+  report.html               the same, with the charts inline
   charts/                   §24
+  reproduction.md           §26
   manifest.md               what ran, when, on what, against which packages
+```
+
+A full baseline is not the only thing worth committing. A change to one mechanism is examined by running
+the suites that cover it, and those numbers belong in a directory that can never be mistaken for a
+baseline:
+
+```text
+Measurements/<git describe>-<UTC timestamp>/
+  environment.json          §4 manifest, exactly as a baseline records it
+  scope.md                  which suites ran, which did not, and why the run was taken
+  …                         only the result files the suites it ran produced
 ```
 
 - [ ] REP-01 — every artifact above is produced by one command
@@ -675,6 +695,13 @@ Baselines/<revision>/
 - [ ] REP-05 — the report opens with the tier table, the roster, and the exclusions, before any number
 - [ ] REP-06 — the report never reduces the outcome to a single winner
 - [ ] REP-07 — every claim in the README or the package description that cites a performance figure cites a cell in a committed raw file
+- [ ] REP-08 — a publication run writes every artifact of the list above directly into `Baselines/<tag>/`, never into a directory git ignores, so no result exists only outside the commit
+- [ ] REP-09 — a publication run refuses to start when `Baselines/<tag>/` already exists; a re-measurement of the same tag goes to a new directory and the difference between the two is recorded in §27.3
+- [ ] REP-10 — `BenchmarkDotNet.Artifacts/` is the working directory of ad-hoc and exploratory runs, is ignored by git, and is never the source of a published figure
+- [ ] REP-11 — every baseline is readable on its own: no artifact in it refers to another baseline, to the working directory, or to a file outside the repository
+- [ ] REP-12 — a partial run writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no partial run can overwrite another
+- [ ] REP-13 — a partial run carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
+- [ ] REP-14 — a partial run is never the source of a published figure about anything it did not measure, and a delta against a baseline covers only the cells both contain
 
 ---
 
@@ -695,6 +722,8 @@ Generated from the raw files, never drawn by hand.
 - [ ] CHT-11 — every chart labels its units, states whether lower or higher is better, and names the tier
 - [ ] CHT-12 — a normalized chart, where used, is secondary to the absolute one and never replaces it
 - [ ] CHT-13 — the chart layer contains no value that is absent from the raw results
+- [ ] CHT-14 — every chart is committed inside its baseline as SVG at a stable path, so a README or a release note can reference it directly and the chart of an older baseline keeps rendering after a newer one exists
+- [ ] CHT-15 — a chart that shows two versions names both tags, and its values come from both baselines' raw files rather than from one run
 
 ---
 
@@ -704,10 +733,9 @@ A baseline belongs to one source revision, runtime, hardware, package lock and B
 
 The run against the `v1.0.0` tag becomes the frozen baseline, whenever it happens. It is never regenerated afterwards: a rebuilt baseline agrees with whatever the code became, and so proves nothing.
 
-Every later v1.x is measured the same way, against its own tag, and published as a delta against the baseline it is compatible with. That is what this plan is for once v1.0.0 has shipped: not a gate in front of a release, a record behind each one.
+Every later v1.x that changes `src/` is measured the same way, against its own tag, and published as a delta against the baseline it is compatible with. That is what this plan is for once v1.0.0 has shipped: not a gate in front of a release, a record behind each one.
 
 - [ ] BASE-01 — the baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23, produced from a checkout of the `v1.0.0` tag
-- [ ] BASE-06 — each subsequent v1.x run is committed under its own `Baselines/<tag>/`, with the delta against the previous one and an entry in §27.3 for every threshold it crosses
 - [ ] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error
 - [ ] BASE-03 — a comparison against an incompatible environment is refused rather than printed
 - [ ] BASE-04 — review thresholds, as triggers for investigation and not automatic failures:
@@ -717,16 +745,22 @@ Every later v1.x is measured the same way, against its own tag, and published as
   - a statistically significant cold-start regression;
   - a Gen2 or LOH increase that was not there before
 - [ ] BASE-05 — a crossed threshold is recorded in §27 with its cause; it informs the next version, and never holds a release hostage
+- [ ] BASE-06 — each subsequent v1.x run is committed under its own `Baselines/<tag>/`, with the delta against the previous one and an entry in §27.3 for every threshold it crosses
+- [ ] BASE-07 — every cell of a baseline carries the tag it belongs to, so two baselines can be read in one table without either being modified
+- [ ] BASE-08 — the directory name of a full baseline is the tag `git describe --tags --exact-match HEAD` reports and nothing else; on a commit that carries no tag no baseline directory is created at all and the run is recorded under `Measurements/` instead (REP-12), because a baseline signed with the wrong version is worse than a missing one
+- [ ] BASE-09 — a full baseline is taken deliberately, not once per tag: a release that did not change `src/` records that the previous baseline still applies, and anything examined between baselines is a partial run of §23
 
 ---
 
 # 26. Reproduction
 
-- [ ] REPRO-01 — a documented command sequence reproduces the full publication run from a clean clone
-- [ ] REPRO-02 — the document states the hardware, the machine state and the expected duration
-- [ ] REPRO-03 — a partial run is possible per stage and per suite, with the same commands
-- [ ] REPRO-04 — the instructions state what will differ on other hardware and what should not
-- [ ] REPRO-05 — reproduction instructions are committed with the baseline, not only in this plan
+Every baseline carries its own `reproduction.md`: the commands that produced it, in the order they ran, so a second engineer can take the same measurements from a clean clone of the same revision. It names only what the repository contains — the benchmark project's own command-line modes — because a reader of a baseline has the repository and nothing else.
+
+- [ ] REPRO-01 — `Baselines/<tag>/reproduction.md` lists the exact command sequence that produced that baseline, in order, and nothing in it depends on a file outside the repository
+- [ ] REPRO-02 — it states the hardware, the machine state the run requires, and the expected wall-clock duration of each command
+- [ ] REPRO-03 — it shows how to re-run one stage or one suite alone, with the same commands narrowed by a filter
+- [ ] REPRO-04 — it names which values are expected to differ on other hardware and which are not: payload sizes, compression ratios and result states are properties of the format and hold everywhere, while every timing and every allocation figure belongs to the recorded machine
+- [ ] REPRO-05 — it is committed inside the baseline package, so the baseline is repeatable without this plan
 
 ---
 
@@ -756,13 +790,15 @@ An experiment that cannot be made fair, a scenario the plan does not say how to 
 
 | | Question | Decision | Unblocked |
 |---|---|---|---|
-| **Q1** | The component suites of §18.1 measure internal mechanisms — value primitives, budgets, contracts, header, metered streams — and the benchmark assembly could not see them. Adding the grant is a change in `src/`, which this plan does not make (§1) | Granted by the repository owner on 2026-09-20: `AssemblyInfo.QA.cs` now names `ViShap.Viper.Serialization.Benchmarks`, verified by resolving an internal type from the benchmark project in a Release build. Nothing a consumer sees changes, and v1.0.0 gets the per-component record a later version measures its optimizations against | MICRO-00…MICRO-13, ALLOC-02, ALLOC-03, SEC-04 |
+| **Q1** | The component suites of §18.1 measure internal mechanisms — value primitives, budgets, contracts, header, metered streams — and the benchmark assembly could not see them. Adding the grant is a change in `src/`, which this plan does not make (§1) | Granted by the repository owner on 2026-09-20: `AssemblyInfo.QA.cs` now names `ViShap.Viper.Serialization.Benchmarks`, verified by resolving an internal type from the benchmark project in a Release build. Nothing a consumer sees changes, and v1.0.0 gets the per-component record a later version measures its optimizations against | MICRO-01…MICRO-14, ALLOC-02, ALLOC-03, SEC-04 |
 
 ## 27.3 Results register
 
 The place where an unflattering result is recorded rather than argued with. Each entry names the cell, the gap, the cause if it is known, and whether the owner accepted it for v1.0.0 or opened a proposal against it.
 
-*(none yet)*
+| | Cell | What was seen | Cause | Resolution |
+|---|---|---|---|---|
+| **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
 
 ## 27.4 Proposals — `docs/performance/`
 
@@ -788,7 +824,7 @@ Checked only when a committed raw result proves it.
 
 ## Harness
 
-- [ ] The benchmark project builds and runs in Release, and its `Dry` smoke run passes in CI.
+- [ ] The benchmark project builds and runs in Release, and `--smoke` passes over every suite.
 - [ ] Every mandatory library of §5.2 has an adapter in its documented best mode, with a published rationale.
 - [ ] Every exclusion in §5.4 names the criterion it fails.
 - [ ] The capability matrix is generated from probes, and every tier table matches it.
@@ -824,7 +860,7 @@ Checked only when a committed raw result proves it.
 - [ ] The report and charts regenerate from the raw files with one command.
 - [ ] The environment manifest, the package lock and the source revision are committed with the results.
 - [ ] The v1.0.0 baseline is frozen under `Baselines/v1.0.0/`.
-- [ ] Reproduction instructions are committed and have been followed once, from a clean clone, by someone other than the author of the run.
+- [ ] Reproduction instructions are committed, and the sequence has been executed once from a clean clone on a machine that did not produce the baseline — a second machine, or a base container image — proving the instructions complete. The check compares payload sizes, verification outcomes and result states, which are machine-independent; it does not compare timings or allocation, which belong to the recorded machine.
 
 ---
 
@@ -846,20 +882,20 @@ result is the record of what this version costs, feature by feature.
 | **A1** | §10 WL-01…WL-08 and WL-14 over §8 × §9 | The profile matrix: what each configuration costs |
 | **A2** | §14 (Viper rows), §11 | Sizes and the envelope accounting, with no timing in the same table |
 | **A3** | §15, §16 | Compression, checksum and encryption, separately and combined |
-| **A4** | §13, §19 | Allocation, GC, and the scaling curves |
-| **A5** | §20, §21, §22 (Viper rows) | Cold start, concurrency, soak |
-| **A6** | §18 | The component record, time and allocation per mechanism |
+| **A4** | §18 | The component record, time and allocation per mechanism |
+| **A5** | §13, §19 | Allocation attributed per phase from A4, GC, and the scaling curves |
+| **A6** | §20, §21, §22 (Viper rows) | Cold start, concurrency, soak |
 | **A7** | §23, §24, §25, §26 for what A0–A6 measured | Artifacts, charts, baseline, reproduction |
 
 Each A-stage closes when its suites exist, build, and their cells come from one publication run. That
-is a milestone of this track, not of §3: **B1, B6 and B9 close entirely here, and B0, B3, B4, B5, B7
-and B8 stay open until Track B fills in their comparative items.** A stage is never marked closed
+is a milestone of this track, not of §3: **B1, B5 and B7 close entirely here, and B0, B3, B4, B6, B8
+and B9 stay open until Track B fills in their comparative items.** A stage is never marked closed
 because the Viper half of it is done.
 
-**The tag.** A baseline belongs to a revision. If `src/` does not change between the publication run
-and the release, the commit the manifest records *is* the commit the `v1.0.0` tag points at, and the
-run is the v1.0.0 baseline with nothing to redo — the manifest's sha is the proof. If `src/` does
-change, the run is re-taken from a checkout of the tag.
+**The tag.** A baseline belongs to a revision, and it takes its name from the tag on that revision, so
+the tag exists before the run does: the release is tagged, the tagged commit is checked out, and the
+publication run is taken there (BASE-08). A run on an untagged commit is a partial run of §23, never a
+baseline, however complete it happens to be.
 
 **Out of scope, and left untouched:** §5 the roster, §6 the tier tables beyond Viper's own placement,
 §7.3 configuration attestation, §7.4 model equivalence, §7.5 capability probes, §10 WL-09…WL-15 rows
@@ -877,36 +913,27 @@ interactive step, no decision in the middle.
 ## 29.2 Track B — the market
 
 Everything that needs the roster of §5: model variants, adapters, capability probes, tier tables,
-composed baselines, and the comparative cells of §10. Worked after Track A, on the same corpus and
-the same harness, so nothing measured in A is re-measured differently in B.
+composed baselines, and the comparative cells of §10.
 
-## 29.3 Starting a session
-
-The skill is a file, not a command: a session begins by reading `.claude/skills/viper_bencher.md`,
-then this section, and works the track it is told. Two forms, and nothing else is needed:
-
-```text
-Track A:  work docs/Benchmark-Plan.md per .claude/skills/viper_bencher.md — Track A, §29.1
-Track B:  work docs/Benchmark-Plan.md per .claude/skills/viper_bencher.md — Track B, §29.2
-```
-
-Track B is entered only once Track A's baseline is committed and frozen. It adds the roster, the
-model variants, the capability probes and the comparative cells, and it re-measures nothing Track A
+It is entered only once Track A's baseline is committed and frozen, and it re-measures nothing Track A
 already recorded: the corpus, the profiles, the job configuration and the verification stay as they
 are, so an A cell and a B cell in the same table describe the same experiment.
 
-## 29.4 Current position
+## 29.3 Current position
 
 Kept accurate at the end of every session, so a session that starts cold knows where to resume
 without reading the history.
 
 ```text
 Track:        A — Viper alone
-Stage:        A0 closed; A1–A5 suites written, A6 and A7 remain
-Harness:      frozen? no — still being built
-Last run:     none published. B0 verification green (270 pairs, 0 failed); sizes collected (§14, deterministic — no idle machine needed)
+Stage:        A0 closed; A1–A6 suites written, A7 remains
+Harness:      frozen? no — A7 is still to be written
+Last run:     none published. B0 verification green (270 pairs, 0 failed); §14 sizes re-collected after R-01;
+              --smoke green over 655 benchmarks, which publishes nothing
 Machine:      publication runs not yet started
-Next action:  write the §18.1 component suites (A6), then the --track A runner and report generator (A7); then freeze and run
+Next action:  A7 — the --track A runner, the report generator, the §24 charts, the BASE-01 baseline and the
+              §26 reproduction document; then freeze and run. Still open in A5: SCALE-02 above 900 KB
+              and SCALE-09
 ```
 
 ---

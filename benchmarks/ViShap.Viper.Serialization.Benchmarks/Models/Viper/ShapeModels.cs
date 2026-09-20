@@ -248,8 +248,13 @@ internal sealed class CollectionZoo
 
     public ImmutableList<string> ImmutableList { get; set; } = ImmutableList<string>.Empty;
 
-    public ImmutableDictionary<string, int> ImmutableDictionary { get; set; } =
-        System.Collections.Immutable.ImmutableDictionary<string, int>.Empty;
+    /// <summary>
+    /// Keyed by an integer rather than a string. An immutable dictionary enumerates in hash order, and
+    /// .NET randomizes string hash codes per process, so a string key would give this dataset a
+    /// different byte sequence in every run while keeping its length.
+    /// </summary>
+    public ImmutableDictionary<int, string> ImmutableDictionary { get; set; } =
+        System.Collections.Immutable.ImmutableDictionary<int, string>.Empty;
 
     public KeyValuePair<string, int> Pair { get; set; }
 

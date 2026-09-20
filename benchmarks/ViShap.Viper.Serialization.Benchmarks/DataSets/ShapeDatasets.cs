@@ -440,26 +440,8 @@ internal sealed class WideObjectDataset : Dataset<WideObject>
     protected override WideObject Build()
     {
         var rng = new DeterministicRandom(0x0000_0018);
-        var value = new WideObject();
 
-        foreach (var property in typeof(WideObject).GetProperties())
-        {
-            object boxed = Type.GetTypeCode(property.PropertyType) switch
-            {
-                TypeCode.Int32 => rng.NextInt32(),
-                TypeCode.Int64 => rng.NextInt64(),
-                TypeCode.Double => rng.NextDouble() * 1000,
-                TypeCode.Boolean => rng.NextBool(),
-                TypeCode.Decimal => Math.Round((decimal)(rng.NextDouble() * 1000), 3),
-                TypeCode.String => rng.NextAscii(6, 20),
-                TypeCode.DateTime => rng.NextDateTime(),
-                _ => rng.NextGuid(),
-            };
-
-            property.SetValue(value, boxed);
-        }
-
-        return value;
+        return WideModels.Populate(new WideObject(), rng);
     }
 }
 
@@ -509,7 +491,9 @@ internal sealed class CollectionZooDataset : Dataset<CollectionZoo>
 
         value.ImmutableArray = [.. value.Array];
         value.ImmutableList = [.. value.List];
-        value.ImmutableDictionary = value.Dictionary.ToImmutableDictionary();
+        value.ImmutableDictionary = value.List
+            .Select((text, index) => (Index: index, Text: text))
+            .ToImmutableDictionary(entry => entry.Index, entry => entry.Text);
 
         return value;
     }

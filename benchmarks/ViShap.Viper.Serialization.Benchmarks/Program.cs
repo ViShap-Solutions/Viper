@@ -36,14 +36,59 @@ internal static class Program
             return ColdStartRunner.Drive();
         }
 
+        if (args.Contains("--contract-cold", StringComparer.Ordinal))
+        {
+            return Suites.Components.ContractColdRunner.Run();
+        }
+
         if (args.Contains("--soak", StringComparer.Ordinal))
         {
             var minutes = Minutes(args, fallback: 10);
             return SoakRunner.Run(TimeSpan.FromMinutes(minutes));
         }
 
+        if (args.Contains("--smoke", StringComparer.Ordinal))
+        {
+            return Smoke(args);
+        }
+
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, new BenchmarkConfig());
         return 0;
+    }
+
+    /// <summary>
+    /// LAY-04 — runs every suite once, to prove the switcher still executes. The numbers a smoke run
+    /// produces are meaningless by construction and are never published.
+    /// </summary>
+    /// <remarks>
+    /// A <c>--filter</c> given after <c>--smoke</c> narrows it; without one it runs the whole assembly.
+    /// </remarks>
+    private static int Smoke(string[] args)
+    {
+        var filters = args.Contains("--filter", StringComparer.Ordinal)
+            ? args.Where(argument => argument != "--smoke").ToArray()
+            : ["--filter", "*"];
+
+        var summaries = BenchmarkSwitcher
+            .FromAssembly(typeof(Program).Assembly)
+            .Run(filters, new SmokeConfig())
+            .ToList();
+
+        var failed = summaries
+            .SelectMany(summary => summary.Reports)
+            .Where(report => !report.Success)
+            .ToList();
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Smoke: {summaries.Sum(summary => summary.Reports.Length)} benchmarks, {failed.Count} failed.");
+
+        foreach (var report in failed)
+        {
+            Console.WriteLine($"  failed: {report.BenchmarkCase.DisplayInfo}");
+        }
+
+        return failed.Count == 0 ? 0 : 1;
     }
 
     /// <summary>
