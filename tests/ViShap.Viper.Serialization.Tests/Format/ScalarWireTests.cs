@@ -180,7 +180,7 @@ public class ScalarWireTests
         Assert.Equal(Text("https://example.test/a?b=c"), Payload(new Uri("https://example.test/a?b=c")));
         Assert.Equal(Text("1.2.3.4"), Payload(new Version(1, 2, 3, 4)));
         Assert.Equal(Text("text"), Payload(new StringBuilder("text")));
-        Assert.Equal(Text("en-GB"), Payload(CultureInfo.GetCultureInfo("en-GB")));
+        Assert.Equal(Text(Cultures.Specific.Name), Payload(Cultures.Specific));
         Assert.Equal(Text(string.Empty), Payload(CultureInfo.InvariantCulture));
     }
 

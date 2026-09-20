@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Globalization;
 using Xunit.Sdk;
 
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
@@ -205,6 +206,19 @@ public class UtilityTests
         int[] squares = Concurrent.Race(worker => worker * worker);
 
         Assert.Equal([.. Enumerable.Range(0, Concurrent.Workers).Select(worker => worker * worker)], squares);
+    }
+
+    [Fact]
+    public void Cultures_Specific_IsACultureThisHostCanResolve()
+    {
+        // Whatever the host provides, the value is usable and its name is what a payload would
+        // carry. On a build with no globalization data that is the invariant culture, and the point
+        // is that this still holds rather than throwing.
+        var culture = Cultures.Specific;
+
+        Assert.NotNull(culture);
+        Assert.Same(culture, Cultures.Specific);
+        Assert.Equal(culture, CultureInfo.GetCultureInfo(culture.Name));
     }
 
     // --- UTIL-02: the frame builders produce bytes a real reader accepts -------------------------

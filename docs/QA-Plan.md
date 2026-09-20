@@ -937,6 +937,7 @@ IdentityCompression.CompressCalls · DecompressCalls · RecordingKeyProvider    
 
 FailingContentStream (real content, then an IOException at a chosen offset)            (added by M8)
 Concurrent.Race (a body on several threads released together) · the Raced* types       (added by M8)
+Cultures.Specific (a culture the host actually has) · the Frozen* compatibility shapes  (added by M8)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
@@ -960,6 +961,7 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-13 — `WriteOnlyStream` accepts writes, seeks, and refuses reads — `Fixtures/UtilityTests`
 - [x] UTIL-14 — the algorithm doubles count the calls they receive, and `RecordingKeyProvider` hands out an owned copy per resolution while recording the id it was asked — `Fixtures/UtilityTests`
 - [x] UTIL-15 — `Concurrent.Race` runs its workers at the same time rather than one after another, returns each result under its own index, and rethrows what a worker threw — `Fixtures/UtilityTests`. A helper that quietly serialized would make every L4 checkpoint pass without ever racing anything
+- [x] UTIL-16 — `Cultures.Specific` resolves on the host it runs on, including one with no globalization data — `Fixtures/UtilityTests`. Naming a culture in a test makes it fail wherever that name is absent, which is a property of the machine and not of the format
 
 ---
 

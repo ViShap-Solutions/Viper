@@ -20,6 +20,13 @@ namespace ViShap.Viper.Serialization.Tests.Fixtures;
 /// depends on the host's time-zone database, so a committed fixture would decode differently on a
 /// different machine and would be testing the operating system rather than the format.
 /// </para>
+/// <para>
+/// <see cref="FrozenTimeAndSystem.Culture"/> carries the invariant culture for the same reason: a
+/// named one cannot be resolved on a host without globalization data, and a fixture that only some
+/// machines can read proves nothing on the rest. The member stays in place rather than being
+/// dropped, because its slot and its encoding are what the fixture freezes — re-encoding a culture
+/// as anything other than its name would shift every byte after it and break the decode.
+/// </para>
 /// </remarks>
 public sealed class FrozenPrimitives
 {

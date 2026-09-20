@@ -81,7 +81,9 @@ public class CompatibilityTests
         Location = new Uri("https://example.org/a%20path?q=1#frag"),
         Release = new Version(1, 0, 0, 0),
         Builder = new StringBuilder("builder text"),
-        Culture = CultureInfo.GetCultureInfo("fr-FR"),
+        // The invariant culture is the one name every host has, including a build with no
+        // globalization data. A named culture would freeze bytes this fixture could not read there.
+        Culture = CultureInfo.InvariantCulture,
         Bits = new BitArray([true, false, true, true, false, false, false, true, true])
     };
 

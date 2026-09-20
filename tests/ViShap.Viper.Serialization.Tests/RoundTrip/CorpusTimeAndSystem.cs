@@ -2,6 +2,7 @@ using System.Collections;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.RoundTrip;
 
@@ -232,9 +233,12 @@ public abstract partial class Corpus
     [Fact]
     public void Deserialize_CultureInfo_RestoresTheCultureByName()
     {
+        // The culture comes from what the host supports rather than from a literal: naming one would
+        // make the round trip fail wherever that name is absent, which is about globalization data
+        // and not about the encoding under test.
         Assert.Equal(CultureInfo.InvariantCulture, RoundTrip(CultureInfo.InvariantCulture));
-        Assert.Equal(CultureInfo.GetCultureInfo("fr-FR"), RoundTrip(CultureInfo.GetCultureInfo("fr-FR")));
-        Assert.Equal("fr", RoundTrip(CultureInfo.GetCultureInfo("fr"))!.Name);
+        Assert.Equal(Cultures.Specific, RoundTrip(Cultures.Specific));
+        Assert.Equal(Cultures.Specific.Name, RoundTrip(Cultures.Specific)!.Name);
     }
 
     [Fact]

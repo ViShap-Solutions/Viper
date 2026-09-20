@@ -51,7 +51,9 @@ never records project history.
 The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Concurrency/`,
 `Contracts/`, `Diagnostics/`, `Exceptions/`, `Fixtures/`, `Format/`, `Hostile/`, `Limits/`,
 `Metadata/`, `References/`, `RoundTrip/`, `Streams/`. Shared helpers live in `Fixtures/` (`AssertEx`,
-`Wire`, `Mutate`, `Concurrent`, stream doubles) and are themselves tested.
+`Wire`, `Mutate`, `Concurrent`, `Cultures`, stream doubles) and are themselves tested. A test names no
+culture and no time zone: those come from the host, so the suite is green with and without
+globalization data (`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`).
 
 `Fixtures/Wire/*.bin` are the frozen v1.0.0 payloads, read by `Format/CompatibilityTests` against the
 frozen shapes in `Fixtures/Compatibility.cs`. They are never regenerated: a rebuilt fixture agrees
