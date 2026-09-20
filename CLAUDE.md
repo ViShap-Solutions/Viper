@@ -34,7 +34,16 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
 - `docs/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
   staged M0–M8; §30 records confirmed defects and the resolved contract questions. The method for
   working it lives in the `viper_tester` skill, not in the plan.
-- `docs/Benchmark-Plan.md` — **not yet realigned** with the reworked architecture. Treat it as stale.
+- `docs/Benchmark-Plan.md` — the release-gate benchmark plan, realigned with the contract. Checkpoint
+  list only, staged B0–B9: the competitor roster and why each library is in or out, the capability
+  tiers that keep a comparison like-for-like, the data corpus, the workloads, the fairness rules and
+  §27 for findings. The method for working it lives in the `viper_bencher` skill, not in the plan.
+  Benchmark work is read-only over the library: it touches `benchmarks/`, the plan itself and
+  `docs/performance/`, and nothing else. Its §18 component suites measure internals directly and
+  granted an `InternalsVisibleTo`.
+- `docs/performance/` — where a measurement becomes a suggestion and stops: one `PERF-nn-*.md` per
+  proposed optimization or extension point, cited to the cells that motivate it, for the owner to
+  decide on. Nothing here has been applied.
 - `docs/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
