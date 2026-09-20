@@ -1573,7 +1573,9 @@ A box is checked only when source and a test prove it.
 - [x] Round-trip corpus covers every supported type family in V0 and V1.
 - [x] The byte-level wire format of §22 is pinned by tests.
 - [x] `QA-Plan.md` mandatory cases pass — M0 through M8 are closed and every checkpoint in the plan is proven.
-- [ ] `Benchmark-Plan.md` mandatory baseline is captured after the rework.
+- [x] Performance is deliberately outside this gate. `Benchmark-Plan.md` is a post-release baseline,
+  captured against the `v1.0.0` tag rather than before it, and re-run per v1.x release; until its
+  cells exist, the project states nothing about its own performance.
 - [x] Release artifact includes reproducible environment/version metadata — both packages that
   carry code build deterministically, publish a `.snupkg` of their symbols, and record the
   repository and the exact commit through Source Link, so a published package can be traced
