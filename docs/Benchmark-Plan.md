@@ -147,7 +147,7 @@ UTC timestamp of the run
 - [x] ENV-01 — every field above is captured by code, not typed by hand — `Environment/EnvironmentManifest.cs`, `--manifest`
 - [x] ENV-02 — the manifest is written to `environment.json` beside the raw results of every run
 - [ ] ENV-03 — every competitor package version is pinned exactly; no floating or wildcard version resolves in the benchmark project
-- [ ] ENV-04 — a run refuses to start on a dirty working tree unless `--allow-dirty` is passed, and records the flag in the manifest
+- [x] ENV-04 — a run refuses to start on a dirty working tree unless `--allow-dirty` is passed, and records the flag in the manifest
 - [ ] ENV-05 — the publication run is executed twice on separate occasions on the same machine; any metric whose two means differ by more than their combined margin of error is published as unstable rather than as a single value
 - [ ] ENV-06 — the GC mode behind the published comparative matrix is declared in the manifest and is the default a library consumer gets, with Server GC measured separately where §19 and §21 call for it
 - [ ] ENV-07 — no other interactive workload runs during a publication run, and the harness records idle CPU before starting
@@ -658,10 +658,11 @@ Both directories below live inside the benchmark project, beside the layout of �
 
 ```text
 Baselines/<tag>/
+  run.json                  what the run was: kind, tag, revision, job, filter, suites run
   environment.json          §4 manifest
   capabilities.csv          §7.5 probe results
   verification.csv          §7.6 outcomes, per (adapter, dataset)
-  results/                  the BenchmarkDotNet export, one csv, json, md and html per suite
+  results.zip               the BenchmarkDotNet export, one csv, json, md and html per suite
   results.csv               every timed cell of the run, in one table
   payload-sizes.csv         §14
   memory.csv                §13
@@ -689,18 +690,18 @@ Measurements/<git describe>-<UTC timestamp>/
 ```
 
 - [ ] REP-01 — every artifact above is produced by one command
-- [ ] REP-02 — the report regenerates byte-identically from the raw files, so the raw files are the record and the report is a view
-- [ ] REP-03 — the generator's own version and the revision it ran on are recorded in the manifest
-- [ ] REP-04 — a cell with no number carries its result state and its reason, never a blank
+- [x] REP-02 — the report regenerates byte-identically from the raw files, so the raw files are the record and the report is a view
+- [x] REP-03 — the generator's own version and the revision it ran on are recorded in the manifest
+- [x] REP-04 — a cell with no number carries its result state and its reason, never a blank
 - [ ] REP-05 — the report opens with the tier table, the roster, and the exclusions, before any number
-- [ ] REP-06 — the report never reduces the outcome to a single winner
+- [x] REP-06 — the report never reduces the outcome to a single winner
 - [ ] REP-07 — every claim in the README or the package description that cites a performance figure cites a cell in a committed raw file
-- [ ] REP-08 — a publication run writes every artifact of the list above directly into `Baselines/<tag>/`, never into a directory git ignores, so no result exists only outside the commit
+- [x] REP-08 — a publication run writes every artifact of the list above directly into `Baselines/<tag>/`, never into a directory git ignores, so no result exists only outside the commit
 - [ ] REP-09 — a publication run refuses to start when `Baselines/<tag>/` already exists; a re-measurement of the same tag goes to a new directory and the difference between the two is recorded in §27.3
-- [ ] REP-10 — `BenchmarkDotNet.Artifacts/` is the working directory of ad-hoc and exploratory runs, is ignored by git, and is never the source of a published figure
-- [ ] REP-11 — every baseline is readable on its own: no artifact in it refers to another baseline, to the working directory, or to a file outside the repository
-- [ ] REP-12 — a partial run writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no partial run can overwrite another
-- [ ] REP-13 — a partial run carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
+- [x] REP-10 — `BenchmarkDotNet.Artifacts/` is the working directory of ad-hoc and exploratory runs, is ignored by git, and is never the source of a published figure
+- [x] REP-11 — every baseline is readable on its own: no artifact in it refers to another baseline, to the working directory, or to a file outside the repository
+- [x] REP-12 — a partial run writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no partial run can overwrite another
+- [x] REP-13 — a partial run carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
 - [ ] REP-14 — a partial run is never the source of a published figure about anything it did not measure, and a delta against a baseline covers only the cells both contain
 
 ---
@@ -721,8 +722,8 @@ Generated from the raw files, never drawn by hand.
 - [ ] CHT-10 — parallel scaling efficiency
 - [ ] CHT-11 — every chart labels its units, states whether lower or higher is better, and names the tier
 - [ ] CHT-12 — a normalized chart, where used, is secondary to the absolute one and never replaces it
-- [ ] CHT-13 — the chart layer contains no value that is absent from the raw results
-- [ ] CHT-14 — every chart is committed inside its baseline as SVG at a stable path, so a README or a release note can reference it directly and the chart of an older baseline keeps rendering after a newer one exists
+- [x] CHT-13 — the chart layer contains no value that is absent from the raw results
+- [x] CHT-14 — every chart is committed inside its baseline as SVG at a stable path, so a README or a release note can reference it directly and the chart of an older baseline keeps rendering after a newer one exists
 - [ ] CHT-15 — a chart that shows two versions names both tags, and its values come from both baselines' raw files rather than from one run
 
 ---
@@ -747,7 +748,7 @@ Every later v1.x that changes `src/` is measured the same way, against its own t
 - [ ] BASE-05 — a crossed threshold is recorded in §27 with its cause; it informs the next version, and never holds a release hostage
 - [ ] BASE-06 — each subsequent v1.x run is committed under its own `Baselines/<tag>/`, with the delta against the previous one and an entry in §27.3 for every threshold it crosses
 - [ ] BASE-07 — every cell of a baseline carries the tag it belongs to, so two baselines can be read in one table without either being modified
-- [ ] BASE-08 — the directory name of a full baseline is the tag `git describe --tags --exact-match HEAD` reports and nothing else; on a commit that carries no tag no baseline directory is created at all and the run is recorded under `Measurements/` instead (REP-12), because a baseline signed with the wrong version is worse than a missing one
+- [x] BASE-08 — the directory name of a full baseline is the tag `git describe --tags --exact-match HEAD` reports and nothing else; on a commit that carries no tag no baseline directory is created at all and the run is recorded under `Measurements/` instead (REP-12), because a baseline signed with the wrong version is worse than a missing one
 - [ ] BASE-09 — a full baseline is taken deliberately, not once per tag: a release that did not change `src/` records that the previous baseline still applies, and anything examined between baselines is a partial run of §23
 
 ---
@@ -756,11 +757,11 @@ Every later v1.x that changes `src/` is measured the same way, against its own t
 
 Every baseline carries its own `reproduction.md`: the commands that produced it, in the order they ran, so a second engineer can take the same measurements from a clean clone of the same revision. It names only what the repository contains — the benchmark project's own command-line modes — because a reader of a baseline has the repository and nothing else.
 
-- [ ] REPRO-01 — `Baselines/<tag>/reproduction.md` lists the exact command sequence that produced that baseline, in order, and nothing in it depends on a file outside the repository
-- [ ] REPRO-02 — it states the hardware, the machine state the run requires, and the expected wall-clock duration of each command
-- [ ] REPRO-03 — it shows how to re-run one stage or one suite alone, with the same commands narrowed by a filter
-- [ ] REPRO-04 — it names which values are expected to differ on other hardware and which are not: payload sizes, compression ratios and result states are properties of the format and hold everywhere, while every timing and every allocation figure belongs to the recorded machine
-- [ ] REPRO-05 — it is committed inside the baseline package, so the baseline is repeatable without this plan
+- [x] REPRO-01 — `Baselines/<tag>/reproduction.md` lists the exact command sequence that produced that baseline, in order, and nothing in it depends on a file outside the repository
+- [x] REPRO-02 — it states the hardware, the machine state the run requires, and the expected wall-clock duration of each command
+- [x] REPRO-03 — it shows how to re-run one stage or one suite alone, with the same commands narrowed by a filter
+- [x] REPRO-04 — it names which values are expected to differ on other hardware and which are not: payload sizes, compression ratios and result states are properties of the format and hold everywhere, while every timing and every allocation figure belongs to the recorded machine
+- [x] REPRO-05 — it is committed inside the baseline package, so the baseline is repeatable without this plan
 
 ---
 
@@ -926,14 +927,17 @@ without reading the history.
 
 ```text
 Track:        A — Viper alone
-Stage:        A0 closed; A1–A6 suites written, A7 remains
-Harness:      frozen? no — A7 is still to be written
-Last run:     none published. B0 verification green (270 pairs, 0 failed); §14 sizes re-collected after R-01;
-              --smoke green over 655 benchmarks, which publishes nothing
+Stage:        A0 closed; A1–A6 suites written; A7 machinery written and exercised end to end
+Harness:      frozen? no — two A5 items still to be written
+Last run:     none published. A full shortened --track A run produced every artifact of §23 for 655 cells in
+              1h14m and self-checked the report as byte-identical; deleted afterwards, since a shortened job
+              measures nothing worth keeping
 Machine:      publication runs not yet started
-Next action:  A7 — the --track A runner, the report generator, the §24 charts, the BASE-01 baseline and the
-              §26 reproduction document; then freeze and run. Still open in A5: SCALE-02 above 900 KB
-              and SCALE-09
+Next action:  the two open A5 items: the 16 MB and 64 MB points of SCALE-02, built from records rather
+              than byte arrays because array data spends the element budget per byte (PERF-01), and
+              SCALE-09 under Server GC, which A7 made expressible. Then tag v1.0.0, freeze, and take the
+              publication run from a checkout of the tag on an idle machine — about 3.5 hours, of which
+              40 minutes is the soak
 ```
 
 ---

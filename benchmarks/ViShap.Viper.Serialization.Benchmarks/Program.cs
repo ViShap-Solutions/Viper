@@ -2,6 +2,7 @@ using BenchmarkDotNet.Running;
 using ViShap.Viper.Serialization.Benchmarks.Config;
 using ViShap.Viper.Serialization.Benchmarks.DataSets;
 using ViShap.Viper.Serialization.Benchmarks.Environment;
+using ViShap.Viper.Serialization.Benchmarks.Reporting;
 using ViShap.Viper.Serialization.Benchmarks.Suites;
 using ViShap.Viper.Serialization.Benchmarks.Verification;
 
@@ -31,6 +32,18 @@ internal static class Program
             return ColdStartRunner.Child(profile, dataset, operation, args.Length > 4 ? args[4] : null);
         }
 
+        // A track run carries the same flags the single modes use — --filter, --soak — so it is
+        // recognized before any of them.
+        if (args.Contains("--track", StringComparer.Ordinal))
+        {
+            return Track(args);
+        }
+
+        if (args.Contains("--report", StringComparer.Ordinal))
+        {
+            return Report(args);
+        }
+
         if (args.Contains("--cold", StringComparer.Ordinal))
         {
             return ColdStartRunner.Drive();
@@ -54,6 +67,52 @@ internal static class Program
 
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, new BenchmarkConfig());
         return 0;
+    }
+
+    /// <summary>
+    /// §29.1 — one command runs a whole track: every suite in order, every artifact of §23 into the
+    /// run's own directory, and nothing interactive in the middle.
+    /// </summary>
+    private static int Track(string[] args)
+    {
+        var track = Argument(args, "--track");
+
+        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine(
+                $"Track '{track}' has no runner. Track A measures Viper alone; Track B follows it and needs " +
+                "the competitor roster of the plan's §5.");
+
+            return 1;
+        }
+
+        return TrackRunner.Run(args);
+    }
+
+    /// <summary>
+    /// REP-02 — regenerates the report and the charts of an existing run from its raw files, so a
+    /// baseline committed long ago still produces the report it produced on the day it was taken.
+    /// </summary>
+    private static int Report(string[] args)
+    {
+        var directory = Argument(args, "--report");
+
+        if (directory is null || !Directory.Exists(directory))
+        {
+            Console.Error.WriteLine($"No run directory at '{directory}'.");
+            return 1;
+        }
+
+        ReportWriter.Generate(directory);
+
+        Console.WriteLine($"Report and charts regenerated in {directory}");
+        return 0;
+    }
+
+    private static string? Argument(string[] args, string name)
+    {
+        int index = Array.IndexOf(args, name);
+        return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
     }
 
     /// <summary>

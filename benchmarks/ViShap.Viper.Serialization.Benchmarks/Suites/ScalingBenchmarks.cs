@@ -43,30 +43,75 @@ public class ElementCountScalingBenchmarks
     public object? Deserialize() => _adapter.Deserialize<List<TinyFlat>>(_payload);
 }
 
-/// <summary>§19 SCALE-02 — payload size, measured on a shape whose traversal is constant.</summary>
+/// <summary>§19 SCALE-02 — payload size, from a kilobyte to the neighbourhood of `MaxPayloadBytes`.</summary>
+/// <remarks>
+/// The payload is a batch of records rather than one byte blob. Bulk array data cannot reach these sizes
+/// under the default policy at all: a `byte[]` spends the element budget per byte, so about ten megabytes
+/// of arrays exhausts `MaxTotalElements` however the bytes are split, and no number of smaller arrays
+/// gets around it (PERF-01). A record spends one element and one graph node regardless of how many bytes
+/// it encodes to, which is what lets the curve reach 64 MB inside every default ceiling and stay
+/// comparable with the profiles measured elsewhere.
+/// <para>
+/// The record count for a target size is derived by measuring a probe batch, and the setup refuses a
+/// batch that lands more than five percent from its target, so a published cell never claims a size it
+/// did not reach. The derivation depends on the encoding alone, so it is the same on any machine.
+/// </para>
+/// </remarks>
 [MemoryDiagnoser]
 public class PayloadSizeScalingBenchmarks
 {
+    private const int Probe = 1_000;
+
     private ViperAdapter _adapter = null!;
-    private BlobEnvelope _value = new();
+    private List<TinyFlat> _value = [];
     private byte[] _payload = [];
 
-    [Params(1_000, 64_000, 250_000, 900_000)]
+    [Params(1_000, 64_000, 1_000_000, 16_000_000, 64_000_000)]
     public int Bytes { get; set; }
 
     [GlobalSetup]
     public void Setup()
     {
         _adapter = new ViperAdapter(ViperProfile.Default);
-        _value = ByteBlobDataset.Blob(0x0000_5002, Bytes);
+
+        var rng = new DeterministicRandom(0x0000_5002);
+        var probe = new List<TinyFlat>(Probe);
+
+        for (var i = 0; i < Probe; i++)
+        {
+            probe.Add(Build.TinyFlat(rng));
+        }
+
+        double perRecord = (double)_adapter.Serialize(probe).Length / Probe;
+        int count = Math.Max((int)(Bytes / perRecord), 1);
+
+        _value = new List<TinyFlat>(count);
+        var records = new DeterministicRandom(0x0000_5002);
+
+        for (var i = 0; i < count; i++)
+        {
+            _value.Add(Build.TinyFlat(records));
+        }
+
         _payload = _adapter.Serialize(_value);
+
+        // The axis of the published curve is the target, so the batch has to land on it. A derivation
+        // that drifted would put a cell under a size it never reached, which is worse than a coarser axis.
+        double drift = Math.Abs((double)_payload.Length - Bytes) / Bytes;
+
+        if (drift > 0.05)
+        {
+            throw new InvalidOperationException(
+                $"A batch aimed at {Bytes:N0} bytes encoded to {_payload.Length:N0}, off by " +
+                $"{drift:P1}. The curve would claim a size it did not reach.");
+        }
     }
 
     [Benchmark(Description = "SCALE-02 serialize")]
     public byte[] Serialize() => _adapter.Serialize(_value);
 
     [Benchmark(Description = "SCALE-02 deserialize")]
-    public object? Deserialize() => _adapter.Deserialize<BlobEnvelope>(_payload);
+    public object? Deserialize() => _adapter.Deserialize<List<TinyFlat>>(_payload);
 }
 
 /// <summary>§19 SCALE-03 — depth, up to just below the default ceiling of 512 (§5.1).</summary>

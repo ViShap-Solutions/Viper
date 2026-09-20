@@ -80,6 +80,36 @@ internal static class SizeReport
         File.WriteAllText(path, csv.ToString(), Encoding.UTF8);
     }
 
+    /// <summary>
+    /// Reads the table back, so the report and the charts are a view over the committed file rather
+    /// than over the process that measured it.
+    /// </summary>
+    internal static IReadOnlyList<SizeRow> Read(string path)
+    {
+        var rows = new List<SizeRow>();
+
+        foreach (var line in File.ReadAllLines(path).Skip(1))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var cells = line.Split(',');
+
+            rows.Add(new SizeRow(
+                cells[0],
+                cells[1],
+                cells[2],
+                int.Parse(cells[3], CultureInfo.InvariantCulture),
+                int.Parse(cells[4], CultureInfo.InvariantCulture),
+                int.Parse(cells[5], CultureInfo.InvariantCulture),
+                double.Parse(cells[6], CultureInfo.InvariantCulture)));
+        }
+
+        return rows;
+    }
+
     private static int Lookup(
         Dictionary<(ViperProfile, string), (int Bytes, string State)> sizes,
         ViperProfile profile,

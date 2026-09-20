@@ -6,6 +6,9 @@ namespace ViShap.Viper.Serialization.Benchmarks.Environment;
 /// </summary>
 internal static class Paths
 {
+    /// <summary>The project path as a command line names it, for the instructions a run writes.</summary>
+    internal const string ProjectName = "benchmarks/ViShap.Viper.Serialization.Benchmarks";
+
     /// <summary>The benchmark project directory.</summary>
     internal static string ProjectDirectory { get; } = FindProjectDirectory();
 
@@ -14,6 +17,9 @@ internal static class Paths
 
     /// <summary>Frozen baseline packages, one directory per tag.</summary>
     internal static string Baselines { get; } = Path.Combine(ProjectDirectory, "Baselines");
+
+    /// <summary>Partial runs, one directory per run.</summary>
+    internal static string Measurements { get; } = Path.Combine(ProjectDirectory, "Measurements");
 
     private static string FindProjectDirectory()
     {

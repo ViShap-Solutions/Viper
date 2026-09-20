@@ -67,7 +67,7 @@ internal static class ColdStartRunner
     }
 
     /// <summary>Launches the children, aggregates over launches, and writes the result.</summary>
-    internal static int Drive()
+    internal static int Drive(string? outputDirectory = null)
     {
         var rows = new StringBuilder(
             "profile,dataset,operation,launches,startup_ms_median,operation_ms_mean,operation_ms_median," +
@@ -138,8 +138,9 @@ internal static class ColdStartRunner
 
         Directory.Delete(payloads, recursive: true);
 
-        var output = Path.Combine(Paths.Artifacts, "cold-start.csv");
-        Directory.CreateDirectory(Paths.Artifacts);
+        var destination = outputDirectory ?? Paths.Artifacts;
+        var output = Path.Combine(destination, "cold-start.csv");
+        Directory.CreateDirectory(destination);
         File.WriteAllText(output, rows.ToString(), Encoding.UTF8);
 
         Console.WriteLine($"Written to {output}");

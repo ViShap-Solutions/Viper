@@ -70,7 +70,7 @@ internal static class ContractColdRunner
         typeof(WideKeyed200),
     ];
 
-    internal static int Run()
+    internal static int Run(string? outputDirectory = null)
     {
         var rows = new StringBuilder(
             "kind,type,members,samples,mean_us,median_us,p95_us,min_us,max_us,allocated_bytes_median\n");
@@ -98,8 +98,9 @@ internal static class ContractColdRunner
             MeasureOnce(type, rows);
         }
 
-        Directory.CreateDirectory(Paths.Artifacts);
-        var output = Path.Combine(Paths.Artifacts, "contract-cold.csv");
+        var destination = outputDirectory ?? Paths.Artifacts;
+        Directory.CreateDirectory(destination);
+        var output = Path.Combine(destination, "contract-cold.csv");
         File.WriteAllText(output, rows.ToString(), Encoding.UTF8);
 
         Console.WriteLine();

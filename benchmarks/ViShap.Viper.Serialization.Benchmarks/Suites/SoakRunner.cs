@@ -17,7 +17,7 @@ internal static class SoakRunner
 {
     private static readonly TimeSpan Sample = TimeSpan.FromSeconds(10);
 
-    internal static int Run(TimeSpan duration)
+    internal static int Run(TimeSpan duration, string? outputDirectory = null)
     {
         var rows = new StringBuilder(
             "profile,dataset,elapsed_s,operations,ops_per_second,managed_heap_bytes,working_set_bytes,gen0,gen1,gen2\n");
@@ -30,8 +30,9 @@ internal static class SoakRunner
             }
         }
 
-        var output = Path.Combine(Paths.Artifacts, "soak.csv");
-        Directory.CreateDirectory(Paths.Artifacts);
+        var destination = outputDirectory ?? Paths.Artifacts;
+        var output = Path.Combine(destination, "soak.csv");
+        Directory.CreateDirectory(destination);
         File.WriteAllText(output, rows.ToString(), Encoding.UTF8);
 
         Console.WriteLine($"Written to {output}");
