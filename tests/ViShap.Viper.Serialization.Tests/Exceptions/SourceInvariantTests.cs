@@ -8,7 +8,7 @@ namespace ViShap.Viper.Serialization.Tests.Exceptions;
 /// check at the wrong layer changes nothing observable until the day it hides a real failure, so the
 /// shape of the source is asserted directly.
 /// </summary>
-public partial class SourceInvariantTests
+public class SourceInvariantTests
 {
     [Fact]
     public void SourceTree_IsActuallyFound()
@@ -24,7 +24,7 @@ public partial class SourceInvariantTests
         // A catch that performs real cleanup before rethrowing is fine; one that only rethrows is
         // noise that hides where a failure was actually handled.
         var offenders = SourceTree.ProductionFiles
-            .Where(file => BareRethrow().IsMatch(file.Value))
+            .Where(file => BareRethrowPattern.IsMatch(file.Value))
             .Select(file => file.Key)
             .ToArray();
 
@@ -66,7 +66,7 @@ public partial class SourceInvariantTests
         // A filtered catch names the exceptions it expects. An unfiltered one reaches `{` directly
         // and would turn any bug into a Viper exception.
         var offenders = SourceTree.ProductionFiles
-            .Where(file => UnfilteredCatchAll().IsMatch(file.Value))
+            .Where(file => UnfilteredCatchAllPattern.IsMatch(file.Value))
             .Select(file => file.Key)
             .ToArray();
 
@@ -113,9 +113,9 @@ public partial class SourceInvariantTests
             $"`SerializationLimits` referenced below the pipeline in: {string.Join(", ", offenders)}");
     }
 
-    [GeneratedRegex(@"catch\s*\(\s*BinarySerializerException\s*\)\s*\{\s*throw\s*;\s*\}", RegexOptions.Singleline)]
-    private static partial Regex BareRethrow();
+    private static readonly Regex BareRethrowPattern = new(
+        @"catch\s*\(\s*BinarySerializerException\s*\)\s*\{\s*throw\s*;\s*\}", RegexOptions.Singleline);
 
-    [GeneratedRegex(@"catch\s*\(\s*Exception(\s+\w+)?\s*\)\s*\{", RegexOptions.Singleline)]
-    private static partial Regex UnfilteredCatchAll();
+    private static readonly Regex UnfilteredCatchAllPattern = new(
+        @"catch\s*\(\s*Exception(\s+\w+)?\s*\)\s*\{", RegexOptions.Singleline);
 }

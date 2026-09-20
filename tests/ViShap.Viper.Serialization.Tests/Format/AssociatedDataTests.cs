@@ -140,10 +140,32 @@ public class AssociatedDataTests
         byte[] frame = serializer.Serialize("associated");
 
         // The key id is the only optional string present: its flag sits at offset 14, its 7-bit
-        // length at 15, and its bytes start at 16.
-        byte[] tampered = Mutate.FlipByte(frame, 16);
+        // length at 15, and its bytes start at 16. The edit keeps the field valid UTF-8, so nothing
+        // but the tag can object: "ring" becomes "sing".
+        byte[] tampered = Mutate.SetByte(frame, 16, (byte)'s');
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<string>(tampered));
+    }
+
+    [Fact]
+    public void Deserialize_KeyIdEditedIntoInvalidUtf8_ThrowsFormatBeforeTheTagIsChecked()
+    {
+        // The header is parsed before anything is decrypted, because the tag is computed over its
+        // decoded fields. A field that is not a string in the declared encoding therefore fails as
+        // malformed input, ahead of the integrity check the edit would otherwise have reached.
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure()
+                .WithChecksum(new Crc32())
+                .WithEncryption(new Aes256Gcm(), _ => Key, keyId: "ring")
+                .Build());
+
+        byte[] frame = serializer.Serialize("associated");
+
+        // 0x8D is a continuation byte with no lead byte in front of it.
+        byte[] tampered = Mutate.SetByte(frame, 16, 0x8D);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "UTF-8", () => serializer.Deserialize<string>(tampered));
     }
 
     [Fact]

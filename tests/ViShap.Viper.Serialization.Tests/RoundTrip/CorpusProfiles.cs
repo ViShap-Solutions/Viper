@@ -62,3 +62,31 @@ public sealed class ProtectedCorpusTests : Corpus
             .WithLimits(limits)
             .Build();
 }
+
+/// <summary>
+/// RT-C09 again under profile P6-02: the same envelope with Deflate in place of Brotli. Compression
+/// sits outside the payload, so swapping the codec may change how many bytes reach the disk and
+/// nothing else (§22.6).
+/// </summary>
+public sealed class DeflateProtectedCorpusTests : Corpus
+{
+    private static readonly byte[] Key =
+    [
+        0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
+        0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
+        0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+        0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F
+    ];
+
+    protected override BinarySerializer Serializer { get; } = new(Build(SerializationLimits.Default));
+
+    protected override BinarySerializer WithLimits(SerializationLimits limits) => new(Build(limits));
+
+    private static BinarySerializerOptions Build(SerializationLimits limits) =>
+        BinarySerializerOptions.Configure()
+            .WithCompression(new Deflate())
+            .WithChecksum(new Crc32())
+            .WithEncryption(new Aes256Gcm(), Key)
+            .WithLimits(limits)
+            .Build();
+}

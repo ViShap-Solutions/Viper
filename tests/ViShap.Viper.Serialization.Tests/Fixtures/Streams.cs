@@ -193,3 +193,40 @@ internal sealed class TrackingStream(byte[]? content = null) : Stream
         base.Dispose(disposing);
     }
 }
+
+/// <summary>
+/// A seekable stream that serves real content until a read would carry it past
+/// <paramref name="bytesBeforeFailure"/>, then raises <see cref="IOException"/>. Unlike
+/// <see cref="FailingStream"/> it delivers bytes a reader can recognize first, so a test can place
+/// the failure after a header has been identified rather than before.
+/// </summary>
+internal sealed class FailingContentStream(byte[] content, int bytesBeforeFailure) : Stream
+{
+    private readonly MemoryStream _inner = new(content, writable: false);
+
+    public override bool CanRead => true;
+    public override bool CanSeek => true;
+    public override bool CanWrite => false;
+    public override long Length => _inner.Length;
+
+    public override long Position
+    {
+        get => _inner.Position;
+        set => _inner.Position = value;
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+    public override int Read(Span<byte> buffer)
+    {
+        if (_inner.Position + buffer.Length > bytesBeforeFailure)
+            throw new IOException("The underlying device reported a failure.");
+
+        return _inner.Read(buffer);
+    }
+
+    public override void Flush() { }
+    public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+}

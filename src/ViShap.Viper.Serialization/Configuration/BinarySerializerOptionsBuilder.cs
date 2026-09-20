@@ -1,4 +1,4 @@
-namespace ViShap.Viper;
+﻿namespace ViShap.Viper;
 
 /// <summary>
 /// Builds a <see cref="BinarySerializerOptions"/>. Obtained from
@@ -220,6 +220,8 @@ public sealed class BinarySerializerOptionsBuilder
     /// <param name="name">The name recorded in headers.</param>
     /// <param name="factory">Creates the algorithm; called once per resolution.</param>
     /// <returns>The same builder.</returns>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty or blank.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="factory"/> is null.</exception>
     public BinarySerializerOptionsBuilder RegisterCustomCompression(
         string name, Func<ICompressionAlgorithm> factory) =>
         Register(_customCompression, name, factory);
@@ -228,6 +230,8 @@ public sealed class BinarySerializerOptionsBuilder
     /// <param name="name">The name recorded in headers.</param>
     /// <param name="factory">Creates the algorithm; called once per resolution.</param>
     /// <returns>The same builder.</returns>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty or blank.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="factory"/> is null.</exception>
     public BinarySerializerOptionsBuilder RegisterCustomChecksum(
         string name, Func<IChecksumAlgorithm> factory) =>
         Register(_customChecksum, name, factory);
@@ -236,6 +240,8 @@ public sealed class BinarySerializerOptionsBuilder
     /// <param name="name">The name recorded in headers.</param>
     /// <param name="factory">Creates the algorithm; called once per resolution.</param>
     /// <returns>The same builder.</returns>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty or blank.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="factory"/> is null.</exception>
     public BinarySerializerOptionsBuilder RegisterCustomEncryption(
         string name, Func<IEncryptionAlgorithm> factory) =>
         Register(_customEncryption, name, factory);

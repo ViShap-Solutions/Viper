@@ -1,11 +1,17 @@
-using System.Buffers;
+﻿using System.Buffers;
+using Xunit.Sdk;
 
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-14. A helper with a bug passes every suite that uses it, so the helpers are
+/// Pins UTIL-01…UTIL-15. A helper with a bug passes every suite that uses it, so the helpers are
 /// tested before anything is allowed to rely on them.
 /// </summary>
+/// <remarks>
+/// The negative cases assert that a helper <em>fails</em>, and what it throws is whichever assertion
+/// xUnit raised — <c>ContainsException</c>, <c>EqualException</c>, <c>TrueException</c>. They are a
+/// real family with one base, so those cases name <see cref="XunitException"/> and nothing wider.
+/// </remarks>
 public class UtilityTests
 {
     // --- UTIL-01: assertion helpers ------------------------------------------------------------
@@ -20,7 +26,7 @@ public class UtilityTests
     [Fact]
     public void Throws_MatchingTypeButDifferentMessage_Fails()
     {
-        Assert.ThrowsAny<Exception>(() => AssertEx.Throws<BinaryFormatException>(
+        Assert.ThrowsAny<XunitException>(() => AssertEx.Throws<BinaryFormatException>(
             "absent", static () => throw new BinaryFormatException("an expected failure")));
     }
 
@@ -29,7 +35,7 @@ public class UtilityTests
     {
         // BinaryLimitException derives from BinaryFormatException; a gate asking for the base must
         // not silently accept the subtype.
-        Assert.ThrowsAny<Exception>(() => AssertEx.Throws<BinaryFormatException>(
+        Assert.ThrowsAny<XunitException>(() => AssertEx.Throws<BinaryFormatException>(
             "over", static () => throw new BinaryLimitException("over the limit")));
     }
 
@@ -42,7 +48,7 @@ public class UtilityTests
     [Fact]
     public void AllocatesLessThan_LargeAllocation_Fails()
     {
-        Assert.ThrowsAny<Exception>(
+        Assert.ThrowsAny<XunitException>(
             () => AssertEx.AllocatesLessThan(1024, static () => _ = new byte[4 * 1024 * 1024]));
     }
 
@@ -50,7 +56,7 @@ public class UtilityTests
     public void SameContents_IgnoresOrder()
     {
         AssertEx.SameContents([1, 2, 3], new[] { 3, 1, 2 });
-        Assert.ThrowsAny<Exception>(() => AssertEx.SameContents([1, 2, 3], new[] { 1, 2 }));
+        Assert.ThrowsAny<XunitException>(() => AssertEx.SameContents([1, 2, 3], new[] { 1, 2 }));
     }
 
     [Fact]
@@ -157,6 +163,48 @@ public class UtilityTests
         using var stream = new FailingStream(bytesBeforeFailure: 2);
 
         Assert.Throws<IOException>(() => stream.ReadExactly(new byte[8]));
+    }
+
+    [Fact]
+    public void FailingContentStream_ServesItsContentUntilTheThreshold()
+    {
+        using var stream = new FailingContentStream([1, 2, 3, 4, 5, 6], bytesBeforeFailure: 4);
+
+        byte[] buffer = new byte[4];
+        stream.ReadExactly(buffer);
+
+        Assert.Equal([1, 2, 3, 4], buffer);
+        Assert.Throws<IOException>(() => stream.ReadExactly(new byte[1]));
+    }
+
+    [Fact]
+    public void Concurrent_Race_RunsItsWorkersAtTheSameTime()
+    {
+        // The bodies can only clear a barrier of their own if they are all in flight together, so a
+        // helper that quietly ran them one after another would time out here instead of passing.
+        using var together = new Barrier(Concurrent.Workers);
+
+        bool[] met = Concurrent.Race(_ => together.SignalAndWait(TimeSpan.FromSeconds(30)));
+
+        Assert.Equal(Concurrent.Workers, met.Length);
+        Assert.All(met, Assert.True);
+    }
+
+    [Fact]
+    public void Concurrent_Race_RethrowsWhatAWorkerThrew()
+    {
+        AssertEx.Throws<BinaryTypeException>(
+            "worker 3",
+            () => Concurrent.Race(worker =>
+                worker == 3 ? throw new BinaryTypeException("worker 3 refused") : worker));
+    }
+
+    [Fact]
+    public void Concurrent_Race_ReturnsEachResultUnderItsOwnIndex()
+    {
+        int[] squares = Concurrent.Race(worker => worker * worker);
+
+        Assert.Equal([.. Enumerable.Range(0, Concurrent.Workers).Select(worker => worker * worker)], squares);
     }
 
     // --- UTIL-02: the frame builders produce bytes a real reader accepts -------------------------
@@ -314,7 +362,7 @@ public class UtilityTests
     public void DoesNotContainBytes_FindsASubsequenceWhereverItSits()
     {
         AssertEx.DoesNotContainBytes([1, 2, 3], [4, 5]);
-        Assert.ThrowsAny<Exception>(
+        Assert.ThrowsAny<XunitException>(
             static () => AssertEx.DoesNotContainBytes([1, 2, 3, 4], [3, 4]));
     }
 

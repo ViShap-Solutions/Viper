@@ -133,7 +133,7 @@ public class PublicStreamTests
         byte[] payload = serializer.Serialize(Sample());
         using var source = new MemoryStream(Mutate.Truncate(payload, payload.Length - 3), writable: false);
 
-        Assert.ThrowsAny<BinaryFormatException>(() => serializer.Deserialize<Person>(source));
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(source));
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class PublicStreamTests
     {
         using var source = new MemoryStream();
 
-        Assert.ThrowsAny<BinaryFormatException>(() => new BinarySerializer().Deserialize<Person>(source));
+        Assert.Throws<BinaryFormatException>(() => new BinarySerializer().Deserialize<Person>(source));
     }
 
     // --- STR-27: a source that cannot be read, a destination that cannot be written --------------
@@ -194,7 +194,7 @@ public class PublicStreamTests
         using var source = new MemoryStream(
             Mutate.SetInt32(frame, Wire.UncompressedLengthOffset, -1), writable: false);
 
-        Assert.ThrowsAny<BinaryFormatException>(() => BinaryFormatInspector.Peek(source));
+        Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(source));
 
         Assert.Equal(0, source.Position);
     }

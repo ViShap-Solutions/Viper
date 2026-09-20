@@ -193,6 +193,15 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
         return DecodeString(length, what);
     }
 
+    /// <summary>
+    /// Decodes strictly: a byte sequence that is not valid UTF-8 raises instead of becoming a U+FFFD
+    /// replacement character. Substituting would map many byte sequences onto one string, and the
+    /// authentication tag is computed over the decoded field, so each of them would carry the same
+    /// tag.
+    /// </summary>
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     private string DecodeString(int length, string what)
     {
         if (length == 0)
@@ -201,7 +210,7 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
         byte[] bytes = ReadBytes(length, what);
         try
         {
-            return Encoding.UTF8.GetString(bytes);
+            return StrictUtf8.GetString(bytes);
         }
         catch (ArgumentException ex)
         {

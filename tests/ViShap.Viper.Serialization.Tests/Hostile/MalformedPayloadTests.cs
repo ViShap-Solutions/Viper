@@ -53,6 +53,41 @@ public class MalformedPayloadTests
     }
 
     [Fact]
+    public void Deserialize_PayloadStringThatIsNotValidUtf8_ThrowsFormat()
+    {
+        // 0xC3 announces a two-byte sequence and 0x28 cannot continue one. A lenient decoder would
+        // hand back a replacement character, which is a second spelling of a string the reader
+        // already has one spelling for.
+        byte[] frame = Wire.StringValue(2, 0xC3, 0x28);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "UTF-8", () => new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    [Theory]
+    [InlineData(new byte[] { 0x80 })]                    // a continuation byte with no lead byte
+    [InlineData(new byte[] { 0xC0, 0xAF })]              // an overlong encoding of '/'
+    [InlineData(new byte[] { 0xED, 0xA0, 0x80 })]        // a lone UTF-16 surrogate
+    [InlineData(new byte[] { 0xF5, 0x80, 0x80, 0x80 })]  // a scalar value beyond U+10FFFF
+    [InlineData(new byte[] { 0xE2, 0x82 })]              // a three-byte sequence cut short
+    public void Deserialize_PayloadStringWithAnInvalidSequence_ThrowsFormat(byte[] content)
+    {
+        byte[] frame = Wire.StringValue(content.Length, content);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "UTF-8", () => new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_PayloadStringThatIsValidUtf8_IsStillAccepted()
+    {
+        // Guards the tests above: strict decoding refuses malformed input and nothing else.
+        byte[] frame = Wire.StringValue(6, 0xD0, 0xBC, 0xD0, 0xB8, 0xD1, 0x80);
+
+        Assert.Equal("мир", new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    [Fact]
     public void Deserialize_StringLongerThanThePayload_AllocatesNothingProportional()
     {
         byte[] frame = OversizedString();

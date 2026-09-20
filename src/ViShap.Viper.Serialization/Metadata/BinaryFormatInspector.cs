@@ -1,4 +1,4 @@
-namespace ViShap.Viper.Metadata;
+﻿namespace ViShap.Viper.Metadata;
 
 /// <summary>
 /// Reads the format metadata of a payload without consuming it.
@@ -25,8 +25,12 @@ public static class BinaryFormatInspector
     /// The metadata, or <see langword="null"/> when the stream does not start with a recognized
     /// header — for example a version 0 payload, which carries none.
     /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
     /// <exception cref="NotSupportedException"><paramref name="source"/> cannot seek.</exception>
     /// <exception cref="BinaryFormatException">The header is recognized but malformed.</exception>
+    /// <exception cref="BinaryFormatNotSupportedException">
+    /// The header names a format version this build cannot read.
+    /// </exception>
     /// <exception cref="BinaryStreamException">The stream failed.</exception>
     public static BinaryHeaderInfo? Peek(Stream source) => Peek(source, SerializationLimits.Default);
 
@@ -41,6 +45,15 @@ public static class BinaryFormatInspector
     /// <returns>
     /// The metadata, or <see langword="null"/> when the stream does not start with a recognized header.
     /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="limits"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
+    /// <exception cref="NotSupportedException"><paramref name="source"/> cannot seek.</exception>
+    /// <exception cref="BinaryFormatException">The header is recognized but malformed.</exception>
+    /// <exception cref="BinaryLimitException">The header declares more than <paramref name="limits"/> allows.</exception>
+    /// <exception cref="BinaryFormatNotSupportedException">
+    /// The header names a format version this build cannot read.
+    /// </exception>
+    /// <exception cref="BinaryStreamException">The stream failed.</exception>
     public static BinaryHeaderInfo? Peek(Stream source, SerializationLimits limits)
     {
         ArgumentNullException.ThrowIfNull(source);

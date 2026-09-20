@@ -57,7 +57,7 @@ public class TruncationTests
     {
         byte[] frame = new BinarySerializer().Serialize(Sample());
 
-        Assert.ThrowsAny<BinaryFormatException>(
+        Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(Mutate.Truncate(frame, 3)));
     }
 
@@ -177,7 +177,7 @@ public class TruncationTests
             BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build());
         byte[] payload = serializer.Serialize(Sample());
 
-        Assert.ThrowsAny<BinaryFormatException>(
+        Assert.Throws<BinaryFormatException>(
             () => serializer.Deserialize<Person>(Mutate.Truncate(payload, payload.Length - 2)));
     }
 

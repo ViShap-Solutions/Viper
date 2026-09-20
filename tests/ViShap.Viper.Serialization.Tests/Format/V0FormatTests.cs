@@ -44,6 +44,40 @@ public class V0FormatTests
     }
 
     [Fact]
+    public void Serialize_KeyedContractOnV0AndUnderPreservedReferences_RestoreTheSameValue()
+    {
+        // P7-02: the keyed layout belongs to the type, not to the envelope. The two profiles differ
+        // in what wraps the payload and in the reference framing inside it, and agree on the value.
+        var value = new NewSchema { Removed = new Node { Value = 1 }, Kept = new Node { Value = 7 } };
+
+        var headerless = V0();
+        var preserved = new BinarySerializer(
+            BinarySerializerOptions.Configure().PreserveReferences().Build());
+
+        var fromV0 = headerless.Deserialize<NewSchema>(headerless.Serialize(value))!;
+        var fromV1 = preserved.Deserialize<NewSchema>(preserved.Serialize(value))!;
+
+        Assert.Equal(fromV1.Removed!.Value, fromV0.Removed!.Value);
+        Assert.Equal(fromV1.Kept!.Value, fromV0.Kept!.Value);
+    }
+
+    [Fact]
+    public void Serialize_KeyedContractOnV0_CarriesNeitherHeaderNorReferenceFraming()
+    {
+        // The other half of P7-02: the agreement above is not two identical payloads. V0 writes no
+        // magic, and a value written under preserved references declares it in the header.
+        var value = new NewSchema { Removed = new Node { Value = 1 }, Kept = new Node { Value = 7 } };
+
+        byte[] headerless = V0().Serialize(value);
+        byte[] preserved = new BinarySerializer(
+            BinarySerializerOptions.Configure().PreserveReferences().Build()).Serialize(value);
+
+        Assert.NotEqual(BitConverter.GetBytes(Wire.Magic), headerless[..4]);
+        Assert.Equal(BitConverter.GetBytes(Wire.Magic), preserved[..4]);
+        Assert.True(Wire.ReadHeader(preserved).PreserveReferences);
+    }
+
+    [Fact]
     public void Deserialize_KeyedContractOnV0_SkipsAKeyTheReaderDoesNotKnow()
     {
         var serializer = V0();

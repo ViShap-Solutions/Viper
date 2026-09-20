@@ -1,4 +1,4 @@
-namespace ViShap.Viper;
+﻿namespace ViShap.Viper;
 
 /// <summary>
 /// The immutable configuration of one <see cref="BinarySerializer"/>: algorithms, key material,
@@ -123,6 +123,7 @@ public sealed record BinarySerializerOptions
     /// <param name="keys">Key material, required when the payload is encrypted.</param>
     /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
     /// <returns>Options configured for that payload.</returns>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
     public static BinarySerializerOptions FromHeader(
         BinaryHeaderInfo info,
         IKeyProvider? keys = null,
@@ -150,6 +151,7 @@ public sealed record BinarySerializerOptions
     /// <param name="key">Key bytes, copied immediately; pass <see langword="null"/> when the payload is not encrypted.</param>
     /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
     /// <returns>Options configured for that payload.</returns>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
     public static BinarySerializerOptions FromHeader(
         BinaryHeaderInfo info,
         byte[]? key,
@@ -164,6 +166,7 @@ public sealed record BinarySerializerOptions
     /// <param name="keyResolver">Returns the key for the id the payload names.</param>
     /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
     /// <returns>Options configured for that payload.</returns>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
     public static BinarySerializerOptions FromHeader(
         BinaryHeaderInfo info,
         Func<string?, byte[]?> keyResolver,
@@ -180,7 +183,11 @@ public sealed record BinarySerializerOptions
     /// <param name="key">Key bytes, copied immediately; pass <see langword="null"/> when the payload is not encrypted.</param>
     /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
     /// <returns>Options configured for that payload.</returns>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
     /// <exception cref="BinaryFormatException">The stream does not start with a recognized header.</exception>
+    /// <exception cref="BinaryFormatNotSupportedException">The header names a format version this build cannot read.</exception>
+    /// <exception cref="NotSupportedException"><paramref name="stream"/> cannot seek.</exception>
+    /// <exception cref="BinaryStreamException">The stream failed while the header was read.</exception>
     public static BinarySerializerOptions FromStream(
         Stream stream,
         byte[]? key = null,
@@ -192,6 +199,11 @@ public sealed record BinarySerializerOptions
     /// <param name="keyResolver">Returns the key for the id the payload names.</param>
     /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
     /// <returns>Options configured for that payload.</returns>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
+    /// <exception cref="BinaryFormatException">The stream does not start with a recognized header.</exception>
+    /// <exception cref="BinaryFormatNotSupportedException">The header names a format version this build cannot read.</exception>
+    /// <exception cref="NotSupportedException"><paramref name="stream"/> cannot seek.</exception>
+    /// <exception cref="BinaryStreamException">The stream failed while the header was read.</exception>
     public static BinarySerializerOptions FromStream(
         Stream stream,
         Func<string?, byte[]?> keyResolver,
@@ -203,6 +215,11 @@ public sealed record BinarySerializerOptions
     /// <param name="keys">Key material, required when the payload is encrypted.</param>
     /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
     /// <returns>Options configured for that payload.</returns>
+    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
+    /// <exception cref="BinaryFormatException">The stream does not start with a recognized header.</exception>
+    /// <exception cref="BinaryFormatNotSupportedException">The header names a format version this build cannot read.</exception>
+    /// <exception cref="NotSupportedException"><paramref name="stream"/> cannot seek.</exception>
+    /// <exception cref="BinaryStreamException">The stream failed while the header was read.</exception>
     public static BinarySerializerOptions FromStream(
         Stream stream,
         IKeyProvider? keys,

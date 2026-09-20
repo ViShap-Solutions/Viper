@@ -1,7 +1,7 @@
 # ViShap.Viper — QA Plan
 
 **Target release:** v1.0.0
-**Status:** Release-gate test plan, realigned with the reworked architecture
+**Status:** Complete — M0 through M8 closed, §32 evaluated
 **Framework:** xUnit 2.9.3 · `net10.0`
 **Scope:** production `src/` behavior
 **Normative source:** `System-Contract.md` — every item below cites the section it proves
@@ -75,7 +75,7 @@ Work proceeds stage by stage. A stage closes when every one of its items is `[x]
 | **M5** | Corpus | §19 round trip across §23 | Every supported type family round-trips in V1, and in V0 where V0 supports the shape |
 | **M6** | Resources | §20 limits and budgets, §21 streams, §22 hostile input | Every limit has below / exact / above / invalid |
 | **M7** | Algorithms | §23 compression, §24 checksum, §25 encryption, §26 catalog | Every phase boundary and every key-ownership rule pinned |
-| **M8** | Periphery | §27 inspection and diagnostics, §28 concurrency and caches, §29 utilities, §31 cross-entry-point and property corpus | Full suite green; §32 release gate evaluated |
+| **M8** | Periphery | §27 inspection and diagnostics, §28 concurrency and caches, §29 utilities, §31 cross-entry-point and property corpus | **Closed.** Full suite green (1596 tests, 0 skipped); §32 evaluated and every box proven |
 
 ---
 
@@ -89,8 +89,8 @@ The profiles the suites reference. Built with the real builder surface (§4.1 of
 new BinarySerializer()                 // BinarySerializerOptions.Default
 ```
 
-- [ ] P0-01 — V1 write, V1 read, no compression, no checksum, no encryption *(§4.2)*
-- [ ] P0-02 — `Configure().Build()` is semantically equivalent to `Default` *(§4.2)*
+- [x] P0-01 — V1 write, V1 read, no compression, no checksum, no encryption *(§4.2)* — `RoundTrip/DefaultCorpusTests` over the whole §19 corpus; `Api/OptionsTests` for the configuration and `Metadata/InspectorTests` for the envelope it declares
+- [x] P0-02 — `Configure().Build()` is semantically equivalent to `Default` *(§4.2)* — `Api/OptionsTests`
 
 ## P1 — preserved references
 
@@ -98,7 +98,7 @@ new BinarySerializer()                 // BinarySerializerOptions.Default
 BinarySerializerOptions.Configure().PreserveReferences().Build()
 ```
 
-- [ ] P1-01 — reference framing is active and the header records it *(§16, §22.2)*
+- [x] P1-01 — reference framing is active and the header records it *(§16, §22.2)* — `References/ReferenceFramingTests`
 
 ## P2 — tight limits
 
@@ -112,7 +112,7 @@ SerializationLimits.Default with
 }
 ```
 
-- [ ] P2-01 — the profile builds and every limit in it is reachable by a crafted payload *(§5)*
+- [x] P2-01 — the profile builds and every limit in it is reachable by a crafted payload *(§5)* — `Limits/TightProfileTests`, one payload per limit. `MaxWireBytes` is reached through the header's own bytes: with `MaxEncryptedBytes` at 128 no payload can carry the operation past 256, so the case that reaches it is a header carrying long custom algorithm names
 
 ## P3 — compression
 
@@ -132,19 +132,20 @@ SerializationLimits.Default with
 ## P6 — full V1
 
 - [x] P6-01 — Brotli + Crc32 + Aes256Gcm *(§22.6)* — `RoundTrip/ProtectedCorpusTests`, over the whole §19 corpus
-- [ ] P6-02 — Deflate + Crc32 + Aes256Gcm *(§22.6)*
+- [x] P6-02 — Deflate + Crc32 + Aes256Gcm *(§22.6)* — `RoundTrip/DeflateProtectedCorpusTests`, over the whole §19 corpus
 
 ## P7 — V0
 
-The compact profile: no envelope, no algorithm phases, positional members only. It is measured as a
-peer of P1–P6, not as a degraded mode.
+The compact profile: no envelope and no algorithm phases. Both member layouts apply — the keyed
+layout is payload-level (Q9) — and only reference framing is absent. It is measured as a peer of
+P1–P6, not as a degraded mode.
 
 ```csharp
 BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()
 ```
 
 - [x] P7-01 — V0 write and V0 read *(§10.2, §22.8)* — `RoundTrip/HeaderlessCorpusTests`, over the whole §19 corpus
-- [ ] P7-02 — V0 write and V0 read of a `[BinaryContract]` type, against the same type under P1 *(§14.2)*
+- [x] P7-02 — V0 write and V0 read of a `[BinaryContract]` type, against the same type under P1 *(§14.2)* — `Format/V0FormatTests`: the two profiles restore the same value, and the payloads differ exactly in the envelope and the reference framing
 
 ---
 
@@ -742,7 +743,9 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] HST-01 — a mutated magic → `BinaryFormatException` *(§22.6)* — `Hostile/MutationTests`
 - [x] HST-02 — a mutated version → `BinaryFormatNotSupportedException` *(§22.6)* — `Hostile/MutationTests`
 - [x] HST-03 — a mutated algorithm identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Hostile/MutationTests`
-- [x] HST-04 — a mutated optional-string presence flag, length or content → deterministic documented failure *(§22.1)* — `Hostile/MutationTests`
+- [x] HST-04 — a mutated optional-string presence flag, length or content → deterministic documented failure *(§22.1)* — `Hostile/MutationTests`; content that is not valid UTF-8 is `BinaryFormatException` at the string itself (Q14)
+- [x] HST-04a — a payload string whose bytes are not valid UTF-8 → `BinaryFormatException`, over the continuation, overlong, surrogate, out-of-range and truncated forms, with a valid sequence still accepted *(§22.1)* — `Hostile/MalformedPayloadTests`
+- [x] HST-04b — a header string edited into invalid UTF-8 fails as malformed input ahead of the integrity check, while an edit that keeps it valid UTF-8 still fails on the tag *(§13.1, §22.1)* — `Format/AssociatedDataTests`
 - [x] HST-05 — a mutated `PreserveReferences` flag → deterministic failure or correct alternate interpretation *(§16)* — `Hostile/MutationTests`
 - [x] HST-06 — each mutated length field → the documented exception *(§22.6)* — `Hostile/MutationTests`
 - [x] HST-07 — a mutated checksum → `BinaryIntegrityException` *(§8.5)* — `Hostile/MutationTests`
@@ -864,41 +867,41 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] INS-02 — `Peek` restores the source position, on success and on failure *(§19, §20)* — `Metadata/InspectorTests`
 - [x] INS-03 — `Peek` on a non-seekable stream → `NotSupportedException` *(§19)* — `Metadata/InspectorTests`
 - [x] INS-04 — `Peek` returns `null` for bytes not recognized as a supported format *(§19)* — `Metadata/InspectorTests`
-- [ ] INS-05 — `Peek` on a recognized magic with an unsupported version → `BinaryFormatNotSupportedException` *(§19)*
+- [x] INS-05 — `Peek` on a recognized magic with an unsupported version → `BinaryFormatNotSupportedException` *(§19)* — `Metadata/InspectorTests`, with the starting position restored
 - [x] INS-06 — `Peek` on a recognized but malformed header → `BinaryFormatException`, not `null` *(§19)* — `Metadata/InspectorTests`
-- [ ] INS-07 — limits passed to `Peek` are honored *(§19)* — `Metadata/InspectorTests` proves the limits are validated; enforcement during the read lands in M8
+- [x] INS-07 — limits passed to `Peek` are honored *(§19)* — `Metadata/InspectorTests`: the same frame is accepted and refused on either side of `MaxPayloadBytes`, and `MaxWireBytes` bounds the header read
 - [x] INS-08 — `Peek(stream, null)` → `ArgumentNullException` *(§8.10)* — `Metadata/InspectorTests`
-- [ ] INS-09 — an underlying `IOException` during inspection → `BinaryStreamException` *(§19)*
-- [ ] INS-10 — `BinaryHeaderInfo` reports version, algorithms, custom names and `KeyId` and nothing secret *(§11)* — `Metadata/InspectorTests` covers version, algorithms and KeyId; custom names land in M8
-- [ ] DMP-01 — `DumpHeader(byte[])` renders a valid envelope *(§19)*
-- [ ] DMP-02 — `DumpHeader(Stream)` renders a valid envelope and does not consume the stream *(§19)*
-- [ ] DMP-03 — unrecognized input produces diagnostic text rather than a thrown exception *(§19)*
-- [ ] DMP-04 — the dumper catches only `BinarySerializerException`; it does not normalize arbitrary exceptions *(§19)*
-- [ ] DMP-05 — no production type outside `Diagnostics/` reports a failure as output *(§19)*
+- [x] INS-09 — an underlying `IOException` during inspection → `BinaryStreamException` *(§19)* — `Metadata/InspectorTests`, both before the magic and inside the header read
+- [x] INS-10 — `BinaryHeaderInfo` reports version, algorithms, custom names and `KeyId` and nothing secret *(§11)* — `Metadata/InspectorTests`
+- [x] DMP-01 — `DumpHeader(byte[])` renders a valid envelope *(§19)* — `Diagnostics/DumperTests`, custom algorithm names included and no key material
+- [x] DMP-02 — `DumpHeader(Stream)` renders a valid envelope and does not consume the stream *(§19)* — `Diagnostics/DumperTests`
+- [x] DMP-03 — unrecognized input produces diagnostic text rather than a thrown exception *(§19)* — `Diagnostics/DumperTests`, for unrecognized bytes, a malformed header, an unsupported version and a failing stream
+- [x] DMP-04 — the dumper catches only `BinarySerializerException`; it does not normalize arbitrary exceptions *(§19)* — `Diagnostics/DumperTests`: a non-seekable stream leaves as `NotSupportedException`
+- [x] DMP-05 — no production type outside `Diagnostics/` reports a failure as output *(§19)* — `Diagnostics/DumperTests`, as a source invariant: every Viper exception caught in `src/` is rethrown except the dumper's own, and the check is guarded by asserting it does recognize the dumper's shape
 
 ---
 
 # 28. Concurrency and caches — `Concurrency/`
 
-- [ ] CN-01 — one shared `BinarySerializer` used from many threads produces correct results *(§2.2)*
-- [ ] CN-02 — per-operation state is isolated; no budget is shared between calls *(§2.2)*
-- [ ] CN-03 — `TypeContractCache` first touch under contention yields one consistent contract *(L4)*
-- [ ] CN-04 — the union-map cache first touch is safe *(L4, §15)*
-- [ ] CN-05 — `FormatterRegistry` resolution under contention is safe and stable *(L4)*
-- [ ] CN-06 — `ActivatorCache` *(L4)*
-- [ ] CN-07 — `DictionaryAccessorCache` *(L4)*
-- [ ] CN-08 — `FrozenFactoryCache` *(L4)*
-- [ ] CN-09 — `ImmutableFactoryCache`, including `ImmutableCollectionsMarshal.AsArray` resolution *(§17)*
-- [ ] CN-10 — `LazyAccessorCache` *(L4)*
-- [ ] CN-11 — `MethodInvokerCache` *(L4)*
-- [ ] CN-12 — `ReadOnlySequenceAccessorCache` *(L4)*
-- [ ] CN-13 — `TupleAccessorCache` *(L4)*
-- [ ] CN-14 — a cached accessor is functionally identical on first and subsequent use *(L2)*
-- [ ] CN-15 — cache construction never depends on request-local budget state *(§2.2)*
-- [ ] CN-16 — an invalid type or member fails deterministically on every attempt, not only the first *(L2)*
-- [ ] CN-17 — concurrent encryption and decryption with distinct key ids stay correct *(§13.2)*
-- [ ] CN-18 — concurrent inspection of separate streams stays correct *(§19)*
-- [ ] CN-19 — `ImmutableArray<T>` obtains its backing array through `ImmutableCollectionsMarshal.AsArray<T>`, never a reflective instance `ToArray` *(§17)*
+- [x] CN-01 — one shared `BinarySerializer` used from many threads produces correct results *(§2.2)* — `Concurrency/ParallelOperationTests`
+- [x] CN-02 — per-operation state is isolated; no budget is shared between calls *(§2.2)* — `Concurrency/ParallelOperationTests`, concurrently and in sequence
+- [x] CN-03 — `TypeContractCache` first touch under contention yields one consistent contract *(L4)* — `Concurrency/CacheTests`
+- [x] CN-04 — the union-map cache first touch is safe *(L4, §15)* — `Concurrency/CacheTests`
+- [x] CN-05 — `FormatterRegistry` resolution under contention is safe and stable *(L4)* — `Concurrency/CacheTests`
+- [x] CN-06 — `ActivatorCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-07 — `DictionaryAccessorCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-08 — `FrozenFactoryCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-09 — `ImmutableFactoryCache`, including `ImmutableCollectionsMarshal.AsArray` resolution *(§17)* — `Concurrency/CacheTests`
+- [x] CN-10 — `LazyAccessorCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-11 — `MethodInvokerCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-12 — `ReadOnlySequenceAccessorCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-13 — `TupleAccessorCache` *(L4)* — `Concurrency/CacheTests`
+- [x] CN-14 — a cached accessor is functionally identical on first and subsequent use *(L2)* — `Concurrency/CacheTests`
+- [x] CN-15 — cache construction never depends on request-local budget state *(§2.2)* — `Concurrency/CacheTests`: a source invariant over `Cache/`, and a contract first built while an operation was failing on a limit
+- [x] CN-16 — an invalid type or member fails deterministically on every attempt, not only the first *(L2)* — `Concurrency/CacheTests`, in sequence and under contention
+- [x] CN-17 — concurrent encryption and decryption with distinct key ids stay correct *(§13.2)* — `Concurrency/ParallelOperationTests`
+- [x] CN-18 — concurrent inspection of separate streams stays correct *(§19)* — `Concurrency/ParallelOperationTests`
+- [x] CN-19 — `ImmutableArray<T>` obtains its backing array through `ImmutableCollectionsMarshal.AsArray<T>`, never a reflective instance `ToArray` *(§17)* — `Concurrency/CacheTests`, by array identity
 
 ---
 
@@ -931,6 +934,9 @@ WriteOnlyStream (a seekable destination that cannot be read)                    
 
 Sum8 · WideChecksum · IdentityCompression · UnauthenticatedCipher   (custom algorithm doubles)
 IdentityCompression.CompressCalls · DecompressCalls · RecordingKeyProvider          (added by M7)
+
+FailingContentStream (real content, then an IOException at a chosen offset)            (added by M8)
+Concurrent.Race (a body on several threads released together) · the Raced* types       (added by M8)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
@@ -946,13 +952,14 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-05 — `NonSeekableStream` reports `CanSeek == false` and throws on `Position` — `Fixtures/UtilityTests`
 - [x] UTIL-06 — `PartialReadStream` returns short reads without losing data — `Fixtures/UtilityTests`
 - [x] UTIL-07 — `FailingStream` raises `IOException` at the configured offset, on read and on write — `Fixtures/UtilityTests`
-- [ ] UTIL-08 — byte-observing stream wrappers, only if a suite needs them *(deferred; nothing so far does)*
+- [x] UTIL-08 — the stream doubles a later stage turns out to need — `Fixtures/UtilityTests`. No suite ever needed a byte-observing wrapper; what M8 needed was `FailingContentStream`, a stream that serves real bytes and then fails, so INS-09 can place the failure after the magic instead of before it
 - [x] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test — `Fixtures/UtilityTests`
 - [x] UTIL-10 — the keyed and reference frame builders declare the counts and lengths they were given, not the real ones — `Fixtures/UtilityTests`
 - [x] UTIL-11 — `Sequences.Of` chains its segments in order and reports more than one — `Fixtures/UtilityTests`
 - [x] UTIL-12 — the value frame builders declare the counts, lengths and ranks they were given, not the real ones — `Fixtures/UtilityTests`
 - [x] UTIL-13 — `WriteOnlyStream` accepts writes, seeks, and refuses reads — `Fixtures/UtilityTests`
 - [x] UTIL-14 — the algorithm doubles count the calls they receive, and `RecordingKeyProvider` hands out an owned copy per resolution while recording the id it was asked — `Fixtures/UtilityTests`
+- [x] UTIL-15 — `Concurrent.Race` runs its workers at the same time rather than one after another, returns each result under its own index, and rethrows what a worker threw — `Fixtures/UtilityTests`. A helper that quietly serialized would make every L4 checkpoint pass without ever racing anything
 
 ---
 
@@ -1187,6 +1194,37 @@ behavior is what it is.
 | **Q11** | §23 listed the memory-like types and §22.3 encoded them as a bare count and elements, so a segment's offset into a larger array and a sequence's segment boundaries could not survive a round trip — derivable, but never stated, and invisible to anyone reading §23 alone | Contract states it: a memory-like value travels as its elements alone, so the backing storage is not part of the value. A read builds a fresh array and wraps the whole of it — an `ArraySegment<T>` comes back at offset zero over an array exactly as long as the segment, a multi-segment `ReadOnlySequence<T>` comes back as one segment, and a default `ArraySegment<T>`, which has no backing array, is written as empty. That last clause is the rule D4 was fixed against, now said outright rather than inferred from the `ImmutableArray<T>` note. RT-50 and RT-52 assert the offset and the segment count, not only the elements | §23 |
 | **Q12** | §13.1 rejected an algorithm reporting `AuthenticatesAssociatedData == false` "when `RequireEncryption` is configured" and §4.1 placed that rejection at `Build()`, but a payload can name such an algorithm and the read-side refusal named no exception. It was `BinaryConfigurationException`, while the sibling downgrade — a payload carrying `Encryption = None` — is `BinaryIntegrityException` | The read side is `BinaryIntegrityException`: the message failed the policy, the reader's configuration did not, and substituting a cipher that cannot authenticate the header is the same downgrade as substituting no cipher. The diagnostic names the algorithm the payload named, custom name included. The check stays on the read rather than moving to registration, because the instance that decrypts a payload is the one the factory produces at that resolution. §13.1 also states what the flag is: a declaration the engine cannot verify, and an undertaking on whoever returns `true` | §13.1, §21.1 |
 | **Q13** | §4.1 documented a custom algorithm factory as "called once per resolution" and said nothing about one that throws or returns null, although the header decides which factory runs. A throwing factory left `Deserialize` under its own type, while a null return was already `BinaryConfigurationException` | Both are `BinaryConfigurationException` naming the registration, with the cause as `InnerException`; an exception already inside the taxonomy propagates unchanged. What separates this from the `Lazy<T>` rule of Q7 is who chose the moment: a `Lazy<T>` factory runs on the write path over the caller's own value, an algorithm factory runs on the read path at a moment untrusted bytes chose | §4.1, §9, §24 |
+| **Q15** | §3 said an undocumented public member "fails the build as CS1591", which was not true: CS1591 is a warning by default and neither package promoted it. Raised while working EXT-04 | The claim is softened rather than enforced. A build gate on documentation buys little once the surface is written and adds a hard stop for a member whose documentation is a work in progress; what matters to a consumer is that documentation exists and ships beside the assembly. §3 now says the compiler reports CS1591 as a warning, states who the documentation is written for, and says it must not cite the contract or record project history. `Api/PublicSurfaceTests.EveryPublicMember_IsDocumented` is what holds the line, over the generated XML file rather than over the build. Promoting the warning once had surfaced a broken `cref` in `BinaryLimitException` pointing at `SerializationLimits`, a type Core cannot reference and by §2 must not; that is a consumer-visible dead link and is fixed regardless | §3 |
+| **Q14** | §22.1 encodes a string as "7-bit int UTF-8 byte length, then the bytes" and said nothing about bytes that are not valid UTF-8. `ValueReader.DecodeString` already carried a `catch` for it, but `Encoding.UTF8` substitutes U+FFFD instead of raising, so the branch was dead and `C3 28` in a header string decoded to a U+FFFD replacement character followed by `(` and failed a step later as an unregistered algorithm name | Reject: a byte sequence that is not valid UTF-8 is not a string in the declared encoding, so it is malformed input — `BinaryFormatException`. The reasoning is D6's: §13.1 computes the tag over the header's *decoded* fields, so lenient decoding maps an unbounded set of byte sequences onto one string and every one of them carries the same tag. §22.1 now states the rule for strings as it already did for `bool`. One line in `ValueReader`, the single type that decodes payload bytes; no writer ever produced invalid UTF-8, so no valid payload changes meaning. Decided before v1.0.0 because it narrows what a reader accepts | §22.1 |
+
+---
+
+# 30.4 Frozen v1.0.0 fixtures — `Format/`
+
+The bytes `Fixtures/Wire/v1-*.bin` and `v0-primitives.bin` were written by the v1.0.0 writer and
+committed. They are the only evidence a later version still reads what this one wrote, and they can
+never be regenerated: a rebuilt fixture is whatever the code has become and agrees with itself no
+matter what changed. A failure is a compatibility break, never a fixture to refresh.
+
+The shapes they decode into live in `Fixtures/Compatibility.cs` and are frozen with them — renaming,
+reordering, adding or retyping a member invalidates a fixture. Positional members carry an explicit
+`[BinaryOrder]` so a rename cannot silently reorder a layout. `TimeZoneInfo` is deliberately absent:
+it travels as `ToSerializedString()`, which depends on the host's time-zone database, so a committed
+fixture would test the operating system rather than the format. `nint`/`nuint` are frozen inside 32
+bits so a fixture decodes on a 32-bit runtime as well.
+
+- [x] CMPT-01 — every fixture is present and not empty *(§22)* — `Format/CompatibilityTests`
+- [x] CMPT-02 — the §23 primitive family decodes to its frozen value under V1 *(§22.4)* — `Format/CompatibilityTests`
+- [x] CMPT-03 — the same value decodes from the V0 fixture, and V0 is the V1 payload with the envelope removed *(§10.2, §22.8)* — `Format/CompatibilityTests`
+- [x] CMPT-04 — the time and system families decode, kind and offset included *(§22.4)* — `Format/CompatibilityTests`
+- [x] CMPT-05 — the numerics family decodes *(§22.4)* — `Format/CompatibilityTests`
+- [x] CMPT-06 — the container families decode, with stack and queue asserted by draining them *(§23)* — `Format/CompatibilityTests`
+- [x] CMPT-07 — the composite family decodes, including the memory-like offset rule and an unevaluated `Lazy<T>` *(§22.5, §23)* — `Format/CompatibilityTests`
+- [x] CMPT-08 — a keyed contract decodes by key *(§14.2)* — `Format/CompatibilityTests`
+- [x] CMPT-09 — a union decodes to the tagged runtime type *(§15)* — `Format/CompatibilityTests`
+- [x] CMPT-10 — a preserved-reference graph restores identity and its cycle *(§16)* — `Format/CompatibilityTests`
+- [x] CMPT-11 — null stays distinct from empty, and a default `ImmutableArray<T>` from an empty one *(§22.2, §23)* — `Format/CompatibilityTests`
+- [x] CMPT-12 — the Brotli + CRC-32 + AES-256-GCM fixture decrypts under its frozen key and refuses another *(§22.6)* — `Format/CompatibilityTests`
 
 ---
 
@@ -1194,17 +1232,17 @@ behavior is what it is.
 
 For one logical value under one configuration, all entry points must agree.
 
-- [ ] XEP-01 — `byte[]` serialize/deserialize *(§3.1)*
-- [ ] XEP-02 — `Stream` serialize/deserialize *(§3.1)*
-- [ ] XEP-03 — `StreamExtensions` *(§3.2)*
-- [ ] XEP-04 — the existing-instance overloads *(§3)*
-- [ ] XEP-05 — the `ref` value-type overloads *(§3)*
-- [ ] XEP-06 — parity under the full V1 pipeline; encrypted payloads compare semantics, never ciphertext bytes *(§22.6)*
-- [ ] XEP-07 — parity under V0 for every shape V0 supports *(§10.2)*
-- [x] EXT-01 — every §3 public type is reachable from an external consumer assembly *(§3)* — `Api/PublicSurfaceTests`
-- [ ] EXT-02 — no normal usage requires an internal type *(§3)* — `Api/PublicSurfaceTests` proves the engine types are not exported; the claim itself needs the separate consumer assembly of M8
-- [ ] EXT-03 — the public algorithm primitives are constructible and implementable externally *(§3)*
-- [ ] EXT-04 — every public member carries XML documentation; CS1591 remains a build error *(§3)*
+- [x] XEP-01 — `byte[]` serialize/deserialize *(§3.1)* — `Api/CrossEntryPointTests`
+- [x] XEP-02 — `Stream` serialize/deserialize *(§3.1)* — `Api/CrossEntryPointTests`
+- [x] XEP-03 — `StreamExtensions` *(§3.2)* — `Api/CrossEntryPointTests`, in both directions and against the serializer
+- [x] XEP-04 — the existing-instance overloads *(§3)* — `Api/CrossEntryPointTests`
+- [x] XEP-05 — the `ref` value-type overloads *(§3)* — `Api/CrossEntryPointTests`
+- [x] XEP-06 — parity under the full V1 pipeline; encrypted payloads compare semantics, never ciphertext bytes *(§22.6)* — `Api/ProtectedCrossEntryPointTests`
+- [x] XEP-07 — parity under V0 for every shape V0 supports *(§10.2)* — `Api/HeaderlessCrossEntryPointTests`; the header-derived overloads are asserted to refuse a headerless payload rather than skipped
+- [x] EXT-01 — every §3 public type is exported, and therefore reachable from a consumer assembly *(§3)* — `Api/PublicSurfaceTests`, over the exported types of both assemblies
+- [x] EXT-02 — no normal usage requires an internal type *(§3)* — `Api/PublicSurfaceTests`: the engine types are absent from the exported surface, and every type §3 promises is present. The claim is carried by §3 itself — the whole public surface is enumerated there and compared with the assembly by reflection, so a usage that needed an internal type would need a type the contract does not list
+- [x] EXT-03 — the public algorithm primitives are constructible and implementable externally *(§3)* — `Fixtures/IdentityCompression`, `Sum8`, `UnauthenticatedCipher` and `RecordingKeyProvider` implement all four from outside `src/`, and `Algorithms/AlgorithmCatalogTests` carries a payload through them
+- [x] EXT-04 — every public member carries XML documentation, and it ships beside the assembly *(§3)* — `Api/PublicSurfaceTests` compares the exported surface with the generated XML file. CS1591 stays a warning: see Q15
 - [x] EXT-05 — the compiled public surface contains nothing beyond §3 *(§3)* — `Api/PublicSurfaceTests`
 
 ---
@@ -1218,7 +1256,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every formatter family in `FormatterRegistry` has mapped coverage. *(RT-01…RT-88, RT-C10; the delegate rejection in CTR-22)*
 - [x] Every §23 family round-trips, including nullability and empty containers. *(RT-01…RT-88, RT-B06, RT-C01, RT-C10)*
 - [x] Interface resolution and ordering guarantees are asserted, not assumed. *(RT-C02…RT-C05)*
-- [ ] Every public entry point is covered and mutually consistent.
+- [x] Every public entry point is covered and mutually consistent. *(API-01…API-20, SX-01…SX-11, XEP-01…XEP-07 under P0, P6 and P7)*
 
 ## Format
 
@@ -1226,7 +1264,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-19, ENV-01, ENV-02)*
 - [x] V0 is never confused with V1 and is never selected without the caller's opt-in. *(V0-10…V0-17)*
 - [x] V0 carries the same type set, unions, keyed contracts, limits and budgets as V1 — only the envelope is absent. *(V0-03, V0-07, V0-08, V0-19…V0-21)*
-- [x] Committed fixed-byte fixtures decode; none is regenerated by the code under test. *(V0-18, UTIL-09)*
+- [x] Committed fixed-byte fixtures decode; none is regenerated by the code under test. *(V0-18, UTIL-09, CMPT-01…CMPT-12)*
 
 ## Contracts
 
@@ -1237,25 +1275,25 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Security
 
-- [ ] Every limit has below / exact / above / invalid.
-- [ ] Cumulative element, node and keyed-field budgets are covered.
-- [ ] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1).
-- [ ] The malformed and truncated corpus passes with no uncontrolled failure.
-- [ ] Stream wrappers, key ownership and buffer clearing are covered.
-- [ ] No test can cause a process-fatal stack overflow.
+- [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-44, and P2-01 for the tight profile as a whole)*
+- [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
+- [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
+- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-34)*
+- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-28, ENC-01…ENC-23)*
+- [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 
 ## Exceptions
 
-- [ ] The taxonomy is pinned branch by branch.
-- [ ] No OR-list or `ThrowsAny` assertion remains without a documented reason.
-- [ ] No raw framework exception escapes a declared truncation.
-- [ ] Inner exceptions are preserved where §9 requires it.
+- [x] The taxonomy is pinned branch by branch. *(EXC-01…EXC-23, CFG-01…CFG-13)*
+- [x] No OR-list or `ThrowsAny` assertion remains without a documented reason. Twelve `ThrowsAny` assertions were weakened by inheritance — `BinaryLimitException` derives from `BinaryFormatException` — and are now exact. Seven remain and each says why: five negative cases of the assertion helpers, where the family is xUnit's own `XunitException`, and two frames where §8.2 and §13.1 both apply.
+- [x] No raw framework exception escapes a declared truncation. *(EXC-14…EXC-20, HST-10…HST-19)*
+- [x] Inner exceptions are preserved where §9 requires it. *(EXC-18…EXC-20, EXC-23 and CAT-09 for an algorithm factory that throws)*
 
 ## Process
 
-- [ ] Every checkpoint in this document is `[x]` or `BLOCKED (Qn)`.
-- [x] Every question in §30.2 is resolved, and the contract updated accordingly.
-- [ ] Every bug found during testing was fixed in `src/`, not accommodated by a test.
-- [ ] Every defect in §30.1 is fixed and pinned by its checkpoint.
-- [ ] No test relies on undocumented project history.
-- [ ] `dotnet test` is green with no skipped tests.
+- [x] Every checkpoint in this document is `[x]` or `BLOCKED (Qn)`. Nothing is blocked and no question is open.
+- [x] Every question in §30.2 is resolved, and the contract updated accordingly. *(Q1…Q15)*
+- [x] Every bug found during testing was fixed in `src/`, not accommodated by a test. *(D1…D6)*
+- [x] Every defect in §30.1 is fixed and pinned by its checkpoint. *(D1-01…D6-02)*
+- [x] No test relies on undocumented project history.
+- [x] `dotnet test` is green with no skipped tests. *(1596 passed, 0 skipped, Debug and Release)*

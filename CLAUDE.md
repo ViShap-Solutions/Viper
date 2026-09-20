@@ -40,15 +40,26 @@ CI (`.github/workflows/ci.yml`) runs restore → build → the serialization tes
   provenance; `Problems.cs` maps each finding to the test that now pins it.
 
 Current state: the architecture rework described in the audit is complete and `src/` matches the
-contract. 1367 tests pass; the public API is fully XML-documented and `GenerateDocumentationFile` is on,
-so an undocumented public member breaks the build (CS1591).
+contract. The public API is fully XML-documented and `GenerateDocumentationFile` is on, so the docs
+ship beside the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` is what holds the line,
+by comparing the exported surface with the generated XML file.
 
-The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Contracts/`,
-`Fixtures/`, `Format/`, `Hostile/`, `Limits/`, `Metadata/`, `References/`, `RoundTrip/`, `Streams/`.
-Shared helpers live in `Fixtures/` (`AssertEx`, `Wire`, `Mutate`, stream doubles) and are themselves
-tested. Stages M0 through M7 are done: nothing hand-written survives, and `Api/PublicSurfaceTests`
-compares the exported surface against §3 by reflection, so adding a public type fails the build's
-test run until the contract lists it.
+Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
+what it takes, what it returns, which exception it raises. It never cites `System-Contract.md` and
+never records project history.
+
+The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Concurrency/`,
+`Contracts/`, `Diagnostics/`, `Exceptions/`, `Fixtures/`, `Format/`, `Hostile/`, `Limits/`,
+`Metadata/`, `References/`, `RoundTrip/`, `Streams/`. Shared helpers live in `Fixtures/` (`AssertEx`,
+`Wire`, `Mutate`, `Concurrent`, stream doubles) and are themselves tested.
+
+`Fixtures/Wire/*.bin` are the frozen v1.0.0 payloads, read by `Format/CompatibilityTests` against the
+frozen shapes in `Fixtures/Compatibility.cs`. They are never regenerated: a rebuilt fixture agrees
+with whatever the code became, so a failure there is a compatibility break, not a fixture to refresh.
+
+Every stage M0 through M8 is closed: nothing hand-written survives, and
+`Api/PublicSurfaceTests` compares the exported surface against §3 by reflection, so adding a public
+type fails the build's test run until the contract lists it.
 
 ## Projects
 

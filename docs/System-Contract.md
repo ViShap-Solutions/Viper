@@ -147,8 +147,12 @@ formatter contracts, the algorithm orchestrators, and the operation and budget t
 them enforces part of the resource policy or the traversal protocol, and publishing any of them would
 let a caller step around it.
 
-Every public type and member carries XML documentation, and the projects build with
-`GenerateDocumentationFile`, so an undocumented public member fails the build as CS1591.
+Every public type and member carries XML documentation. Both packages build with
+`GenerateDocumentationFile`, so the documentation ships beside the assembly and a consumer sees it on
+hover; the compiler reports an undocumented public member as a CS1591 warning. The documentation is
+written for that consumer: what the member does, what it takes, what it returns and which exception
+it raises. It does not cite this document, and it does not record how the code came to look the way
+it does.
 
 ## 3.1 Serializer
 
@@ -1268,6 +1272,14 @@ canonical. This is what keeps every header flag unforgeable: authenticated encry
 header's decoded fields (§13.1), so a non-canonical flag byte would otherwise be an edit the tag
 does not cover.
 
+A string is canonical for the same reason. Its bytes must be valid UTF-8, and a reader that meets a
+sequence which is not rejects it with `BinaryFormatException` instead of substituting U+FFFD. Lenient
+decoding would map an unbounded set of byte sequences onto one string — `C3 28`, `E0 80 28` and
+`F0 80 80 28` all become `�(` — and since the tag is computed over the decoded field, every one
+of those sequences would carry the same tag. The rule applies to every string read off the wire,
+payload and header alike, and costs no valid payload anything: no writer has ever produced a byte
+sequence that is not valid UTF-8.
+
 ## 22.2 Value framing
 
 Every value is written as:
@@ -1490,7 +1502,7 @@ A box is checked only when source and a test prove it.
 - [x] `FromHeader` / `FromStream` semantics are verified.
 - [x] Populate-in-place rejects non-member-encoded types.
 - [x] No hidden required API exists outside this document (§3 lists the whole surface).
-- [x] Every public member carries XML documentation; CS1591 is a build error gate.
+- [x] Every public member carries XML documentation, and it ships with the package.
 
 ## Exceptions
 
@@ -1537,6 +1549,8 @@ A box is checked only when source and a test prove it.
 - [x] Unknown keyed payloads are skipped without whole-payload allocation.
 - [x] Reference markers/IDs are validated; references are ancestor-scoped.
 - [x] The V1 header is authenticated when an AEAD algorithm is used.
+- [x] Every field the tag covers has one encoding only: a boolean admits two bytes and a string
+  admits valid UTF-8, so no field can be rewritten into a second spelling of itself.
 - [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades, and are refused at
   configuration time against a format that cannot carry protection.
 - [x] Temporary crypto buffers are cleared.
@@ -1558,6 +1572,6 @@ A box is checked only when source and a test prove it.
 - [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test.
 - [x] Round-trip corpus covers every supported type family in V0 and V1.
 - [x] The byte-level wire format of §22 is pinned by tests.
-- [ ] `QA-Plan.md` mandatory cases pass (plan realigned; execution staged M0–M8).
+- [x] `QA-Plan.md` mandatory cases pass — M0 through M8 are closed and every checkpoint in the plan is proven.
 - [ ] `Benchmark-Plan.md` mandatory baseline is captured after the rework.
 - [ ] Release artifact includes reproducible environment/version metadata.

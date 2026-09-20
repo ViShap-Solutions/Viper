@@ -7,7 +7,8 @@ namespace ViShap.Viper.Exceptions;
 /// <para>
 /// Raised for nesting depth, array, collection and dictionary sizes, string and blob lengths, the
 /// cumulative element, object-graph-node and keyed-field budgets, and the payload, compressed,
-/// encrypted and wire byte ceilings. Every limit lives in <see cref="Security.SerializationLimits"/>.
+/// encrypted and wire byte ceilings. Every limit lives in <c>SerializationLimits</c>, which the
+/// serialization package supplies.
 /// </para>
 /// <para>
 /// This is the expected outcome for hostile input, and it is raised <em>before</em> the work it

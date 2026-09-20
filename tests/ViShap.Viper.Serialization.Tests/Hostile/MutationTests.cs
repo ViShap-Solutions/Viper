@@ -108,7 +108,7 @@ public class MutationTests
         // Byte 9 is the "custom compression name follows" flag of a frame that carries no name.
         byte[] frame = Mutate.SetByte(Frame(), 9, 1);
 
-        Assert.ThrowsAny<BinaryFormatException>(
+        Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
     }
 
@@ -126,7 +126,7 @@ public class MutationTests
     {
         byte[] frame = Wire.FrameWithOversizedCustomName(declaredLength: 200, actualBytes: 2);
 
-        Assert.ThrowsAny<BinaryFormatException>(
+        Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<int>(frame));
     }
 
@@ -149,8 +149,8 @@ public class MutationTests
             writer.Write((byte)0);
         });
 
-        Assert.ThrowsAny<BinarySerializerException>(
-            () => new BinarySerializer().Deserialize<int>(frame));
+        AssertEx.Throws<BinaryFormatException>(
+            "UTF-8", () => new BinarySerializer().Deserialize<int>(frame));
     }
 
     // --- HST-05: the reference flag ---------------------------------------------------------------
@@ -162,7 +162,7 @@ public class MutationTests
         // byte that is not 0 or 1, or a value the engine cannot resolve.
         byte[] frame = Mutate.SetByte(Frame(), Wire.PreserveReferencesOffset, 1);
 
-        Assert.ThrowsAny<BinaryFormatException>(
+        Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
     }
 
@@ -175,7 +175,7 @@ public class MutationTests
 
         byte[] frame = Mutate.SetByte(framed, Wire.PreserveReferencesOffset, 0);
 
-        Assert.ThrowsAny<BinaryFormatException>(() => serializer.Deserialize<Person>(frame));
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(frame));
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class MutationTests
     {
         byte[] frame = Mutate.SetByte(Frame(), Wire.ChecksumLengthOffset, 200);
 
-        Assert.ThrowsAny<BinaryFormatException>(
+        Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
     }
 

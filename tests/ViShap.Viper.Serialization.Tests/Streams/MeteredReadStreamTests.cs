@@ -257,7 +257,7 @@ public class MeteredReadStreamTests
     {
         using var source = new TrackingStream([1, 2, 3]);
 
-        Assert.ThrowsAny<BinaryFormatException>(() => new BinarySerializer().Deserialize<int>(source));
+        Assert.Throws<BinaryFormatException>(() => new BinarySerializer().Deserialize<int>(source));
 
         Assert.False(source.Disposed);
     }
