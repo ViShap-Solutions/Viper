@@ -90,8 +90,8 @@ Constraints on the layout:
 - Comparative suites (B1) use the public surface of §3 alone, because that is what a consumer has. Component suites (B3) reach below it through the `InternalsVisibleTo` grant of §18.3, and are never mixed into a market table.
 - No adapter for a competitor ever reaches into Viper internals; the two sides of a comparison always use the same kind of surface.
 
-- [ ] LAY-01 — the layout above exists and the project builds in Release
-- [ ] LAY-02 — `dotnet run -c Release -- --list flat` enumerates every suite of §10
+- [x] LAY-01 — the layout above exists and the project builds in Release
+- [x] LAY-02 — `dotnet run -c Release -- --list flat` enumerates every suite of §10
 - [ ] LAY-03 — the benchmark project is excluded from packing and from the CI verification job
 - [ ] LAY-04 — a `--job Dry` smoke run of the whole switcher completes in CI on every push, proving the harness still runs; its numbers are never published
 
@@ -139,8 +139,8 @@ build configuration and optimization flags
 UTC timestamp of the run
 ```
 
-- [ ] ENV-01 — every field above is captured by code, not typed by hand
-- [ ] ENV-02 — the manifest is written to `environment.json` beside the raw results of every run
+- [x] ENV-01 — every field above is captured by code, not typed by hand — `Environment/EnvironmentManifest.cs`, `--manifest`
+- [x] ENV-02 — the manifest is written to `environment.json` beside the raw results of every run
 - [ ] ENV-03 — every competitor package version is pinned exactly; no floating or wildcard version resolves in the benchmark project
 - [ ] ENV-04 — a run refuses to start on a dirty working tree unless `--allow-dirty` is passed, and records the flag in the manifest
 - [ ] ENV-05 — the publication run is executed twice on separate occasions on the same machine; any metric whose two means differ by more than their combined margin of error is published as unstable rather than as a single value
@@ -303,8 +303,8 @@ The tier table of §6 is generated, not asserted.
 
 ## 7.6 Verification before timing
 
-- [ ] FAIR-24 — before any suite runs, every (adapter, dataset) pair round-trips and the result is compared with the source by a structural comparison, not by reference equality
-- [ ] FAIR-25 — a pair that fails verification is marked `Failed` and produces no timing at all
+- [x] FAIR-24 — before any suite runs, every (adapter, dataset) pair round-trips and the result is compared with the source by a structural comparison, not by reference equality — `Verification/`, `--verify`: 270 pairs, 0 failed
+- [x] FAIR-25 — a pair that fails verification is marked `Failed` and produces no timing at all; a cycle without reference framing is `Unsupported` and a lost identity is `Partial`, never `Failed`
 - [ ] FAIR-26 — verification is re-run after the suites, so a benchmark that corrupted shared state is caught
 - [ ] FAIR-27 — the payload sizes recorded in §14 come from the same verified serialization, so size and timing can never describe different bytes
 
@@ -356,7 +356,7 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 | **DATA-11** | CyclicGraph | parent/child cycles | ~50 KB | T3 | The scenario that is impossible without reference support |
 | **DATA-12** | PolymorphicBatch | a base type with 6–8 derived shapes | ~100 KB | T2, T3 | Discriminator cost and polymorphic dispatch |
 | **DATA-13** | KeyedEvolution | a v1/v2 schema pair: fields added, removed, reordered | ~10 KB | T2 | Evolution cost on the writing side and on the skipping side |
-| **DATA-14** | ByteBlob | one large `byte[]` inside a small object | 1 MB, 16 MB | T0–T2, T4 | Pure carrying cost, with traversal taken out of the picture |
+| **DATA-14** | ByteBlob | one `byte[]` inside a small object, and a batch of four | 0.9 MB, 3.6 MB | T0–T2, T4 | Pure carrying cost, with traversal taken out of the picture. The sizes follow `MaxArrayLength` rather than the 16 MB the blob limit suggests — see O1 in §27.1 |
 | **DATA-15** | NumericArrays | `int[]`, `double[]`, `long[]`, 100k elements | ~1 MB | T0–T2 | Where a memcpy-shaped serializer legitimately wins, shown rather than avoided |
 | **DATA-16** | StringTable | 50k short strings | ~1 MB | T0–T2 | String-dominated payloads and per-string overhead |
 | **DATA-17** | NullSparse | 40 members, most of them null | ~1 KB | T0–T2 | Null framing cost against formats that omit absent fields |
@@ -734,7 +734,9 @@ Everything this plan discovers is **recorded**. Nothing it discovers is acted on
 
 Behavior seen while measuring that the owner may want to know about — an unexpected cost, a surprising allocation, a result that does not match what the contract led one to expect. Each entry names the measurement that showed it and points at the proposal in `docs/performance/` where it is written up.
 
-*(none yet)*
+| | Observation | Where it was seen | Status |
+|---|---|---|---|
+| **O1** | A `byte[]` is bounded by `MaxArrayLength` (1,000,000 by default), not by `MaxByteBlobBytes` (16,000,000). The blob limit bounds the blob-encoded values of §22.4 — `BigInteger` and `BitArray` — so no `byte[]` member can reach it under default limits. A payload carrying a 2 MB `byte[]` is `BinaryLimitException` on a default configuration, and every byte of a `byte[]` is also charged against `MaxTotalElements`, so ~10 MB of byte arrays exhausts an operation's whole element budget | B0 verification, DATA-08 and DATA-14 at 1 MB and 15 MB | Contract-correct (§5.2, §5.6); the corpus was resized, not the library. Worth a line in the consumer-facing documentation, and a candidate for `docs/performance/` if a blob path for `byte[]` is ever wanted — that would change the wire |
 
 ## 27.2 Open questions
 
