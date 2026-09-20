@@ -1,4 +1,4 @@
-name: Publish Viper Ecosystem
+﻿name: Publish Viper Ecosystem
 
 on:
   push:
@@ -160,6 +160,18 @@ jobs:
             fi
           done
 
+          EXPECTED_SYMBOLS=(
+            "ViShap.Viper.Core.$VERSION.snupkg"
+            "ViShap.Viper.Serialization.$VERSION.snupkg"
+          )
+
+          for symbols in "${EXPECTED_SYMBOLS[@]}"; do
+            if [[ ! -f "./artifacts/$symbols" ]]; then
+              echo "Missing expected symbol package: $symbols"
+              exit 1
+            fi
+          done
+
           echo "All expected packages are present."
 
       - name: Validate package metadata
@@ -202,7 +214,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: viper-packages-${{ env.VERSION }}
-          path: ./artifacts/*.nupkg
+          path: |
+            ./artifacts/*.nupkg
+            ./artifacts/*.snupkg
           if-no-files-found: error
           retention-days: 14
 
@@ -275,6 +289,18 @@ jobs:
           for package in "${EXPECTED_PACKAGES[@]}"; do
             if [[ ! -f "./artifacts/$package" ]]; then
               echo "Missing expected package: $package"
+              exit 1
+            fi
+          done
+
+          EXPECTED_SYMBOLS=(
+            "ViShap.Viper.Core.$VERSION.snupkg"
+            "ViShap.Viper.Serialization.$VERSION.snupkg"
+          )
+
+          for symbols in "${EXPECTED_SYMBOLS[@]}"; do
+            if [[ ! -f "./artifacts/$symbols" ]]; then
+              echo "Missing expected symbol package: $symbols"
               exit 1
             fi
           done

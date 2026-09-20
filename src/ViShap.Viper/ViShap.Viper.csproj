@@ -9,6 +9,7 @@
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
         <Description>Viper .NET binary engineering ecosystem meta-package.</Description>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
         <PackageIcon>icon.png</PackageIcon>
