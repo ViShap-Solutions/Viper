@@ -101,18 +101,20 @@ Constraints on the layout:
 
 Work proceeds stage by stage. A stage closes when every one of its items is `[x]` or `BLOCKED (Qn)`, its raw artifacts are committed under `Baselines/`, and its gate holds.
 
-| Stage | Content | Layer | Gate |
-|---|---|---|---|
-| **B0** | Harness foundation — §2 layout, §4 environment lock, §7 fairness machinery, §8 profiles, §9 corpus, verification | — | Every dataset round-trips through every adapter and the capability matrix is generated from probes, before a single timing exists |
-| **B1** | Viper against Viper — §8 profiles over §9 corpus | B2 | Every profile measured on every dataset it supports; the cost of each envelope feature separated from the cost of the payload |
-| **B2** | Comparative core — §10 workloads inside the §6 tiers | B1 | Every mandatory library of §5.2 measured on every dataset of its tiers, or explicitly `Unsupported` |
-| **B3** | Size — §14 payload size and envelope accounting | B1, B2 | Size recorded for every (adapter, dataset) pair, with no timing in the same table |
-| **B4** | Algorithms — §15 compression, §16 checksum and encryption, §17 composed baselines | B2, B1 | Every phase measured separately and in combination; the protected envelope compared against a hand-composed equivalent |
-| **B5** | Resources — §13 allocation and GC, §20 working set | B2, B1, B4 | Allocation attributed per phase; no published number from a run without `MemoryDiagnoser` |
-| **B6** | Scaling — §19 curves over the §9 sweeps | B2, B1 | Each curve has at least five points and states where its slope changes |
-| **B7** | System — §20 cold start, §21 concurrency, §22 soak | B4 | Cold start measured in fresh processes, concurrency on real threads, soak showing no unbounded growth |
-| **B8** | Publication — §23 artifacts, §24 charts, §25 baseline, §26 reproduction | — | The report regenerates from the raw files with one command, and §28 is fully evaluated |
-| **B9** | Component measurements — §18 | B3 | Every mechanism of §18.1 measured for time and allocation, with §18.2 agreeing within margins. Diagnostic only; never published as a market comparison |
+A stage belongs to one track or to both (§29). A stage that contains Track B items cannot close while only Track A has been worked, however many of its own checkpoints are ticked — the boxes close one at a time, the stage closes when all of them are.
+
+| Stage | Content | Layer | Closes on | Gate |
+|---|---|---|---|---|
+| **B0** | Harness foundation — §2 layout, §4 environment lock, §7 fairness machinery, §8 profiles, §9 corpus, verification | — | A + B | Every dataset round-trips through every adapter and the capability matrix is generated from probes, before a single timing exists |
+| **B1** | Viper against Viper — §8 profiles over §9 corpus | B2 | **A** | Every profile measured on every dataset it supports; the cost of each envelope feature separated from the cost of the payload |
+| **B2** | Comparative core — §10 workloads inside the §6 tiers | B1 | **B** | Every mandatory library of §5.2 measured on every dataset of its tiers, or explicitly `Unsupported` |
+| **B3** | Size — §14 payload size and envelope accounting | B1, B2 | A + B | Size recorded for every (adapter, dataset) pair, with no timing in the same table |
+| **B4** | Algorithms — §15 compression, §16 checksum and encryption, §17 composed baselines | B2, B1 | A + B | Every phase measured separately and in combination; the protected envelope compared against a hand-composed equivalent |
+| **B5** | Resources — §13 allocation and GC, §20 working set | B2, B1, B4 | A + B | Allocation attributed per phase; no published number from a run without `MemoryDiagnoser` |
+| **B6** | Scaling — §19 curves over the §9 sweeps | B2, B1 | **A** | Each curve has at least five points and states where its slope changes |
+| **B7** | System — §20 cold start, §21 concurrency, §22 soak | B4 | A + B | Cold start measured in fresh processes, concurrency on real threads, soak showing no unbounded growth |
+| **B8** | Publication — §23 artifacts, §24 charts, §25 baseline, §26 reproduction | — | A + B | The report regenerates from the raw files with one command, and §28 is fully evaluated |
+| **B9** | Component measurements — §18 | B3 | **A** | Every mechanism of §18.1 measured for time and allocation, with §18.2 agreeing within margins. Diagnostic only; never published as a market comparison |
 
 B9 runs last on purpose: isolating a mechanism is only worth doing once the end-to-end picture says which mechanism matters. Its results are kept whatever they say — they are the per-component record a later version measures its own changes against.
 
@@ -472,6 +474,8 @@ Allocation is a first-class result here, not a footnote: the engine's structural
 
 Size is recorded without timing, from the verified serialization of §7.6.
 
+A size is deterministic: the same value under the same configuration produces the same bytes on any machine, under any load, on any day. Size rows therefore do not need an idle machine and are valid the moment they are taken — the idle machine is a requirement of §11, the timings.
+
 Recorded per (adapter, dataset, profile):
 
 ```text
@@ -730,13 +734,17 @@ Every later v1.x is measured the same way, against its own tag, and published as
 
 Everything this plan discovers is **recorded**. Nothing it discovers is acted on in `src/`.
 
-## 27.1 Observations about the library
+## 27.1 Findings — index
 
-Behavior seen while measuring that the owner may want to know about — an unexpected cost, a surprising allocation, a result that does not match what the contract led one to expect. Each entry names the measurement that showed it and points at the proposal in `docs/performance/` where it is written up.
+Behavior seen while measuring that the owner may want to know about: an unexpected cost, a surprising allocation, a result that does not match what the contract led one to expect, an optimization the numbers suggest.
 
-| | Observation | Where it was seen | Status |
+**Every finding lives in `docs/performance/` as its own file.** This section is the index and nothing
+else: one line per finding, so the plan stays a checkpoint list and the finding stays where a decision
+can be recorded against it.
+
+| | Finding | Raised at | Status |
 |---|---|---|---|
-| **O1** | A `byte[]` is bounded by `MaxArrayLength` (1,000,000 by default), not by `MaxByteBlobBytes` (16,000,000). The blob limit bounds the blob-encoded values of §22.4 — `BigInteger` and `BitArray` — so no `byte[]` member can reach it under default limits. A payload carrying a 2 MB `byte[]` is `BinaryLimitException` on a default configuration, and every byte of a `byte[]` is also charged against `MaxTotalElements`, so ~10 MB of byte arrays exhausts an operation's whole element budget | B0 verification, DATA-08 and DATA-14 at 1 MB and 15 MB | Contract-correct (§5.2, §5.6); the corpus was resized, not the library. Worth a line in the consumer-facing documentation, and a candidate for `docs/performance/` if a blob path for `byte[]` is ever wanted — that would change the wire |
+| [PERF-01](performance/PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | B0 verification, DATA-08 and DATA-14 | Open |
 
 ## 27.2 Open questions
 
@@ -820,7 +828,90 @@ Checked only when a committed raw result proves it.
 
 ---
 
-# 29. Definition of completion
+# 29. Tracks
+
+The plan is worked in two tracks, because half of it needs nothing but Viper and the other half needs
+six competitor libraries. A session is told which track it is on and works only that track's items.
+
+## 29.1 Track A — Viper alone
+
+Everything measurable without a second library. It is worked first, and it stands on its own: its
+result is the record of what this version costs, feature by feature.
+
+**In scope, in this order:**
+
+| | Sections | What it produces |
+|---|---|---|
+| **A0** | §2 layout, §4 manifest, §8 profiles, §9 corpus, §7.6 verification, §12 validity | A harness whose every dataset verifies under every profile before a timing exists |
+| **A1** | §10 WL-01…WL-08 and WL-14 over §8 × §9 | The profile matrix: what each configuration costs |
+| **A2** | §14 (Viper rows), §11 | Sizes and the envelope accounting, with no timing in the same table |
+| **A3** | §15, §16 | Compression, checksum and encryption, separately and combined |
+| **A4** | §13, §19 | Allocation, GC, and the scaling curves |
+| **A5** | §20, §21, §22 (Viper rows) | Cold start, concurrency, soak |
+| **A6** | §18 | The component record, time and allocation per mechanism |
+| **A7** | §23, §24, §25, §26 for what A0–A6 measured | Artifacts, charts, baseline, reproduction |
+
+Each A-stage closes when its suites exist, build, and their cells come from one publication run. That
+is a milestone of this track, not of §3: **B1, B6 and B9 close entirely here, and B0, B3, B4, B5, B7
+and B8 stay open until Track B fills in their comparative items.** A stage is never marked closed
+because the Viper half of it is done.
+
+**The tag.** A baseline belongs to a revision. If `src/` does not change between the publication run
+and the release, the commit the manifest records *is* the commit the `v1.0.0` tag points at, and the
+run is the v1.0.0 baseline with nothing to redo — the manifest's sha is the proof. If `src/` does
+change, the run is re-taken from a checkout of the tag.
+
+**Out of scope, and left untouched:** §5 the roster, §6 the tier tables beyond Viper's own placement,
+§7.3 configuration attestation, §7.4 model equivalence, §7.5 capability probes, §10 WL-09…WL-15 rows
+belonging to another library, §17 composed baselines, and every comparative cell.
+
+**The freeze rule.** No publication run happens until A0–A6 exist and build. Once the first
+publication run starts, the harness is frozen: a change to a dataset, a profile, a suite or the job
+configuration invalidates every cell that change could touch, and those suites are re-run in full.
+Numbers taken while the harness was still moving are exploratory and never enter an artifact.
+
+**One command.** A publication run is started once and left alone: `--track A` runs every A-suite in
+order, writes the manifest, the verification, the raw results and the report, and stops. No
+interactive step, no decision in the middle.
+
+## 29.2 Track B — the market
+
+Everything that needs the roster of §5: model variants, adapters, capability probes, tier tables,
+composed baselines, and the comparative cells of §10. Worked after Track A, on the same corpus and
+the same harness, so nothing measured in A is re-measured differently in B.
+
+## 29.3 Starting a session
+
+The skill is a file, not a command: a session begins by reading `.claude/skills/viper_bencher.md`,
+then this section, and works the track it is told. Two forms, and nothing else is needed:
+
+```text
+Track A:  work docs/Benchmark-Plan.md per .claude/skills/viper_bencher.md — Track A, §29.1
+Track B:  work docs/Benchmark-Plan.md per .claude/skills/viper_bencher.md — Track B, §29.2
+```
+
+Track B is entered only once Track A's baseline is committed and frozen. It adds the roster, the
+model variants, the capability probes and the comparative cells, and it re-measures nothing Track A
+already recorded: the corpus, the profiles, the job configuration and the verification stay as they
+are, so an A cell and a B cell in the same table describe the same experiment.
+
+## 29.4 Current position
+
+Kept accurate at the end of every session, so a session that starts cold knows where to resume
+without reading the history.
+
+```text
+Track:        A — Viper alone
+Stage:        A0 closed; A1–A5 suites written, A6 and A7 remain
+Harness:      frozen? no — still being built
+Last run:     none published. B0 verification green (270 pairs, 0 failed); sizes collected (§14, deterministic — no idle machine needed)
+Machine:      publication runs not yet started
+Next action:  write the §18.1 component suites (A6), then the --track A runner and report generator (A7); then freeze and run
+```
+
+---
+
+# 30. Definition of completion
 
 Benchmarking is complete when the raw results, the environment manifest, the capability matrix, the baselines and the generated charts exist together, trace to one source revision and one locked environment, and every cell is either a number or a stated reason.
 

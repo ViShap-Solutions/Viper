@@ -1,6 +1,11 @@
-# Performance proposals
+# Performance findings and proposals
 
 Where a measurement becomes a suggestion, and stops.
+
+Everything the benchmark work discovers lands here as its own file: an observation about behavior, a
+cost worth knowing about, a suspected defect, an optimization the numbers argue for. The benchmark
+plan keeps only a one-line index (§27.1), so a finding is never split between two documents and a
+decision is recorded against the finding itself.
 
 The benchmark effort (`../Benchmark-Plan.md`) measures the library and changes nothing in it. Everything it would otherwise want to change — an optimization, a new extension point, a behavior that looks wrong under a profiler, a limit that costs more than it seemed to — is written up here and left for the repository owner to decide.
 
@@ -62,4 +67,6 @@ Filled in by the repository owner.
 
 ## Index
 
-*(none yet)*
+| | Finding | Status |
+|---|---|---|
+| [PERF-01](PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | Open |

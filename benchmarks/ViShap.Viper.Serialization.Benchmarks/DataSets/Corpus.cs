@@ -49,7 +49,7 @@ public static class Corpus
         Find("DATA-07/unicode"),
     ];
 
-    internal static Dataset Find(string id) =>
+    public static Dataset Find(string id) =>
         All.FirstOrDefault(dataset => dataset.Id == id)
         ?? throw new ArgumentException($"No dataset with id '{id}'.", nameof(id));
 }

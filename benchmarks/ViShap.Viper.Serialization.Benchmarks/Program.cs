@@ -2,6 +2,7 @@ using BenchmarkDotNet.Running;
 using ViShap.Viper.Serialization.Benchmarks.Config;
 using ViShap.Viper.Serialization.Benchmarks.DataSets;
 using ViShap.Viper.Serialization.Benchmarks.Environment;
+using ViShap.Viper.Serialization.Benchmarks.Suites;
 using ViShap.Viper.Serialization.Benchmarks.Verification;
 
 namespace ViShap.Viper.Serialization.Benchmarks;
@@ -18,6 +19,27 @@ internal static class Program
         if (args.Contains("--manifest", StringComparer.Ordinal))
         {
             return Manifest();
+        }
+
+        if (args.Contains("--sizes", StringComparer.Ordinal))
+        {
+            return Sizes();
+        }
+
+        if (args is ["--cold-child", var profile, var dataset, var operation, ..])
+        {
+            return ColdStartRunner.Child(profile, dataset, operation, args.Length > 4 ? args[4] : null);
+        }
+
+        if (args.Contains("--cold", StringComparer.Ordinal))
+        {
+            return ColdStartRunner.Drive();
+        }
+
+        if (args.Contains("--soak", StringComparer.Ordinal))
+        {
+            var minutes = Minutes(args, fallback: 10);
+            return SoakRunner.Run(TimeSpan.FromMinutes(minutes));
         }
 
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, new BenchmarkConfig());
@@ -52,6 +74,41 @@ internal static class Program
         Console.WriteLine($"Corpus: {Corpus.All.Count} datasets.");
 
         return failed == 0 ? 0 : 1;
+    }
+
+    /// <summary>§14 — sizes, recorded without a timing in the same table.</summary>
+    private static int Sizes()
+    {
+        var rows = Reporting.SizeReport.Collect();
+
+        Directory.CreateDirectory(Environment.Paths.Artifacts);
+        var output = Path.Combine(Environment.Paths.Artifacts, "payload-sizes.csv");
+        Reporting.SizeReport.Write(rows, output);
+
+        Console.WriteLine($"{"Profile",-8} {"Dataset",-22} {"Bytes",12} {"Envelope",10} {"Refs",8}  Ratio");
+        Console.WriteLine(new string('-', 78));
+
+        foreach (var row in rows)
+        {
+            Console.WriteLine(
+                $"{row.Profile,-8} {row.Dataset,-22} {row.Bytes,12} {row.EnvelopeBytes,10} " +
+                $"{row.ReferenceFramingBytes,8}  {row.CompressionRatio:F3}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"{rows.Count} rows. Written to {output}");
+
+        return 0;
+    }
+
+    private static double Minutes(string[] args, double fallback)
+    {
+        var index = Array.IndexOf(args, "--soak");
+
+        return index >= 0 && index + 1 < args.Length
+            && double.TryParse(args[index + 1], System.Globalization.CultureInfo.InvariantCulture, out var minutes)
+                ? minutes
+                : fallback;
     }
 
     private static int Manifest()
