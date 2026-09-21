@@ -9,21 +9,21 @@ internal readonly struct PhaseBudget(SerializationLimits limits)
     private readonly SerializationLimits _limits = limits;
 
     public void CheckPayload(long length, string what) =>
-        Check(length, _limits.MaxPayloadBytes, what);
+        Check(length, _limits.MaxPayloadBytes, nameof(SerializationLimits.MaxPayloadBytes), what);
 
     public void CheckCompressed(long length, string what) =>
-        Check(length, _limits.MaxCompressedBytes, what);
+        Check(length, _limits.MaxCompressedBytes, nameof(SerializationLimits.MaxCompressedBytes), what);
 
     public void CheckEncrypted(long length, string what) =>
-        Check(length, _limits.MaxEncryptedBytes, what);
+        Check(length, _limits.MaxEncryptedBytes, nameof(SerializationLimits.MaxEncryptedBytes), what);
 
-    private static void Check(long length, long maximum, string what)
+    private static void Check(long length, long maximum, string limit, string what)
     {
         if (length < 0)
             throw new BinaryFormatException($"{what} {length} must be non-negative.");
 
         if (length > maximum)
             throw new BinaryLimitException(
-                $"{what} {length} exceeds the configured maximum of {maximum}.");
+                $"{what} {length} exceeds the configured maximum of {maximum} ({limit}).");
     }
 }

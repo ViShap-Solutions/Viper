@@ -39,7 +39,8 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
             {
                 throw new BinaryLimitException(
                     $"Compressed payload could not fit within the configured maximum of " +
-                    $"{maxCompressedBytes} bytes.", ex);
+                    $"{maxCompressedBytes} bytes " +
+                    $"({nameof(SerializationLimits.MaxCompressedBytes)}).", ex);
             }
 
             if (written < 0 || written > destinationLength)

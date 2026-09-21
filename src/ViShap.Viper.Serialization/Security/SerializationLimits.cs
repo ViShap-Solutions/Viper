@@ -55,6 +55,12 @@ public sealed record SerializationLimits
     /// bounds every dimension and the product of them all, so a shape with no elements still cannot
     /// declare a dimension the runtime could not create.
     /// </summary>
+    /// <remarks>
+    /// It bounds every element type alike. A <c>byte[]</c> is an ordinary array and is bounded here,
+    /// not by <see cref="MaxByteBlobBytes"/>, and each of its bytes is one element of
+    /// <see cref="MaxTotalElements"/> — so carrying binary data larger than the default means raising
+    /// both, since either one alone still refuses the value.
+    /// </remarks>
     public int MaxArrayLength { get; init; } = 1_000_000;
 
     /// <summary>Maximum number of elements in a single collection. Default 1,000,000.</summary>
@@ -66,7 +72,15 @@ public sealed record SerializationLimits
     /// <summary>Maximum UTF-8 length of a single string, in bytes — not characters. Default 4,000,000.</summary>
     public int MaxStringBytes { get; init; } = 4_000_000;
 
-    /// <summary>Maximum length of a single byte blob, such as a <c>BitArray</c> or <c>BigInteger</c> body. Default 16,000,000.</summary>
+    /// <summary>
+    /// Maximum length of a single byte blob — a value written as one declared length followed by
+    /// raw bytes, which is the encoding of a <c>BigInteger</c> body and of <c>BitArray</c> data.
+    /// Default 16,000,000.
+    /// </summary>
+    /// <remarks>
+    /// It bounds those encodings and nothing else. An array of bytes is not a blob: <c>byte[]</c>,
+    /// like every other array, is bounded by <see cref="MaxArrayLength"/>.
+    /// </remarks>
     public int MaxByteBlobBytes { get; init; } = 16_000_000;
 
     /// <summary>
@@ -75,7 +89,10 @@ public sealed record SerializationLimits
     /// </summary>
     /// <remarks>
     /// The per-container limits bound one container; this one bounds a payload built from many small
-    /// containers that are each individually legal.
+    /// containers that are each individually legal. One element is one charge however many bytes it
+    /// encodes to, so this budget measures structural size rather than byte volume — and a
+    /// <c>byte[]</c> of a million bytes spends a million of it, while a record spends one whatever
+    /// its members weigh. Byte volume is bounded by <see cref="MaxPayloadBytes"/> instead.
     /// </remarks>
     public long MaxTotalElements { get; init; } = 10_000_000;
 

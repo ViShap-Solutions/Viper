@@ -273,7 +273,7 @@ internal sealed class GraphReader
         if (fieldCount > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
                 $"Keyed field count {fieldCount} exceeds the configured maximum of " +
-                $"{_operation.Limits.MaxKeyedFields}.");
+                $"{_operation.Limits.MaxKeyedFields} (MaxKeyedFields).");
 
         _operation.Budget.ConsumeKeyedFields(fieldCount);
 

@@ -48,7 +48,7 @@ public class ElementCountScalingBenchmarks
 /// The payload is a batch of records rather than one byte blob. Bulk array data cannot reach these sizes
 /// under the default policy at all: a `byte[]` spends the element budget per byte, so about ten megabytes
 /// of arrays exhausts `MaxTotalElements` however the bytes are split, and no number of smaller arrays
-/// gets around it (PERF-01). A record spends one element and one graph node regardless of how many bytes
+/// gets around it (PERF-01, PERF-02). A record spends one element and one graph node regardless of how many bytes
 /// it encodes to, which is what lets the curve reach 64 MB inside every default ceiling and stay
 /// comparable with the profiles measured elsewhere.
 /// <para>

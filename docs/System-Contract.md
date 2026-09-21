@@ -399,6 +399,12 @@ BinaryLimitException
 
 Limits one-dimensional array length and is also used for array-specific dimension/product validation.
 
+It bounds every element type alike, `byte[]` included. An array of bytes is an array, not a blob, so
+it is never measured against `MaxByteBlobBytes` (§5.6), and its elements are charged to
+`MaxTotalElements` one per byte (§5.7). The same holds for the memory-like values of §23 —
+`Memory<byte>`, `ReadOnlyMemory<byte>`, `ArraySegment<byte>` and `ReadOnlySequence<byte>` — which
+travel as their elements.
+
 ## 5.3 `MaxCollectionLength`
 
 Limits per-collection element count.
@@ -413,13 +419,27 @@ Limits UTF-8 encoded byte length, not character count.
 
 ## 5.6 `MaxByteBlobBytes`
 
-Limits byte-oriented payloads.
+Limits one value written in the **blob** wire form: a single declared byte length followed by that
+many raw bytes (§22.1).
+
+The set of values encoded that way is closed and small — the `BigInteger` body and the `BitArray`
+data (§22.4), and nothing else. It also bounds a `BitArray` bit count, at `MaxByteBlobBytes × 8`.
+
+It does **not** bound `byte[]`, which is an ordinary array under §5.2. The element type never changes
+the wire form of a container, so no array of any kind reaches this limit. See §21.4.
 
 ## 5.7 `MaxTotalElements`
 
-Cumulative per-operation element budget. It must never decrease during one operation.
+Cumulative per-operation element budget, charged one per element of every array, collection and
+dictionary the operation reads or writes. It must never decrease during one operation.
 
 It is deliberately distinct from keyed-field metadata counts.
+
+One element is one charge however many bytes it encodes to, so this budget measures a payload's
+**structural size**, not its byte volume; byte volume is bounded by the phase limits of §5.10. A
+record therefore spends one element whatever its members weigh, while a `byte[]` of a million bytes
+spends a million. Carrying bulk binary data above the defaults consequently means raising
+`MaxArrayLength` **and** `MaxTotalElements` together: either one alone still refuses the value.
 
 ## 5.8 `MaxObjectGraphNodes`
 
@@ -481,6 +501,8 @@ A failed `EnterDepth()` must not leave the depth incremented.
 Element counts are charged where they are read or written, inside `ElementCount.Validate`, which is
 the only way to obtain an `ElementCount`. Validation and charging therefore cannot be separated from
 using a count.
+
+A charge is per element, never per byte, and the element type does not change it (§5.7).
 
 ---
 
@@ -1240,6 +1262,26 @@ A03 object-declared values                   → write-side rejection (§15)
 Deferred by design, and **not** claimed by this contract: a public formatter contract, an async API,
 streaming (non-buffered) payloads, a V2 codec, constant-time checksum comparison, and source
 generators in place of expression-tree accessors.
+
+## 21.4 Array length vs blob length
+
+Every limit in §5 bounds a **wire form**, not a CLR type, and the two most easily confused are the
+array length and the blob length.
+
+`byte[]` is an array. It is written as an element count followed by its elements (§22.3), so it is
+bounded by `MaxArrayLength` and charged to `MaxTotalElements` per byte, exactly as `int[]` is. So are
+`Memory<byte>`, `ReadOnlyMemory<byte>`, `ArraySegment<byte>` and `ReadOnlySequence<byte>`, which
+travel as their elements alone (§23).
+
+`MaxByteBlobBytes` bounds the blob form — one declared byte length followed by raw bytes — which is
+reached only from the `BigInteger` body and the `BitArray` data (§22.4). No array reaches it, whatever
+its element type.
+
+The element type never changes a container's wire form, which is why there is one rule here rather
+than a table of exceptions. Its consequence is that the default ceiling on a `byte[]` is
+`MaxArrayLength`, not the larger number `MaxByteBlobBytes` names: an application carrying files,
+images or compressed blobs raises `MaxArrayLength` and `MaxTotalElements` deliberately, as a policy
+decision about untrusted input.
 
 # 22. Wire format
 

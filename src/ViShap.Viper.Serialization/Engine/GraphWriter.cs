@@ -252,7 +252,7 @@ internal sealed class GraphWriter
         if (members.Length > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
                 $"Keyed field count {members.Length} exceeds the configured maximum of " +
-                $"{_operation.Limits.MaxKeyedFields}.");
+                $"{_operation.Limits.MaxKeyedFields} (MaxKeyedFields).");
 
         _operation.Budget.ConsumeKeyedFields(members.Length);
         _values.Write7BitEncodedInt(members.Length);

@@ -69,4 +69,5 @@ Filled in by the repository owner.
 
 | | Finding | Status |
 |---|---|---|
-| [PERF-01](PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | Open |
+| [PERF-01](PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | Resolved — §5, the XML docs and the limit messages now say so; the wire is unchanged |
+| [PERF-02](PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | Open |

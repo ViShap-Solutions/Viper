@@ -19,15 +19,18 @@ internal sealed class SerializationBudget(SerializationLimits limits)
 
     public void ConsumeElements(long count) =>
         Consume(ref _totalElements, count, Limits.MaxTotalElements,
-            "Cumulative element count across the payload");
+            "Cumulative element count across the payload",
+            nameof(SerializationLimits.MaxTotalElements));
 
     public void ConsumeObjectGraphNodes(long count) =>
         Consume(ref _objectGraphNodes, count, Limits.MaxObjectGraphNodes,
-            "Object graph node count");
+            "Object graph node count",
+            nameof(SerializationLimits.MaxObjectGraphNodes));
 
     public void ConsumeKeyedFields(long count) =>
         Consume(ref _keyedFields, count, Limits.MaxTotalKeyedFields,
-            "Cumulative keyed field count across the payload");
+            "Cumulative keyed field count across the payload",
+            nameof(SerializationLimits.MaxTotalKeyedFields));
 
     /// <summary>
     /// Enters one structural level. The returned scope restores the previous depth exactly once;
@@ -37,20 +40,22 @@ internal sealed class SerializationBudget(SerializationLimits limits)
     {
         if (_depth >= Limits.MaxDepth)
             throw new BinaryLimitException(
-                $"Nesting depth exceeds the configured limit of {Limits.MaxDepth}.");
+                $"Nesting depth exceeds the configured limit of {Limits.MaxDepth} " +
+                $"({nameof(SerializationLimits.MaxDepth)}).");
 
         _depth++;
         return new DepthScope(this);
     }
 
-    private static void Consume(ref long consumed, long count, long maximum, string what)
+    private static void Consume(
+        ref long consumed, long count, long maximum, string what, string limit)
     {
         if (count < 0)
             throw new BinaryFormatException($"{what} {count} must be non-negative.");
 
         if (count > maximum - consumed)
             throw new BinaryLimitException(
-                $"{what} exceeds the configured limit of {maximum}.");
+                $"{what} exceeds the configured limit of {maximum} ({limit}).");
 
         consumed += count;
     }

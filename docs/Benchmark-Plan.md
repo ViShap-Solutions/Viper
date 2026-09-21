@@ -779,7 +779,8 @@ can be recorded against it.
 
 | | Finding | Raised at | Status |
 |---|---|---|---|
-| [PERF-01](performance/PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | B0 verification, DATA-08 and DATA-14 | Open |
+| [PERF-01](performance/PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | B0 verification, DATA-08 and DATA-14 | Resolved by the owner, as a clarification of Contract §5; no behavior and no bytes changed |
+| [PERF-02](performance/PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | A5, SCALE-02 and SCALE-09 | Open |
 
 ## 27.2 Open questions
 
@@ -792,6 +793,7 @@ An experiment that cannot be made fair, a scenario the plan does not say how to 
 | | Question | Decision | Unblocked |
 |---|---|---|---|
 | **Q1** | The component suites of §18.1 measure internal mechanisms — value primitives, budgets, contracts, header, metered streams — and the benchmark assembly could not see them. Adding the grant is a change in `src/`, which this plan does not make (§1) | Granted by the repository owner on 2026-09-20: `AssemblyInfo.QA.cs` now names `ViShap.Viper.Serialization.Benchmarks`, verified by resolving an internal type from the benchmark project in a Release build. Nothing a consumer sees changes, and v1.0.0 gets the per-component record a later version measures its optimizations against | MICRO-01…MICRO-14, ALLOC-02, ALLOC-03, SEC-04 |
+| **Q2** | PERF-01 showed Contract §5.6 describing `MaxByteBlobBytes` in words that also describe `byte[]`, which no benchmark can correct: the contract and `src/` are outside this plan (§1, §28 *Boundary*) | Decided by the repository owner on 2026-09-21: §5.2, §5.6, §5.7, §6 and a new §21.4 state the wire-form model, the XML docs of three limits repeat it for a consumer on hover, and every `BinaryLimitException` now names the property that governs it. No behavior, no defaults and no bytes changed, and the change is the owner's commit, not this plan's. The boundary box of §28 is therefore evaluated against the benchmark work alone, and this row is what records the exception | PERF-01 closed; PERF-02 opened |
 
 ## 27.3 Results register
 
@@ -927,17 +929,20 @@ without reading the history.
 
 ```text
 Track:        A — Viper alone
-Stage:        A0 closed; A1–A6 suites written; A7 machinery written and exercised end to end
-Harness:      frozen? no — two A5 items still to be written
+Stage:        A0–A7 written. Every A-stage suite exists, builds and runs; what remains for each is the
+              number, which only the publication run produces
+Harness:      frozen? not yet, and nothing further is planned in it. The freeze takes effect when the
+              publication run starts
 Last run:     none published. A full shortened --track A run produced every artifact of §23 for 655 cells in
               1h14m and self-checked the report as byte-identical; deleted afterwards, since a shortened job
               measures nothing worth keeping
 Machine:      publication runs not yet started
-Next action:  the two open A5 items: the 16 MB and 64 MB points of SCALE-02, built from records rather
-              than byte arrays because array data spends the element budget per byte (PERF-01), and
-              SCALE-09 under Server GC, which A7 made expressible. Then tag v1.0.0, freeze, and take the
-              publication run from a checkout of the tag on an idle machine — about 3.5 hours, of which
-              40 minutes is the soak
+Next action:  tag v1.0.0, check the tag out, and take the publication run there on an idle machine —
+              about 3.5 hours, of which 40 minutes is the soak. Then tick the A-stage measurement boxes
+              against the committed raw files under Baselines/v1.0.0/. Nothing is open before that: the
+              last two A5 items are written — the 16 MB and 64 MB points of SCALE-02 are built from
+              records rather than byte arrays, because array data spends the element budget per byte
+              (PERF-01, PERF-02), and SCALE-09 re-runs that large end under Server GC
 ```
 
 ---
