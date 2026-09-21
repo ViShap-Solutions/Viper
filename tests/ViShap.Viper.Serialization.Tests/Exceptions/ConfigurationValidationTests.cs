@@ -51,7 +51,7 @@ public class ConfigurationValidationTests
     public void EveryLimit_IsDiscoveredByTheTheory()
     {
         // Guards the theories below: if discovery broke, they would silently cover nothing.
-        Assert.Equal(14, NumericLimits().Length);
+        Assert.Equal(15, NumericLimits().Length);
     }
 
     [Theory]

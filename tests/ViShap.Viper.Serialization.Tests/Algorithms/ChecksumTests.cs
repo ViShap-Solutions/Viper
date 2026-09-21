@@ -86,4 +86,36 @@ public class ChecksumTests
 
         Assert.Equal(123, WithCrc32().Deserialize<int>(unprotected));
     }
+
+    // --- a configured algorithm is not trusted to size a buffer -----------------------------------
+
+    [Fact]
+    public void Serialize_AChecksumReportingANegativeSize_ThrowsConfiguration()
+    {
+        // The reported size is the one value an external implementation turns into an allocation, so
+        // it is checked rather than believed.
+        AssertEx.Throws<BinaryConfigurationException>(
+            "cannot be represented by the V1 header", () => Wide(-1).Serialize(42));
+    }
+
+    [Fact]
+    public void Deserialize_AChecksumReportingANegativeSize_ThrowsConfiguration()
+    {
+        // The payload names the algorithm, so the registered factory decides what runs. A factory
+        // returning an unusable algorithm is a configuration failure, not a malformed payload.
+        byte[] frame = Wire.FrameWith(
+            Wire.Payload(writer => writer.Write(42)),
+            checksumAlgorithm: (byte)ChecksumAlgorithm.Custom,
+            customChecksumName: WideChecksum.RegisteredName,
+            checksum: [0, 0, 0, 0]);
+
+        AssertEx.Throws<BinaryConfigurationException>(
+            "cannot be represented by the V1 header", () => Wide(-1).Deserialize<int>(frame));
+    }
+
+    private static BinarySerializer Wide(int checksumBytes) =>
+        new(BinarySerializerOptions.Configure()
+            .WithChecksum(new WideChecksum(checksumBytes))
+            .RegisterCustomChecksum(WideChecksum.RegisteredName, () => new WideChecksum(checksumBytes))
+            .Build());
 }

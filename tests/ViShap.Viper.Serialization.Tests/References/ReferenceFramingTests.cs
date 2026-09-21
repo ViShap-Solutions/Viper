@@ -213,4 +213,47 @@ public class ReferenceFramingTests
 
         Assert.Same(result.A, result.B);
     }
+
+    // --- an identifier is declared once ----------------------------------------------------------
+
+    [Fact]
+    public void Deserialize_TwoFirstOccurrencesUnderOneId_ThrowsFormat()
+    {
+        // Two first occurrences under one id would give a single graph a second spelling, and the
+        // later one would quietly replace the object earlier references already resolve to.
+        byte[] frame = FramedFrame(Wire.Payload(writer =>
+        {
+            writer.Write(true);             // the root is present
+            writer.Write((byte)0);          // first occurrence
+            writer.Write(0);                // id 0
+            writer.Write(string.Empty);     // Name
+            writer.Write(true);             // Next is present
+            writer.Write((byte)0);          // first occurrence again
+            writer.Write(0);                // under the id the root already holds
+            writer.Write(string.Empty);
+            writer.Write(false);
+        }));
+
+        AssertEx.Throws<BinaryFormatException>(
+            "declared more than once", () => _framed.Deserialize<Cyclic>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_DistinctIdsForTheSameShape_IsUnaffected()
+    {
+        byte[] frame = FramedFrame(Wire.Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write((byte)0);
+            writer.Write(0);
+            writer.Write(string.Empty);
+            writer.Write(true);
+            writer.Write((byte)0);
+            writer.Write(1);
+            writer.Write(string.Empty);
+            writer.Write(false);
+        }));
+
+        Assert.NotNull(_framed.Deserialize<Cyclic>(frame)?.Next);
+    }
 }

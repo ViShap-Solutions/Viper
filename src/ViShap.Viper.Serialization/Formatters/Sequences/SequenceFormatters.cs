@@ -46,7 +46,7 @@ internal abstract class SequenceFormatterBase : ISequenceFormatter
 
     public virtual Type ElementType(Type declaredType) => declaredType.GetGenericArguments()[0];
 
-    public virtual int? CountOf(object value) => value is ICollection collection ? collection.Count : null;
+    public virtual int? CountOf(object value) => CollectionCountCache.CountOf(value);
 
     public virtual IEnumerable<object?> Enumerate(object value, Type declaredType) =>
         SequenceSupport.Enumerate(value);

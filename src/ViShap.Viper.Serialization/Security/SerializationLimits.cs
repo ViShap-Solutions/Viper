@@ -127,6 +127,24 @@ public sealed record SerializationLimits
     /// <summary>Maximum size of the compressed representation. Default 64 MiB.</summary>
     public long MaxCompressedBytes { get; init; } = 64L * 1024 * 1024;
 
+    /// <summary>
+    /// Maximum factor by which a payload may declare that it expands when decompressed. Default
+    /// 10,000.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Compression is the one phase whose output may legitimately exceed its input, so it is the one
+    /// place where a declared size is not bounded by the bytes that carry it. This limit restores
+    /// that bound: a payload declaring an uncompressed length more than this many times its
+    /// compressed length is refused before anything is decompressed.
+    /// </para>
+    /// <para>
+    /// Raise it when you compress highly repetitive data — a large zero-filled buffer can exceed the
+    /// default — and lower it when you accept untrusted input and know your own data's ratio.
+    /// </para>
+    /// </remarks>
+    public int MaxDecompressionRatio { get; init; } = 10_000;
+
     /// <summary>Maximum size of the encrypted representation, which also carries nonce and tag overhead. Default 64 MiB + 64 KiB.</summary>
     public long MaxEncryptedBytes { get; init; } = 64L * 1024 * 1024 + 64L * 1024;
 
@@ -160,6 +178,7 @@ public sealed record SerializationLimits
         Positive(MaxTotalKeyedFields, nameof(MaxTotalKeyedFields));
         Positive(MaxPayloadBytes, nameof(MaxPayloadBytes));
         Positive(MaxCompressedBytes, nameof(MaxCompressedBytes));
+        Positive(MaxDecompressionRatio, nameof(MaxDecompressionRatio));
         Positive(MaxEncryptedBytes, nameof(MaxEncryptedBytes));
         Positive(MaxWireBytes, nameof(MaxWireBytes));
     }

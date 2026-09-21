@@ -271,4 +271,53 @@ public class CompressionTests
         length = algorithm.Compress(source, buffer);
         return buffer;
     }
+
+    // --- the declared expansion is the reader's policy, not the payload's choice -------------------
+
+    [Fact]
+    public void Deserialize_APayloadExpandingMoreThanTheRatioAdmits_ThrowsLimit()
+    {
+        // The same bytes, written by a serializer that allows the expansion and read by one that does
+        // not: nothing about the payload changed, only the reader's policy.
+        byte[] payload = With(new Deflate()).Serialize(new string('x', 20_000));
+
+        var strict = With(
+            new Deflate(), SerializationLimits.Default with { MaxDecompressionRatio = 2 });
+
+        AssertEx.Throws<BinaryLimitException>(
+            nameof(SerializationLimits.MaxDecompressionRatio),
+            () => strict.Deserialize<string>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_APayloadWithinTheConfiguredRatio_IsAccepted()
+    {
+        var serializer = With(
+            new Deflate(), SerializationLimits.Default with { MaxDecompressionRatio = 100_000 });
+
+        string value = new('x', 20_000);
+
+        Assert.Equal(value, serializer.Deserialize<string>(serializer.Serialize(value)));
+    }
+
+    [Fact]
+    public void Deserialize_AnUncompressedPayload_IsNotMeasuredAgainstTheRatio()
+    {
+        // With no compression the two lengths are already required to be equal, so the ratio has
+        // nothing left to say about them.
+        var serializer = With(
+            new NoCompression(), SerializationLimits.Default with { MaxDecompressionRatio = 1 });
+
+        Assert.Equal(42, serializer.Deserialize<int>(serializer.Serialize(42)));
+    }
+
+    [Fact]
+    public void Decompress_BothBuiltInAlgorithms_OfferTheIncrementalPath()
+    {
+        // The incremental overload is what keeps the output buffer proportional to the bytes
+        // produced; an algorithm that does not declare it falls back to the declared size.
+        Assert.True(((ICompressionAlgorithm)new Deflate()).SupportsIncrementalDecompression);
+        Assert.True(((ICompressionAlgorithm)new Brotli()).SupportsIncrementalDecompression);
+        Assert.False(((ICompressionAlgorithm)new NoCompression()).SupportsIncrementalDecompression);
+    }
 }

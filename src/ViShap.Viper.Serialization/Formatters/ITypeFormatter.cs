@@ -44,7 +44,11 @@ internal interface ISequenceFormatter : ITypeFormatter
     bool BuilderIsInstance => true;
 
     /// <summary>O(1) element count when the value exposes one; <c>null</c> forces bounded materialization.</summary>
-    int? CountOf(object value) => value is System.Collections.ICollection collection ? collection.Count : null;
+    /// <remarks>
+    /// The engine uses it twice: to write a count without materializing the sequence, and to check
+    /// that reading produced as many elements as the payload declared.
+    /// </remarks>
+    int? CountOf(object value) => CollectionCountCache.CountOf(value);
 
     IEnumerable<object?> Enumerate(object value, Type declaredType);
 
@@ -68,7 +72,7 @@ internal interface IMapFormatter : ITypeFormatter
 
     bool BuilderIsInstance => true;
 
-    int? CountOf(object value) => value is System.Collections.ICollection collection ? collection.Count : null;
+    int? CountOf(object value) => CollectionCountCache.CountOf(value);
 
     IEnumerable<(object? Key, object? Value)> Enumerate(object value, Type declaredType);
 

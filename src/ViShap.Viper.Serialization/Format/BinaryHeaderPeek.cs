@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace ViShap.Viper.Format;
 
 internal static class BinaryHeaderPeek
@@ -23,9 +25,9 @@ internal static class BinaryHeaderPeek
             source.Position = position;
         }
 
-        if (read == 8 && BitConverter.ToInt32(buffer) == BinaryFormatConstants.Magic)
+        if (read == 8 && BinaryPrimitives.ReadInt32LittleEndian(buffer) == BinaryFormatConstants.Magic)
         {
-            formatVersion = BitConverter.ToInt32(buffer[4..]);
+            formatVersion = BinaryPrimitives.ReadInt32LittleEndian(buffer[4..]);
             return true;
         }
 

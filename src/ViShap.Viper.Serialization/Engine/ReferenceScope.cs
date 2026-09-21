@@ -72,7 +72,18 @@ internal sealed class ReadReferenceTable
         return false;
     }
 
-    public void Register(int id, object value) => _scopes[^1][id] = value;
+    /// <summary>
+    /// Records a first occurrence. An id that is already visible would give one graph a second
+    /// spelling on the wire, so it is refused rather than allowed to overwrite the earlier object.
+    /// </summary>
+    public void Register(int id, object value)
+    {
+        if (TryResolve(id, out _))
+            throw new BinaryFormatException(
+                $"Reference id {id} is declared more than once in the visible object graph.");
+
+        _scopes[^1][id] = value;
+    }
 
     public void Replace(int id, object value)
     {

@@ -356,6 +356,7 @@ The canonical default limits are:
 | `MaxTotalKeyedFields` | `10_000_000` |
 | `MaxPayloadBytes` | `64 MiB` |
 | `MaxCompressedBytes` | `64 MiB` |
+| `MaxDecompressionRatio` | `10_000` |
 | `MaxEncryptedBytes` | `64 MiB + 64 KiB` |
 | `MaxWireBytes` | `80 MiB` |
 
@@ -473,6 +474,14 @@ are data.
 `MaxPayloadBytes` bounds logical uncompressed payload.
 
 `MaxCompressedBytes` bounds the compressed representation.
+
+`MaxDecompressionRatio` bounds how far a payload may declare that it expands: the declared
+uncompressed length may not exceed the declared compressed length by more than this factor. It is the
+only phase bound that relates a declared size to the bytes that carry it, and it exists because
+compression is the only phase whose output may legitimately exceed its input — and therefore the only
+one where the remaining-bytes rule of §17 cannot apply on its own. It is evaluated while the header is
+read, before any buffer exists, and only when compression is not `None`; with `None` the two lengths
+are already required to be equal.
 
 `MaxEncryptedBytes` bounds the encrypted/on-disk representation.
 
@@ -599,9 +608,15 @@ Examples:
 - negative wire counts/lengths;
 - invalid markers;
 - inconsistent header lengths;
-- malformed keyed payload structure.
+- malformed keyed payload structure;
+- a duplicate key or element, or a null dictionary key, inside a container that admits neither (§23).
 
 When EOF means the declared binary structure is incomplete, raw `EndOfStreamException` must not escape the parser.
+
+A container refusing a value from the payload does so with the framework's own `ArgumentException`.
+That refusal is a statement about the payload rather than about the caller's arguments, so the engine
+— which owns the element loop — classifies it here and preserves the original as `InnerException`
+(§9). No `ArgumentException` reaches the caller under its own name from a payload path.
 
 ## 8.3 `BinaryLimitException`
 
@@ -861,8 +876,12 @@ Phase consistency rules include:
 
 ```text
 Compression == None  → CompressedLength == UncompressedLength
+Compression != None  → UncompressedLength <= CompressedLength × MaxDecompressionRatio
 Encryption == None   → OnDiskLength == CompressedLength
 ```
+
+The expansion rule is a configured limit rather than a property of the format, so breaking it is
+`BinaryLimitException` while the other two are `BinaryFormatException`.
 
 Lengths must be non-negative and within their corresponding phase limits.
 
@@ -888,6 +907,7 @@ raw input ≤ MaxPayloadBytes
 compressed output ≤ MaxCompressedBytes
 compressed input ≤ MaxCompressedBytes
 expected decompressed output ≤ MaxPayloadBytes
+expected decompressed output ≤ compressed input × MaxDecompressionRatio
 ```
 
 Phase sizes are checked by the pipeline, not by the algorithm: `ICompressionAlgorithm` implementations
@@ -903,9 +923,29 @@ Output buffer/phase-limit failures map to `BinaryLimitException` when the config
 
 No compression mode still honors configured phase limits.
 
-Compression is the one phase where output can legitimately exceed input, so the ceiling on a
-decompression bomb is `MaxPayloadBytes`. The attacker must still deliver `CompressedLength` real
-bytes, which are metered and physically present before the uncompressed buffer is allocated.
+Compression is the one phase where output can legitimately exceed input, so it is the one place where
+a declared size is not backed by bytes that must physically arrive. Two rules restore that backing,
+and both are needed:
+
+- **The declared expansion is bounded against the delivered bytes.** `MaxDecompressionRatio` (§5.10)
+  relates `UncompressedLength` to `CompressedLength`, and `CompressedLength` bytes are metered and
+  physically present before anything is decompressed. The buffer a payload can ask for is therefore
+  proportional to the payload it actually delivered, not to the number it wrote in its header.
+- **The buffer follows the output, not the declaration.** An algorithm that reports
+  `SupportsIncrementalDecompression` is driven through a writer that starts at 64 KiB and grows to
+  the declared length only once that much output exists. A payload that declares a large expansion
+  and then produces nothing therefore costs the probe and nothing more.
+
+The first rule alone leaves the ratio as the residual amplification; the second alone leaves an
+algorithm without an incremental path unbounded. Together the allocation is at most
+`min(MaxPayloadBytes, delivered × MaxDecompressionRatio)`, and never more than 64 KiB until the
+payload has genuinely produced that much.
+
+`ICompressionAlgorithm` exposes the incremental overload with a default implementation and the
+`SupportsIncrementalDecompression` flag beside it, exactly as `IEncryptionAlgorithm` exposes its
+associated-data overloads (§13.1). The serializer calls the incremental overload when, and only when,
+the flag says it exists; an algorithm that offers only the span overload is decompressed into a
+buffer of the declared size, still bounded by the first rule.
 
 ---
 
@@ -1002,6 +1042,24 @@ Duplicate explicit order values are invalid.
 
 Deterministic fallback ordering is required where explicit ordering is absent.
 
+**The plan covers the whole inheritance chain.** Members are collected level by level, from the
+concrete type up to `object`, so a member declared on a base class belongs to the plan whatever its
+visibility: a non-public base member carrying `[BinaryInclude]` is part of the value exactly as it is
+when the base is serialized on its own. Asking only the most derived type — which is what reflection
+does by default — drops such a member silently, and silence is not an option the contract offers.
+
+Each declaration is counted once:
+
+- an **override** is one member, taken at its most derived declaration, so the attributes that apply
+  are the ones written on the override;
+- a member that **hides** another with `new` is a second member. Both travel, and the base
+  declaration is written first.
+
+The plan order is therefore a total order — `[BinaryOrder]`, then ordinal name, then the declaring
+level with the base before the type that hides it — and never depends on the order in which
+reflection happened to return members. Two declarations sharing a name are the only case the third
+key decides; everything else is ordered exactly as it was before it existed.
+
 ## 14.2 Keyed contract mode
 
 With `[BinaryContract]`, every eligible member must have exactly one explicit schema decision:
@@ -1022,6 +1080,13 @@ The following are invalid in contract mode:
 Duplicate keys are invalid.
 
 Keys are ordered numerically and encoded with 7-bit variable-length integers.
+
+`[BinaryContract]` is **inherited**. A type extending a contract type is itself a contract type, and
+every member it adds needs its own `[BinaryKey]` or `[BinaryIgnore]`; an unmarked one is
+`BinaryTypeException` naming it. The hierarchy shares one key space, so a key the base claims cannot
+be reused below it — a duplicate is rejected wherever the two declarations sit. That shared space is
+what makes the inheritance useful: a reader holding only the base skips a derived member by its
+declared length, exactly as it skips any other key it does not know.
 
 Unknown keyed fields are skipped according to their declared payload length and do not invoke a formatter for an unavailable/unknown member type.
 
@@ -1071,6 +1136,9 @@ Rules:
 - first occurrence of a tracked object establishes identity;
 - later references point to the existing ID;
 - invalid marker values are `BinaryFormatException`;
+- an ID is declared **once**: a second first-occurrence under an ID already visible is
+  `BinaryFormatException`, not an overwrite. Allowing it would give one graph a second spelling on
+  the wire and would silently move the object that earlier references resolve to;
 - unknown reference IDs are rejected deterministically;
 - cycles without permitted reference preservation are rejected as graph/type errors;
 - the reader and writer use reference identity, not overridden `Equals`.
@@ -1351,7 +1419,8 @@ Every value is written as:
 | union | one tag byte, then the member layout of the tagged type |
 
 Member plan order for the positional layout: members carrying `[BinaryOrder]` first, ascending by
-order, then the rest in ordinal name order.
+order, then the rest in ordinal name order, and where two declarations share a name, the one declared
+further up the inheritance chain first (§14.1).
 
 Keyed fields are written in ascending key order. A field payload is exactly as long as its declared
 length; reading one consumes it exactly, and trailing bytes inside a field are
@@ -1429,6 +1498,8 @@ Header invariants, each `BinaryFormatException` unless noted:
 - an undefined algorithm identifier is `BinaryFormatNotSupportedException`;
 - every optional header string is at most 256 UTF-8 bytes;
 - all three lengths are non-negative and within their phase limits, otherwise `BinaryLimitException`;
+- `uncompressedLength` exceeds `compressedLength` by at most `MaxDecompressionRatio`, otherwise
+  `BinaryLimitException`;
 - `Compression = None` implies `compressedLength = uncompressedLength`;
 - `Encryption = None` implies `onDiskLength = compressedLength`;
 - the declared plaintext length never exceeds the ciphertext actually present;
@@ -1530,6 +1601,19 @@ Notes that belong to the contract:
   comes back at offset zero over an array exactly as long as the segment, and a multi-segment
   `ReadOnlySequence<T>` comes back as a single segment. A default `ArraySegment<T>`, which has no
   backing array at all, is written as an empty segment.
+- **Duplicates.** A key or an element a payload declares twice is malformed input, wherever the
+  container would otherwise have decided for itself. Left to them the containers disagree — a
+  dictionary raises, a `ConcurrentDictionary` drops the repeat, a set collapses it — so the same
+  bytes would be a failure, a silent loss of data, or neither, depending only on which type a member
+  happens to be declared as. The engine owns the element loop and therefore owns this rule: a
+  container that refuses the value reports `BinaryFormatException`, and one that would have collapsed
+  it is caught by comparing the materialized count with the count the payload declared. A sequence
+  that admits repeats — a list, an array, a queue — is unaffected: the same value twice is data
+  there, not a duplicate. A null dictionary key is refused the same way.
+- **`DateTime`** travels as `ToBinary()`, which carries the kind but not the zone. A value whose
+  `Kind` is `Local` is encoded as the instant it names and is reconstructed in the **reader's** local
+  zone, so the instant survives a machine in another zone and the wall-clock value does not. Use
+  `DateTimeOffset`, or `DateTimeKind.Utc`, when the value must compare equal on both ends.
 - **`ImmutableArray<T>`** distinguishes default from empty; every other container does not.
 
 # 24. Release checklist
@@ -1571,6 +1655,7 @@ A box is checked only when source and a test prove it.
 - [x] Keyed-field budget is cumulative and monotonic.
 - [x] Depth is scoped, exception-safe, and covers every structural shape.
 - [x] Wire/payload/compressed/encrypted boundaries are enforced in both directions.
+- [x] A declared decompression expansion is bounded against the compressed bytes delivered.
 - [x] The write budget is relative to the operation's starting position.
 
 ## Formats
@@ -1583,13 +1668,18 @@ A box is checked only when source and a test prove it.
 - [x] Inspection preserves stream position.
 - [x] A V1 payload is consumed exactly; trailing bytes are rejected.
 - [x] Decompression output matches the declared length exactly.
+- [x] The member plan is a total order and covers the whole inheritance chain.
 
 ## Security
 
 - [x] Attacker-controlled counts/lengths are validated before allocation.
-- [x] Declared lengths are compared with physically available bytes before allocation.
+- [x] Declared lengths are compared with physically available bytes before allocation, and the one
+  that cannot be — the uncompressed length — is bounded against them by ratio while the buffer that
+  receives it grows with the output rather than with the declaration.
 - [x] Unknown keyed payloads are skipped without whole-payload allocation.
-- [x] Reference markers/IDs are validated; references are ancestor-scoped.
+- [x] Reference markers/IDs are validated, declared once, and ancestor-scoped.
+- [x] A duplicate key or element is malformed input, decided by the engine rather than by whichever
+  container happens to receive it.
 - [x] The V1 header is authenticated when an AEAD algorithm is used.
 - [x] Every field the tag covers has one encoding only: a boolean admits two bytes and a string
   admits valid UTF-8, so no field can be rewritten into a second spelling of itself.

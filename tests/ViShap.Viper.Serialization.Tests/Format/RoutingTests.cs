@@ -1,3 +1,4 @@
+using ViShap.Viper.Metadata;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Format;
@@ -130,5 +131,29 @@ public class RoutingTests
         byte[] framed = new BinarySerializer().Serialize(value);
 
         Assert.Equal(headerless, framed[Wire.PlainHeaderLength..]);
+    }
+
+    // --- the magic number is little-endian, whatever the host is ---------------------------------
+
+    [Fact]
+    public void Deserialize_AFrameWhoseMagicIsByteReversed_IsNotRecognized()
+    {
+        // Routing decodes the magic number little-endian by definition rather than in the host's byte
+        // order, so its reversed spelling is not a Viper stream on any machine.
+        byte[] reversed = new BinarySerializer().Serialize(42);
+        Array.Reverse(reversed, 0, 4);
+
+        Assert.Throws<BinaryFormatException>(() => new BinarySerializer().Deserialize<int>(reversed));
+    }
+
+    [Fact]
+    public void Peek_AFrameWhoseMagicIsByteReversed_ReportsNoHeader()
+    {
+        byte[] reversed = new BinarySerializer().Serialize(42);
+        Array.Reverse(reversed, 0, 4);
+
+        using var source = new MemoryStream(reversed, writable: false);
+
+        Assert.Null(BinaryFormatInspector.Peek(source));
     }
 }

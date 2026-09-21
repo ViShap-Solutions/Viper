@@ -151,9 +151,12 @@ internal static class TypeContractCache
         {
             Type = type,
             Layout = MemberLayout.Positional,
+            // Order, then ordinal name, then the declaring level — a total order, so the plan never
+            // depends on the order reflection happened to return members in.
             Members = eligible
                 .OrderBy(c => c.Order)
                 .ThenBy(c => c.Name, StringComparer.Ordinal)
+                .ThenByDescending(c => c.Distance)
                 .Select(c => c.Binding)
                 .ToArray(),
             MembersByKey = null,
@@ -235,36 +238,57 @@ internal static class TypeContractCache
                 "that they are not part of the serialized state.");
     }
 
+    /// <summary>
+    /// Walks the inheritance chain one level at a time, most derived first, so a member declared on a
+    /// base class is part of the plan whatever its visibility. Asking the most derived type alone,
+    /// as reflection does by default, silently drops a non-public base member that
+    /// <see cref="BinaryIncludeAttribute"/> said belonged to the value.
+    /// <para>
+    /// An override is collected once, at its most derived declaration, so its attributes are the ones
+    /// that count. A member that merely hides another with <c>new</c> is a second member, and both
+    /// travel; <paramref name="type"/>'s distance from each declaration is what orders them.
+    /// </para>
+    /// </summary>
     private static IEnumerable<Candidate> Candidates(Type type)
     {
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic |
+                                   BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
-        foreach (var property in type.GetProperties(flags))
+        var claimed = new HashSet<MethodInfo>();
+        int distance = 0;
+
+        for (var level = type; level is not null && level != typeof(object); level = level.BaseType, distance++)
         {
-            if (!property.CanRead || !property.CanWrite) continue;
-            if (property.GetIndexParameters().Length != 0) continue;
+            foreach (var property in level.GetProperties(flags))
+            {
+                if (!property.CanRead || !property.CanWrite) continue;
+                if (property.GetIndexParameters().Length != 0) continue;
+                if (!claimed.Add(property.GetMethod!.GetBaseDefinition())) continue;
 
-            yield return Candidate.From(
-                property.Name,
-                property.GetMethod!.IsPublic,
-                property,
-                property.PropertyType,
-                BuildGetter(property),
-                BuildSetter(property));
-        }
+                yield return Candidate.From(
+                    distance,
+                    property.Name,
+                    property.GetMethod!.IsPublic,
+                    property,
+                    property.PropertyType,
+                    BuildGetter(property),
+                    BuildSetter(property));
+            }
 
-        foreach (var field in type.GetFields(flags))
-        {
-            if (field.IsInitOnly) continue;
-            if (field.GetCustomAttribute<CompilerGeneratedAttribute>() is not null) continue;
+            foreach (var field in level.GetFields(flags))
+            {
+                if (field.IsInitOnly) continue;
+                if (field.GetCustomAttribute<CompilerGeneratedAttribute>() is not null) continue;
 
-            yield return Candidate.From(
-                field.Name,
-                field.IsPublic,
-                field,
-                field.FieldType,
-                BuildGetter(field),
-                BuildSetter(field));
+                yield return Candidate.From(
+                    distance,
+                    field.Name,
+                    field.IsPublic,
+                    field,
+                    field.FieldType,
+                    BuildGetter(field),
+                    BuildSetter(field));
+            }
         }
     }
 
@@ -321,7 +345,13 @@ internal static class TypeContractCache
             ? Expression.Unbox(instance, declaringType)
             : Expression.Convert(instance, declaringType);
 
+    /// <param name="Distance">
+    /// Steps from the concrete type up to the type that declares this member. It is the tiebreaker
+    /// that keeps the plan a total order when two declarations share a name, and nothing else: a base
+    /// declaration is written before the one that hides it.
+    /// </param>
     private sealed record Candidate(
+        int Distance,
         string Name,
         bool IsPubliclyVisible,
         bool HasIgnore,
@@ -331,6 +361,7 @@ internal static class TypeContractCache
         MemberBinding Binding)
     {
         public static Candidate From(
+            int distance,
             string name,
             bool isPubliclyVisible,
             MemberInfo member,
@@ -338,6 +369,7 @@ internal static class TypeContractCache
             Func<object, object?> get,
             Action<object, object?> set) =>
             new(
+                distance,
                 name,
                 isPubliclyVisible,
                 member.GetCustomAttribute<BinaryIgnoreAttribute>() is not null,
