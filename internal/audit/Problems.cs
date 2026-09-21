@@ -1,7 +1,7 @@
 // SUPERSEDED — historical audit artifact, kept for provenance. Do not compile.
 //
 // These 19 probes were written against the pre-rework architecture and assert the DEFECTS as they
-// existed then. The architecture audit (docs/Architecture-Audit.md) replaced that
+// existed then. The architecture audit (internal/Architecture-Audit.md) replaced that
 // architecture, and every finding here is now pinned by a test that asserts the CORRECT behavior:
 //
 //   S01, S02, S07, S08, S09  → tests/ViShap.Viper.Serialization.Tests/Security/CryptoContractTests.cs

@@ -27,7 +27,7 @@ Rules that govern the boxes:
 - A box is never ticked from a debug build, a machine on battery, or a `Dry` job. Publication numbers come from the recorded environment of §4.
 - An item whose experiment cannot be made fair is marked **`BLOCKED (Qn)`** and recorded in §27, never silently dropped.
 - An item is never deleted to make a gate pass. It is rewritten, split, or blocked.
-- A benchmark measures the library; it never changes it. **Nothing in `src/` and nothing in `docs/System-Contract.md` is modified while working this plan.** An optimization, an extension point that would make something measurable, a suspected defect — each is written up as a proposal in `docs/performance/` (§27.4) and left for the repository owner to decide.
+- A benchmark measures the library; it never changes it. **Nothing in `src/` and nothing in `internal/System-Contract.md` is modified while working this plan.** An optimization, an extension point that would make something measurable, a suspected defect — each is written up as a proposal in `internal/performance/` (§27.4) and left for the repository owner to decide.
 - A benchmark asserts nothing about correctness, and a measurement is never evidence that behavior is right.
 - **No item here blocks a release.** Correctness and safety are settled before a version ships; performance is measured after it, against the tag. What an open item blocks is a performance claim — a number in the README, in a package description, in a release note or in an issue reply (§28).
 - A baseline belongs to a revision, not to a date. Measuring the `v1.0.0` tag two months after it shipped produces the v1.0.0 record, because the revision, the lock and the manifest say so (§4, §25).
@@ -586,7 +586,7 @@ The same mechanisms seen from outside, by subtracting two public measurements th
 The component suites see internals through `src/ViShap.Viper.Serialization/Properties/AssemblyInfo.QA.cs`, which names `ViShap.Viper.Serialization.Benchmarks`. The grant is the owner's to give; this plan does not edit `src/` (§1).
 
 - [x] MICRO-13 — the grant exists for `ViShap.Viper.Serialization.Benchmarks`, added by the repository owner on 2026-09-20, and an internal type resolves from the benchmark project in a Release build *(Q1)*
-- [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `docs/performance/` (§27.4)
+- [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `internal/performance/` (§27.4)
 
 ---
 
@@ -773,7 +773,7 @@ Everything this plan discovers is **recorded**. Nothing it discovers is acted on
 
 Behavior seen while measuring that the owner may want to know about: an unexpected cost, a surprising allocation, a result that does not match what the contract led one to expect, an optimization the numbers suggest.
 
-**Every finding lives in `docs/performance/` as its own file.** This section is the index and nothing
+**Every finding lives in `internal/performance/` as its own file.** This section is the index and nothing
 else: one line per finding, so the plan stays a checkpoint list and the finding stays where a decision
 can be recorded against it.
 
@@ -803,11 +803,11 @@ The place where an unflattering result is recorded rather than argued with. Each
 |---|---|---|---|---|
 | **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
 
-## 27.4 Proposals — `docs/performance/`
+## 27.4 Proposals — `internal/performance/`
 
 The one output this plan produces besides measurements. A proposal is a document, not a change: it describes what was measured, what it suggests, what it would cost and what it would risk, and it ends where the owner's decision begins.
 
-One file per proposal, `PERF-nn-<slug>.md`, indexed by `docs/performance/README.md`, in the shape that file defines.
+One file per proposal, `PERF-nn-<slug>.md`, indexed by `internal/performance/README.md`, in the shape that file defines.
 
 - [ ] PROP-01 — every optimization idea arising from a measurement is a proposal, and no `src/` file is edited by this plan
 - [ ] PROP-02 — every proposal cites the cells that motivate it, with their margins of error, so it can be re-evaluated against the raw results
@@ -853,8 +853,8 @@ Checked only when a committed raw result proves it.
 
 ## Boundary
 
-- [ ] `src/` and `docs/System-Contract.md` are untouched by this plan's work: the diff of the benchmark effort contains the benchmark project, this plan and `docs/performance/`, and nothing else. The `InternalsVisibleTo` grant of §18.3, if it exists, was made by the owner.
-- [ ] Every optimization idea the measurements produced exists as a proposal in `docs/performance/`, and none of them was applied.
+- [ ] `src/` and `internal/System-Contract.md` are untouched by this plan's work: the diff of the benchmark effort contains the benchmark project, this plan and `internal/performance/`, and nothing else. The `InternalsVisibleTo` grant of §18.3, if it exists, was made by the owner.
+- [ ] Every optimization idea the measurements produced exists as a proposal in `internal/performance/`, and none of them was applied.
 - [ ] Comparative suites use the public surface alone; internal access appears only in the component suites, and no competitor adapter uses it.
 - [ ] The component record of §18 is committed with the baseline, so a later version can measure a change against this one.
 

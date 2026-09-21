@@ -1,6 +1,6 @@
 # ViShap.Viper — Audit remediation design
 
-**Input:** `docs/audit/Problems.cs` (19 probes, all CONFIRMED by the user's run)
+**Input:** `internal/audit/Problems.cs` (19 probes, all CONFIRMED by the user's run)
 **Tracked as:** `System-Contract.md` §21.3 "Deferred hostile-audit hardening"
 **Repo status:** pre-`v1.0.0`, no git tags, no golden wire files under `Fixtures/Wire/`
 → **wire-format changes are still free**; nothing here needs a V2 codec purely for compatibility.
