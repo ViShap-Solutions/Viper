@@ -1215,6 +1215,8 @@ ValueWriter              = write-side checked primitives  (the only byte access)
 ElementCount             = a count that has been validated and charged
 
 GraphReader / GraphWriter = graph traversal, depth, nodes, identity, keyed layout
+CompositeReader / Writer  = what a composite formatter may do: child values, a flag, a validated
+                            ElementCount, a validated ArrayShape — and no raw integer
 TypeContract              = members, keys, layout mode for one concrete type
 UnionMap                  = tag ↔ type map for one declared type
 ```

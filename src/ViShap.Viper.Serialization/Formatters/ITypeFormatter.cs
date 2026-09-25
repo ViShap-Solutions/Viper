@@ -85,12 +85,18 @@ internal interface IMapFormatter : ITypeFormatter
 
 /// <summary>
 /// A value with a fixed, type-determined child layout (tuples, key/value pairs, lazy values) or an
-/// irregular shape (jagged metadata such as array rank). The engine has already charged the depth
-/// scope, the node budget and identity before calling; any count the formatter still needs must be
-/// obtained through the checked primitives, which is the only way to get an <see cref="ElementCount"/>.
+/// irregular shape (array rank). The engine has already charged the depth scope, the node budget and
+/// identity before calling.
+/// <para>
+/// The formatter receives a <see cref="CompositeReader"/> or <see cref="CompositeWriter"/>, not the
+/// engine and not the payload primitives. Neither surface offers a raw integer, so a count exists
+/// only as a validated <see cref="ElementCount"/> and an array shape only as a validated
+/// <see cref="ArrayShape"/>: a loop over an unchecked number from the wire is not expressible here,
+/// which is what keeps that rule a construction rather than a convention.
+/// </para>
 /// </summary>
 internal interface ICompositeFormatter : ITypeFormatter
 {
-    void Write(GraphWriter writer, object value, Type declaredType);
-    object Read(GraphReader reader, Type declaredType);
+    void Write(CompositeWriter writer, object value, Type declaredType);
+    object Read(CompositeReader reader, Type declaredType);
 }

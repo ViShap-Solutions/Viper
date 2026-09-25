@@ -10,7 +10,7 @@ internal sealed class KeyValuePairFormatter : ICompositeFormatter
         declaredType.IsGenericType &&
         declaredType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>);
 
-    public void Write(GraphWriter writer, object value, Type declaredType)
+    public void Write(CompositeWriter writer, object value, Type declaredType)
     {
         var arguments = declaredType.GetGenericArguments();
         var accessors = DictionaryAccessorCache.GetEntryAccessors(declaredType);
@@ -18,7 +18,7 @@ internal sealed class KeyValuePairFormatter : ICompositeFormatter
         writer.WriteValue(accessors.ValueGetter(value), arguments[1]);
     }
 
-    public object Read(GraphReader reader, Type declaredType)
+    public object Read(CompositeReader reader, Type declaredType)
     {
         var arguments = declaredType.GetGenericArguments();
         var key = reader.ReadValue(arguments[0]);
@@ -41,14 +41,14 @@ internal sealed class TupleFormatter : ICompositeFormatter
     public bool CanHandle(Type declaredType) =>
         declaredType.IsGenericType && Definitions.Contains(declaredType.GetGenericTypeDefinition());
 
-    public void Write(GraphWriter writer, object value, Type declaredType)
+    public void Write(CompositeWriter writer, object value, Type declaredType)
     {
         var accessors = TupleAccessorCache.GetAccessors(declaredType);
         for (int i = 0; i < accessors.ArgTypes.Length; i++)
             writer.WriteValue(accessors.Getters[i](value), accessors.ArgTypes[i]);
     }
 
-    public object Read(GraphReader reader, Type declaredType)
+    public object Read(CompositeReader reader, Type declaredType)
     {
         var accessors = TupleAccessorCache.GetAccessors(declaredType);
         var values = new object?[accessors.ArgTypes.Length];
@@ -64,12 +64,12 @@ internal sealed class LazyFormatter : ICompositeFormatter
     public bool CanHandle(Type declaredType) =>
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() == typeof(Lazy<>);
 
-    public void Write(GraphWriter writer, object value, Type declaredType) =>
+    public void Write(CompositeWriter writer, object value, Type declaredType) =>
         writer.WriteValue(
             LazyAccessorCache.GetValueGetter(declaredType)(value),
             declaredType.GetGenericArguments()[0]);
 
-    public object Read(GraphReader reader, Type declaredType)
+    public object Read(CompositeReader reader, Type declaredType)
     {
         var valueType = declaredType.GetGenericArguments()[0];
         return LazyAccessorCache.GetFactory(valueType)(reader.ReadValue(valueType));
@@ -86,33 +86,33 @@ internal sealed class ImmutableArrayFormatter : ICompositeFormatter
         declaredType.IsGenericType &&
         declaredType.GetGenericTypeDefinition() == typeof(ImmutableArray<>);
 
-    public void Write(GraphWriter writer, object value, Type declaredType)
+    public void Write(CompositeWriter writer, object value, Type declaredType)
     {
         var elementType = declaredType.GetGenericArguments()[0];
 
         bool isDefault = (bool)MethodInvokerCache
             .GetInstanceFinalizerInvoker(declaredType, "get_IsDefault")(value);
 
-        writer.Values.WriteBoolean(!isDefault);
+        writer.WriteFlag(!isDefault);
         if (isDefault)
             return;
 
         var array = (Array)ImmutableFactoryCache.GetStructFactory(
             typeof(ImmutableCollectionsMarshal), "AsArray", elementType)(value);
 
-        var count = writer.Values.WriteCount(array.Length, CountKind.Array, "ImmutableArray length");
+        var count = writer.WriteCount(array.Length, CountKind.Array, "ImmutableArray length");
         for (int i = 0; i < count.Value; i++)
             writer.WriteValue(array.GetValue(i), elementType);
     }
 
-    public object Read(GraphReader reader, Type declaredType)
+    public object Read(CompositeReader reader, Type declaredType)
     {
         var elementType = declaredType.GetGenericArguments()[0];
 
-        if (!reader.Values.ReadBoolean())
+        if (!reader.ReadFlag())
             return ActivatorCache.CreateInstance(declaredType);
 
-        var count = reader.Values.ReadCount(CountKind.Array, "ImmutableArray length");
+        var count = reader.ReadCount(CountKind.Array, "ImmutableArray length");
         var builder = (IList)SequenceSupport.CreateList(elementType, count.CapacityHint);
 
         for (int i = 0; i < count.Value; i++)
@@ -133,7 +133,7 @@ internal sealed class MultiDimensionalArrayFormatter : ICompositeFormatter
     public bool CanHandle(Type declaredType) =>
         declaredType.IsArray && declaredType.GetArrayRank() > 1;
 
-    public void Write(GraphWriter writer, object value, Type declaredType)
+    public void Write(CompositeWriter writer, object value, Type declaredType)
     {
         var array = (Array)value;
         var elementType = declaredType.GetElementType()!;
@@ -142,39 +142,24 @@ internal sealed class MultiDimensionalArrayFormatter : ICompositeFormatter
         for (int dimension = 0; dimension < array.Rank; dimension++)
             lengths[dimension] = array.GetLength(dimension);
 
-        ElementCount.ValidateShape(lengths, writer.Values.Operation, "Multi-dimensional array");
-
-        writer.Values.WriteInt32(array.Rank);
-        foreach (int length in lengths)
-            writer.Values.WriteInt32(length);
+        writer.WriteShape(lengths, "Multi-dimensional array");
 
         foreach (var element in array)
             writer.WriteValue(element, elementType);
     }
 
-    public object Read(GraphReader reader, Type declaredType)
+    public object Read(CompositeReader reader, Type declaredType)
     {
         var elementType = declaredType.GetElementType()!;
-        int expectedRank = declaredType.GetArrayRank();
+        var shape = reader.ReadShape(declaredType.GetArrayRank(), "Multi-dimensional array");
 
-        int rank = reader.Values.ReadInt32();
-        if (rank != expectedRank)
-            throw new BinaryFormatException(
-                $"Array rank {rank} does not match the declared array rank {expectedRank}.");
-
-        var lengths = new int[rank];
-        for (int dimension = 0; dimension < rank; dimension++)
-            lengths[dimension] = reader.Values.ReadInt32();
-
-        var total = ElementCount.ValidateShape(lengths, reader.Values.Operation, "Multi-dimensional array");
-
-        var items = (IList)SequenceSupport.CreateList(elementType, total.CapacityHint);
-        for (int i = 0; i < total.Value; i++)
+        var items = (IList)SequenceSupport.CreateList(elementType, shape.Total.CapacityHint);
+        for (int i = 0; i < shape.Total.Value; i++)
             items.Add(reader.ReadValue(elementType));
 
-        var array = Array.CreateInstance(elementType, lengths);
+        var array = Array.CreateInstance(elementType, shape.Lengths);
         int flatIndex = 0;
-        Fill(array, new int[rank], 0, items, ref flatIndex);
+        Fill(array, new int[shape.Lengths.Length], 0, items, ref flatIndex);
         return array;
     }
 

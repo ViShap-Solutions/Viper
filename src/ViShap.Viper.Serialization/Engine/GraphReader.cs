@@ -26,8 +26,6 @@ internal sealed class GraphReader
         _references = references;
     }
 
-    public ValueReader Values => _values;
-
     public T? ReadRoot<T>() => (T?)ReadValue(typeof(T));
 
     public object? ReadValue(Type declaredType)
@@ -201,7 +199,7 @@ internal sealed class GraphReader
     private object ReadComposite(ICompositeFormatter formatter, Type declaredType, int referenceId)
     {
         Register(referenceId, ReadReferenceTable.Pending);
-        var value = formatter.Read(this, declaredType);
+        var value = formatter.Read(new CompositeReader(this, _values), declaredType);
         if (referenceId >= 0)
             _references!.Replace(referenceId, value);
 

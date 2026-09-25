@@ -345,11 +345,12 @@ internal static class TypeContractCache
             ? Expression.Unbox(instance, declaringType)
             : Expression.Convert(instance, declaringType);
 
-    /// <param name="Distance">
-    /// Steps from the concrete type up to the type that declares this member. It is the tiebreaker
-    /// that keeps the plan a total order when two declarations share a name, and nothing else: a base
-    /// declaration is written before the one that hides it.
-    /// </param>
+    /// <summary>
+    /// One member the plan may include. <c>Distance</c> counts the steps from the concrete type up to
+    /// the type that declares the member; it is the tiebreaker that keeps the plan a total order when
+    /// two declarations share a name, and nothing else — a base declaration is written before the one
+    /// that hides it.
+    /// </summary>
     private sealed record Candidate(
         int Distance,
         string Name,

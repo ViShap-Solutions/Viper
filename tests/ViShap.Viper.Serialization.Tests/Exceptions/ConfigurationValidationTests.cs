@@ -86,25 +86,43 @@ public class ConfigurationValidationTests
         (SerializationLimits.Default with { MaxDepth = 1, MaxStringBytes = 1 }).Validate();
     }
 
+    /// <summary>The §5 table of the contract, limit by limit.</summary>
+    private static readonly Dictionary<string, long> DocumentedDefaults = new()
+    {
+        [nameof(SerializationLimits.MaxDepth)] = 512,
+        [nameof(SerializationLimits.MaxArrayLength)] = 1_000_000,
+        [nameof(SerializationLimits.MaxCollectionLength)] = 1_000_000,
+        [nameof(SerializationLimits.MaxDictionaryEntries)] = 1_000_000,
+        [nameof(SerializationLimits.MaxStringBytes)] = 4_000_000,
+        [nameof(SerializationLimits.MaxByteBlobBytes)] = 16_000_000,
+        [nameof(SerializationLimits.MaxTotalElements)] = 10_000_000,
+        [nameof(SerializationLimits.MaxObjectGraphNodes)] = 1_000_000,
+        [nameof(SerializationLimits.MaxKeyedFields)] = 1_000_000,
+        [nameof(SerializationLimits.MaxTotalKeyedFields)] = 10_000_000,
+        [nameof(SerializationLimits.MaxPayloadBytes)] = 64L * 1024 * 1024,
+        [nameof(SerializationLimits.MaxCompressedBytes)] = 64L * 1024 * 1024,
+        [nameof(SerializationLimits.MaxDecompressionRatio)] = 10_000,
+        [nameof(SerializationLimits.MaxEncryptedBytes)] = 64L * 1024 * 1024 + 64L * 1024,
+        [nameof(SerializationLimits.MaxWireBytes)] = 80L * 1024 * 1024
+    };
+
     [Fact]
     public void Default_MatchesTheDocumentedTable()
     {
-        var limits = SerializationLimits.Default;
+        foreach (var limit in NumericLimits())
+            Assert.Equal(
+                DocumentedDefaults[limit.Name],
+                Convert.ToInt64(limit.GetValue(SerializationLimits.Default)));
+    }
 
-        Assert.Equal(512, limits.MaxDepth);
-        Assert.Equal(1_000_000, limits.MaxArrayLength);
-        Assert.Equal(1_000_000, limits.MaxCollectionLength);
-        Assert.Equal(1_000_000, limits.MaxDictionaryEntries);
-        Assert.Equal(4_000_000, limits.MaxStringBytes);
-        Assert.Equal(16_000_000, limits.MaxByteBlobBytes);
-        Assert.Equal(10_000_000L, limits.MaxTotalElements);
-        Assert.Equal(1_000_000L, limits.MaxObjectGraphNodes);
-        Assert.Equal(1_000_000, limits.MaxKeyedFields);
-        Assert.Equal(10_000_000L, limits.MaxTotalKeyedFields);
-        Assert.Equal(64L * 1024 * 1024, limits.MaxPayloadBytes);
-        Assert.Equal(64L * 1024 * 1024, limits.MaxCompressedBytes);
-        Assert.Equal(64L * 1024 * 1024 + 64L * 1024, limits.MaxEncryptedBytes);
-        Assert.Equal(80L * 1024 * 1024, limits.MaxWireBytes);
+    [Fact]
+    public void DocumentedTable_CoversEveryLimit()
+    {
+        // A limit added to the type without a row here would otherwise have no pinned default: the
+        // table and the type must name exactly the same set.
+        Assert.Equal(
+            DocumentedDefaults.Keys.Order(StringComparer.Ordinal),
+            NumericLimits().Select(limit => limit.Name).Order(StringComparer.Ordinal));
     }
 
     // --- contradictory combinations ------------------------------------------------------------------

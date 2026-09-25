@@ -22,8 +22,6 @@ internal sealed class GraphWriter
             : new HashSet<object>(ReferenceEqualityComparer.Instance);
     }
 
-    public ValueWriter Values => _values;
-
     public void WriteRoot<T>(T value) => WriteValue(value, typeof(T));
 
     public void WriteValue(object? value, Type declaredType)
@@ -91,7 +89,7 @@ internal sealed class GraphWriter
                     WriteMap(map, value, effectiveType);
                     break;
                 case ICompositeFormatter composite:
-                    composite.Write(this, value, effectiveType);
+                    composite.Write(new CompositeWriter(this, _values), value, effectiveType);
                     break;
                 default:
                     WriteObject(value, effectiveType);

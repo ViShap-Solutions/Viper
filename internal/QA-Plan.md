@@ -1219,10 +1219,7 @@ evidence and the reasoning; this table keeps what pins each fix.
 | **NX-10** | The `ViShap.Viper.Serialization` package described itself as "High-performance" while `Benchmark-Plan.md` §28 — which governs exactly that claim — was entirely open | The word is gone. The description now names capabilities, which are measured by the test suite rather than by a benchmark that has not run | — | `Benchmark-Plan.md` §28 |
 | **NX-11** | A configured checksum algorithm reporting a negative `HashSizeInBytes` reached `new byte[]` and `stackalloc`, leaving `OverflowException` outside the taxonomy | The reported size is checked once, in `ChecksumService`, against the range the V1 header can record, as `BinaryConfigurationException` naming the algorithm | §8.1 | `Algorithms/ChecksumTests` |
 
-NX-12 — the observation that `ICompositeFormatter` is the one shape where the validated-count rule is
-a convention rather than a construction — is recorded in the audit and deliberately not closed here.
-It has no runtime symptom, `ITypeFormatter` is internal for v1.0, and a source-shape test for it
-belongs with the barrier tests rather than with these fixes.
+| **NX-12** | `ICompositeFormatter` received the whole `GraphReader`/`GraphWriter`, and through `.Values` the payload primitives, so a composite could loop over a raw `ReadInt32` — the one shape where the validated-count rule was a convention rather than a construction | Composites receive `CompositeReader`/`CompositeWriter` instead, which offer child values, a presence flag, a validated `ElementCount` and a validated `ArrayShape`, and no raw integer. The array shape is read and validated in the engine, and the engine no longer exposes its primitives at all | §24 (invariant now structural) | `Limits/StructuralBarrierTests` |
 
 ---
 

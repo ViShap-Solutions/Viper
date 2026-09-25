@@ -18,6 +18,7 @@
         <Company>ViShap Solutions</Company>
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
         <Description>High-performance .NET binary serialization with compression, checksums, encryption, polymorphism, and schema-aware contracts.</Description>
+        <PackageTags>binary;serialization;serializer;deserialization;binary-format;schema-evolution;polymorphism;aes-gcm;brotli;untrusted-input</PackageTags>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
