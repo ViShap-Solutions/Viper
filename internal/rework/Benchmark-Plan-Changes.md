@@ -75,6 +75,8 @@ Also owed now:
 - **FAIR-07** rewritten: the buffer family is directly comparable with other serializers' buffer
   entry points.
 - **WL-18** — a non-seekable stream, the path that did not exist before.
+- **WL-20** — a long stream of small frames read with `DeserializeAsyncEnumerable` from a pipe:
+  throughput and allocation per frame.
 - **WL-19** — an encrypted frame written to an `IBufferWriter<byte>`: the path with no final copy
   (plan §5.1), against the same frame to `byte[]`.
 

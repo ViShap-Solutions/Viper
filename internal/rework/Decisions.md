@@ -844,6 +844,8 @@ public T?            Deserialize<T>(ReadOnlySequence<byte> source, out SequenceP
 public T?            Deserialize<T>(Stream source);
 public ValueTask<T?> DeserializeAsync<T>(Stream source, CancellationToken ct = default);
 public ValueTask<T?> DeserializeAsync<T>(PipeReader source, CancellationToken ct = default);
+public IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, CancellationToken ct = default);     // §9.21
+public IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, CancellationToken ct = default); // §9.21
 
 // заполнение существующего объекта — симметрично чтению
 public void          Populate<T>(ReadOnlySpan<byte> source, T target) where T : class;
@@ -1137,6 +1139,50 @@ Aes256Gcm    → Aes256GcmEncryption      новый: ChaCha20Poly1305Encryption
 
   Отвергнуто: переименовать только конфликтующие (два стиля в одном API); префикс `Viper`
   (шум); статические фабрики с внутренними классами (лишний слой, тип нельзя проверить).
+
+- **9.19** [ПОДТВЕРЖДЕНО] Два пробела плана, закрытые 2026-09-26:
+
+  **Кэши (R4).** Папка `src/ViShap.Viper.Serialization/Cache/` удаляется целиком вместе с кэшем
+  `FormatterRegistry`: `ActivatorCache`, `MethodInvokerCache`, `DictionaryAccessorCache`,
+  `TupleAccessorCache`, `LazyAccessorCache`, `FrozenFactoryCache`, `ImmutableFactoryCache`,
+  `ReadOnlySequenceAccessorCache`, `CollectionCountCache`. Все они существуют, потому что движок
+  работает с `object` и `Type`; типизированные формы вызывают `new`, `Add`, `Count`, `Key`, `Item1`,
+  `Value`, `ToFrozenSet<T>`, `ImmutableArray.Create<T>` напрямую. Остаются: `FormatterCache<T>`
+  (статическое поле), кэш контрактов по типу (`TypeContract<T>`, полиморфный слот ищет по
+  runtime-типу), кэш union-карт, кэш фабрик форм по определению generic-типа (одна
+  `MakeGenericType` на закрытый тип). Тесты `Concurrency/CacheTests` переписываются под оставшиеся
+  кэши: `CN-06…CN-13` и `CN-19` выводятся из работы, `CN-03…CN-05`, `CN-14…CN-16` переносятся на
+  новые кэши.
+
+  **Корпус оракула (R0).** Оракул не изобретает собственных случаев: он хэширует вывод по готовым
+  корпусам тестового проекта — `tests/.../RoundTrip/Corpus*.cs` (примитивы, время и системные типы,
+  массивы, композиты, коллекции) под каждым профилем `CorpusProfiles`, V0-корпус
+  `Format/V0CorpusTests`, графы ссылок `References/` и keyed-формы `Contracts/` — под V0 и V1, со
+  ссылками и без, где формат это допускает.
+
+- **9.20** [ПОДТВЕРЖДЕНО] Генератор — после релиза (вариант a), аннотации AOT — в v1.0 (R8). Путь
+  аддитивной интеграции `ViShap.Viper.Generator` записан в `Rework-Plan.md` §13.1 явно; открытые на
+  тот момент решения перечислены там же и принимаются при выпуске генератора.
+
+- **9.21** [ПОДТВЕРЖДЕНО] Непрерывное чтение потока кадров — в v1.0:
+
+```csharp
+public IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, CancellationToken cancellationToken = default);
+public IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, CancellationToken cancellationToken = default);
+```
+
+```text
+каждый кадр          отдельная операция: свой OperationState, свои лимиты и бюджеты — поток кадров
+                     не ограничен ничем, каждый кадр ограничен всем
+конец источника      ровно между кадрами — перечисление завершается;
+                     посреди кадра — BinaryFormatException
+V0                   не поддерживается — NotSupportedException (границы знает протокол вызывающего, §9.6)
+отмена               как §9.5; PipeReader при отмене не потребляет начатый кадр
+```
+
+  Причина: `DeserializeAsync` в цикле не отличает нормальный конец потока (пустой вход →
+  `BinaryFormatException`) от обрыва посреди кадра. Отвергнуто: оставить пользователю ловить
+  исключение; `TryDeserializeAsync` с кортежем.
 
 ---
 

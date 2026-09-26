@@ -646,6 +646,8 @@ public T?            Deserialize<T>(ReadOnlySequence<byte> source, out SequenceP
 public T?            Deserialize<T>(Stream source);
 public ValueTask<T?> DeserializeAsync<T>(Stream source, CancellationToken cancellationToken = default);
 public ValueTask<T?> DeserializeAsync<T>(PipeReader source, CancellationToken cancellationToken = default);
+public IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, CancellationToken cancellationToken = default);
+public IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, CancellationToken cancellationToken = default);
 
 // populate an existing instance
 public void          Populate<T>(ReadOnlySpan<byte> source, T target) where T : class;
@@ -783,6 +785,23 @@ static bool TryReadFrame(ref ReadOnlySequence<byte> buffer, out ReadOnlySequence
     return true;
 }
 ```
+
+**Reading a stream of frames** [D9.21]. `DeserializeAsyncEnumerable<T>` reads V1 frames until the
+source ends. Each frame is its own operation — its own `OperationState`, limits and budgets — so a
+stream of frames is unbounded while every frame stays bounded. The source ending exactly between
+frames completes the enumeration; ending inside a frame is `BinaryFormatException`. V0 is
+`NotSupportedException`, for the reason above. Cancellation behaves as for `DeserializeAsync`; a
+`PipeReader` does not consume a frame it has started. This is what a loop over `DeserializeAsync`
+cannot do: a clean end of stream there is an empty input, indistinguishable from a broken one.
+
+```csharp
+await foreach (Order? order in serializer.DeserializeAsyncEnumerable<Order>(networkStream, cancellationToken))
+    Handle(order);
+```
+
+Limits apply per frame, never per connection. A single message above 2 GiB, or a single value that
+never ends, is out of scope by design: messages are materialised object graphs, and large or endless
+data is sent as many frames.
 
 ## 9.6 `Populate` [D9.4]
 
@@ -1133,9 +1152,12 @@ three change files.
   complete Benchmark Track A so the harness records a Baseline, delete the tag, and commit the raw
   results under `benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/pre-rework/`.
 - Record the byte oracle: one text file holding the SHA-256 of the writer's output for every case of
-  the corpus — every §23 type family and every graph shape, under V0 and V1, with references on and
-  off. A test compares against it and, on a mismatch, prints the hex of both outputs for that case.
-  The oracle is deleted at R6.
+  the existing corpora — `tests/.../RoundTrip/Corpus*.cs` (primitives, time and system types, arrays,
+  composites, collections) under every profile of `CorpusProfiles`, the V0 corpus of
+  `Format/V0CorpusTests`, the reference graphs of `References/` and the keyed shapes of `Contracts/` —
+  under V0 and V1, with references on and off wherever the format admits it. The oracle invents no
+  case of its own. A test compares against it and, on a mismatch, prints the hex of both outputs for
+  that case. The oracle is deleted at R6. [D9.19]
 - **Gate:** baseline committed; oracle committed; suite green.
 
 ### R1 — Wire primitives on buffers — *wire unchanged*
@@ -1159,7 +1181,7 @@ three change files.
 ### R3 — Public surface and non-seekable reading — *wire unchanged*
 
 - The whole surface of §9: buffer and sequence entry points, `PooledPayload`, bytes-consumed forms,
-  `Populate`, asynchronous methods, `WithKeys`. `StreamExtensions` and `FromHeader`/`FromStream` are
+  `Populate`, asynchronous methods including `DeserializeAsyncEnumerable`, `WithKeys`. `StreamExtensions` and `FromHeader`/`FromStream` are
   deleted; `BinaryHeaderPeek` is deleted and the router decodes the magic from the buffered source.
 - The V0 boundary rules (§7) and the V0 asynchronous rule with its required text (§9.5).
 - **Gate:** every entry point reads a non-seekable source; a non-seekable double that fails on any
@@ -1171,7 +1193,21 @@ three change files.
 - §10.1 and §10.2: shapes and codecs, `FormatterCache<T>`, `TypeContract<T>` / `ReflectedContract<T>`,
   `MemberWriter` / `MemberReader` with the engine's checks, array and capacity rules, enum conversion
   without boxing, pooled asynchronous builders.
-- **Gate:** fixtures and oracle byte-identical; INV-5 and INV-17 structural tests pass; the §11
+- Every one of today's 78 registered formatters is rewritten into its shape — scalars into
+  `IScalarFormatter<T>`, collections into one `ISequenceShape` per generic definition, dictionaries
+  into `IMapShape`, tuples, pairs, `Lazy<T>` and multi-dimensional arrays into typed composites, enums
+  into `EnumFormatter<TEnum>`. The encoding of every type is unchanged (fixtures and oracle).
+- **The folder `src/ViShap.Viper.Serialization/Cache/` is deleted**, together with the dictionary
+  cache in `FormatterRegistry`: `ActivatorCache`, `MethodInvokerCache`, `DictionaryAccessorCache`,
+  `TupleAccessorCache`, `LazyAccessorCache`, `FrozenFactoryCache`, `ImmutableFactoryCache`,
+  `ReadOnlySequenceAccessorCache`, `CollectionCountCache`. Each exists because the engine works with
+  `object` and `Type`; a typed shape calls `new`, `Add`, `Count`, `Key`, `Item1`, `Value`,
+  `ToFrozenSet<T>` or `ImmutableArray.Create<T>` directly. What remains cached: `FormatterCache<T>`
+  (a static field), the contract per type (the polymorphic slot looks up by runtime type), the union
+  maps, and one shape factory per generic definition (one `MakeGenericType` per closed type).
+  [D9.19]
+- **Gate:** fixtures and oracle byte-identical; INV-5 and INV-17 structural tests pass; no type under
+  `Cache/` remains and `Concurrency/CacheTests` covers exactly the caches that remain; the §11
   targets that do not depend on R6 are measured; cold start (`ContractColdRunner`) measured against
   R0, and any regression written up in `internal/performance/`.
 
@@ -1221,17 +1257,81 @@ Track B — the comparison with other serializers — runs after the release, on
 
 # 13. After the release
 
-Each of these is additive; none blocks a stage [D9.2, D8.8]:
+Each of these is additive; none blocks a stage [D9.2, D9.20]:
 
-- **Schema fingerprint** — a new critical service with a new number.
-- **Zstandard, LZ4, AES-GCM-SIV** — separate packages with their own dependencies.
-- **Source generator** — implements `TypeContract<T>`. Decided at that time: whether `TypeContract<T>`,
-  `MemberWriter` and `MemberReader` become public; access to non-public `[BinaryInclude]` members
-  (`partial` or `[UnsafeAccessor]`); registration (module initializer and registry, a static abstract
-  member on the type, or a context in the options); the release label.
-- **Benchmark Track B.**
+- **Schema fingerprint** — a new critical service with a new number (§6.1.2).
+- **Zstandard, LZ4, AES-GCM-SIV** — separate packages implementing the §8.1 interfaces.
+- **Source generator** — §13.1.
+- **Benchmark Track B** — on the `v1.0.0` tag.
 
----
+## 13.1 `ViShap.Viper.Generator` — how it joins the system
+
+The generator is not built in v1.0; v1.0 builds the seam it plugs into (§10.2) and proves the seam
+with the conformance suite (R8). This section fixes how it arrives, so that nothing in v1.0 has to be
+reworked when it does.
+
+**What it is.** A Roslyn incremental source generator, `netstandard2.0` as analyzers require, shipped
+as a fourth package `ViShap.Viper.Generator` with the analyzer in `analyzers/dotnet/cs`. It is a
+build-time dependency of the consumer, never a runtime one: `ViShap.Viper.Serialization` does not
+reference it, and the meta-package `ViShap.Viper` references it only as a development dependency
+(`PrivateAssets="all"`) if the owner chooses to bundle it then.
+
+**What it produces — and nothing else** (§10.2, INV-5):
+
+```text
+per annotated type    one TypeContract<T> subclass: Create, Write, Read or ReadField — member order,
+                      member access, construction, response to a known key
+                      the member description (layout, members, keys) the engine checks calls against
+                      the registration of that contract
+never                 a length, a count, a loop over wire data, a limit, a null or reference frame,
+                      a union tag, a byte — all of these stay in the engine
+```
+
+**How the engine finds it.** The engine resolves a type's contract in one place — the contract cache
+of §10.1. With the generator, that resolution asks a registry first and falls back to
+`ReflectedContract<T>`:
+
+```text
+FormatterCache<T> → object codec → contract for T:
+    generated contract registered for T?  → use it
+    otherwise                             → ReflectedContract<T> (v1.0 behaviour, unchanged)
+```
+
+Nothing else in the engine, the pipeline, the formatters or the wire changes. A type without a
+generated contract behaves exactly as in v1.0; a type with one produces the same bytes (the
+conformance suite `CONF-*` and the frozen fixtures are the arbiter, INV-12).
+
+**What becomes public then** — decided when the generator ships, because generated code lives in the
+consumer's assembly and can call only public API:
+
+```text
+TypeContract<T>, MemberWriter, MemberReader     public, or a narrower public façade over them
+the registry                                    ContractRegistry.Register(...) called from a
+                                                [ModuleInitializer]; or a static abstract member on the
+                                                type; or a context passed in the options, like
+                                                JsonSerializerContext
+non-public [BinaryInclude] members              the type must be partial, or [UnsafeAccessor]
+the release label                               v1.x minor — no byte and no existing signature changes
+```
+
+**Compile-time diagnostics.** Every rejection `ReflectedContract<T>` makes today at first use — an
+unmarked member of a contract, `[BinaryKey]` without `[BinaryContract]`, duplicate keys or orders,
+`[BinaryKey]` with `[BinaryIgnore]`, a delegate member, a union tag above 255, an abstract type with
+no union — becomes a compiler error with its own diagnostic id. The runtime path keeps rejecting the
+same things for types without a generated contract.
+
+**What changes in the repository then:** a `src/ViShap.Viper.Generator` project; a test project for
+the generator (snapshot tests of the emitted code and of every diagnostic); `CONF-*` run a second time
+against generated contracts; CD packs and validates four packages instead of three; the contract
+gains a generator section; the reflection path's `[RequiresDynamicCode]` annotations stay, and the
+generated path carries none.
+
+**What v1.0 must therefore already guarantee** — each is a v1.0 gate item, not a later task:
+
+- the contract lookup has exactly one place where a registry can be consulted (R4);
+- `TypeContract<T>` can be implemented outside the engine without access to anything but
+  `MemberWriter` / `MemberReader` (R4, INV-2);
+- the conformance suite runs a contract through the same cases regardless of how it was built (R8).
 
 # 14. Risks
 

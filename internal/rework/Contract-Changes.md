@@ -57,7 +57,9 @@ contract would already be accurate for it.
   struct `ref` forms are gone; only the root is populated; keyed contracts keep absent fields. *(R3)*
 - **§3.2 stream extensions** deleted. *(R3)*
 - **New:** `PooledPayload` ownership (plan §9.3); bytes consumed (plan §9.4); asynchrony, cancellation
-  and failure (plan §9.5), including the **required V0 explanation and example**, verbatim. *(R3)*
+  and failure (plan §9.5), including the **required V0 explanation and example**, verbatim;
+  `DeserializeAsyncEnumerable` — a frame per operation, a clean end between frames, a broken end
+  inside one, limits per frame and never per connection. *(R3)*
 - **New:** the reflection entry points carry `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]`,
   and why. *(R8)*
 
@@ -180,7 +182,9 @@ contract would already be accurate for it.
 - Names: `WireReader`, `WireWriter`, `PayloadBuffer`, `OperationState`, `FormatterCache<T>`,
   `IScalarFormatter<T>`, `ISequenceShape<,>`, `IMapShape<,,>`, `TypeContract<T>`,
   `ReflectedContract<T>`, `MemberWriter`, `MemberReader`. Remove the three stream decorators,
-  `ValueReader`, `ValueWriter`, `BinaryHeaderPeek`.
+  `ValueReader`, `ValueWriter`, `BinaryHeaderPeek`, and every reflective accessor cache of
+  `Cache/`; state which caches remain (plan §12, R4) and that each is built once per type and safe
+  under concurrent first use.
 
 ### §19 Format inspection and diagnostics — R3, R6
 

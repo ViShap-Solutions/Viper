@@ -66,8 +66,10 @@ Also owed now:
 
 ## R0 — Baseline and oracle
 
-- New **§0 "Rework oracle"**: one text file of SHA-256 values, one per corpus case — every §23 family
-  and graph shape, V0 and V1, references on and off. Rule: R1–R5 reproduce every value; the oracle is
+- New **§0 "Rework oracle"**: one text file of SHA-256 values, one per case of the existing corpora —
+  `RoundTrip/Corpus*.cs` under every `CorpusProfiles` profile, `Format/V0CorpusTests`, the reference
+  graphs of `References/`, the keyed shapes of `Contracts/` — V0 and V1, references on and off where
+  the format admits it. The oracle invents no case. Rule: R1–R5 reproduce every value; the oracle is
   retired at R6.
 - **ORC-01** — every corpus case hashes to its recorded value.
 - **ORC-02** — on a mismatch the test prints the hex of the expected and the actual output for that
@@ -126,6 +128,10 @@ Also owed now:
   `SerializeAsync` to a pipe and a stream equals `Serialize`.
 - **API-26** — an asynchronous read or populate meeting V0 is `NotSupportedException` naming the rule;
   an asynchronous V0 write succeeds.
+- **API-27** — `DeserializeAsyncEnumerable` over a `Stream` and a `PipeReader`: N frames yield N values
+  and complete; the source ending inside a frame is `BinaryFormatException` after the complete frames
+  were yielded; each frame has its own budget (N frames each just under a cumulative limit all pass);
+  V0 is `NotSupportedException`; cancellation leaves a started frame unconsumed in the pipe.
 - **OPT-22** — `WithKeys` ×3 reads an encrypted frame; keys supplied through both `WithEncryption` and
   `WithKeys` are `BinaryConfigurationException` at `Build()`.
 - **V0-27** — the V0 read boundary: default strict for span and sequence; a seekable stream is left at
@@ -151,6 +157,12 @@ Also owed now:
 - **ALC-01…ALC-nn** — `AssertEx.AllocatesLessThan` on each allocation target of plan §11 that R4 makes
   reachable (write into `IBufferWriter` without phases; read of a primitive record from a span; the
   reference-table and asynchronous paths).
+- **§28 caches rewritten.** Retired with `src/.../Cache/`: CN-06…CN-13 (one per deleted cache) and
+  CN-19 (`ImmutableCollectionsMarshal` resolution — the typed shape calls it directly). Re-pointed at
+  the caches that remain: CN-03 (contract cache), CN-04 (union maps), CN-05 (`FormatterCache<T>` and
+  the shape-factory cache), CN-14, CN-15, CN-16.
+- **CN-20** — no type remains under `src/ViShap.Viper.Serialization/Cache/`, and no `ConcurrentDictionary`
+  keyed by `Type` exists outside the contract, union and shape-factory caches (source-shape test).
 
 ## R5 — Algorithm contracts
 
