@@ -81,10 +81,10 @@ jobs:
               exit 1
             fi
           else
-            BRANCHES="$(git branch -r --contains "$TAG_COMMIT" --format='%(refname:short)' | grep -v '^origin/HEAD$' || true)"
+            BRANCHES="$(git branch -r --contains "$TAG_COMMIT" --format='%(refname:short)' | grep '^origin/release/' || true)"
 
             if [[ -z "$BRANCHES" ]]; then
-              echo "A pre-release tag must point to a commit that belongs to a branch on origin."
+              echo "A pre-release tag must point to a commit on a release/* branch of origin."
               exit 1
             fi
 

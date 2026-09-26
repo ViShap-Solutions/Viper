@@ -51,26 +51,36 @@ change file in the stage that makes the change real, never ahead of it.
    claim only through `Benchmark-Plan.md` §28.
 9. **The owner commits.** Leave each stage's work in the working tree and report the changed paths
    with a one-line commit message, as `CLAUDE.md` describes.
+10. **Branches and tags** follow `internal/Development-Workflow.md` [D9.22]. The rework is collected on
+    `release/v1.0.0`, branched from `main`; each stage is worked on `rework/rN-<topic>` from
+    `release/v1.0.0` and returns to it through a pull request. Nothing is published before R6; after
+    R6 the owner may tag `v1.0.0-beta.N` on `release/v1.0.0`; after R9, `v1.0.0-rc.N`; the release is
+    `release/v1.0.0` merged into `main` and `v1.0.0` tagged on `main`. The executor never creates or
+    merges these branches and never tags `v*`.
 
 ---
 
 # Progress
 
 Updated by the executor when a stage's gate holds and its report is handed to the owner. A stage is
-`closed` only after the owner has committed it.
+`closed` only after the owner has merged its branch into `release/v1.0.0`.
 
-| Stage | Status | Closed by (commit) |
-|---|---|---|
-| R0 — Baseline and oracle | not started | |
-| R1 — Wire primitives on buffers | not started | |
-| R2 — Pipeline on pooled buffers | not started | |
-| R3 — Public surface and non-seekable reading | not started | |
-| R4 — Typed engine | not started | |
-| R5 — Algorithm contracts | not started | |
-| R6 — The final format | not started | |
-| R7 — Removed | — | — |
-| R8 — Generator ground | not started | |
-| R9 — Re-gate and release | not started | |
+| Stage | Branch (from `release/v1.0.0`) | After the owner merges it | Status | Closed by (merge commit) |
+|---|---|---|---|---|
+| R0 — Baseline and oracle | `rework/r0-baseline` | — | not started | |
+| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | not started | |
+| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | not started | |
+| R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |
+| R4 — Typed engine | `rework/r4-typed-engine` | — | not started | |
+| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | not started | |
+| R6 — The final format | `rework/r6-final-format` | the owner may tag `v1.0.0-beta.1` on `release/v1.0.0` | not started | |
+| R7 — Removed | — | — | — | — |
+| R8 — Generator ground | `rework/r8-generator-ground` | — | not started | |
+| R9 — Re-gate and release | `rework/r9-release-gate` | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
+| Release | `release/v1.0.0` → `main` | the owner tags `v1.0.0` on `main` | not started | |
+
+A defect found on a beta or an rc is fixed on `bugfix/<topic>` from `release/v1.0.0` and merged back;
+the next tag is `beta.N+1` or `rc.N+1`.
 
 Status values: `not started` · `in progress` · `gate holds — awaiting commit` · `closed` · `blocked — <question>`.
 
@@ -1252,6 +1262,10 @@ and R3 (the read boundary).
   packages.
 
 Track B — the comparison with other serializers — runs after the release, on the `v1.0.0` tag.
+
+**Tags along the way** [D9.22]: none published before R6 (the local `pre-rework` tag of R0 is never
+pushed); `v1.0.0-beta.N` allowed once R6 is closed — the format is final; `v1.0.0-rc.N` once R9 is
+closed — fixes only; `v1.0.0` on `main` after `release/v1.0.0` is merged.
 
 ---
 

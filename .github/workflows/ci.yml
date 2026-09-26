@@ -4,10 +4,14 @@ on:
   pull_request:
     branches:
       - main
+      - 'release/**'
+      - 'support/**'
 
   push:
     branches:
       - main
+      - 'release/**'
+      - 'support/**'
 
   workflow_dispatch:
 

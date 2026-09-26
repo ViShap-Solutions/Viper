@@ -19,7 +19,9 @@ dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Te
 dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release
 ```
 
-CI (`.github/workflows/ci.yml`) runs restore → build → the serialization test project on every PR/push to `main`. CD (`cd.yml`) fires on `v*` tags: it *requires the tag to point exactly at `origin/main` HEAD*, packs all three packages with `-p:Version=<tag minus v>`, and pushes to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
+CI (`.github/workflows/ci.yml`) runs restore → build → the serialization test project on every PR and push to `main`, `release/**` and `support/**`. CD (`cd.yml`) fires on `v*` tags: a stable `vX.Y.Z` must point exactly at `origin/main` HEAD; a pre-release `vX.Y.Z-alpha.N`, `-beta.N` or `-rc.N` must point at a commit on a `release/*` branch of origin, and is refused once `vX.Y.Z` exists. It packs all three packages with `-p:Version=<tag minus v>` and pushes them to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
+
+Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_refactorer`); follow it for anything about how work moves through the repository.
 
 ## Where the authoritative information lives
 
@@ -58,6 +60,10 @@ and for Claude Code — and lives under `internal/`.
   the plan was written from; where the plan and it disagree, it is right. `Owner-Review.md` (Russian)
   is the review of the earlier draft and the owner's decision log. Two findings are already applied
   (`HST-40`, `KEY-23`); stage R0 has not started.
+- `internal/Development-Workflow.md` — how work moves through the repository (Russian): branch
+  kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how tags
+  are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how benchmark
+  baselines are taken, hotfixes, and what an agent may and may not do.
 - `internal/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
@@ -172,7 +178,9 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
 ## Conventions
 
 - Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern into the `internal/QA-Plan.md` §2 folders listed above, with shared types in `Fixtures/`.
-- Work happens on `feature/*` / `bugfix/*` branches merged into `main` via PR.
+- Work happens on short branches (`feature/`, `bugfix/`, `rework/`, `test/`, `benchmark/`, `audit/`,
+  `docs/`, `ci/`) cut from the open `release/vX.Y.0` and merged back into it via PR; `release/` merges
+  into `main` at release, and `hotfix/` goes from a release tag into `main` — `internal/Development-Workflow.md`.
 - Any change to what goes on the wire (formatter encoding, header fields, member ordering, reference framing) is a compatibility break unless it goes behind a new format version or a keyed contract.
 - Exception constructors keep the inner exception on the same line as the message, never on its own line.
 - Do not add `catch (BinarySerializerException) { throw; }` unless the catch performs real cleanup.
