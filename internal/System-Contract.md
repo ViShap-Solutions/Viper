@@ -1079,7 +1079,9 @@ The following are invalid in contract mode:
 
 Duplicate keys are invalid.
 
-Keys are ordered numerically and encoded with 7-bit variable-length integers.
+Keys are ordered numerically and encoded with 7-bit variable-length integers. On the wire they
+appear in strictly ascending order; a payload that repeats a key or lists one out of order is
+malformed (§22.3).
 
 `[BinaryContract]` is **inherited**. A type extending a contract type is itself a contract type, and
 every member it adds needs its own `[BinaryKey]` or `[BinaryIgnore]`; an unmarked one is
@@ -1378,6 +1380,13 @@ restricted to non-negative `Int32`.
 A count is read as an `int32` and is immediately validated against its limit and charged to the
 element budget; a negative count is `BinaryFormatException`.
 
+A 7-bit int is minimally encoded: when it spans more than one byte, its last byte is not zero. A
+reader rejects any longer spelling of the same value — `85 00` or `85 80 00` for 5 — with
+`BinaryFormatException`, so every 7-bit int has exactly one encoding. The rule covers every place
+the encoding appears: string and blob lengths, the keyed field count and keys, and the lengths of
+the header strings. Without it a header string length could be respelled without changing the
+decoded field, and therefore without changing the associated data the authentication tag covers.
+
 A boolean admits exactly the two encodings above. A reader rejects any other byte with
 `BinaryFormatException` rather than treating it as a second spelling of `true`, so the encoding is
 canonical. This is what keeps every header flag unforgeable: authenticated encryption binds the
@@ -1424,9 +1433,12 @@ Member plan order for the positional layout: members carrying `[BinaryOrder]` fi
 order, then the rest in ordinal name order, and where two declarations share a name, the one declared
 further up the inheritance chain first (§14.1).
 
-Keyed fields are written in ascending key order. A field payload is exactly as long as its declared
-length; reading one consumes it exactly, and trailing bytes inside a field are
-`BinaryFormatException`. A reader skips a key it does not know by its declared length.
+Keyed fields appear in strictly ascending key order. A reader rejects a key that is not greater than
+the one before it with `BinaryFormatException` — a repeated key and an out-of-order key alike, whether
+the reader knows the key or would skip it — so a keyed object has exactly one encoding. A field
+payload is exactly as long as its declared length; reading one consumes it exactly, and trailing
+bytes inside a field are `BinaryFormatException`. A reader skips a key it does not know by its
+declared length.
 
 ## 22.4 Scalar encodings
 

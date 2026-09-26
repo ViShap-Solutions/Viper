@@ -339,13 +339,20 @@ internal sealed class GraphReader
         _operation.Budget.ConsumeKeyedFields(fieldCount);
 
         var members = contract.MembersByKey!;
-        var seenKeys = new HashSet<int>();
+        int previousKey = -1;
 
         for (int i = 0; i < fieldCount; i++)
         {
             int key = _values.Read7BitEncodedInt("field key");
-            if (!seenKeys.Add(key))
+            if (key == previousKey)
                 throw new BinaryFormatException($"Duplicate keyed field key {key}.");
+
+            if (key < previousKey)
+                throw new BinaryFormatException(
+                    $"Keyed field key {key} follows key {previousKey}; fields must appear in ascending " +
+                    "key order.");
+
+            previousKey = key;
 
             int payloadLength = _values.ReadInt32();
             _operation.Phases.CheckPayload(payloadLength, $"Key {key} payload length");

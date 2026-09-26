@@ -472,6 +472,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)* — `Contracts/KeyedEvolutionTests`
 - [x] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)* — `Contracts/KeyedContractTests`
 - [x] KEY-18 — the keyed encoding belongs to the payload, not to a wire format version: a contract encodes byte-identically under V0 and V1 *(§10.2, §14.2, §22.8)* — `Contracts/KeyedContractTests`
+- [x] KEY-23 — keys out of ascending order → `BinaryFormatException`, for a known key and for one the reader would otherwise skip; ascending keys with gaps are read *(§14.2, §22.3)* — `Contracts/KeyedEvolutionTests`
 
 ---
 
@@ -759,6 +760,7 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] HST-12 — a truncated 7-bit integer → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-13 — excessive 7-bit continuation bytes → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
+- [x] HST-40 — a non-minimal 7-bit integer → `BinaryFormatException`, for a payload string length, the keyed field count and key, and a header string length, where it fails before the tag is checked; the minimal spelling of the same value is accepted *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-15 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Hostile/TruncationTests`
 - [x] HST-16 — a failed `ReadExact` retains no partial output *(§2.3)* — `Hostile/TruncationTests`
 
@@ -1293,7 +1295,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 ## Contracts
 
 - [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-26)*
-- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-18)*
+- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-18, KEY-23)*
 - [x] Polymorphism is covered on both read and write, including write-side rejection. *(PM-01…PM-16)*
 - [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-17, CYC-01…CYC-10)*
 
@@ -1302,7 +1304,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-44, and P2-01 for the tight profile as a whole)*
 - [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
 - [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
-- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-34)*
+- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-34, HST-40)*
 - [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-28, ENC-01…ENC-23)*
 - [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 

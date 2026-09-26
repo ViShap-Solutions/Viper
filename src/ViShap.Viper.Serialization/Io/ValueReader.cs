@@ -240,7 +240,11 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
         return bits;
     }
 
-    /// <summary>Reads a non-negative 7-bit encoded integer, rejecting malformed encodings.</summary>
+    /// <summary>
+    /// Reads a non-negative 7-bit encoded integer, rejecting malformed encodings. The encoding must
+    /// be minimal: a value spelled with trailing zero groups, such as <c>85 00</c> for 5, is a second
+    /// byte sequence for the same number, so it is malformed rather than accepted.
+    /// </summary>
     public int Read7BitEncodedInt(string what)
     {
         uint result = 0;
@@ -254,6 +258,10 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
             result |= (uint)(current & 0x7F) << shift;
             if ((current & 0x80) == 0)
             {
+                if (shift > 0 && current == 0)
+                    throw new BinaryFormatException(
+                        $"{what} 7-bit integer is not minimally encoded.");
+
                 if (result > int.MaxValue)
                     throw new BinaryFormatException(
                         $"{what} value {result} is outside the supported non-negative Int32 range.");
