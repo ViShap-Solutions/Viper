@@ -26,8 +26,6 @@ internal sealed class GraphReader
         _references = references;
     }
 
-    public ValueReader Values => _values;
-
     public T? ReadRoot<T>() => (T?)ReadValue(typeof(T));
 
     public object? ReadValue(Type declaredType)
@@ -104,9 +102,30 @@ internal sealed class GraphReader
         Register(referenceId, formatter.BuilderIsInstance ? builder : ReadReferenceTable.Pending);
 
         for (int i = 0; i < count.Value; i++)
-            formatter.Add(builder, ReadValue(elementType), declaredType);
+        {
+            var element = ReadValue(elementType);
+            try
+            {
+                formatter.Add(builder, element, declaredType);
+            }
+            catch (ArgumentException ex)
+            {
+                throw Refused(formatter.CountName, declaredType, ex);
+            }
+        }
 
-        var completed = formatter.Complete(builder, declaredType);
+        object completed;
+        try
+        {
+            completed = formatter.Complete(builder, declaredType);
+        }
+        catch (ArgumentException ex)
+        {
+            throw Refused(formatter.CountName, declaredType, ex);
+        }
+
+        RequireMaterialized(formatter.CountOf(completed), count.Value, formatter.CountName, declaredType);
+
         if (referenceId >= 0 && !formatter.BuilderIsInstance)
             _references!.Replace(referenceId, completed);
 
@@ -125,20 +144,62 @@ internal sealed class GraphReader
         {
             var key = ReadValue(keyType);
             var value = ReadValue(valueType);
-            formatter.Add(builder, key, value, declaredType);
+            try
+            {
+                formatter.Add(builder, key, value, declaredType);
+            }
+            catch (ArgumentException ex)
+            {
+                throw Refused(formatter.CountName, declaredType, ex);
+            }
         }
 
-        var completed = formatter.Complete(builder, declaredType);
+        object completed;
+        try
+        {
+            completed = formatter.Complete(builder, declaredType);
+        }
+        catch (ArgumentException ex)
+        {
+            throw Refused(formatter.CountName, declaredType, ex);
+        }
+
+        RequireMaterialized(formatter.CountOf(completed), count.Value, formatter.CountName, declaredType);
+
         if (referenceId >= 0 && !formatter.BuilderIsInstance)
             _references!.Replace(referenceId, completed);
 
         return completed;
     }
 
+    /// <summary>
+    /// Classifies a container's refusal of a value that came off the wire. The container raises the
+    /// framework's own argument exception — for a duplicate key, a duplicate entry or a null key —
+    /// and that is a statement about the payload, not about the caller's arguments, so it is a
+    /// malformed payload here and never leaves the taxonomy.
+    /// </summary>
+    private static BinaryFormatException Refused(string what, Type declaredType, ArgumentException cause) =>
+        new($"{what}: '{declaredType}' refused a value from the payload — a duplicate key, a " +
+            "duplicate entry or a null key is not admitted.", cause);
+
+    /// <summary>
+    /// Requires the container to hold exactly what the payload declared. A container that collapses
+    /// duplicates silently — a set, a concurrent dictionary, a frozen collection — reports fewer
+    /// elements than were read, and that difference is the only evidence that the payload carried a
+    /// duplicate at all.
+    /// </summary>
+    private static void RequireMaterialized(int? actual, int declared, string what, Type declaredType)
+    {
+        if (actual is { } materialized && materialized != declared)
+            throw new BinaryFormatException(
+                $"{what} declares {declared}, but '{declaredType}' materialized {materialized} — a " +
+                "duplicate key or element is not admitted.");
+    }
+
     private object ReadComposite(ICompositeFormatter formatter, Type declaredType, int referenceId)
     {
         Register(referenceId, ReadReferenceTable.Pending);
-        var value = formatter.Read(this, declaredType);
+        var value = formatter.Read(new CompositeReader(this, _values), declaredType);
         if (referenceId >= 0)
             _references!.Replace(referenceId, value);
 
@@ -273,18 +334,25 @@ internal sealed class GraphReader
         if (fieldCount > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
                 $"Keyed field count {fieldCount} exceeds the configured maximum of " +
-                $"{_operation.Limits.MaxKeyedFields}.");
+                $"{_operation.Limits.MaxKeyedFields} (MaxKeyedFields).");
 
         _operation.Budget.ConsumeKeyedFields(fieldCount);
 
         var members = contract.MembersByKey!;
-        var seenKeys = new HashSet<int>();
+        int previousKey = -1;
 
         for (int i = 0; i < fieldCount; i++)
         {
             int key = _values.Read7BitEncodedInt("field key");
-            if (!seenKeys.Add(key))
+            if (key == previousKey)
                 throw new BinaryFormatException($"Duplicate keyed field key {key}.");
+
+            if (key < previousKey)
+                throw new BinaryFormatException(
+                    $"Keyed field key {key} follows key {previousKey}; fields must appear in ascending " +
+                    "key order.");
+
+            previousKey = key;
 
             int payloadLength = _values.ReadInt32();
             _operation.Phases.CheckPayload(payloadLength, $"Key {key} payload length");

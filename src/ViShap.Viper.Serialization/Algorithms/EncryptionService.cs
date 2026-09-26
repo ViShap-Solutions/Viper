@@ -49,7 +49,8 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
             {
                 throw new BinaryLimitException(
                     $"Encrypted payload could not fit within the configured maximum of " +
-                    $"{maxEncryptedBytes} bytes.", ex);
+                    $"{maxEncryptedBytes} bytes " +
+                    $"({nameof(SerializationLimits.MaxEncryptedBytes)}).", ex);
             }
             catch (CryptographicException ex)
             {

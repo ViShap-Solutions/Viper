@@ -37,43 +37,65 @@ jobs:
           TAG_NAME="${GITHUB_REF_NAME}"
           VERSION="${TAG_NAME#v}"
 
-          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+          CORE='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
+
+          if [[ "$TAG_NAME" =~ ^v${CORE}$ ]]; then
+            PRERELEASE=false
+          elif [[ "$TAG_NAME" =~ ^v${CORE}-(alpha|beta|rc)\.[1-9][0-9]*$ ]]; then
+            PRERELEASE=true
+          else
             echo "Invalid release tag: $TAG_NAME"
             echo
             echo "Expected:"
-            echo "  vMAJOR.MINOR.PATCH"
-            echo "or:"
-            echo "  vMAJOR.MINOR.PATCH-PRERELEASE"
-            exit 1
-          fi
-
-          if [[ "$VERSION" =~ \+ ]]; then
-            echo "Build metadata (+...) is not allowed in release tags."
+            echo "  vMAJOR.MINOR.PATCH                  stable release, from main"
+            echo "  vMAJOR.MINOR.PATCH-alpha.N          pre-release, from any branch"
+            echo "  vMAJOR.MINOR.PATCH-beta.N"
+            echo "  vMAJOR.MINOR.PATCH-rc.N"
             exit 1
           fi
 
           echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "PRERELEASE=$PRERELEASE" >> "$GITHUB_ENV"
 
           echo "Release tag: $TAG_NAME"
           echo "Package version: $VERSION"
+          echo "Pre-release: $PRERELEASE"
 
-      - name: Verify tag points exactly to main HEAD
+      - name: Verify tag position
         shell: bash
         run: |
           set -euo pipefail
 
-          git fetch origin main --force
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --force
 
-          TAG_COMMIT="$(git rev-list -n 1 "$TAG_NAME")"
-          MAIN_COMMIT="$(git rev-parse origin/main)"
-
+          TAG_COMMIT="$(git rev-parse "$TAG_NAME^{commit}")"
           echo "Tagged commit: $TAG_COMMIT"
-          echo "main HEAD:     $MAIN_COMMIT"
 
-          if [[ "$TAG_COMMIT" != "$MAIN_COMMIT" ]]; then
-            echo "Release tag must point exactly to the current HEAD of main."
-            exit 1
+          if [[ "$PRERELEASE" == "false" ]]; then
+            MAIN_COMMIT="$(git rev-parse origin/main)"
+            echo "main HEAD:     $MAIN_COMMIT"
+
+            if [[ "$TAG_COMMIT" != "$MAIN_COMMIT" ]]; then
+              echo "A stable release tag must point exactly to the current HEAD of main."
+              exit 1
+            fi
+          else
+            BRANCHES="$(git branch -r --contains "$TAG_COMMIT" --format='%(refname:short)' | grep '^origin/release/' || true)"
+
+            if [[ -z "$BRANCHES" ]]; then
+              echo "A pre-release tag must point to a commit on a release/* branch of origin."
+              exit 1
+            fi
+
+            echo "Contained in:"
+            echo "$BRANCHES"
+
+            STABLE_TAG="v${VERSION%%-*}"
+            if git rev-parse -q --verify "refs/tags/$STABLE_TAG" > /dev/null; then
+              echo "$STABLE_TAG is already released; a pre-release of it would sort below the release."
+              exit 1
+            fi
           fi
 
       - name: Restore solution

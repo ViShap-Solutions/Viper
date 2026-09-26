@@ -44,7 +44,11 @@ internal interface ISequenceFormatter : ITypeFormatter
     bool BuilderIsInstance => true;
 
     /// <summary>O(1) element count when the value exposes one; <c>null</c> forces bounded materialization.</summary>
-    int? CountOf(object value) => value is System.Collections.ICollection collection ? collection.Count : null;
+    /// <remarks>
+    /// The engine uses it twice: to write a count without materializing the sequence, and to check
+    /// that reading produced as many elements as the payload declared.
+    /// </remarks>
+    int? CountOf(object value) => CollectionCountCache.CountOf(value);
 
     IEnumerable<object?> Enumerate(object value, Type declaredType);
 
@@ -68,7 +72,7 @@ internal interface IMapFormatter : ITypeFormatter
 
     bool BuilderIsInstance => true;
 
-    int? CountOf(object value) => value is System.Collections.ICollection collection ? collection.Count : null;
+    int? CountOf(object value) => CollectionCountCache.CountOf(value);
 
     IEnumerable<(object? Key, object? Value)> Enumerate(object value, Type declaredType);
 
@@ -81,12 +85,18 @@ internal interface IMapFormatter : ITypeFormatter
 
 /// <summary>
 /// A value with a fixed, type-determined child layout (tuples, key/value pairs, lazy values) or an
-/// irregular shape (jagged metadata such as array rank). The engine has already charged the depth
-/// scope, the node budget and identity before calling; any count the formatter still needs must be
-/// obtained through the checked primitives, which is the only way to get an <see cref="ElementCount"/>.
+/// irregular shape (array rank). The engine has already charged the depth scope, the node budget and
+/// identity before calling.
+/// <para>
+/// The formatter receives a <see cref="CompositeReader"/> or <see cref="CompositeWriter"/>, not the
+/// engine and not the payload primitives. Neither surface offers a raw integer, so a count exists
+/// only as a validated <see cref="ElementCount"/> and an array shape only as a validated
+/// <see cref="ArrayShape"/>: a loop over an unchecked number from the wire is not expressible here,
+/// which is what keeps that rule a construction rather than a convention.
+/// </para>
 /// </summary>
 internal interface ICompositeFormatter : ITypeFormatter
 {
-    void Write(GraphWriter writer, object value, Type declaredType);
-    object Read(GraphReader reader, Type declaredType);
+    void Write(CompositeWriter writer, object value, Type declaredType);
+    object Read(CompositeReader reader, Type declaredType);
 }

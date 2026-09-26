@@ -41,17 +41,17 @@ internal readonly struct ElementCount
         if (raw < 0)
             throw new BinaryFormatException($"{what} {raw} must be non-negative.");
 
-        long maximum = kind switch
+        (long maximum, string limit) = kind switch
         {
-            CountKind.Array => operation.Limits.MaxArrayLength,
-            CountKind.Collection => operation.Limits.MaxCollectionLength,
-            CountKind.Dictionary => operation.Limits.MaxDictionaryEntries,
+            CountKind.Array => (operation.Limits.MaxArrayLength, "MaxArrayLength"),
+            CountKind.Collection => (operation.Limits.MaxCollectionLength, "MaxCollectionLength"),
+            CountKind.Dictionary => (operation.Limits.MaxDictionaryEntries, "MaxDictionaryEntries"),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 
         if (raw > maximum)
             throw new BinaryLimitException(
-                $"{what} {raw} exceeds the configured maximum of {maximum}.");
+                $"{what} {raw} exceeds the configured maximum of {maximum} ({limit}).");
 
         operation.Budget.ConsumeElements(raw);
         return new ElementCount(raw);
@@ -71,6 +71,7 @@ internal readonly struct ElementCount
         ArgumentNullException.ThrowIfNull(lengths);
 
         long maximum = operation.Limits.MaxArrayLength;
+        const string limit = "MaxArrayLength";
         long total = 1;
 
         foreach (int length in lengths)
@@ -82,7 +83,7 @@ internal readonly struct ElementCount
             if (length > maximum)
                 throw new BinaryLimitException(
                     $"{what}: a dimension length {length} exceeds the configured maximum of " +
-                    $"{maximum}.");
+                    $"{maximum} ({limit}).");
 
             if (length == 0)
             {
@@ -92,14 +93,16 @@ internal readonly struct ElementCount
 
             if (total > maximum / length)
                 throw new BinaryLimitException(
-                    $"{what}: total element count exceeds the configured maximum of {maximum}.");
+                    $"{what}: total element count exceeds the configured maximum of " +
+                    $"{maximum} ({limit}).");
 
             total *= length;
         }
 
         if (total > maximum)
             throw new BinaryLimitException(
-                $"{what}: total element count {total} exceeds the configured maximum of {maximum}.");
+                $"{what}: total element count {total} exceeds the configured maximum of " +
+                $"{maximum} ({limit}).");
 
         operation.Budget.ConsumeElements(total);
         return new ElementCount((int)total);

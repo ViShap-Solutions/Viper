@@ -22,8 +22,6 @@ internal sealed class GraphWriter
             : new HashSet<object>(ReferenceEqualityComparer.Instance);
     }
 
-    public ValueWriter Values => _values;
-
     public void WriteRoot<T>(T value) => WriteValue(value, typeof(T));
 
     public void WriteValue(object? value, Type declaredType)
@@ -91,7 +89,7 @@ internal sealed class GraphWriter
                     WriteMap(map, value, effectiveType);
                     break;
                 case ICompositeFormatter composite:
-                    composite.Write(this, value, effectiveType);
+                    composite.Write(new CompositeWriter(this, _values), value, effectiveType);
                     break;
                 default:
                     WriteObject(value, effectiveType);
@@ -252,7 +250,7 @@ internal sealed class GraphWriter
         if (members.Length > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
                 $"Keyed field count {members.Length} exceeds the configured maximum of " +
-                $"{_operation.Limits.MaxKeyedFields}.");
+                $"{_operation.Limits.MaxKeyedFields} (MaxKeyedFields).");
 
         _operation.Budget.ConsumeKeyedFields(members.Length);
         _values.Write7BitEncodedInt(members.Length);

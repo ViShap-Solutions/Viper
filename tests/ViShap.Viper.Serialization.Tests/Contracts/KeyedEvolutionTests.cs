@@ -4,10 +4,11 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Contracts;
 
 /// <summary>
-/// Pins KEY-04…KEY-16: what a reader whose schema has moved on does with a field it does not know,
-/// and what the declared length of a field is worth. A known field is decoded through a window it
-/// cannot read past; an unknown one is stepped over in bounded chunks without a formatter ever being
-/// asked for the type that vanished with it.
+/// Pins KEY-04…KEY-16 and KEY-23: what a reader whose schema has moved on does with a field it does
+/// not know, and what the declared length and the order of a field are worth. A known field is
+/// decoded through a window it cannot read past; an unknown one is stepped over in bounded chunks
+/// without a formatter ever being asked for the type that vanished with it; and keys arrive in
+/// ascending order or not at all.
 /// </summary>
 public class KeyedEvolutionTests
 {
@@ -110,6 +111,42 @@ public class KeyedEvolutionTests
 
         AssertEx.Throws<BinaryFormatException>(
             "Duplicate keyed field key 1", () => _serializer.Deserialize<OuterKeys>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_KeysOutOfAscendingOrder_ThrowsFormat()
+    {
+        byte[] payload = KeyedFrame(
+            new Wire.KeyedField(3, Int32Field(33)),
+            new Wire.KeyedField(1, Int32Field(11)));
+
+        AssertEx.Throws<BinaryFormatException>(
+            "ascending key order", () => _serializer.Deserialize<OuterKeys>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_AnUnknownKeyOutOfOrder_ThrowsFormatRatherThanBeingSkipped()
+    {
+        byte[] payload = KeyedFrame(
+            new Wire.KeyedField(3, Int32Field(33)),
+            new Wire.KeyedField(2, Int32Field(22)));
+
+        AssertEx.Throws<BinaryFormatException>(
+            "ascending key order", () => _serializer.Deserialize<OuterKeys>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_KeysInAscendingOrderWithGaps_RoundTrip()
+    {
+        byte[] payload = KeyedFrame(
+            new Wire.KeyedField(1, Int32Field(11)),
+            new Wire.KeyedField(2, Int32Field(22)),
+            new Wire.KeyedField(3, Int32Field(33)));
+
+        var result = _serializer.Deserialize<OuterKeys>(payload)!;
+
+        Assert.Equal(11, result.First);
+        Assert.Equal(33, result.Last);
     }
 
     [Fact]

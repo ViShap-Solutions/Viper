@@ -1,4 +1,5 @@
 using System.Reflection;
+using ViShap.Viper.Engine;
 using ViShap.Viper.Formatters;
 using ViShap.Viper.Io;
 using ViShap.Viper.Security;
@@ -62,8 +63,8 @@ public class StructuralBarrierTests
     public void Validate_IsTheOnlyPlaceACountIsCheckedAndCharged()
     {
         // The engine reads and writes a count through ReadCount / WriteCount, which forward to
-        // Validate. The one other caller is the multidimensional shape, whose several dimensions
-        // ValidateShape validates as a whole — still the same factory, never a raw count.
+        // Validate. The one other caller is the composite surface, which validates a
+        // multidimensional shape as a whole — still inside the engine, and never in a formatter.
         var callers = SourceTree.ProductionFiles
             .Where(file => file.Value.Contains("ElementCount.Validate", StringComparison.Ordinal))
             .Select(file => file.Key)
@@ -72,12 +73,77 @@ public class StructuralBarrierTests
 
         Assert.Equal(
             [
-                "ViShap.Viper.Serialization/Formatters/Composites/CompositeFormatters.cs",
+                "ViShap.Viper.Serialization/Engine/CompositeSurface.cs",
                 "ViShap.Viper.Serialization/Io/ValueReader.cs",
                 "ViShap.Viper.Serialization/Io/ValueWriter.cs"
             ],
             callers);
     }
+
+    // --- a composite formatter cannot express a loop over an unchecked count ----------------------
+
+    [Fact]
+    public void CompositeReader_ExposesOnlyTheCheckedOperations()
+    {
+        // No raw integer read is on this list, so a composite has no way to obtain a loop bound
+        // except as a validated ElementCount or ArrayShape.
+        Assert.Equal(
+            ["ReadCount", "ReadFlag", "ReadShape", "ReadValue"],
+            DeclaredMethodNames(typeof(CompositeReader)));
+    }
+
+    [Fact]
+    public void CompositeWriter_ExposesOnlyTheCheckedOperations()
+    {
+        Assert.Equal(
+            ["WriteCount", "WriteFlag", "WriteShape", "WriteValue"],
+            DeclaredMethodNames(typeof(CompositeWriter)));
+    }
+
+    [Fact]
+    public void CompositeFormatter_IsHandedTheSurfaceAndNeverTheEngine()
+    {
+        Type[] forbidden =
+        [
+            typeof(GraphReader), typeof(GraphWriter), typeof(ValueReader), typeof(ValueWriter)
+        ];
+
+        foreach (var method in typeof(ICompositeFormatter).GetMethods(AllDeclared))
+            Assert.All(method.GetParameters(), parameter => Assert.DoesNotContain(
+                parameter.ParameterType, forbidden));
+    }
+
+    [Fact]
+    public void CompositeFormatters_NeverNameTheEngineOrThePayloadPrimitives()
+    {
+        string[] forbidden = ["GraphReader", "GraphWriter", "ValueReader", "ValueWriter", "ReadInt32"];
+
+        var offenders = SourceTree.ProductionFiles
+            .Where(file => file.Key.Contains(
+                "ViShap.Viper.Serialization/Formatters/Composites/", StringComparison.Ordinal))
+            .Where(file => forbidden.Any(name => file.Value.Contains(name, StringComparison.Ordinal)))
+            .Select(file => file.Key)
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            $"A composite formatter reaches past its surface in: {string.Join(", ", offenders)}");
+    }
+
+    [Fact]
+    public void TheEngine_HandsOutNoPayloadPrimitives()
+    {
+        // The engine once exposed its ValueReader and ValueWriter so composites could reach them;
+        // with the surface in place nothing needs to, and nothing may.
+        Assert.Null(typeof(GraphReader).GetProperty("Values", AllDeclared));
+        Assert.Null(typeof(GraphWriter).GetProperty("Values", AllDeclared));
+    }
+
+    private static string[] DeclaredMethodNames(Type type) =>
+        [.. type.GetMethods(AllDeclared)
+            .Where(method => !method.IsSpecialName)
+            .Select(method => method.Name)
+            .Order(StringComparer.Ordinal)];
 
     // --- LIM-44: payload bytes are reachable only through the readers and writers ----------------
 

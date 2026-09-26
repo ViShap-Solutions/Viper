@@ -23,6 +23,12 @@ namespace ViShap.Viper;
 /// layout, where member order <em>is</em> the format.
 /// </para>
 /// <para>
+/// A derived class inherits the contract: it is keyed too, and every member it adds needs its own
+/// key, unique across the whole hierarchy. A base class and the types that extend it therefore share
+/// one key space, which is what lets a reader holding the base skip a derived member it does not
+/// know.
+/// </para>
+/// <para>
 /// Keyed contracts work in every wire format version, but the payload stream must be seekable: each
 /// field's length is written ahead of the field and patched once its size is known. Version 1
 /// buffers the payload and always satisfies this. Version 0 writes straight to the destination, so
@@ -42,5 +48,5 @@ namespace ViShap.Viper;
 /// </example>
 /// </remarks>
 /// <seealso cref="BinaryKeyAttribute"/>
-[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = true)]
 public sealed class BinaryContractAttribute : Attribute;

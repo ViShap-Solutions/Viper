@@ -57,4 +57,38 @@ public interface ICompressionAlgorithm
     /// <returns>The number of bytes written, which must equal the length of <paramref name="destination"/>.</returns>
     /// <exception cref="Exceptions.BinaryFormatException">The compressed data is malformed or over-long.</exception>
     int Decompress(ReadOnlySpan<byte> source, Span<byte> destination);
+
+    /// <summary>
+    /// <see langword="true"/> when the algorithm implements
+    /// <see cref="Decompress(ReadOnlySpan{byte}, System.Buffers.IBufferWriter{byte}, int)"/>.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see langword="false"/>, which is correct for an implementation that only offers
+    /// the span overload. The serializer then sizes the output buffer from the declared uncompressed
+    /// length instead of from the bytes actually produced; that length is still bounded, but only by
+    /// policy. Reporting <see langword="true"/> lets the serializer allocate as output arrives, so a
+    /// payload that claims to expand far more than it does never causes the allocation it describes.
+    /// </remarks>
+    bool SupportsIncrementalDecompression => false;
+
+    /// <summary>
+    /// Decompresses <paramref name="source"/> into a writer that supplies space as output is
+    /// produced, rather than into a buffer sized from the declared length.
+    /// </summary>
+    /// <remarks>
+    /// The serializer calls this overload whenever <see cref="SupportsIncrementalDecompression"/> is
+    /// <see langword="true"/>, and never otherwise, so the default implementation is unreachable for
+    /// a correctly declared algorithm. An implementation must never produce more than
+    /// <paramref name="maxOutputBytes"/> bytes, and must report input that would expand beyond it as
+    /// <see cref="Exceptions.BinaryFormatException"/> rather than truncating silently.
+    /// </remarks>
+    /// <param name="source">The compressed bytes.</param>
+    /// <param name="destination">Receives the decompressed bytes.</param>
+    /// <param name="maxOutputBytes">The declared uncompressed length, which the output may not exceed.</param>
+    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
+    /// <exception cref="Exceptions.BinaryFormatException">The compressed data is malformed or over-long.</exception>
+    /// <exception cref="NotSupportedException">The algorithm does not implement incremental decompression.</exception>
+    int Decompress(ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination, int maxOutputBytes) =>
+        throw new NotSupportedException(
+            $"'{GetType().Name}' does not implement incremental decompression.");
 }

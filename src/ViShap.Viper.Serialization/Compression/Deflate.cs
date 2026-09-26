@@ -73,4 +73,53 @@ public sealed class Deflate(CompressionLevel level = CompressionLevel.Optimal) :
                 "Deflate decompression failed because the compressed payload is malformed.", ex);
         }
     }
+
+    /// <inheritdoc />
+    public bool SupportsIncrementalDecompression => true;
+
+    /// <inheritdoc />
+    public int Decompress(
+        ReadOnlySpan<byte> source,
+        System.Buffers.IBufferWriter<byte> destination,
+        int maxOutputBytes)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        try
+        {
+            using var input = new MemoryStream(source.ToArray(), writable: false);
+            using var deflate = new DeflateStream(input, CompressionMode.Decompress);
+
+            int total = 0;
+            while (total < maxOutputBytes)
+            {
+                int room = maxOutputBytes - total;
+                var span = destination.GetSpan(Math.Min(ChunkSize, room));
+
+                int read = deflate.Read(span[..Math.Min(span.Length, room)]);
+                if (read == 0)
+                    break;
+
+                destination.Advance(read);
+                total += read;
+            }
+
+            if (total == maxOutputBytes && deflate.ReadByte() != -1)
+                throw new BinaryFormatException(
+                    "Deflate decompression produced more data than the declared uncompressed length.");
+
+            return total;
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new BinaryFormatException(
+                "Deflate decompression failed because the compressed payload is malformed.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Small enough to fit the probe the serializer starts with, so a stream that produces nothing
+    /// never forces the output buffer to grow to the declared size.
+    /// </summary>
+    private const int ChunkSize = 16 * 1024;
 }

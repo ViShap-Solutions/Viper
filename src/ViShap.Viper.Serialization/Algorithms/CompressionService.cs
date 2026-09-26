@@ -39,7 +39,8 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
             {
                 throw new BinaryLimitException(
                     $"Compressed payload could not fit within the configured maximum of " +
-                    $"{maxCompressedBytes} bytes.", ex);
+                    $"{maxCompressedBytes} bytes " +
+                    $"({nameof(SerializationLimits.MaxCompressedBytes)}).", ex);
             }
 
             if (written < 0 || written > destinationLength)
@@ -55,8 +56,15 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
     }
 
     /// <summary>
-    /// Decompresses into a buffer of exactly the declared size. The algorithm must produce that many
-    /// bytes and no more — a stream that expands further is rejected rather than silently truncated.
+    /// Produces exactly the declared number of bytes. The algorithm must produce that many and no
+    /// more — a stream that expands further is rejected rather than silently truncated.
+    /// <para>
+    /// An algorithm that decompresses incrementally is driven through a buffer that grows as output
+    /// arrives, so the declared length bounds the result without being allocated up front. One that
+    /// offers only the span overload needs the whole buffer before it runs; the declared length is
+    /// still bounded by <c>MaxPayloadBytes</c> and by <c>MaxDecompressionRatio</c>, which the
+    /// pipeline checks before calling here.
+    /// </para>
     /// </summary>
     public static byte[] Decompress(
         ICompressionAlgorithm algorithm,
@@ -75,6 +83,42 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
             return compressedPayload;
         }
 
+        return algorithm.SupportsIncrementalDecompression
+            ? Incrementally(algorithm, compressedPayload, uncompressedLength)
+            : AtOnce(algorithm, compressedPayload, uncompressedLength);
+    }
+
+    private static byte[] Incrementally(
+        ICompressionAlgorithm algorithm,
+        byte[] compressedPayload,
+        int uncompressedLength)
+    {
+        using var buffer = new PayloadBufferWriter(uncompressedLength);
+
+        int written;
+        try
+        {
+            written = algorithm.Decompress(compressedPayload, buffer, uncompressedLength);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new BinaryFormatException(
+                "Decompression failed because the compressed payload is malformed.", ex);
+        }
+
+        if (written != uncompressedLength || buffer.WrittenCount != uncompressedLength)
+            throw new BinaryFormatException(
+                $"Decompression produced {Math.Min(written, buffer.WrittenCount)} bytes, " +
+                $"expected {uncompressedLength}.");
+
+        return buffer.DetachPayload();
+    }
+
+    private static byte[] AtOnce(
+        ICompressionAlgorithm algorithm,
+        byte[] compressedPayload,
+        int uncompressedLength)
+    {
         var result = new byte[uncompressedLength];
         int written;
         try

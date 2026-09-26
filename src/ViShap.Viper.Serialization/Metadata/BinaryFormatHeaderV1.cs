@@ -81,6 +81,8 @@ internal readonly record struct BinaryFormatHeaderV1(
             throw new BinaryFormatException(
                 "CompressedLength must equal UncompressedLength when compression is None.");
 
+        CheckExpansion(compression, compressedLength, uncompressedLength, limits.MaxDecompressionRatio);
+
         if (encryption == EncryptionAlgorithm.None && onDiskLength != compressedLength)
             throw new BinaryFormatException(
                 "OnDiskLength must equal CompressedLength when encryption is None.");
@@ -129,6 +131,29 @@ internal readonly record struct BinaryFormatHeaderV1(
         new(Version, Compression, CustomCompressionName,
             ChecksumAlgorithm, CustomChecksumName,
             Encryption, CustomEncryptionName, KeyId);
+
+    /// <summary>
+    /// Bounds the one declared length the wire cannot bound on its own. Every other phase length is
+    /// backed by bytes that must physically arrive; the uncompressed length is not, because
+    /// compression may legitimately expand. Relating it to the compressed length that does arrive is
+    /// what keeps the decompression buffer proportional to the payload actually delivered.
+    /// </summary>
+    private static void CheckExpansion(
+        CompressionAlgorithm compression,
+        int compressedLength,
+        int uncompressedLength,
+        int maximumRatio)
+    {
+        if (compression == CompressionAlgorithm.None)
+            return;
+
+        long ceiling = (long)compressedLength * maximumRatio;
+        if (uncompressedLength > ceiling)
+            throw new BinaryLimitException(
+                $"{nameof(UncompressedLength)} {uncompressedLength} exceeds {compressedLength} " +
+                $"compressed byte(s) by more than the configured factor of {maximumRatio} " +
+                $"({nameof(SerializationLimits.MaxDecompressionRatio)}).");
+    }
 
     private static void CheckLength(int value, long maximum, string what)
     {

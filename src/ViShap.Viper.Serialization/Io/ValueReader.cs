@@ -162,7 +162,7 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
     /// <summary>Reads a length-prefixed byte blob bounded by <c>MaxByteBlobBytes</c>.</summary>
     public byte[] ReadBlob(string what)
     {
-        int length = ReadBoundedLength(Operation.Limits.MaxByteBlobBytes, $"{what} byte length");
+        int length = ReadBoundedLength(Operation.Limits.MaxByteBlobBytes, "MaxByteBlobBytes", $"{what} byte length");
         return ReadBytes(length, what);
     }
 
@@ -170,7 +170,8 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
     /// <exception cref="BinaryLimitException">The declared length exceeds the configured maximum.</exception>
     public string ReadString()
     {
-        int length = ReadBoundedLength(Operation.Limits.MaxStringBytes, "String byte length");
+        int length = ReadBoundedLength(
+            Operation.Limits.MaxStringBytes, "MaxStringBytes", "String byte length");
         return DecodeString(length, "String");
     }
 
@@ -234,12 +235,16 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
         if (bits > (long)Operation.Limits.MaxByteBlobBytes * 8L)
             throw new BinaryLimitException(
                 $"{what} {bits} exceeds the configured maximum of " +
-                $"{(long)Operation.Limits.MaxByteBlobBytes * 8L}.");
+                $"{(long)Operation.Limits.MaxByteBlobBytes * 8L} (MaxByteBlobBytes, in bits).");
 
         return bits;
     }
 
-    /// <summary>Reads a non-negative 7-bit encoded integer, rejecting malformed encodings.</summary>
+    /// <summary>
+    /// Reads a non-negative 7-bit encoded integer, rejecting malformed encodings. The encoding must
+    /// be minimal: a value spelled with trailing zero groups, such as <c>85 00</c> for 5, is a second
+    /// byte sequence for the same number, so it is malformed rather than accepted.
+    /// </summary>
     public int Read7BitEncodedInt(string what)
     {
         uint result = 0;
@@ -253,6 +258,10 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
             result |= (uint)(current & 0x7F) << shift;
             if ((current & 0x80) == 0)
             {
+                if (shift > 0 && current == 0)
+                    throw new BinaryFormatException(
+                        $"{what} 7-bit integer is not minimally encoded.");
+
                 if (result > int.MaxValue)
                     throw new BinaryFormatException(
                         $"{what} value {result} is outside the supported non-negative Int32 range.");
@@ -338,12 +347,12 @@ internal sealed class ValueReader(Stream source, SerializationOperation operatio
         return result;
     }
 
-    private int ReadBoundedLength(long maximum, string what)
+    private int ReadBoundedLength(long maximum, string limit, string what)
     {
         int length = Read7BitEncodedInt(what);
         if (length > maximum)
             throw new BinaryLimitException(
-                $"{what} {length} exceeds the configured maximum of {maximum}.");
+                $"{what} {length} exceeds the configured maximum of {maximum} ({limit}).");
 
         RequireAvailable(length, what);
         return length;

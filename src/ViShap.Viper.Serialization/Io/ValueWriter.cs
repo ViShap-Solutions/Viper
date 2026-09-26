@@ -118,7 +118,7 @@ internal sealed class ValueWriter(Stream destination, SerializationOperation ope
         if (bytes.Length > Operation.Limits.MaxByteBlobBytes)
             throw new BinaryLimitException(
                 $"{what} byte length {bytes.Length} exceeds the configured maximum of " +
-                $"{Operation.Limits.MaxByteBlobBytes}.");
+                $"{Operation.Limits.MaxByteBlobBytes} (MaxByteBlobBytes).");
 
         Write7BitEncodedInt(bytes.Length);
         Write(bytes);
@@ -134,7 +134,7 @@ internal sealed class ValueWriter(Stream destination, SerializationOperation ope
         if (byteCount > Operation.Limits.MaxStringBytes)
             throw new BinaryLimitException(
                 $"String byte length {byteCount} exceeds the configured maximum of " +
-                $"{Operation.Limits.MaxStringBytes}.");
+                $"{Operation.Limits.MaxStringBytes} (MaxStringBytes).");
 
         WriteEncodedString(value, byteCount);
     }
@@ -186,7 +186,8 @@ internal sealed class ValueWriter(Stream destination, SerializationOperation ope
         long maximum = (long)Operation.Limits.MaxByteBlobBytes * 8L;
         if (bits > maximum)
             throw new BinaryLimitException(
-                $"{what} {bits} exceeds the configured maximum of {maximum}.");
+                $"{what} {bits} exceeds the configured maximum of {maximum} " +
+                $"(MaxByteBlobBytes, in bits).");
 
         WriteInt32(bits);
     }

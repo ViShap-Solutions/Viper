@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Security.Cryptography;
+using ViShap.Viper.Crypto;
 using ViShap.Viper.Io;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -156,6 +158,63 @@ public class TruncationTests
 
         AssertEx.Throws<BinaryFormatException>(
             "non-negative Int32", () => new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    // --- HST-40: the 7-bit encoding is minimal ----------------------------------------------------
+
+    [Theory]
+    [InlineData(new byte[] { 0x85, 0x00 })]
+    [InlineData(new byte[] { 0x85, 0x80, 0x00 })]
+    [InlineData(new byte[] { 0x85, 0x80, 0x80, 0x80, 0x00 })]
+    public void Deserialize_ANonMinimalStringLength_ThrowsFormat(byte[] lengthOfFive)
+    {
+        byte[] frame = Wire.Frame([.. Wire.NotNull, .. lengthOfFive, .. "hello"u8]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "minimally", () => new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_TheMinimalSpellingOfTheSameLength_Succeeds()
+    {
+        byte[] frame = Wire.Frame([.. Wire.NotNull, 0x05, .. "hello"u8]);
+
+        Assert.Equal("hello", new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_ANonMinimalKeyedFieldCountOrKey_ThrowsFormat()
+    {
+        byte[] field = [0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+        byte[] count = Wire.Frame([.. Wire.NotNull, 0x81, 0x00, 0x00, .. field]);
+        byte[] key = Wire.Frame([.. Wire.NotNull, 0x01, 0x80, 0x00, .. field]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "minimally", () => new BinarySerializer().Deserialize<EmptyContract>(count));
+        AssertEx.Throws<BinaryFormatException>(
+            "minimally", () => new BinarySerializer().Deserialize<EmptyContract>(key));
+    }
+
+    [Fact]
+    public void Deserialize_ANonMinimalHeaderStringLength_FailsBeforeTheTagIsChecked()
+    {
+        byte[] key = RandomNumberGenerator.GetBytes(32);
+        byte[] frame = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key, "k7").Build())
+            .Serialize(123);
+
+        // magic, version, compression, no custom name, checksum, no custom name, encryption,
+        // no custom name, key id present — then the key id length.
+        const int keyIdLength = 15;
+        Assert.Equal(2, frame[keyIdLength]);
+
+        byte[] respelled = [.. frame[..keyIdLength], 0x82, 0x00, .. frame[(keyIdLength + 1)..]];
+
+        var reader = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key, "k7").Build());
+
+        AssertEx.Throws<BinaryFormatException>("minimally", () => reader.Deserialize<int>(respelled));
     }
 
     [Fact]

@@ -472,6 +472,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)* — `Contracts/KeyedEvolutionTests`
 - [x] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)* — `Contracts/KeyedContractTests`
 - [x] KEY-18 — the keyed encoding belongs to the payload, not to a wire format version: a contract encodes byte-identically under V0 and V1 *(§10.2, §14.2, §22.8)* — `Contracts/KeyedContractTests`
+- [x] KEY-23 — keys out of ascending order → `BinaryFormatException`, for a known key and for one the reader would otherwise skip; ascending keys with gaps are read *(§14.2, §22.3)* — `Contracts/KeyedEvolutionTests`
 
 ---
 
@@ -759,6 +760,7 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] HST-12 — a truncated 7-bit integer → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-13 — excessive 7-bit continuation bytes → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
+- [x] HST-40 — a non-minimal 7-bit integer → `BinaryFormatException`, for a payload string length, the keyed field count and key, and a header string length, where it fails before the tag is checked; the minimal spelling of the same value is accepted *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-15 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Hostile/TruncationTests`
 - [x] HST-16 — a failed `ReadExact` retains no partial output *(§2.3)* — `Hostile/TruncationTests`
 
@@ -1199,6 +1201,28 @@ behavior is what it is.
 | **Q15** | §3 said an undocumented public member "fails the build as CS1591", which was not true: CS1591 is a warning by default and neither package promoted it. Raised while working EXT-04 | The claim is softened rather than enforced. A build gate on documentation buys little once the surface is written and adds a hard stop for a member whose documentation is a work in progress; what matters to a consumer is that documentation exists and ships beside the assembly. §3 now says the compiler reports CS1591 as a warning, states who the documentation is written for, and says it must not cite the contract or record project history. `Api/PublicSurfaceTests.EveryPublicMember_IsDocumented` is what holds the line, over the generated XML file rather than over the build. Promoting the warning once had surfaced a broken `cref` in `BinaryLimitException` pointing at `SerializationLimits`, a type Core cannot reference and by §2 must not; that is a consumer-visible dead link and is fixed regardless | §3 |
 | **Q14** | §22.1 encodes a string as "7-bit int UTF-8 byte length, then the bytes" and said nothing about bytes that are not valid UTF-8. `ValueReader.DecodeString` already carried a `catch` for it, but `Encoding.UTF8` substitutes U+FFFD instead of raising, so the branch was dead and `C3 28` in a header string decoded to a U+FFFD replacement character followed by `(` and failed a step later as an unregistered algorithm name | Reject: a byte sequence that is not valid UTF-8 is not a string in the declared encoding, so it is malformed input — `BinaryFormatException`. The reasoning is D6's: §13.1 computes the tag over the header's *decoded* fields, so lenient decoding maps an unbounded set of byte sequences onto one string and every one of them carries the same tag. §22.1 now states the rule for strings as it already did for `bool`. One line in `ValueReader`, the single type that decodes payload bytes; no writer ever produced invalid UTF-8, so no valid payload changes meaning. Decided before v1.0.0 because it narrows what a reader accepts | §22.1 |
 
+## 30.3 Defects raised by the post-refactor audit
+
+Found by the independent re-audit recorded in `Audit-Refactor.md`, reproduced against `src/` at
+`d8c0968`, and fixed in `src/` in the same change as the checkpoints below. The audit keeps the
+evidence and the reasoning; this table keeps what pins each fix.
+
+| | Defect | Fix | Contract | Pinned by |
+|---|---|---|---|---|
+| **NX-01** | A 35-byte frame declaring `UncompressedLength = 64 MiB` allocated 67 MB before decompression produced a single byte — the one declared length no remaining-byte check can bound, because compression may legitimately expand | Two halves. `MaxDecompressionRatio` bounds the declared expansion against the compressed bytes delivered, checked while the header is read; and an algorithm reporting `SupportsIncrementalDecompression` is driven through a buffer that starts at 64 KiB and grows to the declared length only once that much output exists | §5.10, §11, §12, §22.6 | `Hostile/AllocationAmplificationTests`, `Algorithms/CompressionTests` |
+| **NX-02** | A duplicate dictionary key raised the framework's own `ArgumentException` out of `Deserialize`, while a `ConcurrentDictionary` or a set dropped the repeat and said nothing — the same bytes were a crash, a silent loss, or neither, depending only on the declared member type | One rule, owned by the engine that owns the element loop: a duplicate is malformed input. A container's refusal is translated to `BinaryFormatException` preserving the cause, and one that would have collapsed the repeat is caught by comparing the materialized count with the declared count | §8.2, §23 | `Hostile/DuplicateEntryTests` |
+| **NX-03** | A field hidden by another of the same name produced two plan entries with an identical sort key, so their order came from reflection, which guarantees none | The plan order gains the declaring level as a third key — base first — making it a total order. Nothing without a repeated name changes position | §14.1, §22.3 | `Contracts/InheritanceTests` |
+| **NX-04** | A non-public base member carrying `[BinaryInclude]` vanished from the plan the moment the type was subclassed, silently and with no diagnostic | Members are collected level by level up the inheritance chain. An override is counted once, at its most derived declaration, so its attributes are the ones that apply | §14.1 | `Contracts/InheritanceTests` |
+| **NX-05** | `[BinaryContract]` was not inherited while `[BinaryKey]` was, so every subclass of a contract type was rejected — with a message blaming the subclass for an attribute it never wrote | The contract is inherited. A derived type is keyed too, shares one key space with its base, and must give each added member a key of its own | §14.2 | `Contracts/InheritanceTests` |
+| **NX-06** | A payload could declare two first occurrences under one reference id; the later one silently replaced the object earlier references resolved to | A second first occurrence under a visible id is `BinaryFormatException` | §16 | `References/ReferenceFramingTests` |
+| **NX-07** | The magic number and version were decoded with `BitConverter`, in the host's byte order, while §22 fixes the header as little-endian | Decoded with `BinaryPrimitives.ReadInt32LittleEndian` | §22 | `Format/RoutingTests` |
+| **NX-08** | §22.4 and §23 said nothing about a `DateTime` whose `Kind` is `Local` surviving a machine in another time zone: the instant does, the wall-clock value does not | Stated in §23, with the guidance to use `DateTimeOffset` or `Kind = Utc` where the value must compare equal on both ends | §23 | documentation |
+| **NX-09** | §23 was silent on duplicates, so the disagreement between containers was neither specified nor visible | Stated in §23 as one rule, alongside the NX-02 fix | §23 | `Hostile/DuplicateEntryTests` |
+| **NX-10** | The `ViShap.Viper.Serialization` package described itself as "High-performance" while `Benchmark-Plan.md` §28 — which governs exactly that claim — was entirely open | The word is gone. The description now names capabilities, which are measured by the test suite rather than by a benchmark that has not run | — | `Benchmark-Plan.md` §28 |
+| **NX-11** | A configured checksum algorithm reporting a negative `HashSizeInBytes` reached `new byte[]` and `stackalloc`, leaving `OverflowException` outside the taxonomy | The reported size is checked once, in `ChecksumService`, against the range the V1 header can record, as `BinaryConfigurationException` naming the algorithm | §8.1 | `Algorithms/ChecksumTests` |
+
+| **NX-12** | `ICompositeFormatter` received the whole `GraphReader`/`GraphWriter`, and through `.Values` the payload primitives, so a composite could loop over a raw `ReadInt32` — the one shape where the validated-count rule was a convention rather than a construction | Composites receive `CompositeReader`/`CompositeWriter` instead, which offer child values, a presence flag, a validated `ElementCount` and a validated `ArrayShape`, and no raw integer. The array shape is read and validated in the engine, and the engine no longer exposes its primitives at all | §24 (invariant now structural) | `Limits/StructuralBarrierTests` |
+
 ---
 
 # 30.4 Frozen v1.0.0 fixtures — `Format/`
@@ -1271,7 +1295,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 ## Contracts
 
 - [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-26)*
-- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-18)*
+- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-18, KEY-23)*
 - [x] Polymorphism is covered on both read and write, including write-side rejection. *(PM-01…PM-16)*
 - [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-17, CYC-01…CYC-10)*
 
@@ -1280,7 +1304,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-44, and P2-01 for the tight profile as a whole)*
 - [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
 - [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
-- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-34)*
+- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-34, HST-40)*
 - [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-28, ENC-01…ENC-23)*
 - [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 
@@ -1295,7 +1319,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 - [x] Every checkpoint in this document is `[x]` or `BLOCKED (Qn)`. Nothing is blocked and no question is open.
 - [x] Every question in §30.2 is resolved, and the contract updated accordingly. *(Q1…Q15)*
-- [x] Every bug found during testing was fixed in `src/`, not accommodated by a test. *(D1…D6)*
-- [x] Every defect in §30.1 is fixed and pinned by its checkpoint. *(D1-01…D6-02)*
+- [x] Every bug found during testing was fixed in `src/`, not accommodated by a test. *(D1…D6, NX-01…NX-11)*
+- [x] Every defect in §30.1 and §30.3 is fixed and pinned by its checkpoint. *(D1-01…D6-02, NX-01…NX-11)*
 - [x] No test relies on undocumented project history.
-- [x] `dotnet test` is green with no skipped tests. *(1596 passed, 0 skipped, Debug and Release)*
+- [x] `dotnet test` is green with no skipped tests. *(1653 passed, 0 skipped, Debug and Release)*

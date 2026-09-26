@@ -19,34 +19,52 @@ dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Te
 dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release
 ```
 
-CI (`.github/workflows/ci.yml`) runs restore → build → the serialization test project on every PR/push to `main`. CD (`cd.yml`) fires on `v*` tags: it *requires the tag to point exactly at `origin/main` HEAD*, packs all three packages with `-p:Version=<tag minus v>`, and pushes to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
+CI (`.github/workflows/ci.yml`) runs restore → build → the serialization test project on every PR and push to `main`, `release/**` and `support/**`. CD (`cd.yml`) fires on `v*` tags: a stable `vX.Y.Z` must point exactly at `origin/main` HEAD; a pre-release `vX.Y.Z-alpha.N`, `-beta.N` or `-rc.N` must point at a commit on a `release/*` branch of origin, and is refused once `vX.Y.Z` exists. It packs all three packages with `-p:Version=<tag minus v>` and pushes them to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
+
+Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_refactorer`); follow it for anything about how work moves through the repository.
 
 ## Where the authoritative information lives
 
-- `docs/System-Contract.md` — **the normative contract and the source of truth.** Public API surface
+`docs/` is reserved for the official, consumer-facing Viper documentation shipped at release; it is
+currently empty pending that content. Everything below is engineering material — for the contributor
+and for Claude Code — and lives under `internal/`.
+
+- `internal/System-Contract.md` — **the normative contract and the source of truth.** Public API surface
   (§3), limits and budgets (§5–6), stream mechanisms (§7), exception taxonomy (§8), versions and
   header (§10–11), compression and encryption (§12–13), member layouts (§14), polymorphism (§15),
   references (§16), the byte-level wire format (§22), the supported types with their encodings (§23),
   and the release checklist (§24). Read the relevant section before changing behavior; update it in
   the same commit when behavior changes.
-- `docs/Architecture-Audit.md` — why the architecture looks like this: the audit that produced it,
+- `internal/Architecture-Audit.md` — why the architecture looks like this: the audit that produced it,
   the alternatives that were rejected and why, the invariants, and the implementation status.
-- `docs/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
+- `internal/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
   staged M0–M8; §30 records confirmed defects and the resolved contract questions. The method for
   working it lives in the `viper_tester` skill, not in the plan.
-- `docs/Benchmark-Plan.md` — the post-release performance plan, realigned with the contract, measured
+- `internal/Benchmark-Plan.md` — the post-release performance plan, realigned with the contract, measured
   against the `v1.0.0` tag and re-run per v1.x. It gates no release: correctness ships a version,
   and an open item here blocks only a performance *claim* (§28, and the quality gate of §24). Checkpoint
   list only, staged B0–B9: the competitor roster and why each library is in or out, the capability
   tiers that keep a comparison like-for-like, the data corpus, the workloads, the fairness rules and
   §27 for findings. The method for working it lives in the `viper_bencher` skill, not in the plan.
   Benchmark work is read-only over the library: it touches `benchmarks/`, the plan itself and
-  `docs/performance/`, and nothing else. Its §18 component suites measure internals directly and
+  `internal/performance/`, and nothing else. Its §18 component suites measure internals directly and
   granted an `InternalsVisibleTo`.
-- `docs/performance/` — where a measurement becomes a suggestion and stops: one `PERF-nn-*.md` per
+- `internal/performance/` — where a measurement becomes a suggestion and stops: one `PERF-nn-*.md` per
   proposed optimization or extension point, cited to the cells that motivate it, for the owner to
   decide on. Nothing here has been applied.
-- `docs/audit/` — the historical record of the audit that led to the rework: the original probes
+- `internal/rework/` — the second rework, approved by the owner and executed before `v1.0.0`:
+  `Rework-Plan.md` (what is built, invariants INV-1…INV-18, the final wire format, stages R0–R9) and
+  one change file per governing document (`Contract-Changes.md`, `QA-Plan-Changes.md`,
+  `Benchmark-Plan-Changes.md`), applied to their documents stage by stage, together with the code,
+  never ahead of it. `Decisions.md` (Russian) is the owner's decision record with the byte diagrams
+  the plan was written from; where the plan and it disagree, it is right. `Owner-Review.md` (Russian)
+  is the review of the earlier draft and the owner's decision log. Two findings are already applied
+  (`HST-40`, `KEY-23`); stage R0 has not started.
+- `internal/Development-Workflow.md` — how work moves through the repository (Russian): branch
+  kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how tags
+  are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how benchmark
+  baselines are taken, hotfixes, and what an agent may and may not do.
+- `internal/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
 
@@ -56,10 +74,10 @@ ship beside the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` 
 by comparing the exported surface with the generated XML file.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
-what it takes, what it returns, which exception it raises. It never cites `System-Contract.md` and
+what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
 never records project history.
 
-The test project follows the layout in `QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Concurrency/`,
+The test project follows the layout in `internal/QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Concurrency/`,
 `Contracts/`, `Diagnostics/`, `Exceptions/`, `Fixtures/`, `Format/`, `Hostile/`, `Limits/`,
 `Metadata/`, `References/`, `RoundTrip/`, `Streams/`. Shared helpers live in `Fixtures/` (`AssertEx`,
 `Wire`, `Mutate`, `Concurrent`, `Cultures`, stream doubles) and are themselves tested. A test names no
@@ -86,7 +104,7 @@ Most engine types are `internal`; `AssemblyInfo.QA.cs` grants `InternalsVisibleT
 
 ## Architecture
 
-Documented normatively in `docs/System-Contract.md` §2; the reasoning behind it is in `docs/Architecture-Audit.md`. Layers, top to bottom:
+Documented normatively in `internal/System-Contract.md` §2; the reasoning behind it is in `internal/Architecture-Audit.md`. Layers, top to bottom:
 
 ```text
 BinarySerializer            creates exactly one SerializationOperation per public call
@@ -125,7 +143,7 @@ No shape fits a plain object: a type no formatter claims is member-encoded throu
 
 `BinarySerializer` builds one pipeline per supported version. Writing uses `options.WriteVersion` (default `BinaryFormatConstants.LatestVersion` = 1). Reading a V1 payload is *self-describing*: `FormatRouter` peeks magic `0x52455342` + version and dispatches; a stream without the magic is read as V0 only when `AllowV0Fallback` is set, and is otherwise rejected rather than guessed at. **Reads therefore require a seekable stream.**
 
-V0 and V1 are peers with different jobs, not a current format and a deprecated one — see `System-Contract.md` §10.
+V0 and V1 are peers with different jobs, not a current format and a deprecated one — see `internal/System-Contract.md` §10.
 
 - **V1** (`V1FormatPipeline`) — full envelope: `BinaryFormatHeaderV1` followed by the payload. Write order is serialize → checksum over the raw payload → compress → build AAD → encrypt → header. Read reverses it, verifies every declared length, and requires the payload to be consumed exactly. Only V1 supports reference framing. The header is bound to authenticated encryption as associated data, so no header field can be altered without breaking the tag.
 - **V0** (`V0FormatPipeline`) — the compact codec: a bare payload with no header at all, for transports that already supply their own context (private or tightly coordinated channels, IPC, protocols with their own framing). Having no header it has no reference framing and no compression/checksum/encryption phase — configured algorithms are simply not applied on a V0 write. Everything the payload itself expresses is unchanged: the full §23 type set, unions, **keyed contracts**, limits, budgets and metering, and for one value under one layout the payload bytes are identical to V1's. Because V0 writes straight through instead of buffering, a keyed write needs a seekable destination, otherwise `NotSupportedException`. A V0 payload is unauthenticated by construction, so `Build()` refuses `RequireEncryption`/`RequireChecksum` together with `WithVersion(0)` or `AllowV0Fallback` — both directions, so no operation-time check is needed. It may be embedded in a larger stream, so it does not require the source to end with the payload, and nothing in it identifies it, which is why reading one takes an explicit `AllowV0Fallback`.
@@ -159,18 +177,20 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
 
 ## Conventions
 
-- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern into the `QA-Plan.md` §2 folders listed above, with shared types in `Fixtures/`.
-- Work happens on `feature/*` / `bugfix/*` branches merged into `main` via PR.
+- Tests are xUnit, `[Fact]`-based, named `Method_Scenario_Expectation`, organised by concern into the `internal/QA-Plan.md` §2 folders listed above, with shared types in `Fixtures/`.
+- Work happens on short branches (`feature/`, `bugfix/`, `rework/`, `test/`, `benchmark/`, `audit/`,
+  `docs/`, `ci/`) cut from the open `release/vX.Y.0` and merged back into it via PR; `release/` merges
+  into `main` at release, and `hotfix/` goes from a release tag into `main` — `internal/Development-Workflow.md`.
 - Any change to what goes on the wire (formatter encoding, header fields, member ordering, reference framing) is a compatibility break unless it goes behind a new format version or a keyed contract.
 - Exception constructors keep the inner exception on the same line as the message, never on its own line.
 - Do not add `catch (BinarySerializerException) { throw; }` unless the catch performs real cleanup.
 - Comments describe what the code does, for the NuGet consumer reading XML docs on hover or the next
   engineer reading the file. Nothing in `src/` or `tests/` addresses the reader personally or records
   history — no "note:", no "before the fix", no audit or refactoring narrative. Findings and the
-  reasoning behind a decision belong in `docs/`.
+  reasoning behind a decision belong in `internal/`.
 - The repository owner makes every commit. Never commit, push, or open a PR. Leave finished work in
   the working tree and report the changed paths.
 - Whenever the work reaches a natural commit point — a QA-plan section or stage closed, a defect
   fixed, a session wrapped up — end the report with a ready commit message in English. Keep it
   terse, as the history is: one subject line, optionally a short clause after a dash naming the
-  consequence. No body, no bullet list, no trailer. The detail belongs in the report and in `docs/`.
+  consequence. No body, no bullet list, no trailer. The detail belongs in the report and in `internal/`.

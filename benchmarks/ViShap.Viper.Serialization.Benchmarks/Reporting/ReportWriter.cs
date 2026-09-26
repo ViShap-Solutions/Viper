@@ -154,7 +154,7 @@ internal static class ReportWriter
         [
             "**No second library was measured.** This is Track A of the benchmark plan: Viper against " +
             "Viper, across its own configurations. The competitor roster, the capability tiers and the " +
-            "exclusions live in §5 and §6 of `docs/Benchmark-Plan.md`, and no cell here compares Viper " +
+            "exclusions live in §5 and §6 of `internal/Benchmark-Plan.md`, and no cell here compares Viper " +
             "with anything but Viper.",
 
             "**There is no winner.** A configuration that is faster carries less; the point of the table " +

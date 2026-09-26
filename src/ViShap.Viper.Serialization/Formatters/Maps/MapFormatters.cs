@@ -38,7 +38,7 @@ internal abstract class MapFormatterBase : IMapFormatter
         return (arguments[0], arguments[1]);
     }
 
-    public virtual int? CountOf(object value) => value is ICollection collection ? collection.Count : null;
+    public virtual int? CountOf(object value) => CollectionCountCache.CountOf(value);
 
     public virtual IEnumerable<(object? Key, object? Value)> Enumerate(object value, Type declaredType) =>
         MapSupport.Enumerate(value);
