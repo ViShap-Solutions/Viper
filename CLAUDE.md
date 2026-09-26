@@ -50,11 +50,14 @@ and for Claude Code — and lives under `internal/`.
 - `internal/performance/` — where a measurement becomes a suggestion and stops: one `PERF-nn-*.md` per
   proposed optimization or extension point, cited to the cells that motivate it, for the owner to
   decide on. Nothing here has been applied.
-- `internal/rework/` — the proposed second rework, before `v1.0.0`: `Rework-Plan.md` (why, what must
-  not be lost, stages R0–R9, owner decisions) and one change file per governing document
-  (`Contract-Changes.md`, `QA-Plan-Changes.md`, `Benchmark-Plan-Changes.md`). The change files are
-  applied to their documents stage by stage, together with the code, never ahead of it. Nothing in the
-  folder has been applied to `src/`.
+- `internal/rework/` — the second rework, approved by the owner and executed before `v1.0.0`:
+  `Rework-Plan.md` (what is built, invariants INV-1…INV-18, the final wire format, stages R0–R9) and
+  one change file per governing document (`Contract-Changes.md`, `QA-Plan-Changes.md`,
+  `Benchmark-Plan-Changes.md`), applied to their documents stage by stage, together with the code,
+  never ahead of it. `Decisions.md` (Russian) is the owner's decision record with the byte diagrams
+  the plan was written from; where the plan and it disagree, it is right. `Owner-Review.md` (Russian)
+  is the review of the earlier draft and the owner's decision log. Two findings are already applied
+  (`HST-40`, `KEY-23`); stage R0 has not started.
 - `internal/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
