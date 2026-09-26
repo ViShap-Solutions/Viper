@@ -338,6 +338,7 @@ The configurations a consumer can build, each measured as itself. Built with the
 - [ ] PROF-06 — the existing-instance and `ref` entry points are measured against their allocating counterparts *(Contract §3.1)*
 - [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so the per-call `StreamExtensions` path has a number *(Contract §3.2)*
 - [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(Contract §15)*
+- [ ] PROF-09 — the same profile set is measured on the `pre-rework` commit, so the matrices of every rework stage compare with it cell by cell
 
 ---
 
@@ -355,7 +356,7 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 | **DATA-06** | DeepGraph | nesting at depths 5, 10, 25, 50, 200, 511 | small | T0–T3 | Depth accounting and recursion cost up to just below `MaxDepth` *(Contract §5.1)* |
 | **DATA-07** | UnicodeHeavy | multi-byte, CJK, emoji, combining sequences, with an ASCII twin | ~100 KB | T0–T2 | String encoding cost, and the honest ASCII-versus-UTF-8 difference |
 | **DATA-08** | Incompressible | high-entropy strings and blobs | ~1 MB | T0, T4 | Compression's worst case, and what the phase costs when it buys nothing |
-| **DATA-09** | HighlyCompressible | heavily repeated structure | ~1 MB | T0, T4 | Compression's best case |
+| **DATA-09** | HighlyCompressible | heavily repeated structure | ~0.35 MB | T0, T4 | Compression's best case. The size follows `MaxDecompressionRatio` rather than the 1 MB of its neighbours — see R-02 in §27.3 |
 | **DATA-10** | SharedReferenceDAG | one instance reachable by many paths | ~100 KB | T3 | Identity preservation, in time and in size |
 | **DATA-11** | CyclicGraph | parent/child cycles | ~50 KB | T3 | The scenario that is impossible without reference support |
 | **DATA-12** | PolymorphicBatch | a base type with 6–8 derived shapes | ~100 KB | T2, T3 | Discriminator cost and polymorphic dispatch |
@@ -736,6 +737,8 @@ The run against the `v1.0.0` tag becomes the frozen baseline, whenever it happen
 
 Every later v1.x that changes `src/` is measured the same way, against its own tag, and published as a delta against the baseline it is compatible with. That is what this plan is for once v1.0.0 has shipped: not a gate in front of a release, a record behind each one.
 
+The rework before `v1.0.0` has a baseline of its own: `Baselines/pre-rework/`, taken once on the commit the rework started from. A rework stage is compared against `pre-rework`; a release is compared against the previous release. The two never mix: a rework stage is not a release, and `pre-rework` is never the baseline of one.
+
 - [ ] BASE-01 — the baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23, produced from a checkout of the `v1.0.0` tag
 - [ ] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error
 - [ ] BASE-03 — a comparison against an incompatible environment is refused rather than printed
@@ -802,6 +805,7 @@ The place where an unflattering result is recorded rather than argued with. Each
 | | Cell | What was seen | Cause | Resolution |
 |---|---|---|---|---|
 | **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
+| **R-02** | B0 verification, DATA-09 under B-P3b and B-P6b | The Track A run for the `pre-rework` baseline stopped at verification: 2 of 270 pairs failed with `BinaryLimitException` — Brotli wrote 20 000 identical strings, 1 440 005 bytes, as 64, and the reader refused an expansion of 22 500 against the default `MaxDecompressionRatio` of 10 000. Deflate wrote the same payload as 8 496 bytes and passed | The ratio check arrived with the NX fixes after the corpus was sized. Brotli compresses this payload to a few dozen bytes at any count — 76 to 77 bytes anywhere from 2 000 to 10 000 strings — so the ratio grows with the count alone, and at 20 000 the dataset required a limit above `SerializationLimits.Default`, which DATA-23 forbids | Harness defect, fixed by the repository owner's decision of 2026-09-26 before the baseline: DATA-09 holds 5 000 strings, 360 005 bytes, an expansion of about 4 700 under Brotli. It stays compression's best case and needs no relaxed limit, as FAIR-18 requires. Raising the limit in the Brotli profiles, varying the strings and recording the refusal as a result were rejected. `--verify` passes 270 of 270 pairs |
 
 ## 27.4 Proposals — `internal/performance/`
 

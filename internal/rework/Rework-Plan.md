@@ -67,7 +67,7 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 
 | Stage | Branch (from `release/v1.0.0`) | After the owner merges it | Status | Closed by (merge commit) |
 |---|---|---|---|---|
-| R0 — Baseline and oracle | `rework/r0-baseline` | — | not started | |
+| R0 — Baseline and oracle | `rework/r0-baseline` | — | in progress | |
 | R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | not started | |
 | R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | not started | |
 | R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |

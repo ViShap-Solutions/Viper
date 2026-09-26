@@ -31,9 +31,14 @@ internal sealed class IncompressibleDataset : Dataset<BlobEnvelope>
 }
 
 /// <summary>DATA-09 — heavily repeated structure, where compression is at its best.</summary>
+/// <remarks>
+/// Brotli compresses the payload to a few dozen bytes whatever the count, so the count is what sets the
+/// expansion a reader sees. At 5 000 it stays near half of the default <c>MaxDecompressionRatio</c>, and
+/// the dataset needs no limit above <c>SerializationLimits.Default</c> (DATA-23).
+/// </remarks>
 internal sealed class HighlyCompressibleDataset : Dataset<List<string>>
 {
-    internal const int Count = 20_000;
+    internal const int Count = 5_000;
 
     internal override string Id => "DATA-09";
 
