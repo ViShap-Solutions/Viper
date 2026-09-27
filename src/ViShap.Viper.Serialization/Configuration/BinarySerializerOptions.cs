@@ -60,8 +60,9 @@ public sealed record BinarySerializerOptions
     public IEncryptionAlgorithm Encryption { get; internal init; } = new NoEncryption();
 
     /// <summary>
-    /// Supplies key material for encrypted payloads. The provider always hands out owned copies, so
-    /// the serializer never clears a buffer you own.
+    /// Supplies key material for encrypted payloads — the keys given with <c>WithEncryption</c> or with
+    /// <c>WithKeys</c>. The provider always hands out owned copies, so the serializer never clears a
+    /// buffer you own.
     /// </summary>
     public IKeyProvider? Keys { get; internal init; }
 
@@ -88,15 +89,66 @@ public sealed record BinarySerializerOptions
     public SerializationLimits Limits { get; internal init; } = SerializationLimits.Default;
 
     /// <summary>
-    /// Whether a stream without the format magic number is read as a version 0 payload instead of
-    /// being rejected.
+    /// Whether bytes without the format magic number are read as a version 0 payload instead of being
+    /// rejected.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A version 0 payload carries no header, so nothing in the bytes says what they are. This opt-in
     /// is what separates a deliberate compact payload from unrelated data, and it governs reading
     /// only: writing version 0 is selected with the write version. It cannot be combined with
     /// <see cref="RequireEncryption"/> or <see cref="RequireChecksum"/>, since such a payload carries
     /// neither.
+    /// </para>
+    /// <para>
+    /// A version 0 payload is read synchronously, from a span, a sequence or a seekable stream; an
+    /// asynchronous read that meets one raises <see cref="NotSupportedException"/>.
+    /// V0 carries neither a magic number nor a length: it is a codec for protocols that already frame
+    /// their messages — a length prefix, a message type, a channel. The protocol knows where a message
+    /// ends, so the caller already holds one message's bytes and reads them synchronously. Waiting
+    /// asynchronously is for a reader that does not know where the message ends; with V0 the protocol
+    /// knows, not Viper.
+    /// </para>
+    /// <example>
+    /// <code>
+    /// // V1 from a socket: Viper knows the frame boundary — the header carries the length
+    /// Order? order = await serializer.DeserializeAsync&lt;Order&gt;(networkStream, cancellationToken);
+    ///
+    /// // V0 inside your own protocol: the protocol knows the frame boundary
+    /// var compact = new BinarySerializer(BinarySerializerOptions.Configure()
+    ///     .WithVersion(0).AllowV0Fallback().Build());
+    ///
+    /// while (true)
+    /// {
+    ///     ReadResult read = await pipe.ReadAsync(cancellationToken);
+    ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
+    ///
+    ///     // the protocol: a 4-byte little-endian length, then the V0 payload
+    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     {
+    ///         Order? message = compact.Deserialize&lt;Order&gt;(frame);   // synchronous: the frame is in memory
+    ///         Handle(message);
+    ///     }
+    ///
+    ///     pipe.AdvanceTo(buffer.Start, buffer.End);
+    ///     if (read.IsCompleted) break;
+    /// }
+    ///
+    /// static bool TryReadFrame(ref ReadOnlySequence&lt;byte&gt; buffer, out ReadOnlySequence&lt;byte&gt; frame)
+    /// {
+    ///     var reader = new SequenceReader&lt;byte&gt;(buffer);
+    ///     if (!reader.TryReadLittleEndian(out int length) || reader.Remaining &lt; length)
+    ///     {
+    ///         frame = default;
+    ///         return false;
+    ///     }
+    ///
+    ///     frame = buffer.Slice(reader.Position, length);
+    ///     buffer = buffer.Slice(frame.End);
+    ///     return true;
+    /// }
+    /// </code>
+    /// </example>
     /// </remarks>
     public bool AllowV0Fallback { get; internal init; }
 
@@ -110,129 +162,4 @@ public sealed record BinarySerializerOptions
     public bool RequireChecksum { get; internal init; }
 
     internal AlgorithmCatalog Catalog { get; init; } = AlgorithmCatalog.BuiltIn;
-
-    /// <summary>
-    /// Builds options able to read a payload described by <paramref name="info"/>.
-    /// </summary>
-    /// <remarks>
-    /// Use this to read a payload whose settings you learn at runtime, for example after
-    /// <see cref="BinaryFormatInspector.Peek(Stream)"/>. Only built-in algorithms are resolved; a
-    /// payload naming a custom algorithm needs options built with the matching registration.
-    /// </remarks>
-    /// <param name="info">Header metadata of the payload.</param>
-    /// <param name="keys">Key material, required when the payload is encrypted.</param>
-    /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
-    /// <returns>Options configured for that payload.</returns>
-    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
-    public static BinarySerializerOptions FromHeader(
-        BinaryHeaderInfo info,
-        IKeyProvider? keys = null,
-        SerializationLimits? limits = null)
-    {
-        var actualLimits = limits ?? SerializationLimits.Default;
-        actualLimits.Validate();
-
-        var catalog = AlgorithmCatalog.BuiltIn;
-
-        return new BinarySerializerOptions
-        {
-            Compression = catalog.ResolveCompression(info.Compression, info.CustomCompressionName),
-            Checksum = catalog.ResolveChecksum(info.ChecksumAlgorithm, info.CustomChecksumName),
-            Encryption = catalog.ResolveEncryption(info.Encryption, info.CustomEncryptionName),
-            Keys = keys,
-            KeyId = info.KeyId,
-            Limits = actualLimits,
-            Catalog = catalog
-        };
-    }
-
-    /// <summary>Builds options for a payload, using a single key.</summary>
-    /// <param name="info">Header metadata of the payload.</param>
-    /// <param name="key">Key bytes, copied immediately; pass <see langword="null"/> when the payload is not encrypted.</param>
-    /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
-    /// <returns>Options configured for that payload.</returns>
-    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
-    public static BinarySerializerOptions FromHeader(
-        BinaryHeaderInfo info,
-        byte[]? key,
-        SerializationLimits? limits = null) =>
-        FromHeader(
-            info,
-            key is null or [] ? null : new StaticKeyProvider(key, info.KeyId),
-            limits);
-
-    /// <summary>Builds options for a payload, resolving the key by id.</summary>
-    /// <param name="info">Header metadata of the payload.</param>
-    /// <param name="keyResolver">Returns the key for the id the payload names.</param>
-    /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
-    /// <returns>Options configured for that payload.</returns>
-    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
-    public static BinarySerializerOptions FromHeader(
-        BinaryHeaderInfo info,
-        Func<string?, byte[]?> keyResolver,
-        SerializationLimits? limits = null)
-    {
-        ArgumentNullException.ThrowIfNull(keyResolver);
-        return FromHeader(info, new DelegateKeyProvider(keyResolver), limits);
-    }
-
-    /// <summary>
-    /// Inspects <paramref name="stream"/> and builds options able to read it, using a single key.
-    /// </summary>
-    /// <param name="stream">A seekable stream positioned at the start of a payload. Its position is restored.</param>
-    /// <param name="key">Key bytes, copied immediately; pass <see langword="null"/> when the payload is not encrypted.</param>
-    /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
-    /// <returns>Options configured for that payload.</returns>
-    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
-    /// <exception cref="BinaryFormatException">The stream does not start with a recognized header.</exception>
-    /// <exception cref="BinaryFormatNotSupportedException">The header names a format version this build cannot read.</exception>
-    /// <exception cref="NotSupportedException"><paramref name="stream"/> cannot seek.</exception>
-    /// <exception cref="BinaryStreamException">The stream failed while the header was read.</exception>
-    public static BinarySerializerOptions FromStream(
-        Stream stream,
-        byte[]? key = null,
-        SerializationLimits? limits = null) =>
-        FromHeader(Inspect(stream, limits), key, limits);
-
-    /// <summary>Inspects <paramref name="stream"/> and builds options, resolving the key by id.</summary>
-    /// <param name="stream">A seekable stream positioned at the start of a payload. Its position is restored.</param>
-    /// <param name="keyResolver">Returns the key for the id the payload names.</param>
-    /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
-    /// <returns>Options configured for that payload.</returns>
-    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
-    /// <exception cref="BinaryFormatException">The stream does not start with a recognized header.</exception>
-    /// <exception cref="BinaryFormatNotSupportedException">The header names a format version this build cannot read.</exception>
-    /// <exception cref="NotSupportedException"><paramref name="stream"/> cannot seek.</exception>
-    /// <exception cref="BinaryStreamException">The stream failed while the header was read.</exception>
-    public static BinarySerializerOptions FromStream(
-        Stream stream,
-        Func<string?, byte[]?> keyResolver,
-        SerializationLimits? limits = null) =>
-        FromHeader(Inspect(stream, limits), keyResolver, limits);
-
-    /// <summary>Inspects <paramref name="stream"/> and builds options, using a key provider.</summary>
-    /// <param name="stream">A seekable stream positioned at the start of a payload. Its position is restored.</param>
-    /// <param name="keys">Key material, required when the payload is encrypted.</param>
-    /// <param name="limits">Resource policy, or <see langword="null"/> for the defaults.</param>
-    /// <returns>Options configured for that payload.</returns>
-    /// <exception cref="BinaryConfigurationException"><paramref name="limits"/> holds a value that is not positive.</exception>
-    /// <exception cref="BinaryFormatException">The stream does not start with a recognized header.</exception>
-    /// <exception cref="BinaryFormatNotSupportedException">The header names a format version this build cannot read.</exception>
-    /// <exception cref="NotSupportedException"><paramref name="stream"/> cannot seek.</exception>
-    /// <exception cref="BinaryStreamException">The stream failed while the header was read.</exception>
-    public static BinarySerializerOptions FromStream(
-        Stream stream,
-        IKeyProvider? keys,
-        SerializationLimits? limits = null) =>
-        FromHeader(Inspect(stream, limits), keys, limits);
-
-    private static BinaryHeaderInfo Inspect(Stream stream, SerializationLimits? limits)
-    {
-        var actualLimits = limits ?? SerializationLimits.Default;
-        actualLimits.Validate();
-
-        return BinaryFormatInspector.Peek(stream, actualLimits)
-               ?? throw new BinaryFormatException(
-                   "Unable to inspect the stream header. The format is unknown or unsupported.");
-    }
 }

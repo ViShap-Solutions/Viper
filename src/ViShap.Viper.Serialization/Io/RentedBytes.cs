@@ -42,6 +42,9 @@ internal readonly struct RentedBytes : IDisposable
     /// <summary>The result.</summary>
     public ReadOnlySpan<byte> Span => _array.AsSpan(0, Length);
 
+    /// <summary>The result, for a write that awaits its destination.</summary>
+    public ReadOnlyMemory<byte> Memory => _array.AsMemory(0, Length);
+
     /// <summary>Clears the array and returns it to the pool.</summary>
     public void Dispose()
     {

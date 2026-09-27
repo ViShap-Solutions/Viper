@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.IO.Pipelines;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
@@ -7,6 +9,11 @@ namespace ViShap.Viper.Serialization.Tests.Api;
 /// Pins API-01…API-05 and API-13…API-20: construction, the equivalence of the byte-array and stream
 /// entry points, null-argument behaviour, and what a call is allowed to do to the caller's stream.
 /// </summary>
+/// <remarks>
+/// A <see langword="null"/> argument is written with its type, because several entry points differ only
+/// in the type of their destination or source and an untyped <see langword="null"/> would not choose
+/// between them.
+/// </remarks>
 public class SerializerApiTests
 {
     private static Person Sample() => new() { Name = "Alice", Age = 30 };
@@ -81,32 +88,47 @@ public class SerializerApiTests
     [Fact]
     public void Serialize_NullDestination_ThrowsArgumentNull()
     {
+        var serializer = new BinarySerializer();
+
+        Assert.Throws<ArgumentNullException>(() => serializer.Serialize((Stream)null!, Sample()));
+        Assert.Throws<ArgumentNullException>(() => serializer.Serialize((IBufferWriter<byte>)null!, Sample()));
         Assert.Throws<ArgumentNullException>(
-            () => new BinarySerializer().Serialize(null!, Sample()));
+            () => serializer.SerializeAsync((Stream)null!, Sample()).AsTask().GetAwaiter().GetResult());
+        Assert.Throws<ArgumentNullException>(
+            () => serializer.SerializeAsync((PipeWriter)null!, Sample()).AsTask().GetAwaiter().GetResult());
     }
 
     [Fact]
     public void Deserialize_NullSource_ThrowsArgumentNull()
     {
+        var serializer = new BinarySerializer();
+
+        Assert.Throws<ArgumentNullException>(() => serializer.Deserialize<Person>((Stream)null!));
         Assert.Throws<ArgumentNullException>(
-            () => new BinarySerializer().Deserialize<Person>((Stream)null!));
+            () => serializer.DeserializeAsync<Person>((Stream)null!).AsTask().GetAwaiter().GetResult());
+        Assert.Throws<ArgumentNullException>(
+            () => serializer.DeserializeAsync<Person>((PipeReader)null!).AsTask().GetAwaiter().GetResult());
+        Assert.Throws<ArgumentNullException>(() => serializer.DeserializeAsyncEnumerable<Person>((Stream)null!));
+        Assert.Throws<ArgumentNullException>(() => serializer.DeserializeAsyncEnumerable<Person>((PipeReader)null!));
     }
 
     [Fact]
-    public void Deserialize_NullByteArray_ThrowsArgumentNull()
+    public void Deserialize_NullByteArray_IsAnEmptyPayload()
     {
-        Assert.Throws<ArgumentNullException>(
+        // An array converts to a span, and a null array to an empty one: what is refused is the
+        // empty payload, not the argument.
+        Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>((byte[])null!));
     }
 
     [Fact]
-    public void Deserialize_NullExistingInstance_ThrowsArgumentNull()
+    public void Populate_NullTarget_ThrowsArgumentNull()
     {
         var serializer = new BinarySerializer();
         byte[] payload = serializer.Serialize(Sample());
         using var stream = new MemoryStream(payload, writable: false);
 
-        Assert.Throws<ArgumentNullException>(() => serializer.Deserialize(stream, (Person)null!));
+        Assert.Throws<ArgumentNullException>(() => serializer.Populate(stream, (Person)null!));
     }
 
     // --- stream ownership ------------------------------------------------------------------------------
@@ -163,11 +185,12 @@ public class SerializerApiTests
     }
 
     [Fact]
-    public void Deserialize_NonSeekableSource_ThrowsNotSupported()
+    public void Deserialize_NonSeekableSource_ReadsTheFrame()
     {
-        using var source = new NonSeekableStream(new BinarySerializer().Serialize(Sample()));
+        var serializer = new BinarySerializer();
+        using var source = new NonSeekableStream(serializer.Serialize(Sample()));
 
-        Assert.Throws<NotSupportedException>(() => new BinarySerializer().Deserialize<Person>(source));
+        Assert.Equivalent(Sample(), serializer.Deserialize<Person>(source));
     }
 
     [Fact]

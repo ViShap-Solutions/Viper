@@ -81,7 +81,7 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   becomes `OperationState` in R4 — see `Claude-Changes.md` R4; MICRO-07 rents and returns the pooled
   tables.)*
 
-## R3 — New entry points
+## R3 — New entry points — applied
 
 - **§10** workload catalog: add the buffer family (`IBufferWriter<byte>` in; `ReadOnlySpan<byte>` and
   `ReadOnlySequence<byte>` out), the pooled family (`SerializePooled`), and the asynchronous family
@@ -103,6 +103,20 @@ left naming something that no longer exists. A retired checkpoint stays in the p
 - **PROF-07** rewritten: a serializer reused across operations against one constructed per
   operation. The clause about the per-call `StreamExtensions` path is retired with `StreamExtensions`.
 - Every reference to contract §3 in the plan re-pointed at the new surface.
+- *Applied in R3.* The families received workload IDs of their own, continuing the prefix: **WL-21**
+  (serialize → `IBufferWriter<byte>`), **WL-22** (deserialize ← span and ← sequence), **WL-23**
+  (`SerializePooled`), **WL-24** (the asynchronous family). Suites: `ProfileBufferBenchmarks`
+  (WL-21…WL-23), `ProfileAsyncWriteBenchmarks` and `ProfileFramedReadBenchmarks` (WL-18, WL-24),
+  `FrameStreamBenchmarks` (WL-20). WL-19 has no suite of its own: it is WL-21 under B-P5 and B-P6
+  read against WL-01 of the same profile, and the path with no final copy it is meant to show only
+  exists once R5 gives encryption its exact ciphertext length — the plan's WL-19 row says so. The
+  verifier runs every pair through the new entry points before any timing. The adapter interface is
+  `IBufferWriterSerializer`, declared beside the other two in `Adapters/ISerializerAdapter.cs`.
+  By the owner's decision of 2026-09-27 (`Owner-Review.md` log 56) the new suites run over the
+  representative profiles B-P0, B-P1, B-P5, B-P6b and B-P7 (`ViperProfiles.Representative`), and
+  R3's stage measurement covers only the suites `pre-rework` can be compared with —
+  `ProfileMatrixBenchmarks` and `ProfileStreamBenchmarks` — with the soak taken on its own; the new
+  suites get their first numbers in the next full `--track A`.
 
 ## R4 — Typed engine
 

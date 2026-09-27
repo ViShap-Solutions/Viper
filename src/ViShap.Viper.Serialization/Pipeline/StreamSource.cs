@@ -1,12 +1,12 @@
-using System.Buffers;
+using System.IO.Pipelines;
 
 namespace ViShap.Viper.Pipeline;
 
 /// <summary>
-/// The pipeline's edge with a caller's seekable source stream. It moves bytes from the stream into
-/// memory, where a <see cref="WireReader"/> decodes them, and puts the stream's position where the
-/// decoded bytes end. A failure of the stream itself is reported as
-/// <see cref="BinaryStreamException"/>.
+/// The pipeline's edge with a caller's source — a stream or a pipe. It moves bytes into memory, where
+/// a <see cref="WireReader"/> decodes them, and it is the one place a failure of the source itself is
+/// reported, as <see cref="BinaryStreamException"/> with the <see cref="IOException"/> preserved.
+/// Cancellation is not a failure of the source and leaves as <see cref="OperationCanceledException"/>.
 /// </summary>
 internal static class StreamSource
 {
@@ -49,60 +49,45 @@ internal static class StreamSource
         }
     }
 
-    /// <summary>
-    /// Reads until <paramref name="destination"/> is full or the source ends, and returns how many
-    /// bytes were read.
-    /// </summary>
-    public static int Read(Stream source, Span<byte> destination, string what)
+    /// <summary>Reads at most <paramref name="destination"/>'s length and returns how many bytes arrived.</summary>
+    public static int Read(Stream source, Span<byte> destination)
     {
-        int total = 0;
-        while (total < destination.Length)
-        {
-            int read;
-            try
-            {
-                read = source.Read(destination[total..]);
-            }
-            catch (IOException ex)
-            {
-                throw new BinaryStreamException($"Failed to read {what} from the underlying stream.", ex);
-            }
-
-            if (read == 0)
-                break;
-
-            total += read;
-        }
-
-        return total;
-    }
-
-    /// <summary>
-    /// Reads ahead up to <paramref name="maximum"/> bytes into a buffer rented from the pool. The caller
-    /// returns it through <see cref="Return"/>, which clears it.
-    /// </summary>
-    /// <param name="source">The source, positioned at the first byte to read.</param>
-    /// <param name="maximum">The most bytes to take, such as the budget of the operation.</param>
-    /// <param name="what">The bytes being read, used in diagnostics.</param>
-    /// <param name="length">The number of bytes actually read.</param>
-    public static byte[] ReadAhead(Stream source, long maximum, string what, out int length)
-    {
-        int size = (int)Math.Min(Math.Min(Remaining(source), maximum), Array.MaxLength);
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(size);
-        bool completed = false;
         try
         {
-            length = Read(source, buffer.AsSpan(0, size), what);
-            completed = true;
-            return buffer;
+            return source.Read(destination);
         }
-        finally
+        catch (IOException ex)
         {
-            if (!completed)
-                Return(buffer);
+            throw new BinaryStreamException("Failed to read from the underlying stream.", ex);
         }
     }
 
-    /// <summary>Clears a buffer taken from <see cref="ReadAhead"/> and returns it to the pool.</summary>
-    public static void Return(byte[] buffer) => ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+    /// <summary>Reads at most <paramref name="destination"/>'s length and returns how many bytes arrived.</summary>
+    public static async ValueTask<int> ReadAsync(
+        Stream source,
+        Memory<byte> destination,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await source.ReadAsync(destination, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException ex)
+        {
+            throw new BinaryStreamException("Failed to read from the underlying stream.", ex);
+        }
+    }
+
+    /// <summary>Waits for the pipe to hold more than it held when last examined.</summary>
+    public static async ValueTask<ReadResult> ReadAsync(PipeReader source, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await source.ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException ex)
+        {
+            throw new BinaryStreamException("Failed to read from the underlying pipe.", ex);
+        }
+    }
 }

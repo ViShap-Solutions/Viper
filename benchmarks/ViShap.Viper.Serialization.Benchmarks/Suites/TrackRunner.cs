@@ -35,6 +35,10 @@ internal static class TrackRunner
         // A1 — the profile matrix, and the floor every cell is read against.
         ("A1", typeof(ProfileMatrixBenchmarks)),
         ("A1", typeof(ProfileStreamBenchmarks)),
+        ("A1", typeof(ProfileBufferBenchmarks)),
+        ("A1", typeof(ProfileAsyncWriteBenchmarks)),
+        ("A1", typeof(ProfileFramedReadBenchmarks)),
+        ("A1", typeof(FrameStreamBenchmarks)),
         ("A1", typeof(HarnessFloorBenchmarks)),
 
         // A3 — the algorithm phases, and the envelope by difference.

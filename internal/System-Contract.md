@@ -29,14 +29,16 @@ A successful `Serialize → Deserialize` round trip is not sufficient proof of c
 The system is layered, and each rule has exactly one owner:
 
 ```text
-Public API            BinarySerializer · StreamExtensions · attributes · exceptions
+Public API            BinarySerializer · PooledPayload · attributes · exceptions
                       SerializationLimits · I*Algorithm · IKeyProvider · SecretKey
+                      write: IBufferWriter<byte> · byte[] · PooledPayload · Stream · PipeWriter
+                      read:  ReadOnlySpan<byte> · ReadOnlySequence<byte> · Stream · PipeReader
       │ creates exactly one operation per public call
 SerializationOperation    Limits snapshot · Budget · PhaseBudget · Keys · policies
       │
 FormatPipeline (V0|V1)    framing · phase order · header + AAD · phase sizes
-      │  source bytes read ahead into memory · phases as transforms over pooled buffers ·
-      │  the whole frame built in PayloadBuffer, then copied to the destination once
+      │  a stream or pipe buffered exactly as far as the frame extends · phases as transforms
+      │  over pooled buffers · the whole frame built in PayloadBuffer, then copied out once
 PayloadEngine             traversal · depth · graph nodes · references · TypeContract
       │  WireReader / WireWriter — ref structs over memory, the only access to payload bytes
 Formatters                type encoding only
@@ -111,6 +113,12 @@ expressible, and a reader or writer cannot outlive the call it was handed to.
 A formatter describes a **shape** — scalar, sequence, map or composite — and supplies a builder. It
 never owns a loop over attacker-controlled data, so it cannot omit an accounting step.
 
+**The engine never awaits** (INV-16). Waiting for bytes happens only at the frame edge, in the
+pipeline's source readers: an asynchronous read awaits a whole frame and then decodes it
+synchronously, and an asynchronous write builds the frame and then awaits the output (§3.5). No
+method below the pipeline — in the engine or the formatters — is asynchronous, so a traversal never
+holds a budget, a depth scope or a reference table across a suspension.
+
 ## 2.5 Phase-specific components
 
 `PhaseBudget` inside the pipeline is the single place that checks payload, compressed and encrypted
@@ -142,7 +150,7 @@ This is the whole public surface. Anything not listed is internal, and adding to
 change that belongs in a release note.
 
 **`ViShap.Viper`** — `BinarySerializer`, `BinarySerializerOptions`, `BinarySerializerOptionsBuilder`,
-`StreamExtensions`, and the attributes `[BinaryContract]`, `[BinaryKey]`, `[BinaryIgnore]`,
+`PooledPayload`, and the attributes `[BinaryContract]`, `[BinaryKey]`, `[BinaryIgnore]`,
 `[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`.
 
 **`ViShap.Viper.Security`** — `SerializationLimits`.
@@ -175,79 +183,198 @@ it does.
 
 ## 3.1 Serializer
 
-The public `BinarySerializer` surface includes:
+The public `BinarySerializer` surface is exactly:
 
 ```csharp
 BinarySerializer(BinarySerializerOptions? options = null);
 
-void Serialize<T>(Stream destination, T data);
-byte[] Serialize<T>(T data);
+// write
+void          Serialize<T>(IBufferWriter<byte> destination, T value);
+byte[]        Serialize<T>(T value);
+PooledPayload SerializePooled<T>(T value);
+void          Serialize<T>(Stream destination, T value);
+ValueTask     SerializeAsync<T>(Stream destination, T value, CancellationToken cancellationToken = default);
+ValueTask     SerializeAsync<T>(PipeWriter destination, T value, CancellationToken cancellationToken = default);
 
-T? Deserialize<T>(Stream source);
-T? Deserialize<T>(byte[] bytes);
+// read
+T?            Deserialize<T>(ReadOnlySpan<byte> source);
+T?            Deserialize<T>(ReadOnlySpan<byte> source, out int bytesConsumed);
+T?            Deserialize<T>(ReadOnlySequence<byte> source);
+T?            Deserialize<T>(ReadOnlySequence<byte> source, out SequencePosition consumed);
+T?            Deserialize<T>(Stream source);
+ValueTask<T?> DeserializeAsync<T>(Stream source, CancellationToken cancellationToken = default);
+ValueTask<T?> DeserializeAsync<T>(PipeReader source, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, CancellationToken cancellationToken = default);
 
-T? Deserialize<T>(Stream source, T existingInstance) where T : class;
-T? Deserialize<T>(byte[] bytes, T existingInstance) where T : class;
-
-void Deserialize<T>(Stream source, ref T existingInstance) where T : struct;
-void Deserialize<T>(byte[] bytes, ref T existingInstance) where T : struct;
+// populate an existing instance
+void          Populate<T>(ReadOnlySpan<byte> source, T target) where T : class;
+void          Populate<T>(ReadOnlySpan<byte> source, T target, out int bytesConsumed) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target, out SequencePosition consumed) where T : class;
+void          Populate<T>(Stream source, T target) where T : class;
+ValueTask     PopulateAsync<T>(Stream source, T target, CancellationToken cancellationToken = default) where T : class;
+ValueTask     PopulateAsync<T>(PipeReader source, T target, CancellationToken cancellationToken = default) where T : class;
 ```
 
-Exact overloads exposed by the compiled public assembly are authoritative.
+`Api/PublicSurfaceTests` compares this list with the compiled assembly member by member, and the
+builder's list of §4.1 likewise.
 
-`byte[]` inputs are caller-owned. Serializer-created temporary streams remain internal.
+Every write builds the whole frame in the serializer's own pooled buffers before the first byte
+reaches the destination (§2.6), so no destination is asked to seek. A buffer writer is advanced but
+not flushed; a stream is flushed; a pipe is flushed and not completed. The frame is copied into a
+buffer writer in as many spans as it hands out, shorter ones included; a writer that hands out an
+empty span, which the `IBufferWriter<T>` contract does not allow, is `BinaryStreamException` rather
+than a copy that never ends (§8.8). Caller-provided streams and
+pipes are never disposed or completed, and a stream is never rewound.
 
-Caller-provided streams are never disposed, never rewound, and are read only as far as the payload
-extends.
+Rules for every read and populate entry point:
 
-An **empty `byte[]` is not a payload**: no wire version encodes a value in zero bytes, not even a
-null root, which costs one byte. Every byte-array read overload therefore rejects it with
-`BinaryFormatException` before any routing happens, and the existing instance or `ref` target is left
-untouched. A zero-length array is never silently read as `default(T)`.
+- **An empty input is not a payload.** No wire version encodes a value in zero bytes, not even a
+  null root, which costs one byte. An empty span, an empty sequence, a stream that ends before its
+  first byte and a pipe that completes empty are `BinaryFormatException`, and a populate target is
+  left untouched. A zero-length input is never silently read as `default(T)`.
+- **There is no `byte[]` read overload.** An array converts to `ReadOnlySpan<byte>`, so
+  `Deserialize<T>(bytes)` and `Populate(bytes, target)` compile against the span forms. A `null`
+  array becomes an empty span and is rejected as an empty payload — `BinaryFormatException`, not
+  `ArgumentNullException`.
+- **Without a bytes-consumed form, a span or a sequence is exactly one frame**: one V1 frame, or one
+  V0 payload up to the end of its root value. Bytes after it are `BinaryFormatException` (§3.4).
+- **A stream or a pipe is read exactly as far as one frame extends** (§20): a V1 frame declares its
+  length, so it is read without seeking and nothing past it is taken. A V0 payload declares none,
+  so a synchronous read of a stream reads ahead and moves back, which needs a seekable stream (§10.2).
+- **Asynchronous reads accept V1 only** (§3.5).
 
-Populate-in-place semantics:
+## 3.2 `PooledPayload`
 
-- `Deserialize<T>(…, T existingInstance)` is defined only for **member-encoded** types. A type
-  claimed by a dedicated formatter (collection, dictionary, array, string, …) is rejected with
-  `BinaryTypeException`; it must not be reinterpreted through that type's member plan.
-- `Deserialize<T>(…, ref T existingInstance)` reads the root exactly as the writer framed it and
-  assigns the result. A struct is copied by value, so this is observationally identical to populating
-  in place, and it stays correct under every framing the writer may add.
+`SerializePooled` returns a `PooledPayload`, a sealed class implementing `IDisposable` that owns an
+array rented from `ArrayPool<byte>.Shared` holding exactly the bytes `Serialize<T>(T)` would return.
+`Memory` (`ReadOnlyMemory<byte>`) and `Span` (`ReadOnlySpan<byte>`) are valid until `Dispose`.
+`Dispose` clears the bytes and returns the array to the pool; it is idempotent, and safe to call
+concurrently, so the array is returned exactly once. Reading `Memory` or `Span` after `Dispose` is
+`ObjectDisposedException`.
 
-## 3.2 Stream extensions
-
-`StreamExtensions` builds a serializer per call, for occasional use and for payloads that describe
-their own configuration. The surface is:
+The owner is a class, not a struct: a copy of a struct would be a second owner, a double `Dispose`
+would return the array to the pool twice, and two later operations would share it.
 
 ```csharp
-void Serialize<T>(this Stream destination, T data, BinarySerializerOptions? options = null);
-
-T? Deserialize<T>(this Stream source, BinarySerializerOptions options);
-T? Deserialize<T>(this Stream source, SerializationLimits? limits = null);
-T? Deserialize<T>(this Stream source, byte[]? key, SerializationLimits? limits = null);
-T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null);
-
-T? Deserialize<T>(this Stream source, T existingInstance, BinarySerializerOptions options) where T : class;
-T? Deserialize<T>(this Stream source, T existingInstance, SerializationLimits? limits = null) where T : class;
-T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : class;
-T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : class;
-
-void Deserialize<T>(this Stream source, ref T existingInstance, BinarySerializerOptions options) where T : struct;
-void Deserialize<T>(this Stream source, ref T existingInstance, SerializationLimits? limits = null) where T : struct;
-void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : struct;
-void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : struct;
+using PooledPayload payload = serializer.SerializePooled(order);
+await socket.SendAsync(payload.Memory, cancellationToken);
 ```
 
-The overloads that take a key, a key resolver, or neither configure themselves from the payload's
-header through `BinarySerializerOptions.FromStream` and therefore require a seekable stream.
+## 3.3 Populate-in-place
 
-**The header supplies algorithms, never policy.** It says how the payload was wrapped — compression,
-checksum, encryption, key id — and nothing it contains can raise a resource ceiling. The limits
-applied are the caller's `limits` argument, or `SerializationLimits.Default` when it is omitted. An
-application reading untrusted data through these overloads passes its own policy exactly as it would
-through `BinarySerializerOptions`.
+`Populate` reads a payload into a class the caller already holds.
 
-Every overload leaves the caller's stream open.
+- It is defined only for **member-encoded** classes. A type claimed by a dedicated formatter
+  (collection, dictionary, array, string, …) is `BinaryTypeException`; its payload is not
+  reinterpreted through a member plan. A struct is read with `value = serializer.Deserialize<T>(…)`,
+  which is observationally the same, so there is no struct form.
+- Only the **root** is populated: its members are overwritten with the payload's values, and every
+  object below it is created afresh. Under a keyed contract (§14.2) a member whose key the payload
+  does not carry keeps its current value.
+- A **null root** or a root that is a **back reference** is `BinaryFormatException`: neither is an
+  instance's member layout.
+- A `[BinaryUnion]` payload whose runtime type differs from the target's is `BinaryTypeException`; an
+  instance cannot be reused for another type. Without a union map the target's type must be the
+  declared type.
+- An empty input leaves the target untouched (§3.1). A null target is `ArgumentNullException`.
+
+## 3.4 Bytes consumed
+
+Each source reports where a frame ended in its native position type: `out int bytesConsumed` for a
+span, `out SequencePosition consumed` for a sequence, which goes straight to
+`PipeReader.AdvanceTo`. With the form, reading stops at the end of the V1 frame or of the V0 root
+and reports where, so frames and payloads placed back to back are read one after another; bytes
+after the frame are not read. Without it, trailing bytes are `BinaryFormatException`. The rule is the
+same for V0 and V1.
+
+## 3.5 Asynchrony
+
+**The engine never awaits** (§2.4). An asynchronous read awaits one whole V1 frame — the header gives
+its length — and then decodes it synchronously; an asynchronous write builds the frame synchronously
+in the serializer's buffer and awaits only the output. The asynchronous methods use
+`PoolingAsyncValueTaskMethodBuilder`.
+
+```text
+cancellation token   observed while bytes are awaited; decoding a frame already in memory is not
+                     interrupted — it is bounded by the limits
+PipeReader           exactly the frame is consumed; on cancellation or failure nothing is consumed:
+                     AdvanceTo(frame start, examined end)
+Stream (read)        exactly the frame is taken; bytes taken are not given back, so after a cancellation
+                     or a failure the position is undefined and the stream is unusable for further
+                     framing
+write                a cancellation before the output starts leaves nothing (the buffer is atomic); one
+                     during WriteAsync, FlushAsync or the pipe's flush may leave part of a frame, or a
+                     frame written but not flushed — a property of the destination
+OperationCanceledException   standard .NET, outside the taxonomy of §8
+```
+
+A pending pipe read cancelled with `CancelPendingRead` is reported as `OperationCanceledException` as
+well, and consumes nothing.
+
+**V0 is read synchronously, from the caller's frame.** An asynchronous read or populate that meets V0
+(`AllowV0Fallback` on, no magic) is `NotSupportedException` naming the rule. Asynchronous V0 *writes*
+are allowed.
+
+> V0 carries neither a magic number nor a length: it is a codec for protocols that already frame their
+> messages — a length prefix, a message type, a channel. The protocol knows where a message ends, so
+> the caller already holds one message's bytes and reads them synchronously. Waiting asynchronously
+> is for a reader that does not know where the message ends; with V0 the protocol knows, not Viper.
+
+```csharp
+// V1 from a socket: Viper knows the frame boundary — the header carries the length
+Order? order = await serializer.DeserializeAsync<Order>(networkStream, cancellationToken);
+
+// V0 inside your own protocol: the protocol knows the frame boundary
+var compact = new BinarySerializer(BinarySerializerOptions.Configure()
+    .WithVersion(0).AllowV0Fallback().Build());
+
+while (true)
+{
+    ReadResult read = await pipe.ReadAsync(cancellationToken);
+    ReadOnlySequence<byte> buffer = read.Buffer;
+
+    // the protocol: a 4-byte little-endian length, then the V0 payload
+    if (TryReadFrame(ref buffer, out ReadOnlySequence<byte> frame))
+    {
+        Order? message = compact.Deserialize<Order>(frame);   // synchronous: the frame is in memory
+        Handle(message);
+    }
+
+    pipe.AdvanceTo(buffer.Start, buffer.End);
+    if (read.IsCompleted) break;
+}
+
+static bool TryReadFrame(ref ReadOnlySequence<byte> buffer, out ReadOnlySequence<byte> frame)
+{
+    var reader = new SequenceReader<byte>(buffer);
+    if (!reader.TryReadLittleEndian(out int length) || reader.Remaining < length)
+    {
+        frame = default;
+        return false;
+    }
+
+    frame = buffer.Slice(reader.Position, length);
+    buffer = buffer.Slice(frame.End);
+    return true;
+}
+```
+
+**Reading a stream of frames.** `DeserializeAsyncEnumerable<T>` reads V1 frames until the source
+ends. Each frame is its own operation — its own limits and budgets — so a stream of frames is
+unbounded while every frame stays bounded; limits apply per frame, never per connection. The source
+ending exactly between frames completes the enumeration; ending inside a frame is
+`BinaryFormatException`, raised once the complete frames before it have been yielded. V0 is
+`NotSupportedException`, for the reason above. Cancellation behaves as for `DeserializeAsync`; a
+`PipeReader` does not consume a frame it has started. A single message above 2 GiB, or a single value
+that never ends, is out of scope by design: messages are materialised object graphs, and large or
+endless data is sent as many frames.
+
+```csharp
+await foreach (Order? order in serializer.DeserializeAsyncEnumerable<Order>(networkStream, cancellationToken))
+    Handle(order);
+```
 
 ---
 
@@ -269,6 +396,9 @@ WithChecksum(IChecksumAlgorithm)
 WithEncryption(IEncryptionAlgorithm, ReadOnlySpan<byte> key, string? keyId)
 WithEncryption(IEncryptionAlgorithm, Func<string?, byte[]?> keyResolver, string? keyId)
 WithEncryption(IEncryptionAlgorithm, IKeyProvider, string? keyId)
+WithKeys(ReadOnlySpan<byte> key, string? keyId)
+WithKeys(Func<string?, byte[]?> keyResolver)
+WithKeys(IKeyProvider)
 WithVersion(int)
 PreserveReferences(bool)
 WithLimits(SerializationLimits)
@@ -297,9 +427,23 @@ propagates unchanged, since wrapping it would add nothing the caller could not a
 the read-side counterpart of the rule for a `Lazy<T>` factory (§23), which propagates unwrapped
 because it runs on the write path, over the caller's own value, at a point the caller chose.
 
+**Keys for reading.** Reading V1 takes its algorithms from the header, so a reader needs no
+algorithm of its own — only a key. `WithKeys` supplies one — a fixed key, a resolver by key id, or a
+provider — without choosing encryption for writing. `WithEncryption` still supplies keys too, for
+reading as well as writing, so keys have one place: supplying them through both is rejected at
+`Build()`.
+
+```csharp
+var reader = new BinarySerializer(BinarySerializerOptions.Configure()
+    .WithKeys(keyId => vault.Get(keyId))
+    .Build());
+Order? order = reader.Deserialize<Order>(stream);   // any V1 frame, encrypted or not
+```
+
 `Build()` rejects contradictory configuration with `BinaryConfigurationException`:
 
 - a write version that is not a supported wire format;
+- keys supplied both through `WithEncryption` and through `WithKeys`;
 - `RequireEncryption` without an encryption algorithm;
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
 - `RequireChecksum` without a checksum algorithm;
@@ -316,11 +460,12 @@ the same call as the algorithm and rejects a null one with `ArgumentNullExceptio
 holding an algorithm without key material is not a state a caller can produce. `Build()` keeps the
 guard as an invariant over the options it constructs, but no configuration reaches it.
 
-Options derived from a payload rather than built — `FromHeader` and `FromStream` (§4.3) — may well
-name an encryption algorithm the caller supplied no key for. That is a reader missing a key, not a
-contradictory configuration: it is diagnosed when the payload is read, as
-`BinaryEncryptionKeyException` (§8.7), alongside a key provider that resolves to nothing and a key
-that does not match the header's `keyId`.
+A payload may well name an encryption algorithm the reader was given no key for — the header
+chooses the algorithm, not the reader. That is a reader missing a key, not a contradictory
+configuration: it is diagnosed when the payload is read, as `BinaryEncryptionKeyException` (§8.7),
+alongside a key provider that resolves to nothing and a key that does not match the header's
+`keyId`. `KeyId` is metadata used to select the key; it is not key material and is never treated as a
+secret. A key resolver receives the header's `keyId`.
 
 `WithVersion(n)` selects the format used for **writing** only, and is validated here rather than at
 the first `Serialize`. `AllowV0Fallback` is the separate, **read-side** choice of whether a stream
@@ -343,17 +488,12 @@ AllowV0Fallback    = false
 
 The exact default algorithm instances are implementation details; the observable default semantics are part of this contract.
 
-## 4.3 `FromHeader` and `FromStream`
+## 4.3 Reading a header without reading the payload
 
-`BinarySerializerOptions.FromHeader(...)` constructs options from V1 header metadata and caller-supplied key material or key resolver.
-
-`KeyId` is metadata used to select the key. It is not key material and is never treated as a secret.
-
-A key resolver receives the header `keyId`.
-
-`BinarySerializerOptions.FromStream(...)` uses `BinaryFormatInspector.Peek(...)` and therefore requires a seekable stream.
-
-Invalid supplied limits fail with `BinaryConfigurationException`.
+`BinaryFormatInspector.Peek` (§19) reads a V1 header's metadata — algorithms, custom names, key id —
+without decoding the payload, for diagnostics and for choosing a key before committing to a read.
+Options are never derived from a header: reading V1 already takes its algorithms from it, and keys
+come from `WithKeys` (§4.1).
 
 ---
 
@@ -627,7 +767,8 @@ Invalid serializer/provider/security configuration.
 Examples:
 
 - invalid `SerializationLimits`;
-- invalid configuration combinations;
+- invalid configuration combinations, keys supplied both through `WithEncryption` and `WithKeys`
+  among them;
 - unusable configured provider state.
 
 Not for null public arguments.
@@ -710,9 +851,17 @@ Examples:
 
 ## 8.8 `BinaryStreamException`
 
-Underlying caller-stream I/O failure.
+Underlying caller-stream or caller-pipe I/O failure: an `IOException` from a `Stream` read, write,
+flush, position or length, from `PipeReader.ReadAsync` — a pipe whose writer completed with one, a
+connection reset — or from `PipeWriter.FlushAsync`, a pipe whose reader completed with one.
 
-The original `IOException` is preserved as `InnerException`.
+A caller's `IBufferWriter<byte>` — a `PipeWriter` among them — that hands out an empty span while the
+frame is being copied into it is a failed destination as well, and is `BinaryStreamException`; there
+is no inner exception, because the writer raised none. Part of the frame may already be in it (§2.6).
+
+The original `IOException` is preserved as `InnerException`. Anything else a stream or a pipe raises —
+`NotSupportedException` from a stream that cannot read or write, `InvalidOperationException` from a
+completed pipe — keeps its normal BCL semantics and is not wrapped.
 
 `BinarySerializer` must not globally catch `IOException` around the complete router/codec operation. Stream ownership and attribution are handled at stream boundaries.
 
@@ -734,8 +883,13 @@ These remain intentionally outside `BinarySerializerException`:
 
 - `ArgumentNullException` — required public argument is null;
 - `ArgumentException` — invalid direct caller argument;
-- `NotSupportedException` — unsupported API capability, e.g. required seekability: reading, which
-  must detect the format version before consuming anything.
+- `NotSupportedException` — an unsupported capability: a V0 payload read from a stream that cannot
+  seek, since it carries no length and is read ahead and moved back (§10.2); and an asynchronous
+  read that meets V0, since only V1 declares the length an asynchronous read awaits (§3.5). No read
+  requires seekability otherwise;
+- `ObjectDisposedException` — a `PooledPayload` read after it was disposed (§3.2);
+- `OperationCanceledException` — a cancelled asynchronous call (§3.5). It is standard .NET and
+  outside the taxonomy.
 
 Do not wrap every exception merely to force taxonomy symmetry.
 
@@ -864,12 +1018,36 @@ therefore an explicit decision and never an inference: `AllowV0Fallback` is what
 deliberate compact payload from unrelated bytes, and without it a stream that does not present the
 V1 magic number is rejected rather than parsed (§10.3). The name is read-side only.
 
-Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether a stream
+Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether bytes
 without the magic number may be *read* as V0, so the two choices are independent in both directions.
+
+**Where a V0 payload ends when read.** Nothing in the payload declares its length; the reader finds
+the end by decoding the root value:
+
+```text
+span / sequence       by default exactly one payload; trailing bytes → BinaryFormatException
+bytes-consumed forms  stop at the end of the root and report where (§3.4) — for payloads back to back
+seekable Stream       read ahead within the budget, then the position is restored to the end of the root
+non-seekable Stream   not readable without a length → NotSupportedException
+asynchronous read     not supported for V0 → NotSupportedException (§3.5)
+```
+
+V0 is read synchronously, from the caller's frame; asynchronous V0 *writes* are allowed.
+
+> V0 carries neither a magic number nor a length: it is a codec for protocols that already frame their
+> messages — a length prefix, a message type, a channel. The protocol knows where a message ends, so
+> the caller already holds one message's bytes and reads them synchronously. Waiting asynchronously
+> is for a reader that does not know where the message ends; with V0 the protocol knows, not Viper.
+
+The example of §3.5 shows both: a V1 frame awaited from a socket, and V0 payloads cut out of a pipe by
+the caller's own length prefix and read synchronously.
 
 ## 10.3 Routing
 
-Format routing first identifies the version from a seekable source.
+Format routing identifies the version from the first bytes the source has delivered: the magic
+number and the version are decoded from the buffered frame, so nothing is read twice and no source is
+asked to rewind. Only an exact match of the eight bytes identifies a versioned frame; fewer bytes
+identify nothing.
 
 If V1 magic/version is recognized, V1 is selected.
 
@@ -880,7 +1058,9 @@ the caller knows that this channel carries headerless payloads.
 
 Unsupported recognized versions produce `BinaryFormatNotSupportedException`.
 
-Routing code may map an `IOException` raised by the version-detection probe to `BinaryStreamException`, but must not blanket-wrap the entire codec operation.
+An `IOException` while the identifying bytes are read is `BinaryStreamException`, raised where the
+source is read (§8.8); routing itself touches no source, and nothing blanket-wraps the codec
+operation.
 
 ---
 
@@ -1282,7 +1462,9 @@ direction-specific types say `Read` or `Write` in the name.
 
 # 19. Format inspection and diagnostics
 
-`BinaryFormatInspector.Peek(Stream)` requires a seekable stream and must restore the original stream position.
+`BinaryFormatInspector.Peek` reads the header of a span, a sequence or a stream. Over a span or a
+sequence it reads the bytes in place. The stream overload requires a seekable stream and must restore
+the original stream position, on success and on failure.
 
 Underlying stream I/O failure becomes `BinaryStreamException`.
 
@@ -1301,7 +1483,17 @@ Serializer-created readers/writers use `leaveOpen: true` where caller-owned stre
 
 `BinarySerializer` never disposes the caller's stream.
 
-A successful read leaves the stream positioned where the decoded bytes end. A failed operation may leave the stream position anywhere between where it started and the furthest byte it read, unless a specific inspection API promises position restoration.
+Any readable stream is accepted, seekable or not. A V1 frame declares its length, so exactly one
+frame is read and nothing past it: the stream is asked for the identifying bytes, then for as much of
+the header as the bytes so far say it holds, then for the rest of the frame — never for a byte
+beyond it. A V0 payload declares no length, so it is read ahead and a seekable stream is left at the
+end of the root; from a stream that cannot seek it is `NotSupportedException` (§10.2). Bytes a
+declared length has not yet delivered are buffered as they arrive, so what a stream that cannot tell
+its length costs follows what it delivered, never what a header declared.
+
+A successful read leaves the stream positioned where the frame, or the V0 root, ends. After a failed
+or cancelled read the position is undefined — anywhere up to the furthest byte read — unless a
+specific inspection API promises position restoration.
 
 A write that fails before its frame is complete writes nothing to the stream (§2.6).
 
@@ -1381,7 +1573,7 @@ A02 ref-struct framing under references      → ref overload reads the root (§
 A03 object-declared values                   → write-side rejection (§15)
 ```
 
-Deferred by design, and **not** claimed by this contract: a public formatter contract, an async API,
+Deferred by design, and **not** claimed by this contract: a public formatter contract,
 streaming (non-buffered) payloads, a V2 codec, constant-time checksum comparison, and source
 generators in place of expression-tree accessors.
 
@@ -1607,7 +1799,8 @@ The keyed object layout of §22.3 is payload-level and appears under V0 unchange
 
 Because the payload is not length-delimited by an envelope, a V0 payload may be embedded in a larger
 stream: the reader stops when the root value is complete and does not require the source to end
-there. Root canonicity (§10.1) is a V1 rule and does not apply. A keyed field's declared length is
+there. A span or a sequence read without a bytes-consumed form is the exception: it is exactly one
+payload, and bytes after the root are `BinaryFormatException` (§3.4, §10.2). A keyed field's declared length is
 still checked against the bytes that can physically arrive before anything is allocated (§17), but
 for an embedded payload those bytes are the remainder of the containing stream rather than of a
 declared payload, so the check is weaker under V0 than under V1. The field window (§7.3) bounds what
@@ -1689,7 +1882,7 @@ A box is checked only when source and a test prove it.
 - [x] Public `BinarySerializer` overloads match this contract.
 - [x] Default/options construction paths are stable; `Configure()...Build()` is the only path.
 - [x] Stream ownership behavior is verified.
-- [x] `FromHeader` / `FromStream` semantics are verified.
+- [x] Keys for reading are supplied with `WithKeys`, in one place with `WithEncryption`; every entry point reads a non-seekable source it can read (§3.1, §4.1, §20).
 - [x] Populate-in-place rejects non-member-encoded types.
 - [x] No hidden required API exists outside this document (§3 lists the whole surface).
 - [x] Every public member carries XML documentation, and it ships with the package.

@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 
 namespace ViShap.Viper.Pipeline;
 
@@ -49,8 +51,13 @@ internal readonly struct EncodedFrame : IDisposable
     public byte[] ToArray()
     {
         var result = GC.AllocateUninitializedArray<byte>(checked((int)Length));
-        Span<byte> destination = result;
+        CopyTo(result);
+        return result;
+    }
 
+    /// <summary>Copies the frame into the first <see cref="Length"/> bytes of <paramref name="destination"/>.</summary>
+    public void CopyTo(Span<byte> destination)
+    {
         if (_header is not null)
         {
             _header.CopyTo(destination);
@@ -64,7 +71,6 @@ internal readonly struct EncodedFrame : IDisposable
         }
 
         _body.Span.CopyTo(destination);
-        return result;
     }
 
     /// <summary>Writes the frame to <paramref name="destination"/> and flushes it.</summary>
@@ -92,7 +98,61 @@ internal readonly struct EncodedFrame : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes the frame to <paramref name="destination"/> and flushes it, awaiting the stream. A
+    /// cancellation observed while the bytes are being written may leave part of the frame in it.
+    /// </summary>
+    /// <exception cref="BinaryStreamException">The destination failed; the cause is preserved.</exception>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+    public async ValueTask WriteToAsync(Stream destination, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_header is not null)
+                await _header.WriteToAsync(destination, cancellationToken).ConfigureAwait(false);
+
+            if (_payload is not null)
+                await _payload.WriteToAsync(destination, cancellationToken).ConfigureAwait(false);
+
+            await destination.WriteAsync(_body.Memory, cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException ex)
+        {
+            throw new BinaryStreamException("Failed to write wire data to the underlying stream.", ex);
+        }
+
+        try
+        {
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException ex)
+        {
+            throw new BinaryStreamException("Failed to flush wire data to the underlying stream.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Copies the frame into <paramref name="destination"/> and flushes it, awaiting the pipe. A
+    /// cancellation observed during the flush leaves the frame written but not flushed.
+    /// </summary>
+    /// <exception cref="BinaryStreamException">The pipe failed; the cause is preserved.</exception>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+    public async ValueTask WriteToAsync(PipeWriter destination, CancellationToken cancellationToken)
+    {
+        WriteTo(destination);
+
+        try
+        {
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException ex)
+        {
+            throw new BinaryStreamException("Failed to flush wire data to the underlying pipe.", ex);
+        }
+    }
+
     /// <summary>Copies the frame into <paramref name="destination"/> and advances it.</summary>
+    /// <exception cref="BinaryStreamException">The writer handed out an empty span.</exception>
     public void WriteTo(IBufferWriter<byte> destination)
     {
         _header?.WriteTo(destination);

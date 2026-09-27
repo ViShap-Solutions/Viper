@@ -48,11 +48,25 @@ public class PublicStreamTests
     // --- STR-24: only the APIs that need seekability demand it -----------------------------------
 
     [Fact]
-    public void Deserialize_FromANonSeekableSource_ThrowsNotSupported()
+    public void Deserialize_FromANonSeekableSource_ReadsTheFrame()
     {
-        using var source = new NonSeekableStream(new BinarySerializer().Serialize(Sample()));
+        // A version 1 frame declares its length, so it is read exactly, without seeking.
+        var serializer = new BinarySerializer();
+        using var source = new NonSeekableStream(serializer.Serialize(Sample()));
 
-        Assert.Throws<NotSupportedException>(() => new BinarySerializer().Deserialize<Person>(source));
+        Assert.Equal("Alice", serializer.Deserialize<Person>(source)!.Name);
+    }
+
+    [Fact]
+    public void Deserialize_AV0PayloadFromANonSeekableSource_ThrowsNotSupported()
+    {
+        // A version 0 payload declares no length: reading one from a stream reads ahead and moves
+        // back, which is what a stream that cannot seek cannot do.
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build());
+        using var source = new NonSeekableStream(serializer.Serialize(Sample()));
+
+        Assert.Throws<NotSupportedException>(() => serializer.Deserialize<Person>(source));
     }
 
     [Fact]
@@ -171,7 +185,7 @@ public class PublicStreamTests
     public void Serialize_IntoANullDestination_ThrowsArgumentNull()
     {
         Assert.Throws<ArgumentNullException>(
-            () => new BinarySerializer().Serialize(null!, Sample()));
+            () => new BinarySerializer().Serialize((Stream)null!, Sample()));
     }
 
     // --- STR-28: inspection restores the position, failure or not -------------------------------

@@ -57,7 +57,7 @@ earlier is reported to the owner by the stage that notices it.
 - **Where the authoritative information lives** — the `Streams/` folder of the test layout, as the
   QA plan now names it.
 
-### R3 — Public surface and non-seekable reading
+### R3 — Public surface and non-seekable reading — applied
 
 - **Architecture** — the public API row: the buffer-first surface of plan §9; `StreamExtensions` is
   gone from the list of what sits in the bare `ViShap.Viper` namespace.

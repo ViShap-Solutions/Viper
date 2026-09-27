@@ -74,6 +74,31 @@ public static class ViperProfiles
 
     internal static IReadOnlyList<ViperProfile> All { get; } = Enum.GetValues<ViperProfile>();
 
+    /// <summary>
+    /// The profiles that write version 1 frames. A frame declares its length, so only these can be
+    /// awaited or read from a stream that cannot seek; B-P7's payload is refused there by design.
+    /// </summary>
+    internal static IReadOnlyList<ViperProfile> Framed { get; } =
+        [.. All.Where(profile => profile != ViperProfile.Headerless)];
+
+    /// <summary>
+    /// The profiles an entry-point suite runs over: the default frame, reference framing, one
+    /// encryption, the full envelope and V0 — every kind of path a frame takes through an entry point.
+    /// What each of the ten profiles costs is the profile matrix's to measure, not an entry point's.
+    /// </summary>
+    internal static IReadOnlyList<ViperProfile> Representative { get; } =
+    [
+        ViperProfile.Default,
+        ViperProfile.PreserveReferences,
+        ViperProfile.Aes256Gcm,
+        ViperProfile.ProtectedBrotli,
+        ViperProfile.Headerless,
+    ];
+
+    /// <summary>The representative profiles that write version 1 frames.</summary>
+    internal static IReadOnlyList<ViperProfile> RepresentativeFramed { get; } =
+        [.. Representative.Where(profile => profile != ViperProfile.Headerless)];
+
     /// <summary>The plan's identifier for a profile, as it appears in a published cell.</summary>
     internal static string PlanId(ViperProfile profile) => profile switch
     {

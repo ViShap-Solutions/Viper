@@ -6,7 +6,7 @@ using Xunit.Sdk;
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-15 and UTIL-17. A helper with a bug passes every suite that uses it, so the
+/// Pins UTIL-01…UTIL-15 and UTIL-17…UTIL-20. A helper with a bug passes every suite that uses it, so the
 /// helpers are tested before anything is allowed to rely on them.
 /// </summary>
 /// <remarks>
@@ -749,5 +749,130 @@ public class UtilityTests
         Assert.Equal(serializer.Serialize(1), recorded[0]);
         Assert.Equal(serializer.Serialize("two"), recorded[1]);
         Assert.Empty(OracleRecorder.Collect(() => { }));
+    }
+
+    // --- UTIL-18: the stream that ends at a frame boundary ---------------------------------------
+
+    [Fact]
+    public void FrameBoundStream_ServesTheBytesUpToTheBoundary()
+    {
+        var stream = new FrameBoundStream([1, 2, 3, 4, 5], boundary: 3);
+        byte[] buffer = new byte[3];
+
+        Assert.Equal(2, stream.Read(buffer.AsSpan(0, 2)));
+        Assert.Equal(1, stream.Read(buffer.AsSpan(2, 1)));
+        Assert.Equal([1, 2, 3], buffer);
+        Assert.Equal(3, stream.Taken);
+        Assert.False(stream.CanSeek);
+    }
+
+    [Fact]
+    public void FrameBoundStream_FailsAReadThatAsksPastTheBoundary()
+    {
+        var stream = new FrameBoundStream([1, 2, 3, 4, 5], boundary: 3);
+
+        Assert.Throws<InvalidOperationException>(() => stream.Read(new byte[4]));
+        Assert.Throws<InvalidOperationException>(() => stream.ReadAsync(new byte[4]).AsTask().GetAwaiter().GetResult());
+        Assert.Equal(0, stream.Taken);
+    }
+
+    [Fact]
+    public void FrameBoundStream_EndsWhenItsContentDoes()
+    {
+        var stream = new FrameBoundStream([1, 2], boundary: 5);
+
+        Assert.Equal(2, stream.Read(new byte[5]));
+        Assert.Equal(0, stream.Read(new byte[3]));
+    }
+
+    // --- UTIL-19: the pipe reader that delivers its content in chunks ----------------------------
+
+    [Fact]
+    public async Task ChunkedPipeReader_DeliversAChunkOnlyOnceEverythingShownWasExamined()
+    {
+        var pipe = new ChunkedPipeReader([1, 2, 3, 4, 5, 6, 7], chunkSize: 3);
+
+        var first = await pipe.ReadAsync();
+        Assert.Equal([1, 2, 3], first.Buffer.ToArray());
+        pipe.AdvanceTo(first.Buffer.GetPosition(1), first.Buffer.GetPosition(2));
+
+        var sameBytes = await pipe.ReadAsync();
+        Assert.Equal([2, 3], sameBytes.Buffer.ToArray());
+        pipe.AdvanceTo(sameBytes.Buffer.Start, sameBytes.Buffer.End);
+
+        var more = await pipe.ReadAsync();
+        Assert.Equal([2, 3, 4, 5, 6], more.Buffer.ToArray());
+        Assert.False(more.Buffer.IsSingleSegment);
+        Assert.False(more.IsCompleted);
+        pipe.AdvanceTo(more.Buffer.End);
+
+        var last = await pipe.ReadAsync();
+        Assert.Equal([7], last.Buffer.ToArray());
+        Assert.True(last.IsCompleted);
+        pipe.AdvanceTo(last.Buffer.End);
+
+        Assert.Equal(7, pipe.Consumed);
+    }
+
+    [Fact]
+    public async Task ChunkedPipeReader_RefusesASecondReadBeforeAdvancing()
+    {
+        var pipe = new ChunkedPipeReader([1, 2, 3], chunkSize: 1);
+
+        await pipe.ReadAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pipe.ReadAsync().AsTask());
+    }
+
+    [Fact]
+    public async Task ChunkedPipeReader_ThatNeverCompletes_WaitsUntilTheReadIsCancelled()
+    {
+        var pipe = new ChunkedPipeReader([1], chunkSize: 1, completeAtEnd: false);
+        var first = await pipe.ReadAsync();
+        pipe.AdvanceTo(first.Buffer.Start, first.Buffer.End);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pipe.ReadAsync(cancellation.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task ChunkedPipeReader_ReportsACancelledPendingRead()
+    {
+        var pipe = new ChunkedPipeReader([1, 2], chunkSize: 1);
+        pipe.CancelPendingRead();
+
+        var result = await pipe.ReadAsync();
+
+        Assert.True(result.IsCanceled);
+    }
+
+    // --- UTIL-20: the buffer writer that hands out small spans ----------------------------------
+
+    [Fact]
+    public void StingyBufferWriter_HandsOutAtMostItsLimitAndCommitsInOrder()
+    {
+        var writer = new StingyBufferWriter(limit: 2);
+
+        var first = writer.GetSpan(10);
+        first[0] = 1;
+        first[1] = 2;
+        writer.Advance(2);
+        var second = writer.GetSpan(10);
+        second[0] = 3;
+        writer.Advance(1);
+
+        Assert.Equal(2, first.Length);
+        Assert.Equal([1, 2, 3], writer.Written);
+        Assert.Equal(2, writer.Requests);
+        Assert.Throws<ArgumentOutOfRangeException>(() => writer.Advance(1));
+    }
+
+    [Fact]
+    public void StingyBufferWriter_WithALimitOfZero_HandsOutAnEmptySpan()
+    {
+        var writer = new StingyBufferWriter(limit: 0);
+
+        Assert.True(writer.GetSpan(16).IsEmpty);
+        Assert.True(writer.GetMemory(16).IsEmpty);
     }
 }

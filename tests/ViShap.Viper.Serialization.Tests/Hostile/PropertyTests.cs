@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -238,14 +239,17 @@ public class PropertyTests
 
             byte[] fromArray = serializer.Serialize(value);
 
-            using var viaSerializer = new MemoryStream();
-            serializer.Serialize(viaSerializer, value);
+            using var viaStream = new MemoryStream();
+            serializer.Serialize(viaStream, value);
 
-            using var viaExtension = new MemoryStream();
-            viaExtension.Serialize(value);
+            var viaBufferWriter = new ArrayBufferWriter<byte>();
+            serializer.Serialize(viaBufferWriter, value);
 
-            Assert.Equal(fromArray, viaSerializer.ToArray());
-            Assert.Equal(fromArray, viaExtension.ToArray());
+            using var pooled = serializer.SerializePooled(value);
+
+            Assert.Equal(fromArray, viaStream.ToArray());
+            Assert.Equal(fromArray, viaBufferWriter.WrittenSpan.ToArray());
+            Assert.Equal(fromArray, pooled.Span.ToArray());
         }
     }
 
@@ -265,14 +269,17 @@ public class PropertyTests
             using var stream = new MemoryStream(payload, writable: false);
             var fromStream = serializer.Deserialize<Person>(stream);
 
-            using var forExtension = new MemoryStream(payload, writable: false);
-            var fromExtension = forExtension.Deserialize<Person>();
+            var fromSequence = serializer.Deserialize<Person>(Sequences.Of(payload[..9], payload[9..]));
+
+            using var forward = new NonSeekableStream(payload);
+            var fromNonSeekable = serializer.Deserialize<Person>(forward);
 
             Assert.Equal(value.Name, fromArray!.Name);
-            Assert.Equal(fromArray.Name, fromStream!.Name);
-            Assert.Equal(fromArray.Name, fromExtension!.Name);
-            Assert.Equal(fromArray.Age, fromStream.Age);
-            Assert.Equal(fromArray.Age, fromExtension.Age);
+            foreach (var other in new[] { fromStream, fromSequence, fromNonSeekable })
+            {
+                Assert.Equal(fromArray.Name, other!.Name);
+                Assert.Equal(fromArray.Age, other.Age);
+            }
         }
     }
 
@@ -285,10 +292,9 @@ public class PropertyTests
         {
             var fromArray = Record.Exception(() => serializer.Deserialize<Person>(payload));
 
-            using var stream = new MemoryStream(payload, writable: false);
-            var fromStream = Record.Exception(() => serializer.Deserialize<Person>(stream));
+            var fromSequence = Record.Exception(() => serializer.Deserialize<Person>(Sequences.Of(payload)));
 
-            Assert.Equal(fromArray?.GetType(), fromStream?.GetType());
+            Assert.Equal(fromArray?.GetType(), fromSequence?.GetType());
         }
     }
 

@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.IO.Pipelines;
 using ViShap.Viper.Serialization.Benchmarks.Config;
 
 namespace ViShap.Viper.Serialization.Benchmarks.Adapters;
@@ -6,7 +8,12 @@ namespace ViShap.Viper.Serialization.Benchmarks.Adapters;
 /// Viper under one configuration profile. The serializer is built once, outside every timed region,
 /// exactly as every other adapter's is.
 /// </summary>
-internal sealed class ViperAdapter : IBufferedSerializer, IStreamingSerializer
+/// <remarks>
+/// Beyond the families every adapter may share, it exposes the entry points only Viper has — the pooled
+/// payload, the awaited stream and pipe, and the stream of frames — for the Viper-only workloads of the
+/// plan's §10.
+/// </remarks>
+internal sealed class ViperAdapter : IBufferedSerializer, IStreamingSerializer, IBufferWriterSerializer
 {
     private readonly BinarySerializer _serializer;
 
@@ -28,6 +35,27 @@ internal sealed class ViperAdapter : IBufferedSerializer, IStreamingSerializer
     public void Serialize<T>(Stream destination, T value) => _serializer.Serialize(destination, value);
 
     public T? Deserialize<T>(Stream source) => _serializer.Deserialize<T>(source);
+
+    public void Serialize<T>(IBufferWriter<byte> destination, T value) => _serializer.Serialize(destination, value);
+
+    public T? Deserialize<T>(ReadOnlySpan<byte> payload) => _serializer.Deserialize<T>(payload);
+
+    public T? Deserialize<T>(ReadOnlySequence<byte> payload) => _serializer.Deserialize<T>(payload);
+
+    internal PooledPayload SerializePooled<T>(T value) => _serializer.SerializePooled(value);
+
+    internal ValueTask SerializeAsync<T>(Stream destination, T value) => _serializer.SerializeAsync(destination, value);
+
+    internal ValueTask SerializeAsync<T>(PipeWriter destination, T value) => _serializer.SerializeAsync(destination, value);
+
+    internal ValueTask<T?> DeserializeAsync<T>(Stream source) => _serializer.DeserializeAsync<T>(source);
+
+    internal ValueTask<T?> DeserializeAsync<T>(PipeReader source) => _serializer.DeserializeAsync<T>(source);
+
+    internal IAsyncEnumerable<T?> DeserializeFrames<T>(PipeReader source) => _serializer.DeserializeAsyncEnumerable<T>(source);
+
+    internal IAsyncEnumerable<T?> DeserializeFrames<T>(Stream source) => _serializer.DeserializeAsyncEnumerable<T>(source);
+
 }
 
 /// <summary>

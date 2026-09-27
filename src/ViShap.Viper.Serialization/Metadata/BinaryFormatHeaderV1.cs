@@ -40,6 +40,125 @@ internal readonly record struct BinaryFormatHeaderV1(
     private const int OptionalStringMaxLength =
         sizeof(bool) + 2 + BinaryFormatConstants.MaxHeaderStringBytes;
 
+    /// <summary>
+    /// The header's fields as the measuring walk sees them: a run of fixed bytes (a positive length),
+    /// an optional string (<see cref="OptionalString"/>), and the checksum, a length byte followed by
+    /// that many bytes (<see cref="ChecksumBlock"/>).
+    /// </summary>
+    private static ReadOnlySpan<int> Layout =>
+    [
+        sizeof(int) + sizeof(int) + sizeof(byte), OptionalString,
+        sizeof(byte), OptionalString,
+        sizeof(byte), OptionalString,
+        OptionalString,
+        sizeof(bool) + 3 * sizeof(int),
+        ChecksumBlock
+    ];
+
+    private const int OptionalString = -1;
+    private const int ChecksumBlock = -2;
+
+    /// <summary>
+    /// Finds how long the header at the start of <paramref name="prefix"/> is, so that a source which
+    /// must not be read past the frame can be asked for exactly the header's bytes.
+    /// </summary>
+    /// <param name="prefix">The first bytes of a frame, at least as far as they have arrived.</param>
+    /// <param name="length">
+    /// When the method returns <see langword="true"/>, the header's length — or the length of
+    /// <paramref name="prefix"/> when its bytes are not a well-formed header, which
+    /// <see cref="ReadFrom"/> then reports. When it returns <see langword="false"/>, the number of
+    /// bytes, counted from the start, that must be present before the length can be found: never more
+    /// than any header beginning with these bytes occupies, so asking the source for them never
+    /// reaches past the frame.
+    /// </param>
+    /// <returns>Whether the length is known.</returns>
+    public static bool TryMeasure(ReadOnlySpan<byte> prefix, out int length)
+    {
+        var layout = Layout;
+        int position = 0;
+
+        for (int field = 0; field < layout.Length; field++)
+        {
+            int size = layout[field];
+            if (size > 0)
+            {
+                if (position + size > prefix.Length)
+                    return Need(position + MinimumFrom(field), out length);
+
+                position += size;
+                continue;
+            }
+
+            if (position >= prefix.Length)
+                return Need(position + MinimumFrom(field), out length);
+
+            if (size == ChecksumBlock)
+            {
+                int checksumEnd = position + 1 + prefix[position];
+                if (checksumEnd > prefix.Length)
+                    return Need(checksumEnd, out length);
+
+                position = checksumEnd;
+                continue;
+            }
+
+            byte present = prefix[position++];
+            if (present == 0)
+                continue;
+
+            if (present != 1)
+                return Malformed(prefix, out length);
+
+            int stringLength = 0;
+            for (int shift = 0; ; shift += 7)
+            {
+                if (position >= prefix.Length)
+                    return Need(position + 1 + MinimumFrom(field + 1), out length);
+
+                byte current = prefix[position++];
+                stringLength |= (current & 0x7F) << shift;
+                if ((current & 0x80) == 0)
+                    break;
+
+                if (shift >= 14)
+                    return Malformed(prefix, out length);
+            }
+
+            if (stringLength > BinaryFormatConstants.MaxHeaderStringBytes)
+                return Malformed(prefix, out length);
+
+            if (position + stringLength > prefix.Length)
+                return Need(position + stringLength + MinimumFrom(field + 1), out length);
+
+            position += stringLength;
+        }
+
+        length = position;
+        return true;
+
+        static bool Need(int required, out int length)
+        {
+            length = required;
+            return false;
+        }
+
+        static bool Malformed(ReadOnlySpan<byte> prefix, out int length)
+        {
+            length = prefix.Length;
+            return true;
+        }
+    }
+
+    /// <summary>The fewest bytes the header's fields from <paramref name="field"/> on can occupy.</summary>
+    private static int MinimumFrom(int field)
+    {
+        int minimum = 0;
+        foreach (int size in Layout[field..])
+            minimum += size > 0 ? size : 1;
+
+        return minimum;
+    }
+
     public void WriteTo(ref WireWriter writer)
     {
         writer.WriteInt32(BinaryFormatConstants.Magic);

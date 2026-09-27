@@ -42,7 +42,8 @@ contract would already be accurate for it.
   *(R1, R4)* — **R1 applied**, all but the type-contract clause.
 - §2.4 traversal boundary: shapes and engine-owned codecs (plan §10.1); the division of labour
   between a type contract and the engine and the engine's call checks (plan §10.2); boxing only in a
-  polymorphic slot (INV-17); the engine never awaits (INV-16). *(R4, R3)*
+  polymorphic slot (INV-17); the engine never awaits (INV-16). *(R4, R3)* — **R3 applied:** §2.4
+  states INV-16; the rest is R4's.
 - State INV-15 (a data or graph error leaves no byte in the destination). *(R2)* — **R2 applied** as
   §2.6 "Atomic writes"; §2.5 states the phases over pooled buffers.
 
@@ -66,6 +67,11 @@ contract would already be accurate for it.
   inside one, limits per frame and never per connection. *(R3)*
 - **New:** the reflection entry points carry `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]`,
   and why. *(R8)*
+- **R3 applied.** §3 lists `PooledPayload` and no `StreamExtensions`; the old §3.1 became §3.1
+  "Serializer" (the surface and the rules of every entry point), §3.2 `PooledPayload`, §3.3
+  populate-in-place, §3.4 bytes consumed and §3.5 asynchrony, which carries the required V0
+  explanation and example verbatim — the plan asked for them in "§3.1", which is where the whole
+  serializer section was before the split. The old §3.2 is gone.
 
 ### §4 Options and configuration — R3, R5
 
@@ -78,7 +84,9 @@ contract would already be accurate for it.
 - §4.1 V0 rules: unchanged — `RequireEncryption` / `RequireChecksum` with `WithVersion(0)` or
   `AllowV0Fallback` stay rejected in both directions.
 - **§4.3 `FromHeader` and `FromStream`** deleted. `BinaryFormatInspector` (§19) is the way to read a
-  header without reading the payload. *(R3)*
+  header without reading the payload. *(R3)* — **R3 applied:** §4.1 carries `WithKeys`, the
+  "keys have one place" rule and the key-id paragraph that lived in §4.3; §4.3 is now "Reading a
+  header without reading the payload".
 
 ### §5 Serialization limits — R2, R6
 
@@ -114,7 +122,10 @@ contract would already be accurate for it.
 ### §8 Exception taxonomy — R3, R5, R6
 
 - §8.10 `NotSupportedException`: seekability removed. Remaining uses: a V0 payload from a non-seekable
-  stream without a length; an asynchronous read that meets V0. *(R3)*
+  stream without a length; an asynchronous read that meets V0. *(R3)* — **R3 applied**, together with
+  the §8.8 pipe failures (an `IOException` from a pipe, as from a stream; nothing else wrapped), the
+  keys-twice case of §8.1 and `OperationCanceledException` in §8.10; `ObjectDisposedException` from a
+  disposed `PooledPayload` is listed there too.
 - §8.10: the keyed V0 write to a non-seekable destination is no longer a use. *(R1 — applied; moved
   from R2 by the owner's decision of 2026-09-27, `Owner-Review.md` log 53)*
 - §8.8 `BinaryStreamException`: add `PipeReader` / `PipeWriter` failures. *(R3)*
@@ -142,7 +153,10 @@ contract would already be accurate for it.
   destination" paragraph is deleted — **R1 applied**, moved from R2 by the owner's decision of
   2026-09-27; §14.2's matching sentence with it); the **required V0 explanation and example** of plan
   §9.5. "Unauthenticated by construction" stays true and stays. *(R1, R3)*
-- §10.3 routing: no peek-and-rewind; the magic is decoded from the buffered source. *(R3)*
+- §10.3 routing: no peek-and-rewind; the magic is decoded from the buffered source. *(R3)* — **R3
+  applied**, with §10.2's read boundary and the required V0 text. §22.8's sentence that a V0 reader
+  "does not require the source to end there" was made untrue for spans and sequences by the boundary
+  rules, so it now names that exception; the rest of §22.8 stays for R6.
 
 ### §11 V1 header fields — R6
 
@@ -211,14 +225,14 @@ contract would already be accurate for it.
 ### §19 Format inspection and diagnostics — R3, R6
 
 - `BinaryFormatInspector.Peek` over a span and a sequence; "requires a seekable stream and restores
-  its position" applies only to the stream overload. *(R3)*
+  its position" applies only to the stream overload. *(R3)* — **R3 applied.**
 - `BinaryHeaderInfo` and `BinaryFormatDumper` report the service records. *(R6)*
 
 ### §20 Stream ownership — R1, R3
 
 - **Rewritten.** Any stream; exactly one V1 frame is read and nothing past it; V0 from a non-seekable
   stream needs a length; a seekable stream is left at the end of the root; after a failed or
-  cancelled read the position is undefined. *(R3)*
+  cancelled read the position is undefined. *(R3)* — **R3 applied.**
 - **R1 applied:** a successful read leaves the stream where the decoded bytes end; a failed one may
   leave it anywhere up to the furthest byte read ahead.
 
@@ -226,7 +240,9 @@ contract would already be accurate for it.
 
 - §21.3 deferred list: remove "streaming (non-buffered) payloads" and "an async API"; add "an
   asynchronous engine" (rejected, INV-16); keep "a public formatter contract" and "source generators"
-  with a pointer to `TypeContract<T>`. *(R9a)*
+  with a pointer to `TypeContract<T>`. *(R9a)* — "an async API" was removed in R3, the stage that
+  made it untrue; the rest waits for R9a. §24's `FromHeader`/`FromStream` box was likewise re-pointed
+  at `WithKeys` in R3; the checklist is rebuilt in R9a.
 
 ### §22 Wire format — R6
 

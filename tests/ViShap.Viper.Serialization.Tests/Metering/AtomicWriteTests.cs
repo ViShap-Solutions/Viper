@@ -26,6 +26,7 @@ public class AtomicWriteTests
         "ViShap.Viper.Serialization/Io/",
         "ViShap.Viper.Serialization/Metadata/BinaryFormatHeaderV1.cs",
         "ViShap.Viper.Serialization/Pipeline/",
+        "ViShap.Viper.Serialization/PooledPayload.cs",
         "ViShap.Viper.Serialization/Security/"
     ];
 
@@ -119,7 +120,7 @@ public class AtomicWriteTests
     {
         var destination = new ArrayBufferWriter<byte>();
 
-        Assert.Throws<BinaryTypeException>(() => Named(name).SerializeTo(destination, FailsMidGraph()));
+        Assert.Throws<BinaryTypeException>(() => Named(name).Serialize(destination, FailsMidGraph()));
 
         Assert.Equal(0, destination.WrittenCount);
     }
@@ -130,7 +131,7 @@ public class AtomicWriteTests
     {
         var pipe = new Pipe();
 
-        Assert.Throws<BinaryTypeException>(() => Named(name).SerializeTo(pipe.Writer, FailsMidGraph()));
+        Assert.Throws<BinaryTypeException>(() => Named(name).Serialize(pipe.Writer, FailsMidGraph()));
 
         Assert.Equal(0, pipe.Writer.UnflushedBytes);
         await pipe.Writer.CompleteAsync();
@@ -160,26 +161,26 @@ public class AtomicWriteTests
 
     [Theory]
     [MemberData(nameof(Deterministic))]
-    public void SerializeTo_ABufferWriter_WritesTheSameBytesAsTheArrayForm(string name)
+    public void Serialize_ABufferWriter_WritesTheSameBytesAsTheArrayForm(string name)
     {
         var serializer = Named(name);
         var value = new NewSchema { Removed = new Node { Value = 1 }, Kept = new Node { Value = 2 } };
         var destination = new ArrayBufferWriter<byte>(initialCapacity: 1);
 
-        serializer.SerializeTo(destination, value);
+        serializer.Serialize(destination, value);
 
         Assert.Equal(serializer.Serialize(value), destination.WrittenSpan.ToArray());
     }
 
     [Theory]
     [MemberData(nameof(Deterministic))]
-    public async Task SerializeTo_APipeWriter_WritesTheSameBytesAsTheArrayForm(string name)
+    public async Task Serialize_APipeWriter_WritesTheSameBytesAsTheArrayForm(string name)
     {
         var serializer = Named(name);
         var value = new Person { Name = new string('p', 5_000), Age = 7 };
         var pipe = new Pipe();
 
-        serializer.SerializeTo(pipe.Writer, value);
+        serializer.Serialize(pipe.Writer, value);
         await pipe.Writer.CompleteAsync();
 
         var result = await pipe.Reader.ReadAsync();
@@ -187,15 +188,15 @@ public class AtomicWriteTests
     }
 
     [Fact]
-    public async Task SerializeTo_ABufferWriterAndAPipeWriter_UnderEveryPhase_RoundTrip()
+    public async Task Serialize_ABufferWriterAndAPipeWriter_UnderEveryPhase_RoundTrip()
     {
         var serializer = Protected();
         var value = new Person { Name = new string('p', 5_000), Age = 7 };
         var buffer = new ArrayBufferWriter<byte>(initialCapacity: 1);
         var pipe = new Pipe();
 
-        serializer.SerializeTo(buffer, value);
-        serializer.SerializeTo(pipe.Writer, value);
+        serializer.Serialize(buffer, value);
+        serializer.Serialize(pipe.Writer, value);
         await pipe.Writer.CompleteAsync();
         var result = await pipe.Reader.ReadAsync();
 

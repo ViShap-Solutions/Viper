@@ -20,8 +20,7 @@ public static class BinaryFormatDumper
     {
         ArgumentNullException.ThrowIfNull(payload);
 
-        using var stream = new MemoryStream(payload, writable: false);
-        return DumpHeader(stream);
+        return Describe(() => BinaryFormatInspector.Peek(payload));
     }
 
     /// <summary>Renders the envelope of a payload as human-readable text.</summary>
@@ -41,11 +40,16 @@ public static class BinaryFormatDumper
     {
         ArgumentNullException.ThrowIfNull(source);
 
+        return Describe(() => BinaryFormatInspector.Peek(source));
+    }
+
+    private static string Describe(Func<BinaryHeaderInfo?> peek)
+    {
         var report = new StringBuilder();
 
         try
         {
-            var info = BinaryFormatInspector.Peek(source);
+            var info = peek();
             if (info is null)
             {
                 report.AppendLine("No recognized Viper header (V0 payload or unrelated data).");

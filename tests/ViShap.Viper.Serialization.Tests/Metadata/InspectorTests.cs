@@ -8,7 +8,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Metadata;
 
 /// <summary>
-/// Pins INS-01…INS-10: inspection reads the envelope, leaves the stream where it found it,
+/// Pins INS-01…INS-11: inspection reads the envelope — of a stream, a span or a sequence — leaves the stream where it found it,
 /// separates "not a payload I recognize" from "a payload that is malformed", applies the limits it
 /// was handed, and reports what the header says and nothing else.
 /// </summary>
@@ -220,6 +220,60 @@ public class InspectorTests
 
         Assert.Equal("primary", info.KeyId);
         AssertEx.DoesNotContainBytes(stream.ToArray(), Key);
+    }
+
+    // --- INS-11: a span and a sequence are inspected in place -------------------------------------
+
+    [Fact]
+    public void Peek_SpanAndSequence_ReportWhatTheStreamPeekReports()
+    {
+        byte[] frame = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithCompression(new Brotli())
+            .WithChecksum(new Crc32())
+            .WithEncryption(new Aes256Gcm(), Key, keyId: "primary")
+            .Build()).Serialize(123);
+
+        var fromStream = BinaryFormatInspector.Peek(new MemoryStream(frame, writable: false));
+        var fromSpan = BinaryFormatInspector.Peek(frame.AsSpan());
+        var fromSequence = BinaryFormatInspector.Peek(Sequences.Of(frame[..3], frame[3..10], frame[10..]));
+
+        Assert.NotNull(fromStream);
+        Assert.Equal(fromStream, fromSpan);
+        Assert.Equal(fromStream, fromSequence);
+        Assert.Equal("primary", fromSpan!.Value.KeyId);
+    }
+
+    [Fact]
+    public void Peek_SpanAndSequence_ReturnNullForBytesThatIdentifyNoFrame()
+    {
+        byte[] headerless = new BinarySerializer(BinarySerializerOptions.Configure().WithVersion(0).Build())
+            .Serialize(new Person { Name = "Ada", Age = 36 });
+
+        Assert.Null(BinaryFormatInspector.Peek(headerless.AsSpan()));
+        Assert.Null(BinaryFormatInspector.Peek(Sequences.Of(headerless)));
+        Assert.Null(BinaryFormatInspector.Peek([0x42, 0x53]));
+        Assert.Null(BinaryFormatInspector.Peek(ReadOnlySpan<byte>.Empty));
+    }
+
+    [Fact]
+    public void Peek_SpanAndSequence_OverAMalformedHeader_ThrowFormat()
+    {
+        byte[] frame = Mutate.SetInt32(_serializer.Serialize(123), Wire.UncompressedLengthOffset, -1);
+
+        Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(frame.AsSpan()));
+        Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(Sequences.Of(frame[..5], frame[5..])));
+    }
+
+    [Fact]
+    public void Peek_SpanAndSequence_HonourTheirLimits()
+    {
+        byte[] frame = DeclaringPayloadBytes(4_096);
+        var tight = SerializationLimits.Default with { MaxPayloadBytes = 1_024 };
+
+        Assert.NotNull(BinaryFormatInspector.Peek(frame.AsSpan()));
+        Assert.Throws<BinaryLimitException>(() => BinaryFormatInspector.Peek(frame.AsSpan(), tight));
+        Assert.Throws<BinaryLimitException>(() => BinaryFormatInspector.Peek(Sequences.Of(frame), tight));
+        Assert.Throws<ArgumentNullException>(() => BinaryFormatInspector.Peek(frame.AsSpan(), null!));
     }
 
     /// <summary>The 32 bytes AES-256 needs; the value itself is irrelevant to what is asserted.</summary>

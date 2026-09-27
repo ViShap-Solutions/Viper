@@ -29,7 +29,8 @@ public sealed class BinarySerializerOptionsBuilder
     private ICompressionAlgorithm? _compression;
     private IChecksumAlgorithm? _checksum;
     private IEncryptionAlgorithm? _encryption;
-    private IKeyProvider? _keys;
+    private IKeyProvider? _encryptionKeys;
+    private IKeyProvider? _readKeys;
     private string? _keyId;
     private int _writeVersion = BinaryFormatConstants.LatestVersion;
     private bool _preserveReferences;
@@ -75,7 +76,7 @@ public sealed class BinarySerializerOptionsBuilder
         ArgumentNullException.ThrowIfNull(encryption);
 
         _encryption = encryption;
-        _keys = new StaticKeyProvider(key, keyId);
+        _encryptionKeys = new StaticKeyProvider(key, keyId);
         _keyId = keyId;
         return this;
     }
@@ -95,7 +96,7 @@ public sealed class BinarySerializerOptionsBuilder
         ArgumentNullException.ThrowIfNull(keyResolver);
 
         _encryption = encryption;
-        _keys = new DelegateKeyProvider(keyResolver);
+        _encryptionKeys = new DelegateKeyProvider(keyResolver);
         _keyId = keyId;
         return this;
     }
@@ -114,8 +115,103 @@ public sealed class BinarySerializerOptionsBuilder
         ArgumentNullException.ThrowIfNull(keys);
 
         _encryption = encryption;
-        _keys = keys;
+        _encryptionKeys = keys;
         _keyId = keyId;
+        return this;
+    }
+
+    /// <summary>Supplies a fixed key for reading encrypted payloads, without encrypting what is written.</summary>
+    /// <remarks>
+    /// <para>
+    /// A version 1 frame names its own algorithms, so a reader needs no algorithm of its own — only the
+    /// key. The key bytes are copied; the array you pass stays yours and is never modified.
+    /// </para>
+    /// <para>
+    /// Keys have one place: <see cref="Build"/> rejects keys supplied both here and through
+    /// <c>WithEncryption</c>, which already supplies them for reading as well as writing.
+    /// </para>
+    /// </remarks>
+    /// <param name="key">Key material to copy.</param>
+    /// <param name="keyId">
+    /// The id the key is known by. When set, a payload naming a different id is refused rather than
+    /// decrypted with the wrong key.
+    /// </param>
+    /// <returns>The same builder.</returns>
+    /// <exception cref="BinaryEncryptionKeyException"><paramref name="key"/> is empty.</exception>
+    /// <example>
+    /// <code>
+    /// var reader = new BinarySerializer(BinarySerializerOptions.Configure()
+    ///     .WithKeys(key, keyId: "2026-q3")
+    ///     .Build());
+    /// Order? order = reader.Deserialize&lt;Order&gt;(bytes);   // any V1 frame, encrypted or not
+    /// </code>
+    /// </example>
+    public BinarySerializerOptionsBuilder WithKeys(ReadOnlySpan<byte> key, string? keyId = null)
+    {
+        _readKeys = new StaticKeyProvider(key, keyId);
+        return this;
+    }
+
+    /// <summary>
+    /// Supplies keys for reading encrypted payloads, looked up by the key id each payload names,
+    /// without encrypting what is written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A version 1 frame names its own algorithms, so a reader needs no algorithm of its own — only the
+    /// key. Whatever the resolver returns is copied immediately and never modified. This is how one
+    /// reader follows key rotation: it reads payloads encrypted under any key the resolver can still
+    /// produce.
+    /// </para>
+    /// <para>
+    /// Keys have one place: <see cref="Build"/> rejects keys supplied both here and through
+    /// <c>WithEncryption</c>, which already supplies them for reading as well as writing.
+    /// </para>
+    /// </remarks>
+    /// <param name="keyResolver">
+    /// Returns the key for the id a payload names — the id is <see langword="null"/> when the payload
+    /// names none — or <see langword="null"/> when it has no key for it.
+    /// </param>
+    /// <returns>The same builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="keyResolver"/> is null.</exception>
+    /// <example>
+    /// <code>
+    /// var reader = new BinarySerializer(BinarySerializerOptions.Configure()
+    ///     .WithKeys(keyId => vault.Get(keyId))
+    ///     .Build());
+    /// Order? order = reader.Deserialize&lt;Order&gt;(stream);   // any V1 frame, encrypted or not
+    /// </code>
+    /// </example>
+    public BinarySerializerOptionsBuilder WithKeys(Func<string?, byte[]?> keyResolver)
+    {
+        ArgumentNullException.ThrowIfNull(keyResolver);
+
+        _readKeys = new DelegateKeyProvider(keyResolver);
+        return this;
+    }
+
+    /// <summary>
+    /// Supplies keys for reading encrypted payloads from a provider of your own, without encrypting
+    /// what is written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A version 1 frame names its own algorithms, so a reader needs no algorithm of its own — only the
+    /// key, which the provider resolves by the key id each payload names.
+    /// </para>
+    /// <para>
+    /// Keys have one place: <see cref="Build"/> rejects keys supplied both here and through
+    /// <c>WithEncryption</c>, which already supplies them for reading as well as writing.
+    /// </para>
+    /// </remarks>
+    /// <param name="keys">The key source.</param>
+    /// <returns>The same builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="keys"/> is null.</exception>
+    public BinarySerializerOptionsBuilder WithKeys(IKeyProvider keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+
+        _readKeys = keys;
         return this;
     }
 
@@ -129,7 +225,7 @@ public sealed class BinarySerializerOptionsBuilder
     /// reference framing and no compression, checksum or encryption, since a headerless payload has
     /// nowhere to record them, which also makes version 0 incompatible with
     /// <see cref="RequireEncryption"/> and <see cref="RequireChecksum"/>. Keyed contracts do work
-    /// under version 0, but writing one needs a seekable destination stream.
+    /// under version 0 as well, with any destination.
     /// </param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder WithVersion(int version)
@@ -163,14 +259,65 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>
-    /// Reads a stream without the format magic number as a version 0 payload instead of rejecting it.
+    /// Reads bytes without the format magic number as a version 0 payload instead of rejecting them.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A version 0 payload has no header to recognize, so only this opt-in separates one from
     /// unrelated bytes. It affects reading alone; writing version 0 is selected with
     /// <see cref="WithVersion"/>. Because such a payload carries no protection,
     /// <see cref="Build"/> refuses this together with <see cref="RequireEncryption"/> or
     /// <see cref="RequireChecksum"/>.
+    /// </para>
+    /// <para>
+    /// A version 0 payload is read synchronously, from a span, a sequence or a seekable stream; an
+    /// asynchronous read that meets one raises <see cref="NotSupportedException"/>.
+    /// V0 carries neither a magic number nor a length: it is a codec for protocols that already frame
+    /// their messages — a length prefix, a message type, a channel. The protocol knows where a message
+    /// ends, so the caller already holds one message's bytes and reads them synchronously. Waiting
+    /// asynchronously is for a reader that does not know where the message ends; with V0 the protocol
+    /// knows, not Viper.
+    /// </para>
+    /// <example>
+    /// <code>
+    /// // V1 from a socket: Viper knows the frame boundary — the header carries the length
+    /// Order? order = await serializer.DeserializeAsync&lt;Order&gt;(networkStream, cancellationToken);
+    ///
+    /// // V0 inside your own protocol: the protocol knows the frame boundary
+    /// var compact = new BinarySerializer(BinarySerializerOptions.Configure()
+    ///     .WithVersion(0).AllowV0Fallback().Build());
+    ///
+    /// while (true)
+    /// {
+    ///     ReadResult read = await pipe.ReadAsync(cancellationToken);
+    ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
+    ///
+    ///     // the protocol: a 4-byte little-endian length, then the V0 payload
+    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     {
+    ///         Order? message = compact.Deserialize&lt;Order&gt;(frame);   // synchronous: the frame is in memory
+    ///         Handle(message);
+    ///     }
+    ///
+    ///     pipe.AdvanceTo(buffer.Start, buffer.End);
+    ///     if (read.IsCompleted) break;
+    /// }
+    ///
+    /// static bool TryReadFrame(ref ReadOnlySequence&lt;byte&gt; buffer, out ReadOnlySequence&lt;byte&gt; frame)
+    /// {
+    ///     var reader = new SequenceReader&lt;byte&gt;(buffer);
+    ///     if (!reader.TryReadLittleEndian(out int length) || reader.Remaining &lt; length)
+    ///     {
+    ///         frame = default;
+    ///         return false;
+    ///     }
+    ///
+    ///     frame = buffer.Slice(reader.Position, length);
+    ///     buffer = buffer.Slice(frame.End);
+    ///     return true;
+    /// }
+    /// </code>
+    /// </example>
     /// </remarks>
     /// <param name="allow">Whether headerless input is accepted.</param>
     /// <returns>The same builder.</returns>
@@ -251,8 +398,9 @@ public sealed class BinarySerializerOptionsBuilder
     /// <exception cref="BinaryConfigurationException">
     /// A limit is not positive; the write version is not a supported wire format; encryption is
     /// required but not configured, or is configured with an algorithm that cannot authenticate
-    /// format metadata; a checksum is required but not configured; or a protection policy is
-    /// combined with format version 0, which has no header in which to carry protection.
+    /// format metadata; a checksum is required but not configured; a protection policy is combined
+    /// with format version 0, which has no header in which to carry protection; or keys are supplied
+    /// both through <c>WithEncryption</c> and through <c>WithKeys</c>.
     /// </exception>
     public BinarySerializerOptions Build()
     {
@@ -274,7 +422,14 @@ public sealed class BinarySerializerOptionsBuilder
                 $"RequireEncryption is set, but '{encryption.GetType().Name}' does not authenticate " +
                 "format metadata, so header tampering would go undetected.");
 
-        if (encryption.Kind != EncryptionAlgorithm.None && _keys is null)
+        if (_encryptionKeys is not null && _readKeys is not null)
+            throw new BinaryConfigurationException(
+                "Keys are supplied both through WithEncryption and through WithKeys. WithEncryption " +
+                "already supplies its keys for reading as well as writing; keep one of the two.");
+
+        var keys = _encryptionKeys ?? _readKeys;
+
+        if (encryption.Kind != EncryptionAlgorithm.None && keys is null)
             throw new BinaryConfigurationException(
                 "An encryption algorithm is configured, but no key material was supplied.");
 
@@ -290,7 +445,7 @@ public sealed class BinarySerializerOptionsBuilder
             Compression = _compression ?? new NoCompression(),
             Checksum = _checksum ?? new NoChecksum(),
             Encryption = encryption,
-            Keys = _keys,
+            Keys = keys,
             KeyId = _keyId,
             WriteVersion = _writeVersion,
             PreserveReferences = _preserveReferences,
