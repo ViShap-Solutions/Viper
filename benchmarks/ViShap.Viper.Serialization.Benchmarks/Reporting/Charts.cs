@@ -7,8 +7,8 @@ internal sealed record Chart(string File, string Title, string Note);
 
 /// <summary>
 /// The charts of Benchmark-Plan §24, generated from the raw files of the run and from nothing else
-/// (CHT-13). A chart whose suite did not run is not drawn at all rather than drawn empty, so a partial
-/// run produces fewer charts and never a misleading one.
+/// (CHT-13). A chart whose suite did not run is not drawn at all rather than drawn empty, so a
+/// measurement produces fewer charts and never a misleading one.
 /// </summary>
 internal static class Charts
 {

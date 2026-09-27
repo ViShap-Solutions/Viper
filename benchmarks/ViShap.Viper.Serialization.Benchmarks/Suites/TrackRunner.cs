@@ -22,7 +22,7 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites;
 /// <remarks>
 /// Where it writes is decided by git and by the shape of the run, never by a flag that names a version
 /// (BASE-08). A tagged commit measured in full under the publication job produces a baseline; anything
-/// else produces a partial run under `Measurements/`, which says in `scope.md` what it did not measure.
+/// else produces a measurement under `Measurements/`, which says in `scope.md` what it did not measure.
 /// </remarks>
 internal static class TrackRunner
 {
@@ -480,8 +480,8 @@ internal static class TrackRunner
             {run} --report {folder}/{record.Label}
             ```
 
-            A filter narrows the run to the suites whose name matches it, and a narrowed run is a partial
-            run: it lands under `Measurements/` and never under `Baselines/`. The last line regenerates the
+            A filter narrows the run to the suites whose name matches it, and a narrowed run is a
+            measurement: it lands under `Measurements/` and never under `Baselines/`. The last line regenerates the
             report and the charts from the files already in this directory, which is what makes the report a
             view over them rather than a record of its own.
 
@@ -501,7 +501,7 @@ internal static class TrackRunner
     }
 
     /// <summary>
-    /// What a partial run did not measure. Without it a directory holding half the suites could be read
+    /// What a measurement did not measure. Without it a directory holding half the suites could be read
     /// as a baseline that happens to be small (REP-13).
     /// </summary>
     private static void Scope(RunTarget target, RunRecord record)

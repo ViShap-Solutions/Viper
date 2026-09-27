@@ -18,7 +18,7 @@ Plan sections are cited as "plan §n" (`Rework-Plan.md`); contract sections as "
 
 ---
 
-# 1. Owed now — the NX rules in the body of the plan
+# 1. Owed now — the NX rules in the body of the plan — applied
 
 The NX fixes are pinned by tests and recorded in §30.3, but the body carries no checkpoints for them.
 R1–R5 run against the current plan and must not lose a rule the plan never named, so this part is
@@ -64,7 +64,7 @@ Also owed now:
 
 # 2. Owed to the rework, by stage
 
-## R0 — Baseline and oracle
+## R0 — Baseline and oracle — applied
 
 - New **§0 "Rework oracle"**: one text file of SHA-256 values, one per case of the existing corpora —
   `RoundTrip/Corpus*.cs` under every `CorpusProfiles` profile, `Format/V0CorpusTests`, the reference
@@ -218,7 +218,7 @@ Also owed now:
 - **EXT-07** — a consumer project built with AOT analysis reports the annotated reflection entry
   points and nothing unannotated.
 
-## R9 — Re-gate
+## R9a, R9b — Re-gate
 
 - **§32** rebuilt; test count in Debug and Release.
 - New §32 box: `dotnet pack` succeeds for all three packages with non-empty READMEs.

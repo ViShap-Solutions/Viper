@@ -1,12 +1,13 @@
 ﻿using System.Buffers;
 using System.Globalization;
+using ViShap.Viper.Crypto;
 using Xunit.Sdk;
 
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-15. A helper with a bug passes every suite that uses it, so the helpers are
-/// tested before anything is allowed to rely on them.
+/// Pins UTIL-01…UTIL-15 and UTIL-17. A helper with a bug passes every suite that uses it, so the
+/// helpers are tested before anything is allowed to rely on them.
 /// </summary>
 /// <remarks>
 /// The negative cases assert that a helper <em>fails</em>, and what it throws is whichever assertion
@@ -559,5 +560,162 @@ public class UtilityTests
         // Disposing the first key left the second one and the caller's material untouched.
         Assert.Equal(material, second.Span.ToArray());
         Assert.Equal<byte[]>([1, 2, 3, 4], material);
+    }
+
+    // --- UTIL-17: the byte oracle ------------------------------------------------------------------
+
+    [Fact]
+    public void OracleCompare_ChangedByte_ReportsBothOutputsInHexAndTheOffset()
+    {
+        byte[] recorded = [0x42, 0x10, 0x20, 0x30];
+        byte[] written = [0x42, 0x10, 0x21, 0x30];
+        var oracle = Oracle.Parse([Oracle.Line("Case.Method#0", recorded)]);
+
+        string report = Oracle.Compare(oracle, [("Case.Method#0", written)]);
+
+        Assert.Contains("Case.Method#0: first difference at offset 2", report);
+        Assert.Contains("expected 42102030", report);
+        Assert.Contains("actual   42102130", report);
+    }
+
+    [Fact]
+    public void OracleCompare_DifferentLength_ReportsWhereTheCommonPrefixEnds()
+    {
+        var oracle = Oracle.Parse([Oracle.Line("Case.Method#0", [1, 2, 3])]);
+
+        string report = Oracle.Compare(oracle, [("Case.Method#0", [1, 2, 3, 4])]);
+
+        Assert.Contains("identical for 3 bytes, then expected 3 bytes and actual 4", report);
+    }
+
+    [Fact]
+    public void OracleCompare_IdenticalOutput_ReportsNothing()
+    {
+        var oracle = Oracle.Parse([Oracle.Line("Case.Method#0", [1, 2, 3])]);
+
+        Assert.Equal("", Oracle.Compare(oracle, [("Case.Method#0", [1, 2, 3])]));
+    }
+
+    [Fact]
+    public void OracleCompare_MissingUnexpectedAndRepeatedCases_AreEachReported()
+    {
+        var oracle = Oracle.Parse(
+        [
+            "# a comment",
+            "",
+            Oracle.Line("Case.Recorded#0", [1]),
+            Oracle.Line("Case.Kept#0", [2]),
+        ]);
+
+        string report = Oracle.Compare(
+            oracle, [("Case.Kept#0", [2]), ("Case.Kept#0", [2]), ("Case.New#0", [3])]);
+
+        Assert.Contains("Case.Recorded#0: recorded in the oracle but not produced", report);
+        Assert.Contains("Case.New#0: not in the oracle", report);
+        Assert.Contains("Case.Kept#0: produced twice", report);
+    }
+
+    [Fact]
+    public void OracleCompare_AnyAdmissibleOutput_PassesAndAnyOtherIsReportedAgainstEachOfThem()
+    {
+        var oracle = Oracle.Parse(
+        [
+            Oracle.Line("Case.Unordered#0", [1, 2]),
+            Oracle.Alternative("Case.Unordered#0", [2, 1]),
+        ]);
+
+        Assert.Equal("", Oracle.Compare(oracle, [("Case.Unordered#0", [1, 2])]));
+        Assert.Equal("", Oracle.Compare(oracle, [("Case.Unordered#0", [2, 1])]));
+
+        string report = Oracle.Compare(oracle, [("Case.Unordered#0", [2, 2])]);
+
+        Assert.Contains("expected 0102", report);
+        Assert.Contains("expected 0201", report);
+        Assert.Contains("actual   0202", report);
+    }
+
+    [Fact]
+    public void OracleParse_AnAlternativeAwayFromItsCase_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
+        [
+            Oracle.Line("Case.First#0", [1]),
+            Oracle.Line("Case.Second#0", [2]),
+            Oracle.Alternative("Case.First#0", [3]),
+        ]));
+    }
+
+    [Fact]
+    public void OracleParse_AnAlternativeRepeatingARecordedOutput_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
+        [
+            Oracle.Line("Case.First#0", [1]),
+            Oracle.Alternative("Case.First#0", [1]),
+        ]));
+    }
+
+    [Fact]
+    public void OracleParse_RepeatedKey_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => Oracle.Parse([Oracle.Line("Case.Method#0", [1]), Oracle.Line("Case.Method#0", [2])]));
+    }
+
+    [Fact]
+    public void OracleNormalize_EncryptedFrame_BecomesItsHeaderAndThePayloadItCarries()
+    {
+        byte[] key = [.. Enumerable.Range(0, 32).Select(value => (byte)value)];
+        var encrypting = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key).Build());
+        var value = new List<string> { "a value long enough", "to span more than one block of the cipher" };
+
+        byte[] first = encrypting.Serialize(value);
+        byte[] second = encrypting.Serialize(value);
+        byte[] payload = new BinarySerializer().Serialize(value)[Wire.PlainHeaderLength..];
+
+        Assert.NotEqual(first, second);
+
+        byte[] normalized = Oracle.Normalize(first, key);
+        int headerLength = Wire.ReadHeader(first).HeaderLength;
+
+        Assert.Equal(normalized, Oracle.Normalize(second, key));
+        Assert.Equal(first[..headerLength], normalized[..headerLength]);
+        Assert.Equal(payload, normalized[headerLength..]);
+    }
+
+    [Fact]
+    public void OracleNormalize_WithoutAKey_ReturnsTheOutputUnchanged()
+    {
+        byte[] output = new BinarySerializer().Serialize(7);
+
+        Assert.Same(output, Oracle.Normalize(output, null));
+    }
+
+    [Fact]
+    public void OracleRecorder_OutsideACollection_WritesWhatSerializeWritesAndRecordsNothing()
+    {
+        var serializer = new BinarySerializer();
+
+        Assert.Equal(serializer.Serialize("text"), serializer.SerializeRecorded("text"));
+    }
+
+    [Fact]
+    public void OracleRecorder_InsideACollection_RecordsACopyOfEveryWriteInOrder()
+    {
+        var serializer = new BinarySerializer();
+        byte[]? handed = null;
+
+        var recorded = OracleRecorder.Collect(() =>
+        {
+            handed = serializer.SerializeRecorded(1);
+            serializer.SerializeRecorded("two");
+            handed[^1] ^= 0xFF;
+        });
+
+        Assert.Equal(2, recorded.Count);
+        Assert.Equal(serializer.Serialize(1), recorded[0]);
+        Assert.Equal(serializer.Serialize("two"), recorded[1]);
+        Assert.Empty(OracleRecorder.Collect(() => { }));
     }
 }

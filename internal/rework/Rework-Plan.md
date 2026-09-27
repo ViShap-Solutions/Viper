@@ -13,6 +13,9 @@ Rework-Plan.md               this file — what is built, in which order, and wh
 Contract-Changes.md          every change System-Contract.md receives, by section and by stage
 QA-Plan-Changes.md           every change QA-Plan.md receives, by section and by stage
 Benchmark-Plan-Changes.md    every change Benchmark-Plan.md receives, by section and by stage
+Claude-Changes.md            every change CLAUDE.md receives, by stage
+Retired.md                   every name, rule and term the rework removed, for the R9 sweep
+Conformance-Audit-Brief.md   what the R9 conformance auditor rests on, asks and delivers
 Decisions.md                 the owner's decisions, in Russian, with the byte diagrams and examples
                              they were taken on — the source this plan was written from
 Owner-Review.md              the review of the previous plan and the owner's decision log (Russian)
@@ -22,9 +25,9 @@ Owner-Review.md              the review of the previous plan and the owner's dec
 is defective; fix the plan, do not choose. Every section below cites the decision it implements as
 `[Dn.n]`, meaning `Decisions.md` §n.n.
 
-The three change files are separate from the documents they amend on purpose. `System-Contract.md`,
-`QA-Plan.md` and `Benchmark-Plan.md` describe what the code does *now*; each is rewritten from its
-change file in the stage that makes the change real, never ahead of it.
+The four change files are separate from the documents they amend on purpose. `System-Contract.md`,
+`QA-Plan.md`, `Benchmark-Plan.md` and `CLAUDE.md` describe what the code does *now*; each is rewritten
+from its change file in the stage that makes the change real, never ahead of it [D9.24].
 
 ---
 
@@ -43,8 +46,9 @@ change file in the stage that makes the change real, never ahead of it.
    rewritten with the code and never deleted. If meeting a stage's goal would weaken an invariant,
    the stage stops and the question goes to the owner. That is the one discovery this plan does not
    pre-authorise.
-6. **Documents change with the code.** Each stage applies its part of the three change files in the
-   same change as its code.
+6. **Documents change with the code.** Each stage applies its part of the four change files in the
+   same change as its code — `CLAUDE.md` included, so no agent reads a description of a system that
+   no longer exists [D9.24].
 7. **Nothing decided here is re-decided during execution.** A decision that turns out to be
    unimplementable is reported to the owner with the evidence; it is not silently replaced.
 8. **Measure before claiming.** Every performance statement in this plan is a target. It becomes a
@@ -57,6 +61,14 @@ change file in the stage that makes the change real, never ahead of it.
     R6 the owner may tag `v1.0.0-beta.N` on `release/v1.0.0`; after R9, `v1.0.0-rc.N`; the release is
     `release/v1.0.0` merged into `main` and `v1.0.0` tagged on `main`. The executor never creates or
     merges these branches and never tags `v*`.
+11. **The benchmark harness lives with the code** [D9.27, D9.28]. At the end of every stage — R1–R6, R8
+    and R9 — it builds, `--verify` passes every pair and `--smoke` passes; a checkpoint whose measured API the stage
+    removes is rewritten or retired in that stage (`Benchmark-Plan-Changes.md` §2).
+12. **Nothing of the previous system survives silently** [D9.28]. Every stage records in
+    `Retired.md` what it removed or renamed — types, members, options, arguments, terms, rules,
+    checkpoints — in the same change. R9 does not trust the change files: it reconciles every living
+    document against the code independently, and searches the repository for every `Retired.md`
+    entry.
 
 ---
 
@@ -67,7 +79,7 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 
 | Stage | Branch (from `release/v1.0.0`) | After the owner merges it | Status | Closed by (merge commit) |
 |---|---|---|---|---|
-| R0 — Baseline and oracle | `rework/r0-baseline` | — | in progress | |
+| R0 — Baseline and oracle | `rework/r0-baseline` | — | gate holds — awaiting commit | |
 | R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | not started | |
 | R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | not started | |
 | R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |
@@ -76,7 +88,11 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R6 — The final format | `rework/r6-final-format` | the owner may tag `v1.0.0-beta.1` on `release/v1.0.0` | not started | |
 | R7 — Removed | — | — | — | — |
 | R8 — Generator ground | `rework/r8-generator-ground` | — | not started | |
-| R9 — Re-gate and release | `rework/r9-release-gate` | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
+| R9a — Reconciliation | `rework/r9a-reconcile` | — | not started | |
+| R9b — Consumer documentation | `docs/v1-consumer-docs` | — | not started | |
+| R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | not started | |
+| R9d — Audit fixes | `bugfix/v1-audit-<topic>`, one per group; skipped if nothing was found | — | not started | |
+| R9e — Closure check | `audit/v1-conformance-closure` (separate session) | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
 | Release | `release/v1.0.0` → `main` | the owner tags `v1.0.0` on `main` | not started | |
 
 A defect found on a beta or an rc is fixed on `bugfix/<topic>` from `release/v1.0.0` and merged back;
@@ -97,7 +113,7 @@ Status values: `not started` · `in progress` · `gate holds — awaiting commit
 | Release workflow | **Applied.** `cd.yml`: stable `vX.Y.Z` only on `main` HEAD; pre-release `-alpha.N`/`-beta.N`/`-rc.N` from any branch on origin; a pre-release of an already released version is refused | — |
 | `QA-Plan.md` body ↔ NX rules | Behind: NX fixes are pinned by tests and recorded in §30.3, but the body carries no checkpoints for them | `QA-Plan-Changes.md` §1 |
 | `Benchmark-Plan.md` ↔ NX rules | Behind: nothing measures the incremental decompression path or the ratio check | `Benchmark-Plan-Changes.md` §1 |
-| Package READMEs | **Release blocker.** `SERIALIZATION-README.md`, `CORE-README.md`, `METAPACK-README.md` are empty; `dotnet pack` fails with NU5040 | R9 |
+| Package READMEs | **Release blocker.** `SERIALIZATION-README.md` and `METAPACK-README.md` are empty and `dotnet pack` fails on them with NU5040. `CORE-README.md` is empty too, but the Core package packs the repository's `README.md` instead | R9 |
 | Benchmark Track A | Harness built; no baseline captured | R0 |
 
 ---
@@ -1152,9 +1168,11 @@ materialised collection, and the first use of a type.
 # 12. Stages [D9.17]
 
 Internals first (R1–R5), then the format (R6): the encoding code is written once, directly in the new
-types, and the old fixtures and the oracle catch any unintended change on the way. "Wire unchanged"
+types, and the old fixtures and the oracle catch any unintended change on the way. A stage's
+measurement follows `Development-Workflow.md` §6.5, "Замер рабочей ветки", against
+`Baselines/pre-rework/`: by the raw files until R4, through `BASE-02` from R4 on. "Wire unchanged"
 means the thirteen fixtures and the oracle pass byte for byte. Each stage applies its part of the
-three change files.
+four change files.
 
 ### R0 — Baseline and oracle — *wire unchanged*
 
@@ -1176,7 +1194,7 @@ three change files.
   and `PayloadBuffer`. `ValueReader` / `ValueWriter` become thin adapters, then are deleted once no
   caller remains.
 - The structural tests for INV-2, INV-3 and INV-4 are rewritten for the new types.
-- **Gate:** fixtures and oracle byte-identical; no virtual call per byte on the write path.
+- **Gate:** fixtures and oracle byte-identical; no virtual call per byte on the write path; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R2 — Pipeline on pooled buffers — *wire unchanged*
 
@@ -1186,7 +1204,7 @@ three change files.
 - Cycle detection by ancestor stack; pooled reference tables (§11).
 - **Gate:** a V0 keyed write to a non-seekable destination succeeds; no `MemoryStream` under
   `Pipeline/`; an error in the middle of a graph leaves the destination empty; fixtures and oracle
-  byte-identical.
+  byte-identical; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R3 — Public surface and non-seekable reading — *wire unchanged*
 
@@ -1196,7 +1214,7 @@ three change files.
 - The V0 boundary rules (§7) and the V0 asynchronous rule with its required text (§9.5).
 - **Gate:** every entry point reads a non-seekable source; a non-seekable double that fails on any
   read past the frame proves exactly one V1 frame is consumed; `Api/CrossEntryPointTests` covers every
-  entry point; `Api/PublicSurfaceTests` matches contract §3.
+  entry point; `Api/PublicSurfaceTests` matches contract §3; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R4 — Typed engine — *wire unchanged*
 
@@ -1218,15 +1236,16 @@ three change files.
   [D9.19]
 - **Gate:** fixtures and oracle byte-identical; INV-5 and INV-17 structural tests pass; no type under
   `Cache/` remains and `Concurrency/CacheTests` covers exactly the caches that remain; the §11
-  targets that do not depend on R6 are measured; cold start (`ContractColdRunner`) measured against
-  R0, and any regression written up in `internal/performance/`.
+  targets that do not depend on R6 are measured; `BASE-02` — the tool that reports a run against a
+  baseline cell by cell — exists [D9.25], and the cold start (`ContractColdRunner`) is compared with
+  `pre-rework` through it, any regression written up in `internal/performance/`; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R5 — Algorithm contracts — *wire unchanged*
 
 - §8: the interfaces, the existing built-ins ported and renamed (§8.2), the new built-ins,
   `HkdfKeyProvider`, the services' checks.
 - **Gate:** every built-in round-trips through the pipeline and resolves from the catalog;
-  `KeySizeInBytes` is enforced at `Build()`; no interface has a default member.
+  `KeySizeInBytes` is enforced at `Build()`; no interface has a default member; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R6 — The final format — *the break*
 
@@ -1235,7 +1254,7 @@ three change files.
 - Re-freeze the fixtures once, from the corpus; record the exception in `CLAUDE.md` and restore the
   rule in the same change. Delete the oracle.
 - **Gate:** every rule of contract §22 is pinned by a byte-level test; the new fixtures are committed;
-  sizes (Track A §14) re-measured against R0 and the difference published in `internal/performance/`.
+  sizes (Track A §14) re-measured against R0 and the difference published in `internal/performance/`; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R7 — Removed
 
@@ -1249,22 +1268,149 @@ and R3 (the read boundary).
   generated contract can be run against the same cases.
 - `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]` on the reflection path's public entry points.
 - **Gate:** `CONF-*` passes on `ReflectedContract<T>`; a consumer project built with AOT analysis
-  reports the annotated entry points and nothing unannotated.
+  reports the annotated entry points and nothing unannotated; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R9 — Re-gate and release
 
-- `System-Contract.md`, `QA-Plan.md` and `Benchmark-Plan.md` reconciled completely from the change
-  files; `Architecture-Audit.md` marked as the historical record of the first rework.
-- The three package READMEs written.
-- Track A re-measured on the release candidate.
-- A CD dry run.
-- **Gate:** contract §24 fully checked; QA plan §32 fully checked; `dotnet pack` succeeds for all three
-  packages.
+R9 is five sub-stages [D9.31]. Each is worked on its own branch cut from `release/v1.0.0` **after the
+previous one has been merged into it**, so every branch starts from everything before it and nothing
+is ever cut from another working branch. The branch kinds are those of `Development-Workflow.md` §2.1
+and each branch follows its cycle (§2.5); the owner's commands, step by step, are in "R9 and the
+release — the owner's sequence" below.
 
-Track B — the comparison with other serializers — runs after the release, on the `v1.0.0` tag.
+#### R9a — Reconciliation — `rework/r9a-reconcile` — `viper_refactorer`
+
+- `System-Contract.md`, `QA-Plan.md` and `Benchmark-Plan.md` reconciled completely from the change
+  files, and then **independently of them** [D9.28]:
+  - every section of the contract read against `src/`;
+  - every contract rule has at least one QA checkpoint, and every QA checkpoint names a rule that
+    exists and a test that passes;
+  - every benchmark checkpoint names an entry point and a suite that exist;
+  - every invariant INV-1…INV-18 is stated in the contract, so none is left only in this plan;
+  - the `Retired.md` sweep: every entry searched in `src/`, `tests/`, `benchmarks/`, the XML
+    documentation, `CLAUDE.md`, the skills and every living document, with the result recorded per
+    row.
+- Every file under `internal/` classed and the class written at its head and in `CLAUDE.md`:
+  normative (`System-Contract.md`), plan (`QA-Plan.md`, `Benchmark-Plan.md`), operational
+  (`Development-Workflow.md`, `CLAUDE.md`, the skills, the package READMEs, `docs/`), or historical
+  (`rework/`, `audit/`, `Architecture-Audit.md`, `Audit-Closure.md`, `Audit-Future.md`,
+  `Audit-Refactor.md`), whose head says that its rules no longer apply. `internal/README.md` states
+  the classes.
+- The skills under `.claude/skills/` reconciled with the system, with the owner's approval [D9.24].
+- The skill `viper_conformance_auditor` written from `Conformance-Audit-Brief.md`, for the owner to
+  approve in the pull request [D9.29]; `Development-Workflow.md` §2.1 names it for `audit/` branches.
+- `ViShap.Viper.Core.csproj` packs its own `CORE-README.md` instead of the repository's `README.md`,
+  which stays the face of the repository [D9.30].
+- **Gate:** contract §24 and QA plan §32 fully checked, except their `dotnet pack` and README boxes,
+  which R9b closes; the independent reconciliation finds no
+  divergence; every `Retired.md` row has a clean sweep; every file under `internal/` carries its class;
+  `CLAUDE.md` and the skills describe the system; the auditor skill exists; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
+
+#### R9b — Consumer documentation — `docs/v1-consumer-docs` — `viper_refactorer`
+
+Written from the reconciled contract and the system as R9a left them, never from a plan or a change
+file [D9.31].
+
+- `docs/`, one page per subject: getting started; the entry points by family — buffer, stream,
+  asynchronous, `Populate`, frame streams; options and limits; V1 and V0, with the explanation and
+  example plan §9.5 requires; positional and keyed layouts and schema evolution; references;
+  polymorphism; algorithms and keys; exceptions; AOT.
+- The three package READMEs, drawn from `docs/`: `SERIALIZATION-README.md`, `CORE-README.md` (for an
+  author of a custom algorithm or key provider), `METAPACK-README.md`. The repository's `README.md`
+  links to them and to `docs/`.
+- No adjective about performance anywhere (`Benchmark-Plan.md` §28).
+- **Gate:** every page and README agrees with the contract; no `Retired.md` entry appears in them;
+  `dotnet pack` succeeds for all three packages, each with its own non-empty README, which closes
+  the `dotnet pack` and README boxes of contract §24 and QA plan §32; every example in `docs/` compiles
+  and runs against the release branch.
+
+#### R9c — Conformance audit — `audit/v1-conformance` — `viper_conformance_auditor`, a separate session
+
+- The audit of `Conformance-Audit-Brief.md` over everything, `docs/` and the READMEs included. The
+  report is the only file the branch adds.
+- **Gate:** the report exists with a verdict; every finding carries its evidence, its side, its layer
+  and its weight.
+
+#### R9d — Audit fixes — `bugfix/v1-audit-<topic>` — `viper_refactorer`
+
+- Skipped when the audit found nothing. Otherwise one branch per coherent group of findings, each cut
+  from `release/v1.0.0` after the previous one is merged. A fix changes, in the same change, every
+  document it makes untrue — contract, plans, `CLAUDE.md`, `docs/`, READMEs — and adds a
+  `Retired.md` row for anything it removes. A finding the owner decides not to fix is recorded in the
+  report with the owner's decision.
+- **Gate:** every finding of weight "blocks the rc" is fixed or decided; the suite is green in Debug
+  and Release; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
+
+#### R9e — Closure check — `audit/v1-conformance-closure` — `viper_conformance_auditor`, a separate session
+
+- The auditor verifies every finding closed against the merged `release/v1.0.0` and records it in the
+  report. A fix that opened a new divergence is a new finding, and R9d runs again for it.
+- A CD dry run: `dotnet pack` of all three packages with `-p:Version=1.0.0-rc.1`, exactly as `cd.yml`
+  runs it, without pushing.
+- **Gate:** the report's verdict is "the rc may be tagged". Only then does the owner tag
+  `v1.0.0-rc.1`.
+
+#### R9 and the release — the owner's sequence
+
+`viper_refactorer` gives the owner the next step of this table with its exact commands at the start of
+every session and at the end of every hand-over, including the steps that are not its own. "Cycle"
+is the working-branch cycle of `Development-Workflow.md` §2.5 with `<release>` = `release/v1.0.0`.
+
+```text
+ 1  R9a   cycle with rework/r9a-reconcile               viper_refactorer; the owner approves the auditor skill in the PR
+ 2  R9b   cycle with docs/v1-consumer-docs              viper_refactorer: docs/ and the READMEs from the reconciled contract
+ 3  R9c   cycle with audit/v1-conformance               a NEW session with viper_conformance_auditor; the report only
+ 4  R9d   if the report has findings:
+          cycle with bugfix/v1-audit-<topic>            viper_refactorer; one branch per group of findings, each cut
+                                                        after the previous one is merged
+ 5  R9e   cycle with audit/v1-conformance-closure       a NEW session, the same auditor: verifies closure.
+                                                        A new finding → step 4 again, then step 5
+ 6  rc    only on the verdict "the rc may be tagged":
+            git switch release/v1.0.0 && git pull
+            git tag -a v1.0.0-rc.1 -m "v1.0.0-rc.1"
+            git push origin v1.0.0-rc.1                          CD publishes the pre-release
+ 7  rc baseline (Development-Workflow §6.3):
+            git worktree add ../viper-bench v1.0.0-rc.1
+            cd ../viper-bench
+            dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release -- --track A
+            cd -
+            git switch release/v1.0.0 && git pull
+            git switch -c benchmark/v1.0.0-rc.1-baseline
+            cp -r ../viper-bench/benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/v1.0.0-rc.1 \
+                  benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/
+            git worktree remove ../viper-bench
+            git add -A && git commit -m "Record the v1.0.0-rc.1 baseline"
+            git push -u origin benchmark/v1.0.0-rc.1-baseline
+            PR → release/v1.0.0, merge commit
+ 8  a defect on the rc: cycle with bugfix/<topic>, then tag v1.0.0-rc.2 as in step 6
+ 9  release, once the rc holds:
+            PR release/v1.0.0 → main, merge commit (no squash, no rebase)
+            git switch main && git pull
+            git tag -a v1.0.0 -m "v1.0.0"
+            git push origin v1.0.0                               CD publishes v1.0.0
+10  release baseline (mandatory): as step 7 on the v1.0.0 tag, branch benchmark/v1.0.0-baseline from
+    main, PR → main
+11  after the release: release/v1.0.0 is deleted; Track B is measured on the v1.0.0 tag
+```
+
+Never cut `docs/`, `audit/` or `bugfix/` from `rework/r9a-…` or from one another; never tag the rc
+before the R9e verdict; never move or delete a pushed tag.
+
+#### After the rc tag
+
+- Track A on the `v1.0.0-rc.N` tag, which the harness records as that tag's Baseline — a pre-release
+  baseline the owner asked for in this plan [D9.26] — taken from a worktree and committed through
+  `benchmark/v1.0.0-rc.N-baseline`, as `Development-Workflow.md` §6.3 describes.
+- A defect found on the rc is fixed on `bugfix/<topic>` from `release/v1.0.0`, with every document it
+  touches, and the next tag is `rc.N+1`.
+
+Track B — the comparison with other serializers — is measured after the release, on the `v1.0.0` tag.
+Its adapters are written earlier, once R6 has made the format final: on `benchmark/track-b-adapters`
+from `release/v1.0.0`, returned to it through a pull request, and never measured beyond a measurement
+before the tag exists [D9.25].
 
 **Tags along the way** [D9.22]: none published before R6 (the local `pre-rework` tag of R0 is never
-pushed); `v1.0.0-beta.N` allowed once R6 is closed — the format is final; `v1.0.0-rc.N` once R9 is
+pushed); `v1.0.0-beta.N` allowed once R6 is closed — the format is final; `v1.0.0-rc.N` once R9e is
 closed — fixes only; `v1.0.0` on `main` after `release/v1.0.0` is merged.
 
 ---

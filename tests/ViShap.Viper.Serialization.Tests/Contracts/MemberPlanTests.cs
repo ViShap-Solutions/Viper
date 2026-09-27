@@ -19,7 +19,7 @@ public class MemberPlanTests
     {
         var source = new MemberSelection { Property = 7, Field = 9 };
 
-        var result = _serializer.Deserialize<MemberSelection>(_serializer.Serialize(source))!;
+        var result = _serializer.Deserialize<MemberSelection>(_serializer.SerializeRecorded(source))!;
 
         Assert.Equal(7, result.Property);
         Assert.Equal(9, result.Field);
@@ -38,14 +38,14 @@ public class MemberPlanTests
             writer.Write(7);
         });
 
-        Assert.Equal(expected, _compact.Serialize(new MemberSelection { Property = 7, Field = 9 }));
+        Assert.Equal(expected, _compact.SerializeRecorded(new MemberSelection { Property = 7, Field = 9 }));
     }
 
     [Fact]
     public void Deserialize_GetOnlyAndReadOnlyMembers_KeepTheirDeclaredValues()
     {
         var result = _serializer.Deserialize<MemberSelection>(
-            _serializer.Serialize(new MemberSelection { Property = 7, Field = 9 }))!;
+            _serializer.SerializeRecorded(new MemberSelection { Property = 7, Field = 9 }))!;
 
         Assert.Equal(111, result.GetOnly);
         Assert.Equal(222, result.Computed);
@@ -58,7 +58,7 @@ public class MemberPlanTests
     {
         var source = new IgnoredMembers { Kept = 5, DroppedProperty = 6, DroppedField = 7 };
 
-        var result = _serializer.Deserialize<IgnoredMembers>(_serializer.Serialize(source))!;
+        var result = _serializer.Deserialize<IgnoredMembers>(_serializer.SerializeRecorded(source))!;
 
         Assert.Equal(5, result.Kept);
         Assert.Equal(0, result.DroppedProperty);
@@ -76,7 +76,7 @@ public class MemberPlanTests
 
         Assert.Equal(
             expected,
-            _compact.Serialize(new IgnoredMembers { Kept = 5, DroppedProperty = 6, DroppedField = 7 }));
+            _compact.SerializeRecorded(new IgnoredMembers { Kept = 5, DroppedProperty = 6, DroppedField = 7 }));
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class MemberPlanTests
         var source = new IncludedNonPublicMembers { FieldValue = 11, PropertyValue = "kept" };
 
         var result = _serializer.Deserialize<IncludedNonPublicMembers>(
-            _serializer.Serialize(source))!;
+            _serializer.SerializeRecorded(source))!;
 
         Assert.Equal(11, result.FieldValue);
         Assert.Equal("kept", result.PropertyValue);
@@ -105,7 +105,7 @@ public class MemberPlanTests
             writer.Write(4);        // "Unordered"
         });
 
-        Assert.Equal(expected, _compact.Serialize(source));
+        Assert.Equal(expected, _compact.SerializeRecorded(source));
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class MemberPlanTests
             writer.Write(30);
         });
 
-        Assert.Equal(expected, _compact.Serialize(source));
+        Assert.Equal(expected, _compact.SerializeRecorded(source));
     }
 
     [Fact]
@@ -131,21 +131,21 @@ public class MemberPlanTests
     {
         var source = new OrdinalOrder { Bravo = 10, Charlie = 20, alpha = 30 };
 
-        Assert.Equal(_compact.Serialize(source), _compact.Serialize(source));
+        Assert.Equal(_compact.SerializeRecorded(source), _compact.SerializeRecorded(source));
     }
 
     [Fact]
     public void Serialize_DuplicateExplicitOrder_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "duplicate [BinaryOrder]", () => _serializer.Serialize(new DuplicateOrder()));
+            "duplicate [BinaryOrder]", () => _serializer.SerializeRecorded(new DuplicateOrder()));
     }
 
     [Fact]
     public void Serialize_KeyWithoutContract_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "[BinaryKey]", () => _serializer.Serialize(new StrayKey { Value = 1 }));
+            "[BinaryKey]", () => _serializer.SerializeRecorded(new StrayKey { Value = 1 }));
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public class MemberPlanTests
             Node = new Node { Value = 42 }
         };
 
-        var result = _serializer.Deserialize<StructWithReferences>(_serializer.Serialize(source));
+        var result = _serializer.Deserialize<StructWithReferences>(_serializer.SerializeRecorded(source));
 
         Assert.Equal("boxed", result.Name);
         Assert.Equal([1, 2, 3], result.Values);
@@ -198,7 +198,7 @@ public class MemberPlanTests
             Featured = featured
         };
 
-        var result = _serializer.Deserialize<Catalogue>(_serializer.Serialize(source))!;
+        var result = _serializer.Deserialize<Catalogue>(_serializer.SerializeRecorded(source))!;
 
         Assert.Equal("featured", result.Sections!["a"][0].Title);
         Assert.Equal(featured.Stamp, result.Sections["a"][0].Stamp);

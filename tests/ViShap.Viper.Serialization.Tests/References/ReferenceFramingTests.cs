@@ -32,7 +32,7 @@ public class ReferenceFramingTests
             writer.Write(4);
         });
 
-        byte[] body = Body(_framed.Serialize(
+        byte[] body = Body(_framed.SerializeRecorded(
             new StructHolder { Point = new PointStruct { X = 3, Y = 4 } }));
 
         Assert.Equal(expected, body);
@@ -43,7 +43,7 @@ public class ReferenceFramingTests
     {
         var point = new PointStruct { X = 3, Y = 4 };
 
-        byte[] body = Body(_framed.Serialize(new List<PointStruct> { point, point }));
+        byte[] body = Body(_framed.SerializeRecorded(new List<PointStruct> { point, point }));
 
         byte[] expected = Wire.Payload(writer =>
         {
@@ -72,7 +72,7 @@ public class ReferenceFramingTests
             writer.Write(true); writer.Write("same");
         });
 
-        byte[] body = Body(_framed.Serialize(new SharedStrings { A = shared, B = shared }));
+        byte[] body = Body(_framed.SerializeRecorded(new SharedStrings { A = shared, B = shared }));
 
         Assert.Equal(expected, body);
     }
@@ -84,7 +84,7 @@ public class ReferenceFramingTests
         // own configuration.
         var shared = new List<int> { 1, 2, 3 };
 
-        byte[] payload = _framed.Serialize(new SharedLists { A = shared, B = shared });
+        byte[] payload = _framed.SerializeRecorded(new SharedLists { A = shared, B = shared });
         var result = _plain.Deserialize<SharedLists>(payload)!;
 
         Assert.True(Wire.ReadHeader(payload).PreserveReferences);
@@ -96,7 +96,7 @@ public class ReferenceFramingTests
     {
         var shared = new List<int> { 1, 2, 3 };
 
-        byte[] payload = _plain.Serialize(new SharedLists { A = shared, B = shared });
+        byte[] payload = _plain.SerializeRecorded(new SharedLists { A = shared, B = shared });
         var result = _framed.Deserialize<SharedLists>(payload)!;
 
         Assert.False(Wire.ReadHeader(payload).PreserveReferences);
@@ -161,7 +161,7 @@ public class ReferenceFramingTests
     {
         var shared = new Node { Value = 9 };
 
-        byte[] body = Body(_framed.Serialize(new TwoNodes { A = shared, B = shared }));
+        byte[] body = Body(_framed.SerializeRecorded(new TwoNodes { A = shared, B = shared }));
 
         // Both fields open the object afresh, with marker 0 and an id of their own.
         byte[] expected =
@@ -197,7 +197,7 @@ public class ReferenceFramingTests
             B = new ValueEqualNode { Value = 5 }
         };
 
-        var result = _framed.Deserialize<EqualNodePair>(_framed.Serialize(source))!;
+        var result = _framed.Deserialize<EqualNodePair>(_framed.SerializeRecorded(source))!;
 
         Assert.NotSame(result.A, result.B);
         Assert.Equal(result.A, result.B);
@@ -209,7 +209,7 @@ public class ReferenceFramingTests
         var node = new ValueEqualNode { Value = 5 };
 
         var result = _framed.Deserialize<EqualNodePair>(
-            _framed.Serialize(new EqualNodePair { A = node, B = node }))!;
+            _framed.SerializeRecorded(new EqualNodePair { A = node, B = node }))!;
 
         Assert.Same(result.A, result.B);
     }

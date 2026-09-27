@@ -16,7 +16,7 @@ public class RegistrationOrderTests
     private readonly BinarySerializer _framed =
         new(BinarySerializerOptions.Configure().PreserveReferences().Build());
 
-    private T? RoundTrip<T>(T value) => _framed.Deserialize<T>(_framed.Serialize(value));
+    private T? RoundTrip<T>(T value) => _framed.Deserialize<T>(_framed.SerializeRecorded(value));
 
     [Fact]
     public void Deserialize_ReferenceIntoAMutableCollectionFromItsOwnElement_Closes()
@@ -75,7 +75,7 @@ public class RegistrationOrderTests
         var root = new BoxedCycle { Name = "root" };
         root.Box = new HolderBox { Inner = root };
 
-        Assert.Throws<BinaryTypeException>(() => _plain.Serialize(root));
+        Assert.Throws<BinaryTypeException>(() => _plain.SerializeRecorded(root));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public class RegistrationOrderTests
         var array = new ArrayHolder[1];
         array[0] = new ArrayHolder { Items = array };
 
-        byte[] payload = _framed.Serialize(array);
+        byte[] payload = _framed.SerializeRecorded(array);
 
         AssertEx.Throws<BinaryFormatException>(
             "still being constructed", () => _framed.Deserialize<ArrayHolder[]>(payload));

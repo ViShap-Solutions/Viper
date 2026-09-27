@@ -8,6 +8,19 @@
 
 ---
 
+# 0. Rework oracle — `Format/`
+
+The pre-release rework (`internal/rework/Rework-Plan.md`) moves no byte of the wire until its format stage. Until then the frozen fixtures of §30.4 decode what was written before, and this oracle holds what the writer writes.
+
+`Fixtures/Oracle/oracle.txt` records, for every case of the existing corpora, the SHA-256 of what the writer produced and the output in hex: the round-trip corpus of §19 under every profile of `CorpusProfiles` and once more with `PreserveReferences`, the V0 corpus of `Format/V0CorpusTests` (the V0 payload and the V1 frame of each value), the reference graphs of `References/` and the shapes of `Contracts/`. The oracle invents no case: it runs those tests as they are written and records what they wrote through `OracleRecorder`. A frame encrypted with AES-256-GCM is compared as its header followed by its body decrypted in counter mode, because its nonce is drawn fresh for every message; every byte the serializer decides is still covered. One case — `ImmutableDictionary<string, int>` with two entries, in every profile — is enumerated in the order of the runtime's randomized string hash, so the oracle records both of its outputs and accepts only those; ten recordings in separate processes found no other case that varies.
+
+Rule: every rework stage before the format stage reproduces every value. A mismatch is a change of behaviour, found and fixed in `src/`; the oracle is never re-recorded and the test is never widened. Both are retired in the format stage.
+
+- [x] ORC-01 — every corpus case writes exactly the output the oracle recorded, and every recorded case is produced — `Format/OracleTests`
+- [x] ORC-02 — on a mismatch the report carries the expected and the actual output in hex and the first offset at which they differ — `Format/OracleTests`
+
+---
+
 # 1. How to read this plan
 
 This is a **checkpoint list**, worked through incrementally. It contains items and gates, nothing else: assertion discipline, failure triage, escalation and style live in the tester skill.
@@ -314,6 +327,7 @@ Field order, types and invariants per §22.6.
 - [x] HDR-17 — a checksum truncated below its declared length → `BinaryFormatException` before allocation *(§11)* — D1-03
 - [x] HDR-18 — a checksum longer than the byte representation allows → `BinaryConfigurationException` on write *(§11)* — `Format/HeaderTests`
 - [x] HDR-19 — `PreserveReferences` in the header, not the local configuration, decides payload interpretation *(§2.2, §16)* — `Format/HeaderTests`
+- [x] HDR-20 — a declared expansion above `MaxDecompressionRatio` is `BinaryLimitException` while the header is read, and only when compression is not `None` *(§5.10, §11)* — `Algorithms/CompressionTests`
 
 ---
 
@@ -367,6 +381,7 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-23 — a keyed contract nested inside a keyed contract round-trips on V0, so field windowing works over the metered V0 payload and not only over V1's buffered one *(§7.3, §10.2)* — `Format/V0FormatTests`
 - [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.8)* — `Format/V0FormatTests`
 - [x] V0-25 — a keyed write on V0 to a destination that cannot seek → `NotSupportedException` naming the seekable payload stream, while a positional write to the same destination succeeds *(§10.2, §14.2, §8.10)* — `Format/V0FormatTests`
+- [x] V0-26 — a byte-reversed magic is not recognised; `Peek` reports no header *(§22)* — `Format/RoutingTests`
 
 ---
 
@@ -449,6 +464,10 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] CTR-24 — `FormatterRegistry.Resolve` returning `null` means member encoding; no catch-all shadows a specific formatter *(L2, §2.4)* — `Contracts/TypeSupportTests`
 - [x] CTR-25 — a struct containing a reference member round-trips *(§23)* — `Contracts/MemberPlanTests`
 - [x] CTR-26 — nested member-encoded graphs of three or more formatter families round-trip *(§23)* — `Contracts/MemberPlanTests`
+- [x] CTR-27 — a non-public base member under `[BinaryInclude]` is in the derived type's plan and round-trips *(§14.1)* — `Contracts/InheritanceTests`
+- [x] CTR-28 — a member hidden by `new` is a second member; both travel, the base declaration first *(§14.1, §22.3)* — `Contracts/InheritanceTests`
+- [x] CTR-29 — an override is one member, and its own attributes apply *(§14.1)* — `Contracts/InheritanceTests`
+- [x] CTR-30 — the plan of a type is the same however many times it is built *(§14.1)* — `Contracts/InheritanceTests`
 
 ---
 
@@ -472,6 +491,10 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)* — `Contracts/KeyedEvolutionTests`
 - [x] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)* — `Contracts/KeyedContractTests`
 - [x] KEY-18 — the keyed encoding belongs to the payload, not to a wire format version: a contract encodes byte-identically under V0 and V1 *(§10.2, §14.2, §22.8)* — `Contracts/KeyedContractTests`
+- [x] KEY-19 — `[BinaryContract]` is inherited; a derived contract round-trips *(§14.2)* — `Contracts/InheritanceTests`
+- [x] KEY-20 — a base reads a derived payload, skipping the derived key *(§14.2)* — `Contracts/InheritanceTests`
+- [x] KEY-21 — a derived member with neither key nor ignore is `BinaryTypeException` naming it *(§14.2)* — `Contracts/InheritanceTests`
+- [x] KEY-22 — a key the base already claims cannot be reused below it *(§14.2)* — `Contracts/InheritanceTests`
 - [x] KEY-23 — keys out of ascending order → `BinaryFormatException`, for a known key and for one the reader would otherwise skip; ascending keys with gaps are read *(§14.2, §22.3)* — `Contracts/KeyedEvolutionTests`
 
 ---
@@ -516,6 +539,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] REF-15 — ids are visible only along the ancestor chain *(§16.2)* — `References/ReferenceFramingTests`
 - [x] REF-16 — a back reference is never emitted between sibling keyed fields *(§16.2)* — `References/ReferenceFramingTests`
 - [x] REF-17 — a repeated reference does not consume a second graph node *(§5.8)* — `Limits/DepthAndNodeTests`
+- [x] REF-18 — a second first occurrence under a visible id is `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
 - [x] CYC-01 — a direct self-reference round-trips under `PreserveReferences` *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-02 — a two-object cycle round-trips *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-03 — a cycle through a collection round-trips *(§16.1)* — `References/ReferenceIdentityTests`
@@ -682,14 +706,17 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] LIM-37 `MaxWireBytes` — read and write *(§5.10)* — `Limits/PhaseLimitTests`
 - [x] LIM-38 — a header-declared phase length above its limit is rejected **before** the buffer is allocated *(§22.6, S06)* — `Limits/PhaseLimitTests`
 - [x] LIM-39 — the phase check runs in the pipeline, not in an algorithm *(§2.5, §12)* — `Limits/PhaseLimitTests`, `Limits/StructuralBarrierTests`
+- [x] LIM-45 — `MaxDecompressionRatio` below / exact / above / invalid: an expansion within the ratio, one at the smallest ratio that admits it and one a step below, and a zero or negative ratio *(§5.10)* — `Algorithms/CompressionTests`, `Exceptions/ConfigurationValidationTests`
 
 ## 20.6 Internal invariants (L2)
 
-- [x] LIM-40 — an `ElementCount` can only be obtained through `Validate`, which checks and charges together *(§6, §17)* — `Limits/StructuralBarrierTests`
+- [x] LIM-40 — an `ElementCount` can only be obtained through `Validate` or `ValidateShape`, called only from `ValueReader`, `ValueWriter` and the engine's composite surface, which check and charge together *(§6, §17)* — `Limits/StructuralBarrierTests`
 - [x] LIM-41 — `CountKind` selects the correct limit for array, collection and dictionary counts *(L2, §6)* — `Limits/BudgetAccountingTests`
 - [x] LIM-42 — `ElementCount.CapacityHint` bounds initial capacity; a declared count never allocates its full size up front *(§17)* — `Limits/BudgetAccountingTests`
 - [x] LIM-43 — no type below `Pipeline/` references `SerializationLimits` *(§2, architecture invariant)* — `Exceptions/SourceInvariantTests`
 - [x] LIM-44 — payload bytes are reachable only through `ValueReader` / `ValueWriter` *(§2.3)* — `Limits/StructuralBarrierTests`
+- [x] LIM-46 — the documented default table names exactly the limits the type declares *(§5)* — `Exceptions/ConfigurationValidationTests`
+- [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer; the engine exposes no payload primitives *(§18, §24)* — `Limits/StructuralBarrierTests`
 
 ---
 
@@ -752,6 +779,9 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] HST-07 — a mutated checksum → `BinaryIntegrityException` *(§8.5)* — `Hostile/MutationTests`
 - [x] HST-08 — mutated ciphertext → `BinaryIntegrityException` *(§13.1)* — `Hostile/MutationTests`
 - [x] HST-09 — **every byte** of an encrypted frame's header flipped in turn always fails *(§13.1)* — `Hostile/MutationTests`
+- [x] HST-35 — a duplicate key in each of the six refusing dictionaries → `BinaryFormatException` preserving the `ArgumentException` *(§8.2, §23)* — `Hostile/DuplicateEntryTests`
+- [x] HST-36 — a duplicate in a collapsing container (`ConcurrentDictionary`, sets, frozen and immutable sets) → `BinaryFormatException` *(§23)* — `Hostile/DuplicateEntryTests`
+- [x] HST-37 — a null dictionary key → `BinaryFormatException` *(§8.2)* — `Hostile/DuplicateEntryTests`
 
 ## 22.2 Truncation
 
@@ -776,6 +806,8 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)* — `Streams/WindowReadStreamTests`
 - [x] HST-25 — a hostile deeply nested payload fails as a limit violation, never a stack overflow *(§5.1)* — `Limits/DepthAndNodeTests`
 - [x] HST-26 — an oversized or infinite `IEnumerable<T>` on write is abandoned at the limit, not enumerated *(§17, S11)* — `Limits/BudgetTests`
+- [x] HST-38 — a tiny frame declaring a huge expansion allocates nothing proportional *(§12)* — `Hostile/AllocationAmplificationTests`
+- [x] HST-39 — a ratio-legal frame that produces nothing allocates nothing proportional *(§12)* — `Hostile/AllocationAmplificationTests`
 
 ## 22.4 Property and metamorphic (L3)
 
@@ -805,6 +837,9 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] CMP-11 — decompression producing **more** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
 - [x] CMP-12 — `ICompressionAlgorithm` receives no limits and is invoked inside the phase barrier *(§2.5, §12)* — `Algorithms/CompressionTests`; the algorithm primitives live in an assembly that does not reference the one holding `SerializationLimits`, and a frame refused by a phase limit never reaches the codec
 - [x] CMP-13 — a custom compression algorithm round-trips and its name is recorded in the header *(§4.1, §11)* — `Algorithms/CompressionTests`
+- [x] CMP-14 — the ratio is the reader's policy: the same bytes pass one reader and fail a stricter one *(§5.10)* — `Algorithms/CompressionTests`
+- [x] CMP-15 — both built-in algorithms decompress incrementally *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-16 — a Brotli stream that yields the declared length but never terminates is malformed *(§12)* — `Algorithms/CompressionTests`. The single-buffer decoder refused such a stream; the incremental path first accepted it until the NX-01 fix restored the refusal, and a later rewrite of the decoder must keep it
 
 ---
 
@@ -818,6 +853,7 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] CHK-06 — a custom checksum round-trips under its registered name *(§4.1)* — `Api/OptionsTests`
 - [x] CHK-07 — a payload naming an unregistered custom checksum → `BinaryFormatNotSupportedException` *(§8.4)* — `Exceptions/ExceptionMappingTests`, `Algorithms/AlgorithmCatalogTests`
 - [x] CHK-08 — `RequireChecksum` rejects a payload with `ChecksumAlgorithm.None` → `BinaryIntegrityException` *(§21.1)* — `Algorithms/ChecksumTests`, with the capability-only counterpart beside it
+- [x] CHK-09 — a checksum reporting a size the header cannot record → `BinaryConfigurationException`, on write and on read *(§8.1)* — `Algorithms/ChecksumTests`
 
 ---
 
@@ -940,6 +976,7 @@ IdentityCompression.CompressCalls · DecompressCalls · RecordingKeyProvider    
 FailingContentStream (real content, then an IOException at a chosen offset)            (added by M8)
 Concurrent.Race (a body on several threads released together) · the Raced* types       (added by M8)
 Cultures.Specific (a culture the host actually has) · the Frozen* compatibility shapes  (added by M8)
+Oracle.Parse · Line · Compare · Normalize · OracleRecorder.SerializeRecorded · Collect (added by R0)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
@@ -964,6 +1001,7 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-14 — the algorithm doubles count the calls they receive, and `RecordingKeyProvider` hands out an owned copy per resolution while recording the id it was asked — `Fixtures/UtilityTests`
 - [x] UTIL-15 — `Concurrent.Race` runs its workers at the same time rather than one after another, returns each result under its own index, and rethrows what a worker threw — `Fixtures/UtilityTests`. A helper that quietly serialized would make every L4 checkpoint pass without ever racing anything
 - [x] UTIL-16 — `Cultures.Specific` resolves on the host it runs on, including one with no globalization data — `Fixtures/UtilityTests`. Naming a culture in a test makes it fail wherever that name is absent, which is a property of the machine and not of the format
+- [x] UTIL-17 — the oracle helpers are tested: `Oracle.Compare` reports a changed byte with both outputs in hex and its offset, a change of length, and a missing, an unexpected and a repeated case; `Oracle.Parse` refuses a repeated key, an alternative away from its case and an alternative repeating a recorded output; `Oracle.Compare` accepts any admissible output of a case and reports another against each of them; `Oracle.Normalize` turns two encryptions of one value into the same bytes, whose body is the unencrypted payload; `OracleRecorder` records a copy of every write inside a collection and nothing outside one — `Fixtures/UtilityTests`
 
 ---
 
@@ -1287,24 +1325,24 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 ## Format
 
 - [x] Every row of §22 is pinned at the byte level. *(WF-01…WF-30)*
-- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-19, ENV-01, ENV-02)*
-- [x] V0 is never confused with V1 and is never selected without the caller's opt-in. *(V0-10…V0-17)*
+- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-20, ENV-01, ENV-02)*
+- [x] V0 is never confused with V1 and is never selected without the caller's opt-in. *(V0-10…V0-17, V0-26)*
 - [x] V0 carries the same type set, unions, keyed contracts, limits and budgets as V1 — only the envelope is absent. *(V0-03, V0-07, V0-08, V0-19…V0-21)*
 - [x] Committed fixed-byte fixtures decode; none is regenerated by the code under test. *(V0-18, UTIL-09, CMPT-01…CMPT-12)*
 
 ## Contracts
 
-- [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-26)*
-- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-18, KEY-23)*
+- [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-30)*
+- [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-23)*
 - [x] Polymorphism is covered on both read and write, including write-side rejection. *(PM-01…PM-16)*
-- [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-17, CYC-01…CYC-10)*
+- [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-18, CYC-01…CYC-10)*
 
 ## Security
 
-- [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-44, and P2-01 for the tight profile as a whole)*
+- [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-47, and P2-01 for the tight profile as a whole)*
 - [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
 - [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
-- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-34, HST-40)*
+- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-40)*
 - [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-28, ENC-01…ENC-23)*
 - [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 
@@ -1322,4 +1360,4 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every bug found during testing was fixed in `src/`, not accommodated by a test. *(D1…D6, NX-01…NX-11)*
 - [x] Every defect in §30.1 and §30.3 is fixed and pinned by its checkpoint. *(D1-01…D6-02, NX-01…NX-11)*
 - [x] No test relies on undocumented project history.
-- [x] `dotnet test` is green with no skipped tests. *(1653 passed, 0 skipped, Debug and Release)*
+- [x] `dotnet test` is green with no skipped tests. *(1685 passed, 0 skipped, Debug and Release)*
