@@ -25,7 +25,7 @@ public class KeyedContractTests
         };
 
         var result = new BinarySerializer().Deserialize<CompleteContract>(
-            new BinarySerializer().Serialize(source))!;
+            new BinarySerializer().SerializeRecorded(source))!;
 
         Assert.Equal(42, result.Number);
         Assert.Equal("a contract", result.Text);
@@ -41,7 +41,7 @@ public class KeyedContractTests
         var shared = new Node { Value = 11 };
 
         var result = serializer.Deserialize<NewSchema>(
-            serializer.Serialize(new NewSchema { Removed = shared, Kept = shared }))!;
+            serializer.SerializeRecorded(new NewSchema { Removed = shared, Kept = shared }))!;
 
         Assert.Equal(11, result.Removed!.Value);
         Assert.Equal(11, result.Kept!.Value);
@@ -53,7 +53,7 @@ public class KeyedContractTests
         var serializer = WithReferences();
         var shared = new Node { Value = 7 };
 
-        byte[] payload = serializer.Serialize(new NewSchema { Removed = shared, Kept = shared });
+        byte[] payload = serializer.SerializeRecorded(new NewSchema { Removed = shared, Kept = shared });
 
         var result = serializer.Deserialize<OldSchema>(payload)!;
 
@@ -66,7 +66,7 @@ public class KeyedContractTests
     {
         var serializer = new BinarySerializer();
 
-        byte[] payload = serializer.Serialize(
+        byte[] payload = serializer.SerializeRecorded(
             new NewSchema { Removed = new Node { Value = 1 }, Kept = new Node { Value = 7 } });
 
         Assert.Equal(7, serializer.Deserialize<OldSchema>(payload)!.Kept!.Value);
@@ -77,7 +77,7 @@ public class KeyedContractTests
     {
         var serializer = new BinarySerializer();
 
-        byte[] payload = serializer.Serialize(new OldSchema { Kept = new Node { Value = 7 } });
+        byte[] payload = serializer.SerializeRecorded(new OldSchema { Kept = new Node { Value = 7 } });
 
         var result = serializer.Deserialize<NewSchema>(payload)!;
 
@@ -97,8 +97,8 @@ public class KeyedContractTests
         var value = new NewSchema { Removed = new Node { Value = 1 }, Kept = new Node { Value = 7 } };
 
         byte[] v0 = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithVersion(0).Build()).Serialize(value);
-        byte[] v1 = new BinarySerializer().Serialize(value);
+            BinarySerializerOptions.Configure().WithVersion(0).Build()).SerializeRecorded(value);
+        byte[] v1 = new BinarySerializer().SerializeRecorded(value);
 
         Assert.Equal(v0, v1[^v0.Length..]);
     }

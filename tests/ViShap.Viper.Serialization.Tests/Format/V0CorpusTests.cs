@@ -29,9 +29,9 @@ public class V0CorpusTests
     /// </summary>
     private T? RoundTrip<T>(T value)
     {
-        byte[] payload = _headerless.Serialize(value);
+        byte[] payload = _headerless.SerializeRecorded(value);
 
-        Assert.Equal(payload, _framed.Serialize(value)[Wire.PlainHeaderLength..]);
+        Assert.Equal(payload, _framed.SerializeRecorded(value)[Wire.PlainHeaderLength..]);
 
         return _headerless.Deserialize<T>(payload);
     }

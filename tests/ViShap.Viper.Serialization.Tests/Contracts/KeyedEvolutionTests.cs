@@ -25,7 +25,7 @@ public class KeyedEvolutionTests
     [Fact]
     public void Deserialize_UnknownKeyBetweenTwoKnownOnes_LeavesBothUndisturbed()
     {
-        byte[] payload = _serializer.Serialize(
+        byte[] payload = _serializer.SerializeRecorded(
             new ThreeKeys { First = 11, Middle = "retired", Last = 33 });
 
         var result = _serializer.Deserialize<OuterKeys>(payload)!;
@@ -37,7 +37,7 @@ public class KeyedEvolutionTests
     [Fact]
     public void Deserialize_UnknownFieldHoldingANestedGraph_IsSkippedWhole()
     {
-        byte[] payload = _serializer.Serialize(new NestedMiddle
+        byte[] payload = _serializer.SerializeRecorded(new NestedMiddle
         {
             First = 11,
             Middle = new Dictionary<string, List<Node>>
@@ -169,7 +169,7 @@ public class KeyedEvolutionTests
     {
         var source = new KeyBoundaries { Zero = 1, OneByte = 2, TwoBytes = 3, Largest = 4 };
 
-        var result = _serializer.Deserialize<KeyBoundaries>(_serializer.Serialize(source))!;
+        var result = _serializer.Deserialize<KeyBoundaries>(_serializer.SerializeRecorded(source))!;
 
         Assert.Equal(1, result.Zero);
         Assert.Equal(2, result.OneByte);
@@ -195,7 +195,7 @@ public class KeyedEvolutionTests
 
         Assert.Equal(
             expected,
-            serializer.Serialize(
+            serializer.SerializeRecorded(
                 new KeyBoundaries { Zero = 1, OneByte = 2, TwoBytes = 3, Largest = 4 }));
     }
 
@@ -252,7 +252,7 @@ public class KeyedEvolutionTests
         var source = new KeyedCycle { Name = "root" };
         source.Self = source;
 
-        var result = serializer.Deserialize<KeyedCycle>(serializer.Serialize(source))!;
+        var result = serializer.Deserialize<KeyedCycle>(serializer.SerializeRecorded(source))!;
 
         Assert.Equal("root", result.Name);
         Assert.Same(result, result.Self);
@@ -263,7 +263,7 @@ public class KeyedEvolutionTests
     {
         var source = new KeyedUnion { Shape = new UnionDerived { A = 1, Z = 2 }, Marker = 7 };
 
-        var result = _serializer.Deserialize<KeyedUnion>(_serializer.Serialize(source))!;
+        var result = _serializer.Deserialize<KeyedUnion>(_serializer.SerializeRecorded(source))!;
 
         Assert.Equal(1, Assert.IsType<UnionDerived>(result.Shape).A);
         Assert.Equal(7, result.Marker);
@@ -279,7 +279,7 @@ public class KeyedEvolutionTests
         var shared = new Node { Value = 9 };
 
         var result = serializer.Deserialize<TwoNodes>(
-            serializer.Serialize(new TwoNodes { A = shared, B = shared }))!;
+            serializer.SerializeRecorded(new TwoNodes { A = shared, B = shared }))!;
 
         Assert.NotSame(result.A, result.B);
         Assert.Equal(9, result.A!.Value);

@@ -15,7 +15,7 @@ public class ReferenceIdentityTests
         new(BinarySerializerOptions.Configure().PreserveReferences().Build());
 
     private static T? RoundTrip<T>(BinarySerializer serializer, T value) =>
-        serializer.Deserialize<T>(serializer.Serialize(value));
+        serializer.Deserialize<T>(serializer.SerializeRecorded(value));
 
     [Fact]
     public void Deserialize_SharedCollection_PreservesIdentity()
@@ -125,7 +125,7 @@ public class ReferenceIdentityTests
         var first = new Cyclic { Name = "a" };
         first.Next = first;
 
-        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(first));
+        Assert.Throws<BinaryTypeException>(() => _serializer.SerializeRecorded(first));
     }
 
     [Fact]
@@ -134,6 +134,6 @@ public class ReferenceIdentityTests
         var source = new List<object>();
         source.Add(source);
 
-        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(source));
+        Assert.Throws<BinaryTypeException>(() => _serializer.SerializeRecorded(source));
     }
 }

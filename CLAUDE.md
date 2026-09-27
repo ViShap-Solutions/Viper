@@ -55,11 +55,11 @@ and for Claude Code — and lives under `internal/`.
 - `internal/rework/` — the second rework, approved by the owner and executed before `v1.0.0`:
   `Rework-Plan.md` (what is built, invariants INV-1…INV-18, the final wire format, stages R0–R9) and
   one change file per governing document (`Contract-Changes.md`, `QA-Plan-Changes.md`,
-  `Benchmark-Plan-Changes.md`), applied to their documents stage by stage, together with the code,
-  never ahead of it. `Decisions.md` (Russian) is the owner's decision record with the byte diagrams
-  the plan was written from; where the plan and it disagree, it is right. `Owner-Review.md` (Russian)
-  is the review of the earlier draft and the owner's decision log. Two findings are already applied
-  (`HST-40`, `KEY-23`); stage R0 has not started.
+  `Benchmark-Plan-Changes.md`, and `Claude-Changes.md` for this file), applied to their documents
+  stage by stage, together with the code, never ahead of it. `Decisions.md` (Russian) is the owner's
+  decision record with the byte diagrams the plan was written from; where the plan and it disagree,
+  it is right. `Owner-Review.md` (Russian) is the review of the earlier draft and the owner's
+  decision log. The Progress table at the top of `Rework-Plan.md` records which stage is open.
 - `internal/Development-Workflow.md` — how work moves through the repository (Russian): branch
   kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how tags
   are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how benchmark
@@ -87,6 +87,13 @@ globalization data (`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`).
 `Fixtures/Wire/*.bin` are the frozen v1.0.0 payloads, read by `Format/CompatibilityTests` against the
 frozen shapes in `Fixtures/Compatibility.cs`. They are never regenerated: a rebuilt fixture agrees
 with whatever the code became, so a failure there is a compatibility break, not a fixture to refresh.
+
+`Fixtures/Oracle/oracle.txt` is the byte oracle of the rework: for every case of the round-trip, V0,
+reference and contract corpora it records the SHA-256 and the hex of what the writer wrote, and
+`Format/OracleTests` compares every run against it (`internal/QA-Plan.md` §0). A write whose input
+comes from the host — its culture, its time zone — is marked `~ host:` and only has to be produced.
+Until the rework's format stage it holds the writer to those bytes; a mismatch is a behaviour change
+to fix in `src/`, never a value to re-record.
 
 Every stage M0 through M8 is closed: nothing hand-written survives, and
 `Api/PublicSurfaceTests` compares the exported surface against §3 by reflection, so adding a public

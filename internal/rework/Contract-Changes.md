@@ -23,7 +23,7 @@ contract would already be accurate for it.
 
 # 2. Section by section
 
-### §1 Purpose — R9
+### §1 Purpose — R9a
 
 - No change of intent. Re-read once the rewrite is complete: "exhaustive" must still hold.
 
@@ -198,11 +198,11 @@ contract would already be accurate for it.
   stream needs a length; a seekable stream is left at the end of the root; after a failed or
   cancelled read the position is undefined.
 
-### §21 Semantic clarifications — R3, R9
+### §21 Semantic clarifications — R3, R9a
 
 - §21.3 deferred list: remove "streaming (non-buffered) payloads" and "an async API"; add "an
   asynchronous engine" (rejected, INV-16); keep "a public formatter contract" and "source generators"
-  with a pointer to `TypeContract<T>`. *(R9)*
+  with a pointer to `TypeContract<T>`. *(R9a)*
 
 ### §22 Wire format — R6
 
@@ -220,7 +220,13 @@ contract would already be accurate for it.
 - No type is added or removed. Re-verify every note against the typed engine, especially memory-like
   values, `ImmutableArray<T>` and `Lazy<T>`.
 
-### §24 Release checklist — R9
+### Invariants — R9a
+
+- Every invariant INV-1…INV-18 of `Rework-Plan.md` §3 is stated in the section it governs. After the
+  release the plan is a historical record, so an invariant written only there would no longer bind
+  anything [D9.28].
+
+### §24 Release checklist — R9a, R9b
 
 - Rebuilt. New boxes: every entry point reads non-seekable sources; no `MemoryStream` on the payload
   path; the allocation targets of plan §11 met or recorded as open; INV-14…INV-18 pinned; the

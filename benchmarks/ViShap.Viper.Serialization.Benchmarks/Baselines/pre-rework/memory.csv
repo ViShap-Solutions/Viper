@@ -1,0 +1,668 @@
+﻿suite,method,parameters,allocated_bytes,gen0_per_1000,gen1_per_1000,gen2_per_1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Default; Data=DATA-01 TinyFlat",2208,0.3509521484375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Default; Data=DATA-01 TinyFlat",1488,0.23651123046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Default; Data=DATA-01 TinyFlat",3697,0.58746337890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Default; Data=DATA-02 MediumObject",13042,2.0751953125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Default; Data=DATA-02 MediumObject",15725,2.50244140625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Default; Data=DATA-02 MediumObject",28770,4.57763671875,0.091552734375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Default; Data=DATA-03 RecordBatchSmall",223998,35.64453125,5.615234375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Default; Data=DATA-03 RecordBatchSmall",168834,26.85546875,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Default; Data=DATA-03 RecordBatchSmall",392872,62.5,12.20703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Default; Data=DATA-04 RecordBatchLarge",16763630,2109.375,921.875,921.875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Default; Data=DATA-04 RecordBatchLarge",13789644,2312.5,1218.75,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Default; Data=DATA-04 RecordBatchLarge",30555412,4000,1625,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Default; Data=DATA-05 DictionaryHeavy",6146855,1390.625,984.375,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Default; Data=DATA-05 DictionaryHeavy",7739124,1343.75,671.875,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Default; Data=DATA-05 DictionaryHeavy",13887530,2437.5,1812.5,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Default; Data=DATA-07/unicode UnicodeHeavy",769419,147.94921875,147.94921875,147.94921875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Default; Data=DATA-07/unicode UnicodeHeavy",646493,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Default; Data=DATA-07/unicode UnicodeHeavy",1415972,183.59375,183.59375,183.59375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=PreserveReferences; Data=DATA-01 TinyFlat",2352,0.37384033203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=PreserveReferences; Data=DATA-01 TinyFlat",1792,0.2841949462890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=PreserveReferences; Data=DATA-01 TinyFlat",4145,0.659942626953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=PreserveReferences; Data=DATA-02 MediumObject",14147,2.2430419921875,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=PreserveReferences; Data=DATA-02 MediumObject",16870,2.685546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=PreserveReferences; Data=DATA-02 MediumObject",31019,4.8828125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=PreserveReferences; Data=DATA-03 RecordBatchSmall",249983,39.794921875,4.8828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=PreserveReferences; Data=DATA-03 RecordBatchSmall",192495,30.517578125,6.103515625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=PreserveReferences; Data=DATA-03 RecordBatchSmall",442526,70.3125,11.71875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=PreserveReferences; Data=DATA-04 RecordBatchLarge",19022381,2234.375,1218.75,1015.625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=PreserveReferences; Data=DATA-04 RecordBatchLarge",15850108,2843.75,1625,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=PreserveReferences; Data=DATA-04 RecordBatchLarge",34873215,4428.5714285714284,2142.8571428571427,1357.1428571428571
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=PreserveReferences; Data=DATA-05 DictionaryHeavy",7269256,1437.5,1062.5,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=PreserveReferences; Data=DATA-05 DictionaryHeavy",8741441,1578.125,890.625,531.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=PreserveReferences; Data=DATA-05 DictionaryHeavy",16011766,2531.25,1906.25,1031.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=PreserveReferences; Data=DATA-07/unicode UnicodeHeavy",769571,147.94921875,147.94921875,147.94921875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=PreserveReferences; Data=DATA-07/unicode UnicodeHeavy",646797,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=PreserveReferences; Data=DATA-07/unicode UnicodeHeavy",1416428,183.59375,183.59375,183.59375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=TightLimits; Data=DATA-01 TinyFlat",2208,0.3509521484375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=TightLimits; Data=DATA-01 TinyFlat",1488,0.23651123046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=TightLimits; Data=DATA-01 TinyFlat",3697,0.58746337890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=TightLimits; Data=DATA-02 MediumObject",13042,2.0751953125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=TightLimits; Data=DATA-02 MediumObject",15725,2.50244140625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=TightLimits; Data=DATA-02 MediumObject",28770,4.57763671875,0.091552734375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=TightLimits; Data=DATA-03 RecordBatchSmall",223998,35.64453125,5.615234375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=TightLimits; Data=DATA-03 RecordBatchSmall",168834,26.85546875,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=TightLimits; Data=DATA-03 RecordBatchSmall",392872,62.5,12.20703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=TightLimits; Data=DATA-04 RecordBatchLarge",16763385,1968.75,781.25,781.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=TightLimits; Data=DATA-04 RecordBatchLarge",13789638,2312.5,1187.5,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=TightLimits; Data=DATA-04 RecordBatchLarge",30553685,4093.75,1593.75,1062.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=TightLimits; Data=DATA-05 DictionaryHeavy",6146858,1398.4375,1000,992.1875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=TightLimits; Data=DATA-05 DictionaryHeavy",7739228,1343.75,671.875,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=TightLimits; Data=DATA-05 DictionaryHeavy",13888230,2437.5,1812.5,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=TightLimits; Data=DATA-07/unicode UnicodeHeavy",769419,147.94921875,147.94921875,147.94921875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=TightLimits; Data=DATA-07/unicode UnicodeHeavy",646493,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=TightLimits; Data=DATA-07/unicode UnicodeHeavy",1415972,183.59375,183.59375,183.59375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Deflate; Data=DATA-01 TinyFlat",2864,0.4425048828125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Deflate; Data=DATA-01 TinyFlat",2064,0.32806396484375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Deflate; Data=DATA-01 TinyFlat",4929,0.7781982421875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Deflate; Data=DATA-02 MediumObject",14987,2.38037109375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Deflate; Data=DATA-02 MediumObject",17982,2.8076171875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Deflate; Data=DATA-02 MediumObject",32972,5.126953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Deflate; Data=DATA-03 RecordBatchSmall",292384,45.8984375,3.90625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Deflate; Data=DATA-03 RecordBatchSmall",205354,32.470703125,4.638671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Deflate; Data=DATA-03 RecordBatchSmall",497790,79.1015625,11.71875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",21788470,2222.2222222222222,1111.1111111111111,1111.1111111111111
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",16667400,2375,1093.75,531.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",38453614,4142.8571428571431,1714.2857142857142,1142.8571428571429
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Deflate; Data=DATA-05 DictionaryHeavy",7259432,1375,968.75,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Deflate; Data=DATA-05 DictionaryHeavy",8501740,1515.625,859.375,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Deflate; Data=DATA-05 DictionaryHeavy",15757198,3000,2375,1531.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Deflate; Data=DATA-07/unicode UnicodeHeavy",597231,74.21875,74.21875,74.21875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Deflate; Data=DATA-07/unicode UnicodeHeavy",667161,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Deflate; Data=DATA-07/unicode UnicodeHeavy",1264501,218.75,109.375,109.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Brotli; Data=DATA-01 TinyFlat",2336,0.3662109375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Brotli; Data=DATA-01 TinyFlat",1680,0.26702880859375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Brotli; Data=DATA-01 TinyFlat",4017,0.6256103515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Brotli; Data=DATA-02 MediumObject",13715,2.13623046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Brotli; Data=DATA-02 MediumObject",16726,2.655029296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Brotli; Data=DATA-02 MediumObject",30444,4.7607421875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Brotli; Data=DATA-03 RecordBatchSmall",235678,37.109375,4.8828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Brotli; Data=DATA-03 RecordBatchSmall",187317,29.78515625,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Brotli; Data=DATA-03 RecordBatchSmall",423046,67.3828125,10.7421875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",17636847,2307.6923076923076,1153.8461538461538,1153.8461538461538
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",15240066,2375,1250,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",32878523,4250,1875,1250
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Brotli; Data=DATA-05 DictionaryHeavy",6184127,1343.75,937.5,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Brotli; Data=DATA-05 DictionaryHeavy",8112574,1468.75,781.25,453.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Brotli; Data=DATA-05 DictionaryHeavy",14298323,2500,1875,1062.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Brotli; Data=DATA-07/unicode UnicodeHeavy",579016,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Brotli; Data=DATA-07/unicode UnicodeHeavy",658977,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Brotli; Data=DATA-07/unicode UnicodeHeavy",1238126,218.75,109.375,109.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Crc32; Data=DATA-01 TinyFlat",2232,0.354766845703125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Crc32; Data=DATA-01 TinyFlat",1528,0.2422332763671875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Crc32; Data=DATA-01 TinyFlat",3761,0.579833984375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Crc32; Data=DATA-02 MediumObject",13058,2.0751953125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Crc32; Data=DATA-02 MediumObject",15765,2.50244140625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Crc32; Data=DATA-02 MediumObject",28826,4.57763671875,0.06103515625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Crc32; Data=DATA-03 RecordBatchSmall",224014,35.64453125,5.615234375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Crc32; Data=DATA-03 RecordBatchSmall",168874,26.85546875,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Crc32; Data=DATA-03 RecordBatchSmall",392928,62.5,12.20703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",16763838,1937.5,750,750
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",13789684,2312.5,1187.5,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",30555060,4093.75,1750,1062.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Crc32; Data=DATA-05 DictionaryHeavy",6146890,1390.625,992.1875,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Crc32; Data=DATA-05 DictionaryHeavy",7739116,1343.75,671.875,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Crc32; Data=DATA-05 DictionaryHeavy",13886915,2437.5,1875,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Crc32; Data=DATA-07/unicode UnicodeHeavy",769451,147.94921875,147.94921875,147.94921875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Crc32; Data=DATA-07/unicode UnicodeHeavy",646533,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Crc32; Data=DATA-07/unicode UnicodeHeavy",1416044,183.59375,183.59375,183.59375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Aes256Gcm; Data=DATA-01 TinyFlat",2560,0.40435791015625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Aes256Gcm; Data=DATA-01 TinyFlat",1976,0.31280517578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Aes256Gcm; Data=DATA-01 TinyFlat",4537,0.7171630859375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Aes256Gcm; Data=DATA-02 MediumObject",14363,2.288818359375,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Aes256Gcm; Data=DATA-02 MediumObject",17159,2.7313232421875,0.0457763671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Aes256Gcm; Data=DATA-02 MediumObject",31524,5.0048828125,0.1220703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Aes256Gcm; Data=DATA-03 RecordBatchSmall",246023,39.0625,5.37109375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Aes256Gcm; Data=DATA-03 RecordBatchSmall",190974,30.2734375,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Aes256Gcm; Data=DATA-03 RecordBatchSmall",437040,69.3359375,11.23046875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",18503900,2000,812.5,812.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",15530434,2812.5,1937.5,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",34033901,3687.5,1500,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Aes256Gcm; Data=DATA-05 DictionaryHeavy",6687822,1398.4375,1000,992.1875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Aes256Gcm; Data=DATA-05 DictionaryHeavy",8280352,1515.625,937.5,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Aes256Gcm; Data=DATA-05 DictionaryHeavy",14969861,2406.25,1687.5,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Aes256Gcm; Data=DATA-07/unicode UnicodeHeavy",883573,184.5703125,184.5703125,184.5703125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Aes256Gcm; Data=DATA-07/unicode UnicodeHeavy",760728,142.578125,71.2890625,71.2890625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Aes256Gcm; Data=DATA-07/unicode UnicodeHeavy",1644357,246.09375,246.09375,246.09375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedBrotli; Data=DATA-01 TinyFlat",2704,0.42724609375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedBrotli; Data=DATA-01 TinyFlat",2209,0.3509521484375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedBrotli; Data=DATA-01 TinyFlat",4913,0.762939453125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedBrotli; Data=DATA-02 MediumObject",14931,2.3193359375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedBrotli; Data=DATA-02 MediumObject",18064,2.86865234375,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedBrotli; Data=DATA-02 MediumObject",32998,5.2490234375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedBrotli; Data=DATA-03 RecordBatchSmall",254376,40.0390625,4.8828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedBrotli; Data=DATA-03 RecordBatchSmall",206137,32.71484375,4.638671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedBrotli; Data=DATA-03 RecordBatchSmall",460568,73.2421875,10.7421875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",19085695,2230.7692307692309,1076.9230769230769,1076.9230769230769
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",16698402,2812.5,1718.75,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",35780124,4125,1625,1125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedBrotli; Data=DATA-05 DictionaryHeavy",6556714,1390.625,984.375,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedBrotli; Data=DATA-05 DictionaryHeavy",8485347,1531.25,875,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedBrotli; Data=DATA-05 DictionaryHeavy",15047603,2906.25,2281.25,1468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedBrotli; Data=DATA-07/unicode UnicodeHeavy",591690,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedBrotli; Data=DATA-07/unicode UnicodeHeavy",671777,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedBrotli; Data=DATA-07/unicode UnicodeHeavy",1263608,218.75,109.375,109.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedDeflate; Data=DATA-01 TinyFlat",3216,0.5035400390625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedDeflate; Data=DATA-01 TinyFlat",2585,0.4119873046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedDeflate; Data=DATA-01 TinyFlat",5801,0.91552734375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedDeflate; Data=DATA-02 MediumObject",16220,2.5634765625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedDeflate; Data=DATA-02 MediumObject",19335,3.082275390625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedDeflate; Data=DATA-02 MediumObject",35558,5.615234375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedDeflate; Data=DATA-03 RecordBatchSmall",310756,48.828125,6.8359375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedDeflate; Data=DATA-03 RecordBatchSmall",223846,35.64453125,5.37109375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedDeflate; Data=DATA-03 RecordBatchSmall",534657,83.984375,9.765625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",23225092,2400,1200,1200
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",18106299,2437.5,1125,593.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",41333003,3857.1428571428573,1571.4285714285713,857.14285714285711
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedDeflate; Data=DATA-05 DictionaryHeavy",7635174,1406.25,984.375,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedDeflate; Data=DATA-05 DictionaryHeavy",8887293,1531.25,890.625,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedDeflate; Data=DATA-05 DictionaryHeavy",16520018,2937.5,2375,1500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=ProtectedDeflate; Data=DATA-07/unicode UnicodeHeavy",607682,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=ProtectedDeflate; Data=DATA-07/unicode UnicodeHeavy",677737,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=ProtectedDeflate; Data=DATA-07/unicode UnicodeHeavy",1285534,218.75,109.375,109.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Headerless; Data=DATA-01 TinyFlat",1344,0.213623046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Headerless; Data=DATA-01 TinyFlat",944,0.14972686767578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Headerless; Data=DATA-01 TinyFlat",2288,0.3643035888671875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Headerless; Data=DATA-02 MediumObject",10146,1.6021728515625,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Headerless; Data=DATA-02 MediumObject",14243,2.25830078125,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Headerless; Data=DATA-02 MediumObject",24388,3.875732421875,0.06103515625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Headerless; Data=DATA-03 RecordBatchSmall",179693,28.564453125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Headerless; Data=DATA-03 RecordBatchSmall",146621,23.193359375,2.44140625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Headerless; Data=DATA-03 RecordBatchSmall",326315,51.7578125,6.34765625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Headerless; Data=DATA-04 RecordBatchLarge",13282823,2093.75,906.25,906.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Headerless; Data=DATA-04 RecordBatchLarge",12048684,2218.75,968.75,375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Headerless; Data=DATA-04 RecordBatchLarge",25331241,4000,1750,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Headerless; Data=DATA-05 DictionaryHeavy",5066219,992.1875,593.75,585.9375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Headerless; Data=DATA-05 DictionaryHeavy",7197165,1203.125,500,203.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Headerless; Data=DATA-05 DictionaryHeavy",12262414,1968.75,968.75,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-01 serialize → byte[]'","Profile=Headerless; Data=DATA-07/unicode UnicodeHeavy",541095,76.66015625,76.66015625,76.66015625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-04 deserialize ← byte[]'","Profile=Headerless; Data=DATA-07/unicode UnicodeHeavy",532184,84.47265625,24.4140625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileMatrixBenchmarks","'WL-06 round trip'","Profile=Headerless; Data=DATA-07/unicode UnicodeHeavy",1073266,152.34375,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Default; Data=DATA-01 TinyFlat",1720,0.2727508544921875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Default; Data=DATA-01 TinyFlat",1424,0.2269744873046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Default; Data=DATA-02 MediumObject",10522,1.6632080078125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Default; Data=DATA-02 MediumObject",15662,2.44140625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Default; Data=DATA-03 RecordBatchSmall",180069,28.564453125,3.173828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Default; Data=DATA-03 RecordBatchSmall",168770,26.85546875,4.150390625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Default; Data=DATA-04 RecordBatchLarge",13283351,1921.875,734.375,734.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Default; Data=DATA-04 RecordBatchLarge",13789528,2218.75,1000,375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Default; Data=DATA-05 DictionaryHeavy",5066594,984.375,585.9375,578.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Default; Data=DATA-05 DictionaryHeavy",7739029,1359.375,687.5,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Default; Data=DATA-07/unicode UnicodeHeavy",541471,76.66015625,76.66015625,76.66015625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Default; Data=DATA-07/unicode UnicodeHeavy",646429,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=PreserveReferences; Data=DATA-01 TinyFlat",1856,0.2956390380859375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=PreserveReferences; Data=DATA-01 TinyFlat",1728,0.274658203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=PreserveReferences; Data=DATA-02 MediumObject",11498,1.8310546875,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=PreserveReferences; Data=DATA-02 MediumObject",16806,2.6702880859375,0.0457763671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=PreserveReferences; Data=DATA-03 RecordBatchSmall",203557,32.2265625,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=PreserveReferences; Data=DATA-03 RecordBatchSmall",192431,30.517578125,6.103515625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=PreserveReferences; Data=DATA-04 RecordBatchLarge",15342759,1781.25,750,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=PreserveReferences; Data=DATA-04 RecordBatchLarge",15849759,2500,1093.75,625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=PreserveReferences; Data=DATA-05 DictionaryHeavy",6068086,1210.9375,828.125,773.4375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=PreserveReferences; Data=DATA-05 DictionaryHeavy",8741590,1562.5,859.375,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=PreserveReferences; Data=DATA-07/unicode UnicodeHeavy",541607,76.66015625,76.66015625,76.66015625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=PreserveReferences; Data=DATA-07/unicode UnicodeHeavy",646733,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=TightLimits; Data=DATA-01 TinyFlat",1720,0.27370452880859375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=TightLimits; Data=DATA-01 TinyFlat",1424,0.2269744873046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=TightLimits; Data=DATA-02 MediumObject",10522,1.6632080078125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=TightLimits; Data=DATA-02 MediumObject",15661,2.4871826171875,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=TightLimits; Data=DATA-03 RecordBatchSmall",180069,28.564453125,3.173828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=TightLimits; Data=DATA-03 RecordBatchSmall",168770,26.85546875,4.150390625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=TightLimits; Data=DATA-04 RecordBatchLarge",13283156,1875,687.5,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=TightLimits; Data=DATA-04 RecordBatchLarge",13789671,2218.75,1000,375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=TightLimits; Data=DATA-05 DictionaryHeavy",5066461,992.1875,593.75,585.9375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=TightLimits; Data=DATA-05 DictionaryHeavy",7739362,1359.375,687.5,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=TightLimits; Data=DATA-07/unicode UnicodeHeavy",541471,76.66015625,76.66015625,76.66015625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=TightLimits; Data=DATA-07/unicode UnicodeHeavy",646429,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Deflate; Data=DATA-01 TinyFlat",2376,0.3662109375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Deflate; Data=DATA-01 TinyFlat",2000,0.316619873046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Deflate; Data=DATA-02 MediumObject",12690,2.01416015625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Deflate; Data=DATA-02 MediumObject",17918,2.838134765625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Deflate; Data=DATA-03 RecordBatchSmall",255831,40.0390625,3.90625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Deflate; Data=DATA-03 RecordBatchSmall",205290,32.470703125,4.638671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",18909221,2000,888.8888888888888,888.8888888888888
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",16667951,2375,1031.25,531.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Deflate; Data=DATA-05 DictionaryHeavy",6489101,1406.25,984.375,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Deflate; Data=DATA-05 DictionaryHeavy",8501761,1515.625,843.75,484.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Deflate; Data=DATA-07/unicode UnicodeHeavy",576536,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Deflate; Data=DATA-07/unicode UnicodeHeavy",667097,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Brotli; Data=DATA-01 TinyFlat",1840,0.2899169921875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Brotli; Data=DATA-01 TinyFlat",1616,0.2574920654296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Brotli; Data=DATA-02 MediumObject",11450,1.77001953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Brotli; Data=DATA-02 MediumObject",16662,2.655029296875,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Brotli; Data=DATA-03 RecordBatchSmall",198469,31.25,2.9296875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Brotli; Data=DATA-03 RecordBatchSmall",187253,29.78515625,4.8828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",14734210,1750,583.33333333333337,583.33333333333337
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",15240461,2406.25,1062.5,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Brotli; Data=DATA-05 DictionaryHeavy",5439845,1062.5,656.25,656.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Brotli; Data=DATA-05 DictionaryHeavy",8112597,1484.375,828.125,453.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Brotli; Data=DATA-07/unicode UnicodeHeavy",553872,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Brotli; Data=DATA-07/unicode UnicodeHeavy",658913,105.46875,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Crc32; Data=DATA-01 TinyFlat",1736,0.2765655517578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Crc32; Data=DATA-01 TinyFlat",1464,0.232696533203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Crc32; Data=DATA-02 MediumObject",10538,1.678466796875,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Crc32; Data=DATA-02 MediumObject",15701,2.50244140625,0.0457763671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Crc32; Data=DATA-03 RecordBatchSmall",180085,28.564453125,3.173828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Crc32; Data=DATA-03 RecordBatchSmall",168810,26.85546875,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",13284594,1875,687.5,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",13789536,2218.75,1000,375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Crc32; Data=DATA-05 DictionaryHeavy",5066647,992.1875,593.75,585.9375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Crc32; Data=DATA-05 DictionaryHeavy",7739272,1359.375,687.5,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Crc32; Data=DATA-07/unicode UnicodeHeavy",541487,76.66015625,76.66015625,76.66015625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Crc32; Data=DATA-07/unicode UnicodeHeavy",646469,106.93359375,35.64453125,35.64453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Aes256Gcm; Data=DATA-01 TinyFlat",2032,0.3204345703125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Aes256Gcm; Data=DATA-01 TinyFlat",1912,0.301361083984375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Aes256Gcm; Data=DATA-02 MediumObject",11779,1.8768310546875,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Aes256Gcm; Data=DATA-02 MediumObject",17095,2.716064453125,0.0457763671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Aes256Gcm; Data=DATA-03 RecordBatchSmall",202029,31.982421875,3.173828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Aes256Gcm; Data=DATA-03 RecordBatchSmall",190910,30.2734375,4.150390625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",15024321,1796.875,609.375,609.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",15529734,2218.75,906.25,375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Aes256Gcm; Data=DATA-05 DictionaryHeavy",5608970,1046.875,648.4375,640.625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Aes256Gcm; Data=DATA-05 DictionaryHeavy",8280186,1500,828.125,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Aes256Gcm; Data=DATA-07/unicode UnicodeHeavy",655502,110.83984375,110.83984375,110.83984375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Aes256Gcm; Data=DATA-07/unicode UnicodeHeavy",760664,142.578125,71.2890625,71.2890625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedBrotli; Data=DATA-01 TinyFlat",2168,0.335693359375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedBrotli; Data=DATA-01 TinyFlat",2145,0.339508056640625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedBrotli; Data=DATA-02 MediumObject",12587,1.953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedBrotli; Data=DATA-02 MediumObject",18000,2.86865234375,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedBrotli; Data=DATA-03 RecordBatchSmall",217086,34.1796875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedBrotli; Data=DATA-03 RecordBatchSmall",206073,32.71484375,4.8828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",16186312,1923.0769230769231,769.23076923076928,769.23076923076928
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",16691802,2437.5,1156.25,593.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedBrotli; Data=DATA-05 DictionaryHeavy",5812254,1171.875,765.625,765.625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedBrotli; Data=DATA-05 DictionaryHeavy",8485471,1531.25,828.125,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedBrotli; Data=DATA-07/unicode UnicodeHeavy",566466,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedBrotli; Data=DATA-07/unicode UnicodeHeavy",671713,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedDeflate; Data=DATA-01 TinyFlat",2696,0.42724609375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedDeflate; Data=DATA-01 TinyFlat",2521,0.396728515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedDeflate; Data=DATA-02 MediumObject",13843,2.197265625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedDeflate; Data=DATA-02 MediumObject",19272,3.0517578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedDeflate; Data=DATA-03 RecordBatchSmall",274121,42.96875,3.90625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedDeflate; Data=DATA-03 RecordBatchSmall",223781,35.64453125,5.126953125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",20347935,2000,800,800
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",18107051,2250,968.75,406.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedDeflate; Data=DATA-05 DictionaryHeavy",6877909,1390.625,968.75,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedDeflate; Data=DATA-05 DictionaryHeavy",8887263,1515.625,843.75,484.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=ProtectedDeflate; Data=DATA-07/unicode UnicodeHeavy",586906,76.171875,76.171875,76.171875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=ProtectedDeflate; Data=DATA-07/unicode UnicodeHeavy",677673,106.4453125,35.15625,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Headerless; Data=DATA-01 TinyFlat",880,0.14019012451171875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Headerless; Data=DATA-01 TinyFlat",880,0.14019012451171875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Headerless; Data=DATA-02 MediumObject",5089,0.8087158203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Headerless; Data=DATA-02 MediumObject",14179,2.25830078125,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Headerless; Data=DATA-03 RecordBatchSmall",92395,14.6484375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Headerless; Data=DATA-03 RecordBatchSmall",146557,23.193359375,2.44140625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Headerless; Data=DATA-04 RecordBatchLarge",7348200,1156.25,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Headerless; Data=DATA-04 RecordBatchLarge",12048624,2218.75,968.75,375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Headerless; Data=DATA-05 DictionaryHeavy",2428066,382.8125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Headerless; Data=DATA-05 DictionaryHeavy",7197142,1234.375,500,203.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-02 serialize → Stream'","Profile=Headerless; Data=DATA-07/unicode UnicodeHeavy",165108,25.87890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ProfileStreamBenchmarks","'WL-05 deserialize ← Stream'","Profile=Headerless; Data=DATA-07/unicode UnicodeHeavy",532120,83.984375,24.4140625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor serialize'","Data=DATA-01 TinyFlat",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor deserialize'","Data=DATA-01 TinyFlat",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor serialize'","Data=DATA-02 MediumObject",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor deserialize'","Data=DATA-02 MediumObject",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor serialize'","Data=DATA-03 RecordBatchSmall",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor deserialize'","Data=DATA-03 RecordBatchSmall",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor serialize'","Data=DATA-04 RecordBatchLarge",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor deserialize'","Data=DATA-04 RecordBatchLarge",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor serialize'","Data=DATA-05 DictionaryHeavy",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor deserialize'","Data=DATA-05 DictionaryHeavy",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor serialize'","Data=DATA-07/unicode UnicodeHeavy",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.HarnessFloorBenchmarks","'floor deserialize'","Data=DATA-07/unicode UnicodeHeavy",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Default; Data=DATA-04 RecordBatchLarge",16763526,2093.75,906.25,906.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Default; Data=DATA-04 RecordBatchLarge",13789642,2312.5,1187.5,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Default; Data=DATA-08 Incompressible",26399350,4437.5,1031.25,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Default; Data=DATA-08 Incompressible",25499037,4437.5,1031.25,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Default; Data=DATA-09 HighlyCompressible",2610637,592.7734375,500,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Default; Data=DATA-09 HighlyCompressible",2244365,333.0078125,221.6796875,110.3515625
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Default; Data=DATA-14/blob ByteBlob(0.9 MB)",26399435,4437.5,1031.25,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Default; Data=DATA-14/blob ByteBlob(0.9 MB)",25499011,4437.5,1031.25,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Default; Data=DATA-16 StringTable",6172313,1332.03125,1003.90625,996.09375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Default; Data=DATA-16 StringTable",10576150,1890.625,984.375,453.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",21788554,2363.636363636364,1181.818181818182,1181.818181818182
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Deflate; Data=DATA-04 RecordBatchLarge",16667188,2406.25,1093.75,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Deflate; Data=DATA-08 Incompressible",29389808,4333.333333333333,1000,916.66666666666663
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Deflate; Data=DATA-08 Incompressible",27304646,4187.5,781.25,750
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Deflate; Data=DATA-09 HighlyCompressible",1900783,425.78125,341.796875,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Deflate; Data=DATA-09 HighlyCompressible",2249186,333.0078125,221.6796875,110.3515625
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Deflate; Data=DATA-14/blob ByteBlob(0.9 MB)",24627862,4156.25,750,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Deflate; Data=DATA-14/blob ByteBlob(0.9 MB)",25513871,4437.5,1031.25,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Deflate; Data=DATA-16 StringTable",8498519,1125,781.25,781.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Deflate; Data=DATA-16 StringTable",11672455,1984.375,921.875,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",17636114,2333.3333333333335,1166.6666666666667,1166.6666666666667
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Brotli; Data=DATA-04 RecordBatchLarge",15240572,2812.5,1937.5,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Brotli; Data=DATA-08 Incompressible",27299506,4250,843.75,812.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Brotli; Data=DATA-08 Incompressible",26399698,4375,968.75,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Brotli; Data=DATA-09 HighlyCompressible",1892848,429.6875,335.9375,332.03125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Brotli; Data=DATA-09 HighlyCompressible",2244653,332.03125,220.703125,109.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Brotli; Data=DATA-14/blob ByteBlob(0.9 MB)",24600415,4156.25,781.25,718.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Brotli; Data=DATA-14/blob ByteBlob(0.9 MB)",25499917,4375,968.75,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Brotli; Data=DATA-16 StringTable",6411379,1296.875,968.75,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Brotli; Data=DATA-16 StringTable",11123650,1906.25,859.375,484.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",16763943,2078.125,890.625,890.625
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Crc32; Data=DATA-04 RecordBatchLarge",13789687,2312.5,1187.5,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Crc32; Data=DATA-08 Incompressible",26399237,4437.5,1031.25,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Crc32; Data=DATA-08 Incompressible",25499075,4437.5,1031.25,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Crc32; Data=DATA-09 HighlyCompressible",2610749,591.796875,500,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Crc32; Data=DATA-09 HighlyCompressible",2244405,333.0078125,221.6796875,110.3515625
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Crc32; Data=DATA-14/blob ByteBlob(0.9 MB)",26399228,4437.5,1031.25,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Crc32; Data=DATA-14/blob ByteBlob(0.9 MB)",25499051,4437.5,1031.25,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Crc32; Data=DATA-16 StringTable",6172088,1328.125,992.1875,992.1875
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Crc32; Data=DATA-16 StringTable",10576112,1875,1062.5,437.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",18503839,1906.25,718.75,718.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Aes256Gcm; Data=DATA-04 RecordBatchLarge",15529898,2406.25,1281.25,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Aes256Gcm; Data=DATA-08 Incompressible",27299967,4218.75,812.5,781.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Aes256Gcm; Data=DATA-08 Incompressible",26405666,4375,968.75,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Aes256Gcm; Data=DATA-09 HighlyCompressible",2973770,630.859375,537.109375,533.203125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Aes256Gcm; Data=DATA-09 HighlyCompressible",2605075,443.359375,220.703125,220.703125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Aes256Gcm; Data=DATA-14/blob ByteBlob(0.9 MB)",27300470,4312.5,906.25,875
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Aes256Gcm; Data=DATA-14/blob ByteBlob(0.9 MB)",26406129,4375,968.75,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=Aes256Gcm; Data=DATA-16 StringTable",6873344,1328.125,992.1875,992.1875
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=Aes256Gcm; Data=DATA-16 StringTable",11277810,1968.75,968.75,531.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",19085698,2230.7692307692309,1076.9230769230769,1076.9230769230769
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedBrotli; Data=DATA-04 RecordBatchLarge",16691399,2312.5,1031.25,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedBrotli; Data=DATA-08 Incompressible",28205515,4406.25,1000,968.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedBrotli; Data=DATA-08 Incompressible",27303945,4390.625,968.75,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedBrotli; Data=DATA-09 HighlyCompressible",1893401,429.6875,335.9375,332.03125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedBrotli; Data=DATA-09 HighlyCompressible",2245239,333.0078125,221.6796875,110.3515625
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedBrotli; Data=DATA-14/blob ByteBlob(0.9 MB)",24601192,4125,750,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedBrotli; Data=DATA-14/blob ByteBlob(0.9 MB)",25500874,4375,968.75,937.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedBrotli; Data=DATA-16 StringTable",6959424,1312.5,984.375,984.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedBrotli; Data=DATA-16 StringTable",11673313,1968.75,1031.25,562.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",23227945,2500,1300,1300
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedDeflate; Data=DATA-04 RecordBatchLarge",18106306,2437.5,1093.75,593.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedDeflate; Data=DATA-08 Incompressible",30291183,4090.909090909091,636.36363636363637,636.36363636363637
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedDeflate; Data=DATA-08 Incompressible",28202474,3906.25,500,468.75
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedDeflate; Data=DATA-09 HighlyCompressible",1903746,429.6875,341.796875,332.03125
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedDeflate; Data=DATA-09 HighlyCompressible",2251876,333.0078125,221.6796875,110.3515625
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedDeflate; Data=DATA-14/blob ByteBlob(0.9 MB)",24635464,4156.25,750,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedDeflate; Data=DATA-14/blob ByteBlob(0.9 MB)",25521533,4375,937.5,906.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase write'","Profile=ProtectedDeflate; Data=DATA-16 StringTable",9046122,1031.25,687.5,687.5
+"ViShap.Viper.Serialization.Benchmarks.Suites.AlgorithmBenchmarks","'phase read'","Profile=ProtectedDeflate; Data=DATA-16 StringTable",12218086,2187.5,1250,750
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 serialize'","Configuration=Headerless",10146,1.6021728515625,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 deserialize'","Configuration=Headerless",14243,2.25830078125,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 serialize'","Configuration=MinimalHeader",13042,2.0751953125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 deserialize'","Configuration=MinimalHeader",15725,2.50244140625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 serialize'","Configuration=Encrypted",14307,2.2735595703125,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 deserialize'","Configuration=Encrypted",16943,2.685546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 serialize'","Configuration=EncryptedWithKeyId",14427,2.288818359375,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 deserialize'","Configuration=EncryptedWithKeyId",17223,2.7313232421875,0.0457763671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 serialize'","Configuration=Protected",16284,2.5634765625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 deserialize'","Configuration=Protected",19399,3.082275390625,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 serialize'","Configuration=ProtectedCustomNames",16868,2.685546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.EnvelopeDifferentialBenchmarks","'DIFF-01 deserialize'","Configuration=ProtectedCustomNames",20696,3.2958984375,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=Byte",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=Byte",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=Int16",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=Int16",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=Int32",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=Int32",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=Int64",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=Int64",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=Double",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=Double",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=Decimal",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=Decimal",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=VarIntOneByte",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=VarIntOneByte",72,0.011474609375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 write'","Primitive=VarIntFiveBytes",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValuePrimitiveBenchmarks","'MICRO-01 read'","Primitive=VarIntFiveBytes",360,0.057373046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=8; MultiByte=False",32,0.0050663948059082031,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=8; MultiByte=False",160,0.025451183319091797,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=8; MultiByte=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=8; MultiByte=False",192,0.030577182769775391,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=8; MultiByte=True",32,0.0050663948059082031,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=8; MultiByte=True",152,0.024199485778808594,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=8; MultiByte=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=8; MultiByte=True",192,0.030577182769775391,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=256; MultiByte=False",280,0.044584274291992188,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=256; MultiByte=False",992,0.15807151794433594,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=256; MultiByte=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=256; MultiByte=False",536,0.085353851318359375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=256; MultiByte=True",280,0.044584274291992188,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=256; MultiByte=True",648,0.102996826171875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=256; MultiByte=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=256; MultiByte=True",536,0.085353851318359375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=4096; MultiByte=False",4120,0.6561279296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=4096; MultiByte=False",12512,1.995086669921875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=4096; MultiByte=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=4096; MultiByte=False",4376,0.69761276245117188,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=4096; MultiByte=True",4120,0.6561279296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=4096; MultiByte=True",7048,1.12152099609375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=4096; MultiByte=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=4096; MultiByte=True",4376,0.69761276245117188,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=65536; MultiByte=False",65560,10.41412353515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=65536; MultiByte=False",196934,41.6259765625,41.6259765625,41.6259765625
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=65536; MultiByte=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=65536; MultiByte=False",65912,10.41412353515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write string'","Bytes=65536; MultiByte=True",65560,10.406494140625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read string'","Bytes=65536; MultiByte=True",109536,17.333984375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 write blob'","Bytes=65536; MultiByte=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ValueTextBenchmarks","'MICRO-01 read blob'","Bytes=65536; MultiByte=True",65912,10.41412353515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.BudgetBenchmarks","'MICRO-02 validate collection count'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.BudgetBenchmarks","'MICRO-02 validate array count'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.BudgetBenchmarks","'MICRO-02 validate dictionary count'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.BudgetBenchmarks","'MICRO-02 validate rank-3 shape'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.BudgetBenchmarks","'MICRO-02 charge graph node'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.BudgetBenchmarks","'MICRO-02 charge keyed field'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 enter and exit'","Depth=1",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and return'","Depth=1",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and unwind'","Depth=1",320,0.049591064453125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 enter and exit'","Depth=8",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and return'","Depth=8",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and unwind'","Depth=8",784,0.1220703125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 enter and exit'","Depth=64",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and return'","Depth=64",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and unwind'","Depth=64",4488,0.701904296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 enter and exit'","Depth=500",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and return'","Depth=500",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.DepthScopeBenchmarks","'MICRO-03 descend and unwind'","Depth=500",16856,2.685546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ContractLookupBenchmarks","'MICRO-04 positional lookup'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ContractLookupBenchmarks","'MICRO-04 keyed lookup'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ContractLookupBenchmarks","'MICRO-04 union lookup'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterResolutionBenchmarks","'MICRO-05 resolve claimed sequence'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterResolutionBenchmarks","'MICRO-05 resolve claimed map'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterResolutionBenchmarks","'MICRO-05 resolve member-encoded'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 scalar write'","",32,0.005096435546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 scalar read'","",32,0.005096435546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 sequence write'","",2520,0.400543212890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 sequence read'","",3008,0.476837158203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 map write'","",8160,1.2969970703125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 map read'","",19232,3.0517578125,0.06103515625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 composite write'","",88,0.013828277587890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.FormatterShapeBenchmarks","'MICRO-06 composite read'","",304,0.048398971557617188,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 write lookup and register'","SharedPercent=0",102,0.0162353515625,0.00323486328125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 read register and resolve'","SharedPercent=0",102,0.0162353515625,0.00323486328125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 table construction'","SharedPercent=0",0,2.8043985366821289E-05,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 write lookup and register'","SharedPercent=10",48,0.007659912109375,0.000823974609375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 read register and resolve'","SharedPercent=10",48,0.007659912109375,0.0008392333984375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 table construction'","SharedPercent=10",0,2.8043985366821289E-05,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 write lookup and register'","SharedPercent=50",48,0.007659912109375,0.000946044921875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 read register and resolve'","SharedPercent=50",48,0.007659912109375,0.000946044921875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 table construction'","SharedPercent=50",0,2.8043985366821289E-05,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 write lookup and register'","SharedPercent=90",10,0.0016326904296875,3.814697265625E-05,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 read register and resolve'","SharedPercent=90",10,0.0016326904296875,3.814697265625E-05,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceIdentityBenchmarks","'MICRO-07 table construction'","SharedPercent=90",0,2.8043985366821289E-05,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceScopeBenchmarks","'MICRO-07 write scope enter and exit'","",80,0.0127410888671875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ReferenceScopeBenchmarks","'MICRO-07 read scope enter and exit'","",80,0.0127410888671875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.HeaderBenchmarks","'MICRO-08 write header'","AllFields=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.HeaderBenchmarks","'MICRO-08 parse header'","AllFields=False",72,0.011444091796875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.HeaderBenchmarks","'MICRO-08 build associated data'","AllFields=False",240,0.03814697265625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.HeaderBenchmarks","'MICRO-08 write header'","AllFields=True",192,0.030517578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.HeaderBenchmarks","'MICRO-08 parse header'","AllFields=True",1312,0.20885467529296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.HeaderBenchmarks","'MICRO-08 build associated data'","AllFields=True",608,0.096797943115234375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.StreamMechanismBenchmarks","'MICRO-09 bare write'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.StreamMechanismBenchmarks","'MICRO-09 metered write'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.StreamMechanismBenchmarks","'MICRO-09 bare read'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.StreamMechanismBenchmarks","'MICRO-09 metered read'","",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.StreamMechanismBenchmarks","'MICRO-09 window read'","",0,2.9802322387695312E-05,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.StreamMechanismBenchmarks","'MICRO-09 window construction'","",0,3.4866388887166977E-05,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate compress'","Bytes=4096; Compressible=False",4392,0.6103515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate decompress'","Bytes=4096; Compressible=False",4440,0.7076263427734375,0.011444091796875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli compress'","Bytes=4096; Compressible=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli decompress'","Bytes=4096; Compressible=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate compress'","Bytes=4096; Compressible=True",544,0.08392333984375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate decompress'","Bytes=4096; Compressible=True",424,0.064849853515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli compress'","Bytes=4096; Compressible=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli decompress'","Bytes=4096; Compressible=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate compress'","Bytes=65536; Compressible=False",254364,41.015625,41.015625,41.015625
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate decompress'","Bytes=65536; Compressible=False",65896,10.406494140625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli compress'","Bytes=65536; Compressible=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli decompress'","Bytes=65536; Compressible=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate compress'","Bytes=65536; Compressible=True",776,0.1220703125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate decompress'","Bytes=65536; Compressible=True",824,0.12969970703125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli compress'","Bytes=65536; Compressible=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli decompress'","Bytes=65536; Compressible=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate compress'","Bytes=1000000; Compressible=False",2089598,281.25,281.25,281.25
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate decompress'","Bytes=1000000; Compressible=False",1001032,165.283203125,165.0390625,165.0390625
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli compress'","Bytes=1000000; Compressible=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli decompress'","Bytes=1000000; Compressible=False",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate compress'","Bytes=1000000; Compressible=True",6656,0.9765625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 deflate decompress'","Bytes=1000000; Compressible=True",6704,1.03759765625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli compress'","Bytes=1000000; Compressible=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.CompressionPrimitiveBenchmarks","'MICRO-10 brotli decompress'","Bytes=1000000; Compressible=True",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 crc32 compute'","Bytes=4096",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 aes-256-gcm encrypt'","Bytes=4096",72,0.011444091796875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 aes-256-gcm decrypt'","Bytes=4096",40,0.0057220458984375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 crc32 compute'","Bytes=65536",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 aes-256-gcm encrypt'","Bytes=65536",72,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 aes-256-gcm decrypt'","Bytes=65536",40,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 crc32 compute'","Bytes=1000000",0,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 aes-256-gcm encrypt'","Bytes=1000000",40,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.Components.ProtectionPrimitiveBenchmarks","'MICRO-10 aes-256-gcm decrypt'","Bytes=1000000",40,0,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 serialize'","Count=1",2304,0.3662109375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 deserialize'","Count=1",1728,0.274658203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 serialize'","Count=10",9680,1.5411376953125,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 deserialize'","Count=10",7746,1.22833251953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 serialize'","Count=100",96947,15.44189453125,1.28173828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 deserialize'","Count=100",68086,10.80322265625,0.79345703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 serialize'","Count=1000",891422,121.09375,121.09375,121.09375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 deserialize'","Count=1000",672084,107.421875,26.3671875,26.3671875
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 serialize'","Count=10000",8384769,1601.5625,1007.8125,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 deserialize'","Count=10000",6894143,1171.875,562.5,234.375
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 serialize'","Count=100000",96399884,6333.333333333333,555.55555555555554,555.55555555555554
+"ViShap.Viper.Serialization.Benchmarks.Suites.ElementCountScalingBenchmarks","'SCALE-01 deserialize'","Count=100000",68457832,9833.3333333333339,3333.3333333333335,666.66666666666663
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=1000",10328,1.64031982421875,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=1000",8458,1.3427734375,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=64000",594832,94.23828125,22.4609375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=64000",495173,78.61328125,25.390625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=1000000",9330241,1695.3125,1007.8125,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=1000000",7892263,1406.25,687.5,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=16000000",149219082,12600,1800,1800
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=16000000",126339628,17750,5750,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=64000000",596858336,44000,1000,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=64000000",505363584,68000,23000,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 serialize'","Depth=1",1784,0.2841949462890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 deserialize'","Depth=1",1088,0.17261505126953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 serialize'","Depth=5",2512,0.3986358642578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 deserialize'","Depth=5",2248,0.3566741943359375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 serialize'","Depth=25",8400,1.33514404296875,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 deserialize'","Depth=25",7801,1.24359130859375,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 serialize'","Depth=100",31416,5.0048828125,0.1220703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 deserialize'","Depth=100",28621,4.547119140625,0.152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 serialize'","Depth=500",142488,22.705078125,2.685546875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DepthScalingBenchmarks","'SCALE-03 deserialize'","Depth=500",140384,22.3388671875,3.41796875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=8; MultiByte=False",1600,0.25463104248046875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=8; MultiByte=False",984,0.152587890625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=8; MultiByte=True",1648,0.26226043701171875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=8; MultiByte=True",1016,0.16021728515625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=256; MultiByte=False",3416,0.5435943603515625,0.0019073486328125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=256; MultiByte=False",2064,0.32806396484375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=256; MultiByte=True",5504,0.87738037109375,0.0057220458984375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=256; MultiByte=True",3089,0.492095947265625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=4000; MultiByte=False",21664,3.4542083740234375,0.05340576171875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=4000; MultiByte=False",17043,2.716064453125,0.0438690185546875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=4000; MultiByte=True",61664,9.82666015625,0.79345703125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=4000; MultiByte=True",33046,5.2490234375,0.152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=64000; MultiByte=False",321680,50.994873046875,10.19287109375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=64000; MultiByte=False",257184,39.97802734375,39.97802734375,39.97802734375
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 serialize'","Length=64000; MultiByte=True",961779,293.9453125,293.9453125,293.9453125
+"ViShap.Viper.Serialization.Benchmarks.Suites.StringScalingBenchmarks","'SCALE-05 deserialize'","Length=64000; MultiByte=True",513348,157.71484375,157.71484375,157.71484375
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 serialize'","Entries=10",5824,0.92315673828125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 deserialize'","Entries=10",7697,1.220703125,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 serialize'","Entries=100",51569,8.1787109375,0.30517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 deserialize'","Entries=100",67843,10.80322265625,0.732421875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 serialize'","Entries=1000",469517,74.21875,14.6484375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 deserialize'","Entries=1000",669129,106.4453125,35.15625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 serialize'","Entries=10000",4422619,839.84375,507.8125,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 deserialize'","Entries=10000",6604692,1187.5,671.875,328.125
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 serialize'","Entries=100000",50510009,4181.818181818182,1000,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.DictionaryScalingBenchmarks","'SCALE-06 deserialize'","Entries=100000",65069736,8500,3000,500
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=0; Profile=Default",562279,88.8671875,17.578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=0; Profile=Default",1065211,167.96875,64.453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=0; Profile=PreserveReferences",968984,140.625,70.3125,70.3125
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=0; Profile=PreserveReferences",1300982,195.3125,78.125,35.15625
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=10; Profile=Default",557951,87.890625,20.5078125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=10; Profile=Default",1061715,167.96875,60.546875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=10; Profile=PreserveReferences",924264,142.578125,71.2890625,71.2890625
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=10; Profile=PreserveReferences",1197070,171.875,78.125,23.4375
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=50; Profile=Default",538006,84.9609375,18.5546875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=50; Profile=Default",1044201,166.015625,54.6875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=50; Profile=PreserveReferences",613817,90.8203125,30.2734375,30.2734375
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=50; Profile=PreserveReferences",783418,119.140625,44.921875,29.296875
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=90; Profile=Default",517494,82.03125,13.671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=90; Profile=Default",1026085,162.109375,56.640625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 serialize'","SharedPercent=90; Profile=PreserveReferences",170373,26.85546875,4.39453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.SharingDensityBenchmarks","'SCALE-07 deserialize'","SharedPercent=90; Profile=PreserveReferences",164244,26.123046875,5.126953125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=5; Keyed=False",1920,0.30517578125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=5; Keyed=False",1232,0.19550323486328125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=5; Keyed=True",2456,0.3910064697265625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=5; Keyed=True",3153,0.5016326904296875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=20; Keyed=False",2576,0.4100799560546875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=20; Keyed=False",2136,0.339508056640625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=20; Keyed=True",5768,0.919342041015625,0.003814697265625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=20; Keyed=True",9706,1.5411376953125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=50; Keyed=False",5080,0.8087158203125,0.003814697265625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=50; Keyed=False",4097,0.652313232421875,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=50; Keyed=True",11680,1.861572265625,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=50; Keyed=True",23092,3.6773681640625,0.0152587890625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=100; Keyed=False",9008,1.434326171875,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=100; Keyed=False",7329,1.16729736328125,0.00762939453125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=100; Keyed=True",22184,3.5247802734375,0.0457763671875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=100; Keyed=True",45384,7.232666015625,0.091552734375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=200; Keyed=False",16896,2.685546875,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=200; Keyed=False",13778,2.1820068359375,0.030517578125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 serialize'","Members=200; Keyed=True",43448,6.89697265625,0.18310546875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.MemberCountScalingBenchmarks","'SCALE-04 deserialize'","Members=200; Keyed=True",96160,15.31982421875,0.3662109375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=1; Data=DATA-01 TinyFlat",442360,70.3125,0.48828125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=1; Data=DATA-01 TinyFlat",298382,48.33984375,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=1; Data=DATA-02 MediumObject",2609044,406.25,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=1; Data=DATA-02 MediumObject",3145834,500,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=1; Data=DATA-03 RecordBatchSmall",44799160,7125,1156.25,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=1; Data=DATA-03 RecordBatchSmall",33767597,5375,843.75,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=2; Data=DATA-01 TinyFlat",884416,143.5546875,1.46484375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=2; Data=DATA-01 TinyFlat",596467,96.6796875,0.9765625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=2; Data=DATA-02 MediumObject",5217807,859.375,15.625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=2; Data=DATA-02 MediumObject",6291421,1031.25,15.625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=2; Data=DATA-03 RecordBatchSmall",89598016,15062.5,3375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=2; Data=DATA-03 RecordBatchSmall",67534966,10812.5,2593.75,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=4; Data=DATA-01 TinyFlat",1768528,285.15625,3.90625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=4; Data=DATA-01 TinyFlat",1192650,191.40625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=4; Data=DATA-02 MediumObject",10435440,1718.75,93.75,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=4; Data=DATA-02 MediumObject",12583602,2062.5,93.75,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=4; Data=DATA-03 RecordBatchSmall",179195728,31000,9333.3333333333339,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=4; Data=DATA-03 RecordBatchSmall",135069917,21583.333333333332,1583.3333333333333,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=8; Data=DATA-01 TinyFlat",3536752,574.21875,9.765625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=8; Data=DATA-01 TinyFlat",2385076,382.8125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=8; Data=DATA-02 MediumObject",20870598,3492.1875,320.3125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=8; Data=DATA-02 MediumObject",25166222,4156.25,375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=8; Data=DATA-03 RecordBatchSmall",358391152,63500,21000,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=8; Data=DATA-03 RecordBatchSmall",270141500,43250,20125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=12; Data=DATA-01 TinyFlat",5304976,859.375,15.625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=12; Data=DATA-01 TinyFlat",3577524,578.125,7.8125,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=12; Data=DATA-02 MediumObject",31305887,5218.75,625,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=12; Data=DATA-02 MediumObject",37751166,6250,812.5,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR serialize on N threads'","Threads=12; Data=DATA-03 RecordBatchSmall",537586576,96200,32600,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.ConcurrencyBenchmarks","'PAR deserialize on N threads'","Threads=12; Data=DATA-03 RecordBatchSmall",405216386,64800,57600,400
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=1000",10328,0.34332275390625,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=1000",8456,0.274658203125,0,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=64000",594821,28.3203125,2.9296875,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=64000",495093,16.11328125,1.46484375,0
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=1000000",9329329,265.625,125,125
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=1000000",7890861,218.75,109.375,46.875
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=16000000",149218389,1200,600,600
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=16000000",126336222,2000,1250,1000
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 serialize'","Bytes=64000000",596860376,11000,3000,3000
+"ViShap.Viper.Serialization.Benchmarks.Suites.PayloadSizeScalingBenchmarks","'SCALE-02 deserialize'","Bytes=64000000",505350472,4000,3000,2000

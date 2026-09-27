@@ -25,5 +25,6 @@
   
   <ItemGroup>
     <None Include="Fixtures\Wire\*.bin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\Oracle\oracle.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

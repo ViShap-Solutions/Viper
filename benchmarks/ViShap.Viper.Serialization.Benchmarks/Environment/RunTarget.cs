@@ -7,7 +7,8 @@ internal enum RunKind
 {
     /// <summary>
     /// Every suite of the track, on a tagged commit, under the publication job. This is the frozen
-    /// record of a released version, and it is never rewritten (Benchmark-Plan BASE-01, BASE-08).
+    /// record of a tagged revision — a release, a pre-release the owner asked to have measured, or a
+    /// local tag taken before a rework — and it is never rewritten (Benchmark-Plan BASE-01, BASE-08).
     /// </summary>
     Baseline,
 
@@ -15,7 +16,7 @@ internal enum RunKind
     /// Anything else: an untagged commit, a narrowed filter, or a shortened job. It carries only what
     /// it measured and says so, so it can never be read as a baseline (REP-12, REP-13).
     /// </summary>
-    Partial,
+    Measurement,
 }
 
 /// <summary>
@@ -36,7 +37,7 @@ internal sealed record RunTarget(
 
     /// <summary>
     /// Decides the destination. A run is a baseline only when the commit carries a tag of its own, the
-    /// job is the publication job, and no filter narrowed the suites; otherwise it is a partial run,
+    /// job is the publication job, and no filter narrowed the suites; otherwise it is a measurement,
     /// named after `git describe` and the moment it started so that no two runs can collide.
     /// </summary>
     internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty)
@@ -89,7 +90,7 @@ internal sealed record RunTarget(
         var label = $"{describe}-{stamp}";
 
         return new RunTarget(
-            RunKind.Partial,
+            RunKind.Measurement,
             Path.Combine(Paths.Measurements, label),
             label,
             string.IsNullOrEmpty(tag) ? null : tag,

@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.IO.Compression;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -5,7 +7,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Pins CMP-01…CMP-07 and CMP-09…CMP-13: a compressed payload round trips, decompression produces
+/// Pins CMP-01…CMP-07, CMP-09…CMP-16 and LIM-45: a compressed payload round trips, decompression produces
 /// exactly the declared length so a payload cannot hide part of its own content, and every phase
 /// size is decided by the pipeline before the algorithm is consulted.
 /// </summary>
@@ -301,6 +303,40 @@ public class CompressionTests
     }
 
     [Fact]
+    public void Deserialize_TheSamePayload_PassesTheDefaultReaderAndFailsAStricterOne()
+    {
+        string value = new('x', 20_000);
+        byte[] payload = With(new Deflate()).Serialize(value);
+
+        var strict = With(
+            new Deflate(), SerializationLimits.Default with { MaxDecompressionRatio = 2 });
+
+        Assert.Equal(value, With(new Deflate()).Deserialize<string>(payload));
+        AssertEx.Throws<BinaryLimitException>(
+            nameof(SerializationLimits.MaxDecompressionRatio),
+            () => strict.Deserialize<string>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_AnExpansionExactlyAtTheRatio_IsAcceptedAndOneBelowItIsNot()
+    {
+        string value = new('x', 20_000);
+        byte[] payload = With(new Deflate()).Serialize(value);
+        var header = Wire.ReadHeader(payload);
+
+        // The smallest ratio under which the declared expansion is still admitted.
+        int exact = (header.UncompressedLength + header.CompressedLength - 1) / header.CompressedLength;
+
+        var atTheRatio = With(new Deflate(), SerializationLimits.Default with { MaxDecompressionRatio = exact });
+        var belowIt = With(new Deflate(), SerializationLimits.Default with { MaxDecompressionRatio = exact - 1 });
+
+        Assert.Equal(value, atTheRatio.Deserialize<string>(payload));
+        AssertEx.Throws<BinaryLimitException>(
+            nameof(SerializationLimits.MaxDecompressionRatio),
+            () => belowIt.Deserialize<string>(payload));
+    }
+
+    [Fact]
     public void Deserialize_AnUncompressedPayload_IsNotMeasuredAgainstTheRatio()
     {
         // With no compression the two lengths are already required to be equal, so the ratio has
@@ -319,5 +355,36 @@ public class CompressionTests
         Assert.True(((ICompressionAlgorithm)new Deflate()).SupportsIncrementalDecompression);
         Assert.True(((ICompressionAlgorithm)new Brotli()).SupportsIncrementalDecompression);
         Assert.False(((ICompressionAlgorithm)new NoCompression()).SupportsIncrementalDecompression);
+    }
+
+    [Fact]
+    public void Deserialize_ABrotliStreamThatYieldsTheDeclaredLengthButNeverEnds_ThrowsFormat()
+    {
+        var serializer = With(new Brotli());
+        byte[] payload = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()).Serialize(Compressible());
+
+        // Flushed but never finished: every byte of the payload is in the stream, the end marker is not.
+        using var encoder = new BrotliEncoder(quality: 5, window: 22);
+        byte[] buffer = new byte[BrotliEncoder.GetMaxCompressedLength(payload.Length)];
+        encoder.Compress(payload, buffer, out _, out int written, isFinalBlock: false);
+        encoder.Flush(buffer.AsSpan(written), out int flushed);
+        byte[] unterminated = buffer[..(written + flushed)];
+
+        using (var decoder = new BrotliDecoder())
+        {
+            byte[] produced = new byte[payload.Length + 1];
+            var status = decoder.Decompress(unterminated, produced, out _, out int length);
+
+            Assert.Equal(OperationStatus.NeedMoreData, status);
+            Assert.Equal(payload, produced[..length]);
+        }
+
+        byte[] frame = Wire.FrameWith(
+            unterminated,
+            compression: (byte)CompressionAlgorithm.Brotli,
+            uncompressedLength: payload.Length);
+
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(frame));
     }
 }

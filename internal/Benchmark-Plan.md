@@ -82,8 +82,8 @@ benchmarks/ViShap.Viper.Serialization.Benchmarks/
   Suites/                       the benchmark classes of §10
     Components/                 the §18.1 component suites, kept apart from every market table
   Reporting/                    raw results → published report and charts
-  Baselines/                    frozen baseline packages, one per release
-  Measurements/                 partial runs, one directory per run
+  Baselines/                    frozen baseline packages, one per measured tag
+  Measurements/                 measurements, one directory per run
   reproduction/                 the containerised check of §26, run from a base image
 ```
 
@@ -338,6 +338,7 @@ The configurations a consumer can build, each measured as itself. Built with the
 - [ ] PROF-06 — the existing-instance and `ref` entry points are measured against their allocating counterparts *(Contract §3.1)*
 - [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so the per-call `StreamExtensions` path has a number *(Contract §3.2)*
 - [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(Contract §15)*
+- [x] PROF-09 — the same profile set is measured on the `pre-rework` commit, so the matrices of every rework stage compare with it cell by cell — `Baselines/pre-rework/`, 667 cells, none without a number
 
 ---
 
@@ -355,7 +356,7 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 | **DATA-06** | DeepGraph | nesting at depths 5, 10, 25, 50, 200, 511 | small | T0–T3 | Depth accounting and recursion cost up to just below `MaxDepth` *(Contract §5.1)* |
 | **DATA-07** | UnicodeHeavy | multi-byte, CJK, emoji, combining sequences, with an ASCII twin | ~100 KB | T0–T2 | String encoding cost, and the honest ASCII-versus-UTF-8 difference |
 | **DATA-08** | Incompressible | high-entropy strings and blobs | ~1 MB | T0, T4 | Compression's worst case, and what the phase costs when it buys nothing |
-| **DATA-09** | HighlyCompressible | heavily repeated structure | ~1 MB | T0, T4 | Compression's best case |
+| **DATA-09** | HighlyCompressible | heavily repeated structure | ~0.35 MB | T0, T4 | Compression's best case. The size follows `MaxDecompressionRatio` rather than the 1 MB of its neighbours — see R-02 in §27.3 |
 | **DATA-10** | SharedReferenceDAG | one instance reachable by many paths | ~100 KB | T3 | Identity preservation, in time and in size |
 | **DATA-11** | CyclicGraph | parent/child cycles | ~50 KB | T3 | The scenario that is impossible without reference support |
 | **DATA-12** | PolymorphicBatch | a base type with 6–8 derived shapes | ~100 KB | T2, T3 | Discriminator cost and polymorphic dispatch |
@@ -511,6 +512,8 @@ Layer L2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
 - [ ] CMP-06 — decompression is measured against its declared uncompressed length, since the exact-length rule is part of the read path *(Contract §12)*
 - [ ] CMP-07 — where a competitor offers built-in compression, it appears in this section and nowhere else *(FAIR-16)*
 - [ ] CMP-08 — a custom registered algorithm is measured once, so the extension path's overhead over a built-in is known *(Contract §4.1)*
+- [ ] CMP-09 — incremental decompression for `Deflate` and `Brotli`: time and allocation against the previous single-buffer path, at every corpus size. NX-01 replaced the path, so its cost on a legitimate payload is unknown, and a 64 KiB probe promoted once is a copy on every payload above 64 KiB
+- [ ] CMP-10 — the `MaxDecompressionRatio` check, isolated: expected to be negligible, and a number makes it a fact
 
 ---
 
@@ -587,6 +590,8 @@ The component suites see internals through `src/ViShap.Viper.Serialization/Prope
 
 - [x] MICRO-13 — the grant exists for `ViShap.Viper.Serialization.Benchmarks`, added by the repository owner on 2026-09-20, and an internal type resolves from the benchmark project in a Release build *(Q1)*
 - [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `internal/performance/` (§27.4)
+- [ ] MICRO-15 — `CollectionCountCache` lookup, and the write-side fast path it enables for sets, frozen and immutable sets, against the old materialising path. NX-02 removed an intermediate list per set written; it may be the largest incidental gain of the NX changes and nothing records it
+- [ ] MICRO-16 — the duplicate check after `Complete`, the count read on every container read that NX-02 put on the read path of every collection
 
 ---
 
@@ -700,9 +705,9 @@ Measurements/<git describe>-<UTC timestamp>/
 - [ ] REP-09 — a publication run refuses to start when `Baselines/<tag>/` already exists; a re-measurement of the same tag goes to a new directory and the difference between the two is recorded in §27.3
 - [x] REP-10 — `BenchmarkDotNet.Artifacts/` is the working directory of ad-hoc and exploratory runs, is ignored by git, and is never the source of a published figure
 - [x] REP-11 — every baseline is readable on its own: no artifact in it refers to another baseline, to the working directory, or to a file outside the repository
-- [x] REP-12 — a partial run writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no partial run can overwrite another
-- [x] REP-13 — a partial run carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
-- [ ] REP-14 — a partial run is never the source of a published figure about anything it did not measure, and a delta against a baseline covers only the cells both contain
+- [x] REP-12 — a measurement writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no measurement can overwrite another
+- [x] REP-13 — a measurement carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
+- [ ] REP-14 — a measurement is never the source of a published figure about anything it did not measure, and a delta against a baseline covers only the cells both contain
 
 ---
 
@@ -736,6 +741,8 @@ The run against the `v1.0.0` tag becomes the frozen baseline, whenever it happen
 
 Every later v1.x that changes `src/` is measured the same way, against its own tag, and published as a delta against the baseline it is compatible with. That is what this plan is for once v1.0.0 has shipped: not a gate in front of a release, a record behind each one.
 
+The rework before `v1.0.0` has a baseline of its own: `Baselines/pre-rework/`, taken once on the commit the rework started from. A rework stage is compared against `pre-rework`; a release is compared against the previous release. The two never mix: a rework stage is not a release, and `pre-rework` is never the baseline of one.
+
 - [ ] BASE-01 — the baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23, produced from a checkout of the `v1.0.0` tag
 - [ ] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error
 - [ ] BASE-03 — a comparison against an incompatible environment is refused rather than printed
@@ -749,7 +756,7 @@ Every later v1.x that changes `src/` is measured the same way, against its own t
 - [ ] BASE-06 — each subsequent v1.x run is committed under its own `Baselines/<tag>/`, with the delta against the previous one and an entry in §27.3 for every threshold it crosses
 - [ ] BASE-07 — every cell of a baseline carries the tag it belongs to, so two baselines can be read in one table without either being modified
 - [x] BASE-08 — the directory name of a full baseline is the tag `git describe --tags --exact-match HEAD` reports and nothing else; on a commit that carries no tag no baseline directory is created at all and the run is recorded under `Measurements/` instead (REP-12), because a baseline signed with the wrong version is worse than a missing one
-- [ ] BASE-09 — a full baseline is taken deliberately, not once per tag: a release that did not change `src/` records that the previous baseline still applies, and anything examined between baselines is a partial run of §23
+- [ ] BASE-09 — a full baseline is taken deliberately, not once per tag: a release that did not change `src/` records that the previous baseline still applies, and anything examined between baselines is a measurement of §23
 
 ---
 
@@ -802,6 +809,7 @@ The place where an unflattering result is recorded rather than argued with. Each
 | | Cell | What was seen | Cause | Resolution |
 |---|---|---|---|---|
 | **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
+| **R-02** | B0 verification, DATA-09 under B-P3b and B-P6b | The Track A run for the `pre-rework` baseline stopped at verification: 2 of 270 pairs failed with `BinaryLimitException` — Brotli wrote 20 000 identical strings, 1 440 005 bytes, as 64, and the reader refused an expansion of 22 500 against the default `MaxDecompressionRatio` of 10 000. Deflate wrote the same payload as 8 496 bytes and passed | The ratio check arrived with the NX fixes after the corpus was sized. Brotli compresses this payload to a few dozen bytes at any count — 76 to 77 bytes anywhere from 2 000 to 10 000 strings — so the ratio grows with the count alone, and at 20 000 the dataset required a limit above `SerializationLimits.Default`, which DATA-23 forbids | Harness defect, fixed by the repository owner's decision of 2026-09-26 before the baseline: DATA-09 holds 5 000 strings, 360 005 bytes, an expansion of about 4 700 under Brotli. It stays compression's best case and needs no relaxed limit, as FAIR-18 requires. Raising the limit in the Brotli profiles, varying the strings and recording the refusal as a result were rejected. `--verify` passes 270 of 270 pairs |
 
 ## 27.4 Proposals — `internal/performance/`
 
@@ -897,7 +905,7 @@ because the Viper half of it is done.
 
 **The tag.** A baseline belongs to a revision, and it takes its name from the tag on that revision, so
 the tag exists before the run does: the release is tagged, the tagged commit is checked out, and the
-publication run is taken there (BASE-08). A run on an untagged commit is a partial run of §23, never a
+publication run is taken there (BASE-08). A run on an untagged commit is a measurement of §23, never a
 baseline, however complete it happens to be.
 
 **Out of scope, and left untouched:** §5 the roster, §6 the tier tables beyond Viper's own placement,
@@ -933,13 +941,15 @@ Stage:        A0–A7 written. Every A-stage suite exists, builds and runs; what
               number, which only the publication run produces
 Harness:      frozen? not yet, and nothing further is planned in it. The freeze takes effect when the
               publication run starts
-Last run:     none published. A full shortened --track A run produced every artifact of §23 for 655 cells in
-              1h14m and self-checked the report as byte-identical; deleted afterwards, since a shortened job
-              measures nothing worth keeping
-Machine:      publication runs not yet started
-Next action:  tag v1.0.0, check the tag out, and take the publication run there on an idle machine —
-              about 3.5 hours, of which 40 minutes is the soak. Then tick the A-stage measurement boxes
-              against the committed raw files under Baselines/v1.0.0/. Nothing is open before that: the
+Last run:     the pre-rework Baseline — every suite of Track A under the publication job on 916f805, the
+              commit the rework started from, tagged locally pre-rework: 667 cells, none without a
+              number, 3h54m. Committed under Baselines/pre-rework/. It is the "before" of every rework
+              stage (§25), not a release baseline
+Machine:      the one recorded in Baselines/pre-rework/environment.json
+Next action:  during the rework, the stage measurements of Development-Workflow §6.5 against pre-rework.
+              After the release, tag v1.0.0, check the tag out, and take the publication run there on an
+              idle machine — about 4 hours, of which 40 minutes is the soak. Then tick the A-stage
+              measurement boxes against the committed raw files under Baselines/v1.0.0/. Nothing is open before that: the
               last two A5 items are written — the 16 MB and 64 MB points of SCALE-02 are built from
               records rather than byte arrays, because array data spends the element budget per byte
               (PERF-01, PERF-02), and SCALE-09 re-runs that large end under Server GC

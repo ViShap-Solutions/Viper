@@ -17,7 +17,7 @@ Plan sections are cited as "plan §n" (`Rework-Plan.md`).
 
 ---
 
-# 1. Owed now
+# 1. Owed now — applied
 
 The NX fixes changed three paths the plan does not measure.
 
@@ -38,7 +38,13 @@ Also owed now:
 
 # 2. Owed to the rework, by stage
 
-## R0 — the one run taken before the rework
+**The harness lives with the code** [D9.27]. At the end of every stage R1–R6 the benchmark project
+builds, `--verify` passes every pair and `--smoke` passes. A checkpoint whose measured type or entry
+point the stage removes is rewritten against what replaced it, or retired, in that same stage — never
+left naming something that no longer exists. A retired checkpoint stays in the plan, marked
+`retired in Rn` with the reason, as in the QA plan, so the history of what was measured stays readable.
+
+## R0 — the one run taken before the rework — applied
 
 - **Track A baseline on the `pre-rework` commit**: the entry commit is tagged locally `pre-rework`
   (not `v*`, so CD never sees it), the complete Track A runs so the harness records a Baseline, the
@@ -65,6 +71,11 @@ Also owed now:
 - **MICRO-09** replaced by the metering and windowing of the reader and writer.
 - **ALLOC-09** — cycle detection without references: the ancestor stack against the removed
   per-operation `HashSet`, at depths 4, 32 and 500 (plan §11).
+- **WL-03** rewritten: a V0 keyed write to a non-seekable destination succeeds (plan §5.1), so it is a
+  timed workload, no longer a supported refusal.
+- **MICRO-02**, **MICRO-03**, **MICRO-07** — element-count charging, depth scopes and reference
+  tracking are measured through `OperationState` and the pooled reference tables. Whatever of them
+  moves into the codecs in R4 is rewritten again there.
 
 ## R3 — New entry points
 
@@ -79,6 +90,15 @@ Also owed now:
   throughput and allocation per frame.
 - **WL-19** — an encrypted frame written to an `IBufferWriter<byte>`: the path with no final copy
   (plan §5.1), against the same frame to `byte[]`.
+- **Adapter interface.** `IBufferedSerializer` and `IStreamingSerializer` know only `byte[]` and
+  `Stream`. A buffer family is added — `IBufferWriter<byte>` in, `ReadOnlySpan<byte>` and
+  `ReadOnlySequence<byte>` out — and `ViperAdapter` implements it, so the Track B adapters written
+  after R6 declare it or are recorded `Unsupported` for it (FAIR-07).
+- **PROF-06** and **WL-07** rewritten for the entry points contract §3 lists after this stage:
+  `Populate` for an existing instance (plan §9.6), and whatever `ref` form remains.
+- **PROF-07** rewritten: a serializer reused across operations against one constructed per
+  operation. The clause about the per-call `StreamExtensions` path is retired with `StreamExtensions`.
+- Every reference to contract §3 in the plan re-pointed at the new surface.
 
 ## R4 — Typed engine
 
@@ -92,6 +112,9 @@ Also owed now:
   `ReflectedContract<T>`.
 - **MICRO-18** — a primitive array read into an array of its final length against the pooled path
   (plan §10.1), at sizes 16, 4 096 and 1 000 000.
+- **MICRO-02**, **MICRO-03**, **MICRO-07** rewritten again for what moved into the codecs.
+- **BASE-02** — the comparison tool is built before this stage closes, and the COLD and ALLOC
+  comparisons above are taken through it. It is a gate line of R4 [D9.25].
 
 ## R5 — Algorithm contracts
 
@@ -99,6 +122,9 @@ Also owed now:
   `XxHash128Checksum` and `ChaCha20Poly1305Encryption`; the renamed built-ins (`Crc32Checksum`,
   `DeflateCompression`, `BrotliCompression`, `Aes256GcmEncryption`) keep their existing cells. **§8** profiles: one profile per new phase choice.
 - **MICRO-10** extended to every built-in.
+- `ViperProfiles` and every suite that names a built-in move to the family-suffixed names. The plan
+  IDs of the profiles (`B-P3d`, `B-P3b`, `B-P4`, `B-P5`, `B-P6b`, `B-P6d`) do not change, so a cell
+  keeps its identity across the rename.
 - Note in **§16**: ChaCha20-Poly1305 against AES-GCM depends on AES hardware support; the manifest
   records the CPU, and the result must name it.
 
@@ -129,8 +155,18 @@ Also owed now:
 
 # 3. Track B, once the format is final
 
-- Starts after the release, on the `v1.0.0` tag. Nothing from Track B is measured against an
+- Measured after the release, on the `v1.0.0` tag. Nothing from Track B is measured against an
   intermediate stage.
+- Built earlier: the adapters, the model variants and the capability probes are written after R6,
+  once the format is final, on `benchmark/track-b-adapters` from `release/v1.0.0` [D9.25].
+
+# 4. Run kinds — R0 — applied
+
+- `RunKind.Partial` becomes `RunKind.Measurement` in the harness and the plan; the `Partial` state of a
+  verified pair is a different concept and stays. The description of `RunKind.Baseline` becomes the
+  record of a tagged revision — a release, a pre-release when the owner asks for one, a local tag
+  before a rework [D9.26]. The documents are applied at once; the harness is changed after the
+  `pre-rework` run, whose build it would otherwise alter.
 - §5 roster re-verified on the day (RST-03).
 - The buffer family (R3) makes FAIR-07 comparisons direct against MemoryPack and MessagePack-CSharp,
   which the pre-rework format could not enter.
