@@ -635,6 +635,38 @@ public class UtilityTests
     }
 
     [Fact]
+    public void OracleCompare_AHostDependentCase_AcceptsAnyOutputButMustBeProduced()
+    {
+        var oracle = Oracle.Parse(
+        [
+            Oracle.HostDependent("Case.Culture#1", "the first specific culture of the host"),
+            Oracle.Line("Case.Culture#0", [7]),
+        ]);
+
+        Assert.Equal("the first specific culture of the host", oracle["Case.Culture#1"].HostDependence);
+        Assert.Equal("", Oracle.Compare(oracle, [("Case.Culture#0", [7]), ("Case.Culture#1", [1, 2, 3])]));
+        Assert.Contains(
+            "Case.Culture#1: recorded in the oracle but not produced",
+            Oracle.Compare(oracle, [("Case.Culture#0", [7])]));
+    }
+
+    [Fact]
+    public void OracleParse_AnAlternativeOfAHostDependentCaseOrAHostLineRepeatingACase_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
+        [
+            Oracle.HostDependent("Case.Zone#0", "names localized by the operating system"),
+            Oracle.Alternative("Case.Zone#0", [1]),
+        ]));
+
+        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
+        [
+            Oracle.Line("Case.Zone#0", [1]),
+            Oracle.HostDependent("Case.Zone#0", "names localized by the operating system"),
+        ]));
+    }
+
+    [Fact]
     public void OracleParse_AnAlternativeAwayFromItsCase_Throws()
     {
         Assert.Throws<InvalidOperationException>(() => Oracle.Parse(

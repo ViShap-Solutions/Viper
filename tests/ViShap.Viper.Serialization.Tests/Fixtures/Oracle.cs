@@ -11,15 +11,18 @@ internal sealed record OracleOutput(string Sha256, string Hex);
 /// <summary>
 /// One recorded case of the oracle: its key and every output it may produce. A case has one output,
 /// unless the runtime decides part of what the writer sees — the enumeration order of a hash container
-/// keyed by strings — and then it has one per order.
+/// keyed by strings — and then it has one per order. A case whose input comes from the host has no
+/// output at all, only the reason in <paramref name="HostDependence"/>.
 /// </summary>
-internal sealed record OracleEntry(string Key, IReadOnlyList<OracleOutput> Outputs);
+internal sealed record OracleEntry(string Key, IReadOnlyList<OracleOutput> Outputs, string? HostDependence = null);
 
 /// <summary>
 /// The byte oracle: one line per corpus case, holding the SHA-256 of what the writer produced and the
 /// output in hex. The hash decides; the hex is there so a mismatch can show both outputs and the first
 /// offset at which they part. A line <c>key | sha hex</c> right after the line of the same key records
-/// a further admissible output of that case.
+/// a further admissible output of that case. A line <c>key ~ host: reason</c> records a case whose
+/// input the host supplies — its culture, its time zone, names its operating system localizes — so the
+/// case must be produced but its bytes are not compared.
 /// </summary>
 /// <remarks>
 /// AES-256-GCM draws a fresh nonce for every message, so an encrypted frame never repeats. Such a frame
@@ -46,6 +49,7 @@ internal static class Oracle
     public static IReadOnlyDictionary<string, OracleEntry> Parse(IEnumerable<string> lines)
     {
         var outputs = new Dictionary<string, List<OracleOutput>>(StringComparer.Ordinal);
+        var hostDependent = new Dictionary<string, string>(StringComparer.Ordinal);
         string? previous = null;
 
         foreach (var line in lines)
@@ -54,6 +58,15 @@ internal static class Oracle
                 continue;
 
             string[] parts = line.Split(' ');
+
+            if (parts is [var hosted, "~", "host:", ..])
+            {
+                if (outputs.ContainsKey(hosted) || !hostDependent.TryAdd(hosted, string.Join(' ', parts[3..])))
+                    throw new InvalidOperationException($"The oracle records {hosted} twice.");
+
+                previous = null;
+                continue;
+            }
 
             if (parts is [var key, "|", var sha, var hex])
             {
@@ -70,15 +83,23 @@ internal static class Oracle
             if (parts is not [var name, var hash, var bytes])
                 throw new InvalidOperationException($"An oracle line has {parts.Length} fields instead of 3: {line}");
 
-            if (!outputs.TryAdd(name, [new OracleOutput(hash, bytes)]))
+            if (hostDependent.ContainsKey(name) || !outputs.TryAdd(name, [new OracleOutput(hash, bytes)]))
                 throw new InvalidOperationException($"The oracle records {name} twice.");
 
             previous = name;
         }
 
-        return outputs.ToDictionary(
+        var entries = outputs.ToDictionary(
             pair => pair.Key, pair => new OracleEntry(pair.Key, pair.Value), StringComparer.Ordinal);
+
+        foreach (var (key, reason) in hostDependent)
+            entries.Add(key, new OracleEntry(key, [], reason));
+
+        return entries;
     }
+
+    /// <summary>The oracle line for a case whose input the host supplies, with the reason.</summary>
+    public static string HostDependent(string key, string reason) => $"{key} ~ host: {reason}";
 
     /// <summary>The oracle line for one case.</summary>
     public static string Line(string key, byte[] output) => $"{key} {Sha256(output)} {Convert.ToHexStringLower(output)}";
@@ -115,6 +136,9 @@ internal static class Oracle
                 report.AppendLine($"  actual   {Convert.ToHexStringLower(output)}");
                 continue;
             }
+
+            if (entry.HostDependence is not null)
+                continue;
 
             string hash = Sha256(output);
 

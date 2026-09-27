@@ -90,9 +90,10 @@ with whatever the code became, so a failure there is a compatibility break, not 
 
 `Fixtures/Oracle/oracle.txt` is the byte oracle of the rework: for every case of the round-trip, V0,
 reference and contract corpora it records the SHA-256 and the hex of what the writer wrote, and
-`Format/OracleTests` compares every run against it (`internal/QA-Plan.md` §0). Until the rework's
-format stage it holds the writer to those bytes; a mismatch is a behaviour change to fix in `src/`,
-never a value to re-record.
+`Format/OracleTests` compares every run against it (`internal/QA-Plan.md` §0). A write whose input
+comes from the host — its culture, its time zone — is marked `~ host:` and only has to be produced.
+Until the rework's format stage it holds the writer to those bytes; a mismatch is a behaviour change
+to fix in `src/`, never a value to re-record.
 
 Every stage M0 through M8 is closed: nothing hand-written survives, and
 `Api/PublicSurfaceTests` compares the exported surface against §3 by reflection, so adding a public
