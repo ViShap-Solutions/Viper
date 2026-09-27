@@ -259,7 +259,7 @@ internal sealed class GraphReader : IDisposable
                 throw new BinaryFormatException($"Reference id {id} must be non-negative.");
 
             if (marker == 1)
-                throw new BinaryTypeException(
+                throw new BinaryFormatException(
                     "The root object is a back reference, not a first occurrence — an existing " +
                     "instance cannot be populated from reference-only data.");
 

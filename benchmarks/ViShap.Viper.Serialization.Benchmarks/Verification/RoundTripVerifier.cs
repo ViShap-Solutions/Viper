@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Globalization;
+using System.IO.Pipelines;
 using System.Text;
 using ViShap.Viper.Serialization.Benchmarks.Adapters;
 using ViShap.Viper.Serialization.Benchmarks.Config;
@@ -24,7 +26,10 @@ internal sealed record VerificationResult(
 
 /// <summary>
 /// Runs every (adapter, dataset) pair through both entry-point families and compares the result with
-/// the source. A pair that does not verify produces no timing (Benchmark-Plan FAIR-24, FAIR-25).
+/// the source. A pair that does not verify produces no timing (Benchmark-Plan FAIR-24, FAIR-25). Viper
+/// is also run through the families only it has — the buffer writer, the span and the sequence, the
+/// pooled payload, and for version 1 frames the non-seekable stream and the awaited stream and pipe —
+/// so every entry point a suite times has verified first.
 /// </summary>
 internal static class RoundTripVerifier
 {
@@ -48,7 +53,14 @@ internal static class RoundTripVerifier
                     continue;
                 }
 
-                results.Add(Verify(adapter, adapter, dataset, references));
+                var result = Verify(adapter, adapter, dataset, references);
+                if (result.State is VerificationState.Supported or VerificationState.Partial
+                    && VerifyEntryPoints(adapter, dataset, framed: profile != ViperProfile.Headerless) is { } failure)
+                {
+                    result = result with { State = VerificationState.Failed, Detail = failure };
+                }
+
+                results.Add(result);
             }
         }
 
@@ -107,6 +119,51 @@ internal static class RoundTripVerifier
             return new VerificationResult(
                 buffered.Name, dataset.Id, VerificationState.Failed, 0, 0,
                 $"{exception.GetType().Name}: {Single(exception.Message)}");
+        }
+    }
+
+    /// <summary>
+    /// Reads the value back through every Viper entry point a suite times, and returns the first that
+    /// does not restore it, or <see langword="null"/> when all of them do.
+    /// </summary>
+    private static string? VerifyEntryPoints(ViperAdapter adapter, Dataset dataset, bool framed)
+    {
+        try
+        {
+            var writer = new ArrayBufferWriter<byte>();
+            dataset.SerializeInto(adapter, writer);
+            byte[] payload = writer.WrittenSpan.ToArray();
+
+            var candidates = new List<(string Entry, Func<object?> Read)>
+            {
+                ("IBufferWriter → ReadOnlySpan", () => dataset.DeserializeSpan(adapter, payload)),
+                ("ReadOnlySequence", () => dataset.DeserializeSequence(adapter, Suites.Segments.Of(payload, count: 4))),
+            };
+
+            if (dataset.SerializePooled(adapter) != payload.Length)
+                return "pooled payload: its length differs from the buffer writer's";
+
+            if (framed)
+            {
+                candidates.Add(("non-seekable Stream", () =>
+                    dataset.DeserializeFrom(adapter, new Suites.ForwardOnlyReadStream(payload))));
+                candidates.Add(("Stream, awaited", () =>
+                    dataset.DeserializeAsync(adapter, new MemoryStream(payload, writable: false)).AsTask().GetAwaiter().GetResult()));
+                candidates.Add(("PipeReader, awaited", () =>
+                    dataset.DeserializeAsync(adapter, PipeReader.Create(new ReadOnlySequence<byte>(payload))).AsTask().GetAwaiter().GetResult()));
+            }
+
+            foreach (var (entry, read) in candidates)
+            {
+                if (!StructuralComparer.Equal(dataset.BoxedValue, read(), out var difference))
+                    return $"{entry}: {difference}";
+            }
+
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return $"entry points: {exception.GetType().Name}: {Single(exception.Message)}";
         }
     }
 

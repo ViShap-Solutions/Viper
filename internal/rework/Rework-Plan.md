@@ -81,8 +81,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 |---|---|---|---|---|
 | R0 — Baseline and oracle | `rework/r0-baseline` | — | closed | `530262a` |
 | R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | closed | `1a73c62` |
-| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | gate holds — awaiting commit | |
-| R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |
+| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | closed | `7ac46c0` |
+| R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | gate holds — awaiting commit | |
 | R4 — Typed engine | `rework/r4-typed-engine` | — | not started | |
 | R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | not started | |
 | R6 — The final format | `rework/r6-final-format` | the owner may tag `v1.0.0-beta.1` on `release/v1.0.0` | not started | |

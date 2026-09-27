@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace ViShap.Viper.Pipeline;
 
 /// <summary>
@@ -14,9 +16,9 @@ namespace ViShap.Viper.Pipeline;
 /// contracts, depth, budgets and metering — applies unchanged. The payload is built in the
 /// serializer's own buffer and copied to the destination once, so a keyed contract, whose field
 /// lengths are patched after each field is written, works with any destination, and a failed write
-/// leaves nothing in it. Unlike V1 it may be embedded in a larger stream: reading takes bytes ahead
-/// from the source and puts its position back where the payload ends, so it does not require the
-/// source to end with the payload.
+/// leaves nothing in it. Nothing in the payload says where it ends: a reader finds the end by decoding
+/// the root value, so bytes after it are read only by a caller who asks where the payload ended, and a
+/// stream is read ahead and put back where the root ends, which needs a stream that can seek.
 /// </remarks>
 internal sealed class V0FormatPipeline : IFormatPipeline
 {
@@ -45,55 +47,58 @@ internal sealed class V0FormatPipeline : IFormatPipeline
         }
     }
 
-    public object? Read(
-        Stream source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-
-        var budget = Budget(operation);
-
-        long start = StreamSource.Position(source);
-        byte[] buffer = StreamSource.ReadAhead(source, budget.Maximum, "payload", out int length);
-        try
-        {
-            object? result = Decode(
-                buffer.AsSpan(0, length), budget, declaredType, existingInstance, operation, out long consumed);
-
-            StreamSource.Seek(source, start + consumed);
-            return result;
-        }
-        finally
-        {
-            StreamSource.Return(buffer);
-        }
-    }
+    /// <summary>
+    /// A V0 payload declares no length: where it ends is known only once its root value has been
+    /// decoded. A source that delivers bytes over time can therefore only read one ahead, within the
+    /// budget, and give back what the root did not use.
+    /// </summary>
+    public FrameExtent Measure(
+        ReadOnlySpan<byte> buffered,
+        bool sourceEnded,
+        long available,
+        SerializationOperation operation) =>
+        FrameExtent.Undeclared(Budget(operation).Maximum);
 
     public object? Read(
         ReadOnlySpan<byte> source,
         Type declaredType,
         object? existingInstance,
-        SerializationOperation operation)
+        SerializationOperation operation,
+        out long consumed)
     {
         var budget = Budget(operation);
+        var payloadOperation = WithoutReferences(operation);
+        var reader = new WireReader(
+            source[..(int)Math.Min(source.Length, budget.Maximum)], payloadOperation, budget);
 
-        return Decode(
-            source[..(int)Math.Min(source.Length, budget.Maximum)],
-            budget, declaredType, existingInstance, operation, out _);
+        return Decode(ref reader, declaredType, existingInstance, payloadOperation, out consumed);
     }
 
-    private static object? Decode(
-        ReadOnlySpan<byte> bytes,
-        WireBudget budget,
+    public object? Read(
+        ReadOnlySequence<byte> source,
         Type declaredType,
         object? existingInstance,
         SerializationOperation operation,
         out long consumed)
     {
+        if (source.IsSingleSegment)
+            return Read(source.FirstSpan, declaredType, existingInstance, operation, out consumed);
+
+        var budget = Budget(operation);
         var payloadOperation = WithoutReferences(operation);
-        var reader = new WireReader(bytes, payloadOperation, budget);
+        var reader = new WireReader(
+            source.Slice(0, Math.Min(source.Length, budget.Maximum)), payloadOperation, budget);
+
+        return Decode(ref reader, declaredType, existingInstance, payloadOperation, out consumed);
+    }
+
+    private static object? Decode(
+        ref WireReader reader,
+        Type declaredType,
+        object? existingInstance,
+        SerializationOperation payloadOperation,
+        out long consumed)
+    {
         using var engine = new GraphReader(payloadOperation);
 
         object? result = existingInstance is null

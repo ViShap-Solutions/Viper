@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.IO.Pipelines;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
@@ -6,10 +8,10 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins XEP-01 to XEP-07: for one logical value under one configuration every entry point of
-/// sections 3.1 and 3.2 must agree — the same value back, and a payload one entry point wrote read
-/// by any other. An entry point that quietly framed a value differently would be a second wire
-/// format hiding behind a convenience overload.
+/// Pins XEP-01, XEP-02 and XEP-04…XEP-08: for one logical value under one configuration every entry
+/// point of section 3.1 must agree — the same bytes from every write, the same value from every read,
+/// and a payload one entry point wrote read by any other. An entry point that quietly framed a value
+/// differently would be a second wire format hiding behind a convenience overload.
 /// </summary>
 /// <remarks>
 /// The suite names no profile. It is run under the default V1 frame, under the full V1 envelope, and
@@ -21,19 +23,16 @@ public abstract class CrossEntryPoint
     protected abstract BinarySerializerOptions Options { get; }
 
     /// <summary>
-    /// Whether the payload carries a header, which is what the key-, resolver- and limits-only
-    /// stream extensions configure themselves from.
+    /// Whether the profile writes version 1 frames, which carry their length and so can be awaited
+    /// and read from a stream that cannot seek.
     /// </summary>
-    protected virtual bool SelfDescribing => true;
+    protected virtual bool DeclaresLength => true;
 
     /// <summary>
     /// Whether two writes of one value produce identical bytes. Authenticated encryption draws a
     /// fresh nonce per message, so an encrypted profile compares semantics instead.
     /// </summary>
     protected virtual bool BytesAreDeterministic => true;
-
-    /// <summary>The key the header-derived overloads need, when the profile encrypts.</summary>
-    protected virtual byte[]? Key => null;
 
     private BinarySerializer Serializer => new(Options);
 
@@ -46,193 +45,199 @@ public abstract class CrossEntryPoint
         Assert.Equal(30, restored.Age);
     }
 
-    private static byte[] ToBytes(Action<Stream> write)
-    {
-        using var stream = new MemoryStream();
-        write(stream);
-        return stream.ToArray();
-    }
-
-    // --- XEP-01, XEP-02: each entry point on its own --------------------------------------------
-
-    [Fact]
-    public void ByteArray_RoundTripsThroughItsOwnEntryPoint()
-    {
-        var serializer = Serializer;
-
-        AssertIsTheValue(serializer.Deserialize<Person>(serializer.Serialize(Value)));
-    }
-
-    [Fact]
-    public void Stream_RoundTripsThroughItsOwnEntryPoint()
+    /// <summary>What every write entry point produced for <see cref="Value"/>.</summary>
+    private async Task<byte[][]> EveryWrite()
     {
         var serializer = Serializer;
 
         using var stream = new MemoryStream();
         serializer.Serialize(stream, Value);
-        stream.Position = 0;
 
-        AssertIsTheValue(serializer.Deserialize<Person>(stream));
+        var bufferWriter = new ArrayBufferWriter<byte>(initialCapacity: 1);
+        serializer.Serialize(bufferWriter, Value);
+
+        using var pooled = serializer.SerializePooled(Value);
+
+        using var asyncStream = new MemoryStream();
+        await serializer.SerializeAsync(asyncStream, Value);
+
+        var pipe = new Pipe();
+        await serializer.SerializeAsync(pipe.Writer, Value);
+        await pipe.Writer.CompleteAsync();
+        var piped = await pipe.Reader.ReadAsync();
+
+        return
+        [
+            serializer.Serialize(Value),
+            stream.ToArray(),
+            bufferWriter.WrittenSpan.ToArray(),
+            pooled.Span.ToArray(),
+            asyncStream.ToArray(),
+            piped.Buffer.ToArray()
+        ];
     }
 
-    [Fact]
-    public void ByteArrayAndStream_WriteTheSamePayload()
-    {
-        var serializer = Serializer;
-
-        byte[] fromArray = serializer.Serialize(Value);
-        byte[] fromStream = ToBytes(stream => serializer.Serialize(stream, Value));
-
-        if (BytesAreDeterministic)
-            Assert.Equal(fromArray, fromStream);
-
-        AssertIsTheValue(serializer.Deserialize<Person>(new MemoryStream(fromArray)));
-        AssertIsTheValue(serializer.Deserialize<Person>(fromStream));
-    }
+    // --- XEP-01, XEP-02, XEP-08: every write entry point ---------------------------------------------
 
     [Fact]
-    public void ByteArrayAndStream_ReadEachOthersPayloads()
+    public async Task EveryWriteEntryPoint_WritesTheSamePayload()
     {
-        var serializer = Serializer;
+        byte[][] writes = await EveryWrite();
 
-        using var written = new MemoryStream();
-        serializer.Serialize(written, Value);
-        written.Position = 0;
-
-        AssertIsTheValue(serializer.Deserialize<Person>(written));
-        AssertIsTheValue(serializer.Deserialize<Person>(serializer.Serialize(Value)));
-    }
-
-    // --- XEP-03: the stream extensions ----------------------------------------------------------
-
-    [Fact]
-    public void StreamExtensions_WithOptions_AgreeWithTheSerializer()
-    {
-        byte[] throughExtension = ToBytes(stream => stream.Serialize(Value, Options));
-
-        if (BytesAreDeterministic)
-            Assert.Equal(Serializer.Serialize(Value), throughExtension);
-
-        using var source = new MemoryStream(throughExtension);
-        AssertIsTheValue(source.Deserialize<Person>(Options));
-    }
-
-    [Fact]
-    public void StreamExtensions_WithOptions_ReadWhatTheSerializerWrote()
-    {
-        using var source = new MemoryStream(Serializer.Serialize(Value));
-
-        AssertIsTheValue(source.Deserialize<Person>(Options));
-    }
-
-    [Fact]
-    public void Serializer_ReadsWhatTheStreamExtensionWrote()
-    {
-        using var source = new MemoryStream(ToBytes(stream => stream.Serialize(Value, Options)));
-
-        AssertIsTheValue(Serializer.Deserialize<Person>(source));
-    }
-
-    [Fact]
-    public void StreamExtensions_ConfiguredFromTheHeader_ReadWhatTheSerializerWrote()
-    {
-        if (!SelfDescribing)
+        foreach (byte[] written in writes)
         {
-            // A headerless payload names no algorithms, so these overloads have nothing to read and
-            // say so rather than guessing (section 10.2).
-            using var headerless = new MemoryStream(Serializer.Serialize(Value));
-            Assert.Throws<BinaryFormatException>(() => headerless.Deserialize<Person>(Key));
-            return;
+            if (BytesAreDeterministic)
+                Assert.Equal(writes[0], written);
+
+            AssertIsTheValue(Serializer.Deserialize<Person>(written));
         }
-
-        using var source = new MemoryStream(Serializer.Serialize(Value));
-        AssertIsTheValue(source.Deserialize<Person>(Key));
-
-        source.Position = 0;
-        AssertIsTheValue(source.Deserialize<Person>(_ => Key));
     }
 
-    // --- XEP-04: the existing-instance overloads ------------------------------------------------
+    // --- XEP-01, XEP-02, XEP-08: every read entry point ----------------------------------------------
 
     [Fact]
-    public void ExistingInstance_OverloadsAgreeAndReturnTheTargetTheyWereGiven()
+    public async Task EveryReadEntryPoint_ReadsTheSameValue()
     {
         var serializer = Serializer;
         byte[] payload = serializer.Serialize(Value);
 
-        var fromArray = new Person();
-        var fromStream = new Person();
-        var fromExtension = new Person();
+        AssertIsTheValue(serializer.Deserialize<Person>(payload));
+        AssertIsTheValue(serializer.Deserialize<Person>(payload, out int bytesConsumed));
+        Assert.Equal(payload.Length, bytesConsumed);
+        AssertIsTheValue(serializer.Deserialize<Person>(Sequences.Of(payload)));
+        AssertIsTheValue(serializer.Deserialize<Person>(Sequences.Of(payload[..1], payload[1..9], payload[9..])));
+        AssertIsTheValue(serializer.Deserialize<Person>(Sequences.Of(payload[..5], payload[5..]), out SequencePosition _));
+        AssertIsTheValue(serializer.Deserialize<Person>(new MemoryStream(payload, writable: false)));
+        AssertIsTheValue(serializer.Deserialize<Person>(new PartialReadStream(payload, chunkSize: 3)));
 
-        object? returnedFromArray = serializer.Deserialize(payload, fromArray);
+        if (DeclaresLength)
+        {
+            AssertIsTheValue(serializer.Deserialize<Person>(new NonSeekableStream(payload)));
+            AssertIsTheValue(await serializer.DeserializeAsync<Person>(new NonSeekableStream(payload)));
+            AssertIsTheValue(await serializer.DeserializeAsync<Person>(new ChunkedPipeReader(payload, chunkSize: 4)));
 
-        using (var source = new MemoryStream(payload))
-            serializer.Deserialize(source, fromStream);
-
-        using (var source = new MemoryStream(payload))
-            source.Deserialize(fromExtension, Options);
-
-        Assert.Same(fromArray, returnedFromArray);
-        AssertIsTheValue(fromArray);
-        AssertIsTheValue(fromStream);
-        AssertIsTheValue(fromExtension);
+            await foreach (var value in serializer.DeserializeAsyncEnumerable<Person>(new MemoryStream(payload)))
+                AssertIsTheValue(value);
+        }
+        else
+        {
+            // A headerless payload carries no length, so only a synchronous read of bytes the
+            // caller has delimited, or of a stream that can seek, can find where it ends.
+            Assert.Throws<NotSupportedException>(() => serializer.Deserialize<Person>(new NonSeekableStream(payload)));
+            await Assert.ThrowsAsync<NotSupportedException>(
+                () => serializer.DeserializeAsync<Person>(new MemoryStream(payload)).AsTask());
+            await Assert.ThrowsAsync<NotSupportedException>(
+                () => serializer.DeserializeAsync<Person>(new ChunkedPipeReader(payload, chunkSize: 4)).AsTask());
+        }
     }
 
-    // --- XEP-05: the ref value-type overloads ---------------------------------------------------
+    [Fact]
+    public async Task EveryReadEntryPoint_ReadsWhatEveryWriteEntryPointWrote()
+    {
+        var serializer = Serializer;
+
+        foreach (byte[] written in await EveryWrite())
+        {
+            AssertIsTheValue(serializer.Deserialize<Person>(written));
+            AssertIsTheValue(serializer.Deserialize<Person>(Sequences.Of(written[..3], written[3..])));
+            AssertIsTheValue(serializer.Deserialize<Person>(new MemoryStream(written, writable: false)));
+
+            if (DeclaresLength)
+                AssertIsTheValue(await serializer.DeserializeAsync<Person>(new ChunkedPipeReader(written, chunkSize: 7)));
+        }
+    }
+
+    // --- XEP-04, XEP-08: every populate entry point ----------------------------------------------
 
     [Fact]
-    public void RefValueType_OverloadsAgree()
+    public async Task EveryPopulateEntryPoint_FillsTheTargetItWasGiven()
+    {
+        var serializer = Serializer;
+        byte[] payload = serializer.Serialize(Value);
+        var targets = new List<Person>();
+
+        Person Target()
+        {
+            var target = new Person();
+            targets.Add(target);
+            return target;
+        }
+
+        serializer.Populate(payload, Target());
+        serializer.Populate(payload, Target(), out int _);
+        serializer.Populate(Sequences.Of(payload[..6], payload[6..]), Target());
+        serializer.Populate(Sequences.Of(payload), Target(), out SequencePosition _);
+        serializer.Populate(new MemoryStream(payload, writable: false), Target());
+
+        if (DeclaresLength)
+        {
+            await serializer.PopulateAsync(new NonSeekableStream(payload), Target());
+            await serializer.PopulateAsync(new ChunkedPipeReader(payload, chunkSize: 2), Target());
+        }
+        else
+        {
+            await Assert.ThrowsAsync<NotSupportedException>(
+                () => serializer.PopulateAsync(new MemoryStream(payload), new Person()).AsTask());
+        }
+
+        Assert.All(targets, AssertIsTheValue);
+    }
+
+    // --- XEP-05: a value type read through the ordinary overload is the populate form --------------
+
+    [Fact]
+    public void ValueType_ReadThroughEveryEntryPoint_Agrees()
     {
         var serializer = Serializer;
         byte[] payload = serializer.Serialize(new PointStruct { X = 3, Y = 4 });
 
-        var fromArray = default(PointStruct);
-        var fromStream = default(PointStruct);
-        var fromExtension = default(PointStruct);
+        var fromSpan = serializer.Deserialize<PointStruct>(payload);
+        var fromSequence = serializer.Deserialize<PointStruct>(Sequences.Of(payload[..2], payload[2..]));
+        var fromStream = serializer.Deserialize<PointStruct>(new MemoryStream(payload, writable: false));
 
-        serializer.Deserialize(payload, ref fromArray);
-
-        using (var source = new MemoryStream(payload))
-            serializer.Deserialize(source, ref fromStream);
-
-        using (var source = new MemoryStream(payload))
-            source.Deserialize(ref fromExtension, Options);
-
-        Assert.Equal(new PointStruct { X = 3, Y = 4 }, fromArray);
-        Assert.Equal(fromArray, fromStream);
-        Assert.Equal(fromArray, fromExtension);
+        Assert.Equal(new PointStruct { X = 3, Y = 4 }, fromSpan);
+        Assert.Equal(fromSpan, fromSequence);
+        Assert.Equal(fromSpan, fromStream);
     }
 
     // --- every entry point leaves the caller's stream open --------------------------------------
 
     [Fact]
-    public void EveryStreamEntryPoint_LeavesTheCallersStreamOpen()
+    public async Task EveryStreamEntryPoint_LeavesTheCallersStreamOpen()
     {
         var serializer = Serializer;
 
         using var destination = new TrackingStream();
         serializer.Serialize(destination, Value);
+        await serializer.SerializeAsync(destination, Value);
         Assert.False(destination.Disposed);
 
         using var source = new TrackingStream(serializer.Serialize(Value));
         serializer.Deserialize<Person>(source);
         Assert.False(source.Disposed);
 
-        using var extension = new TrackingStream(serializer.Serialize(Value));
-        extension.Deserialize<Person>(Options);
-        Assert.False(extension.Disposed);
+        using var populated = new TrackingStream(serializer.Serialize(Value));
+        serializer.Populate(populated, new Person());
+        Assert.False(populated.Disposed);
+
+        if (DeclaresLength)
+        {
+            using var awaited = new TrackingStream(serializer.Serialize(Value));
+            await serializer.DeserializeAsync<Person>(awaited);
+            Assert.False(awaited.Disposed);
+        }
     }
 }
 
-/// <summary>XEP-01 to XEP-05 under profile P0, the default V1 frame.</summary>
+/// <summary>XEP-01, XEP-02, XEP-04, XEP-05 and XEP-08 under profile P0, the default V1 frame.</summary>
 public sealed class DefaultCrossEntryPointTests : CrossEntryPoint
 {
     protected override BinarySerializerOptions Options { get; } = BinarySerializerOptions.Default;
 }
 
 /// <summary>
-/// XEP-06, profile P6: the same agreement under the full V1 envelope. The nonce makes two writes of
-/// one value differ, so parity here is parity of what comes back, never of ciphertext bytes
+/// XEP-06 and XEP-08, profile P6: the same agreement under the full V1 envelope. The nonce makes two
+/// writes of one value differ, so parity here is parity of what comes back, never of ciphertext bytes
 /// (section 22.6).
 /// </summary>
 public sealed class ProtectedCrossEntryPointTests : CrossEntryPoint
@@ -252,14 +257,12 @@ public sealed class ProtectedCrossEntryPointTests : CrossEntryPoint
         .Build();
 
     protected override bool BytesAreDeterministic => false;
-
-    protected override byte[]? Key => Material;
 }
 
 /// <summary>
-/// XEP-07, profile P7: the same agreement under the headerless format, for every entry point V0
-/// supports. The header-derived overloads are the exception, and the suite asserts what they do
-/// instead of skipping them (section 10.2).
+/// XEP-07 and XEP-08, profile P7: the same agreement under the headerless format, for every entry
+/// point V0 supports. The entry points that need a declared length are the exception, and the suite
+/// asserts what they do instead of skipping them (section 10.2).
 /// </summary>
 public sealed class HeaderlessCrossEntryPointTests : CrossEntryPoint
 {
@@ -268,5 +271,5 @@ public sealed class HeaderlessCrossEntryPointTests : CrossEntryPoint
         .AllowV0Fallback()
         .Build();
 
-    protected override bool SelfDescribing => false;
+    protected override bool DeclaresLength => false;
 }

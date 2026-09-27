@@ -128,6 +128,17 @@ internal sealed class PayloadBuffer : IDisposable
             destination.Write(_current.AsSpan(0, _currentLength));
     }
 
+    /// <summary>Writes the committed bytes to <paramref name="destination"/>, segment by segment.</summary>
+    public async ValueTask WriteToAsync(Stream destination, CancellationToken cancellationToken)
+    {
+        for (int index = 0; index < _segments.Count; index++)
+            await destination.WriteAsync(
+                _segments[index].AsMemory(0, _segmentLengths[index]), cancellationToken).ConfigureAwait(false);
+
+        if (_current is not null)
+            await destination.WriteAsync(_current.AsMemory(0, _currentLength), cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Copies the committed bytes into <paramref name="destination"/>, segment by segment.</summary>
     public void WriteTo(IBufferWriter<byte> destination)
     {
@@ -138,12 +149,23 @@ internal sealed class PayloadBuffer : IDisposable
             CopyInto(destination, _current.AsSpan(0, _currentLength));
     }
 
-    /// <summary>Copies <paramref name="bytes"/> into <paramref name="destination"/>, in as many spans as it hands out.</summary>
+    /// <summary>
+    /// Copies <paramref name="bytes"/> into <paramref name="destination"/>, in as many spans as it hands
+    /// out, however short.
+    /// </summary>
+    /// <exception cref="BinaryStreamException">
+    /// The writer handed out an empty span, which a buffer writer must not do; the copy would never end.
+    /// </exception>
     internal static void CopyInto(IBufferWriter<byte> destination, ReadOnlySpan<byte> bytes)
     {
         while (!bytes.IsEmpty)
         {
             var span = destination.GetSpan(bytes.Length);
+            if (span.IsEmpty)
+                throw new BinaryStreamException(
+                    "The destination buffer writer handed out an empty span, so the frame cannot be " +
+                    "copied into it.");
+
             int take = Math.Min(span.Length, bytes.Length);
             bytes[..take].CopyTo(span);
             destination.Advance(take);

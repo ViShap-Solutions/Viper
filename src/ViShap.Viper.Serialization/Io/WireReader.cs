@@ -76,7 +76,16 @@ internal ref struct WireReader
 
     /// <summary>A reader over <paramref name="bytes"/>, which may span several segments.</summary>
     public WireReader(ReadOnlySequence<byte> bytes, SerializationOperation operation)
-        : this(bytes, operation, scope: "the payload")
+        : this(bytes, operation, budget: null, scope: "the payload")
+    {
+    }
+
+    /// <summary>
+    /// A reader over segmented bytes cut to <paramref name="budget"/>: a read past them is a limit
+    /// violation when it would exceed the budget, and a malformed payload otherwise.
+    /// </summary>
+    public WireReader(ReadOnlySequence<byte> bytes, SerializationOperation operation, WireBudget budget)
+        : this(bytes, operation, (WireBudget?)budget, scope: "the payload")
     {
     }
 
@@ -97,12 +106,16 @@ internal ref struct WireReader
         _nextSegment = default;
     }
 
-    private WireReader(ReadOnlySequence<byte> bytes, SerializationOperation operation, string scope)
+    private WireReader(
+        ReadOnlySequence<byte> bytes,
+        SerializationOperation operation,
+        WireBudget? budget,
+        string scope)
     {
         Operation = operation;
         _sequence = bytes;
         _length = bytes.Length;
-        _budget = null;
+        _budget = budget;
         _scope = scope;
         _nextSegment = bytes.Start;
         _span = bytes.TryGet(ref _nextSegment, out var first) ? first.Span : default;
@@ -312,7 +325,7 @@ internal ref struct WireReader
 
         WireReader slice = _span.Length - _index >= length
             ? new WireReader(_span.Slice(_index, length), Operation, budget: null, scope: what)
-            : new WireReader(_sequence.Slice(Consumed, length), Operation, scope: what);
+            : new WireReader(_sequence.Slice(Consumed, length), Operation, budget: null, scope: what);
 
         Advance(length);
         return slice;

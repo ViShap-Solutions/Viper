@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace ViShap.Viper.Pipeline;
 
 /// <summary>
@@ -176,52 +178,42 @@ internal sealed class V1FormatPipeline(
         }
     }
 
-    public object? Read(
-        Stream source,
-        Type declaredType,
-        object? existingInstance,
+    public FrameExtent Measure(
+        ReadOnlySpan<byte> buffered,
+        bool sourceEnded,
+        long available,
         SerializationOperation operation)
     {
-        ArgumentNullException.ThrowIfNull(source);
+        var budget = WireBudget(operation);
 
-        var budget = new WireBudget("wire", operation.Limits.MaxWireBytes);
-        long start = StreamSource.Position(source);
-        long available = StreamSource.Remaining(source);
-
-        Span<byte> prefix = stackalloc byte[BinaryFormatHeaderV1.MaxLength];
-        prefix = prefix[..(int)Math.Min(prefix.Length, Math.Min(available, budget.Maximum))];
-        prefix = prefix[..StreamSource.Read(source, prefix, "the format header")];
-
-        var header = ReadHeader(prefix, available, budget, operation, out int headerLength, out var payloadEncryption);
-
-        StreamSource.Seek(source, start + headerLength);
-        byte[] onDisk = RentedBytes.RentArray(header.OnDiskLength);
-        try
+        if (!BinaryFormatHeaderV1.TryMeasure(buffered, out int required))
         {
-            var body = onDisk.AsSpan(0, header.OnDiskLength);
-            int read = StreamSource.Read(source, body, "the on-disk payload");
-            if (read != body.Length)
-                throw new BinaryFormatException(
-                    $"On-disk payload ended early. Expected {body.Length} bytes, got {read}.");
+            long target = Math.Min(required, budget.Maximum);
+            if (!sourceEnded && buffered.Length < target)
+                return FrameExtent.NeedMore(target);
+        }
 
-            return Decode(header, payloadEncryption, body, declaredType, existingInstance, operation);
-        }
-        finally
-        {
-            RentedBytes.ReturnArray(onDisk);
-        }
+        var headerReader = new WireReader(HeaderPrefix(buffered, budget), operation, budget);
+        var header = BinaryFormatHeaderV1.ReadFrom(ref headerReader);
+        int headerLength = (int)headerReader.Consumed;
+
+        CheckOnDiskLength(header, headerLength, available, budget);
+        return FrameExtent.Known(headerLength + (long)header.OnDiskLength);
     }
 
     public object? Read(
         ReadOnlySpan<byte> source,
         Type declaredType,
         object? existingInstance,
-        SerializationOperation operation)
+        SerializationOperation operation,
+        out long consumed)
     {
-        var budget = new WireBudget("wire", operation.Limits.MaxWireBytes);
-        var prefix = source[..(int)Math.Min(BinaryFormatHeaderV1.MaxLength, Math.Min(source.Length, budget.Maximum))];
+        var budget = WireBudget(operation);
+        var header = ReadHeader(
+            HeaderPrefix(source, budget), source.Length, budget, operation,
+            out int headerLength, out var payloadEncryption);
 
-        var header = ReadHeader(prefix, source.Length, budget, operation, out int headerLength, out var payloadEncryption);
+        consumed = headerLength + (long)header.OnDiskLength;
 
         return Decode(
             header,
@@ -231,6 +223,61 @@ internal sealed class V1FormatPipeline(
             existingInstance,
             operation);
     }
+
+    public object? Read(
+        ReadOnlySequence<byte> source,
+        Type declaredType,
+        object? existingInstance,
+        SerializationOperation operation,
+        out long consumed)
+    {
+        if (source.IsSingleSegment)
+            return Read(source.FirstSpan, declaredType, existingInstance, operation, out consumed);
+
+        var budget = WireBudget(operation);
+
+        Span<byte> prefix = stackalloc byte[BinaryFormatHeaderV1.MaxLength];
+        prefix = prefix[..(int)Math.Min(prefix.Length, Math.Min(source.Length, budget.Maximum))];
+        source.Slice(0, prefix.Length).CopyTo(prefix);
+
+        var header = ReadHeader(
+            prefix, source.Length, budget, operation, out int headerLength, out var payloadEncryption);
+
+        consumed = headerLength + (long)header.OnDiskLength;
+        var onDisk = source.Slice(headerLength, header.OnDiskLength);
+
+        if (onDisk.IsSingleSegment)
+            return Decode(header, payloadEncryption, onDisk.FirstSpan, declaredType, existingInstance, operation);
+
+        if (header.Encryption == EncryptionAlgorithm.None
+            && header.Compression == CompressionAlgorithm.None
+            && header.ChecksumAlgorithm == ChecksumAlgorithm.None)
+        {
+            var payloadOperation = PayloadOperation(header, operation);
+            var reader = new WireReader(onDisk, payloadOperation);
+            return DecodePayload(ref reader, declaredType, existingInstance, payloadOperation);
+        }
+
+        // Every phase works on one contiguous span, so a segmented body is made contiguous once.
+        byte[] linear = RentedBytes.RentArray(header.OnDiskLength);
+        try
+        {
+            var body = linear.AsSpan(0, header.OnDiskLength);
+            onDisk.CopyTo(body);
+            return Decode(header, payloadEncryption, body, declaredType, existingInstance, operation);
+        }
+        finally
+        {
+            RentedBytes.ReturnArray(linear);
+        }
+    }
+
+    private static WireBudget WireBudget(SerializationOperation operation) =>
+        new("wire", operation.Limits.MaxWireBytes);
+
+    /// <summary>The bytes a header can occupy at the start of <paramref name="source"/>, within the budget.</summary>
+    private static ReadOnlySpan<byte> HeaderPrefix(ReadOnlySpan<byte> source, WireBudget budget) =>
+        source[..(int)Math.Min(BinaryFormatHeaderV1.MaxLength, Math.Min(source.Length, budget.Maximum))];
 
     /// <summary>
     /// Decodes and checks the header from the first bytes of the frame, applies the protection
@@ -265,13 +312,23 @@ internal sealed class V1FormatPipeline(
                 $"'{header.CustomEncryptionName ?? header.Encryption.ToString()}', which does not " +
                 "authenticate format metadata, but this serializer requires encrypted input.");
 
-        // Two-phase framing: the declared size is compared with the configured maximum and with the
-        // bytes that can still arrive before the buffer for it is allocated.
+        CheckOnDiskLength(header, headerLength, available, budget);
+        return header;
+    }
+
+    /// <summary>
+    /// Two-phase framing: the declared size is compared with the configured maximum and with the
+    /// bytes that can still arrive before a buffer is allocated for it or its bytes are waited for.
+    /// </summary>
+    private static void CheckOnDiskLength(
+        in BinaryFormatHeaderV1 header,
+        int headerLength,
+        long available,
+        WireBudget budget)
+    {
         if (header.OnDiskLength > Math.Min(budget.Maximum, available) - headerLength)
             throw budget.Exceeded(
                 header.OnDiskLength, headerLength, available - headerLength, "On-disk payload");
-
-        return header;
     }
 
     /// <summary>
@@ -321,28 +378,44 @@ internal sealed class V1FormatPipeline(
                 rawPayload,
                 header.Checksum);
 
-            // The header decides whether the payload uses reference framing, so the engine follows
-            // the payload rather than the local configuration.
-            var payloadOperation = operation.WithPreserveReferences(header.PreserveReferences);
-
+            var payloadOperation = PayloadOperation(header, operation);
             var reader = new WireReader(rawPayload, payloadOperation);
-            using var engine = new GraphReader(payloadOperation);
-
-            object? result = existingInstance is null
-                ? engine.ReadValue(ref reader, declaredType)
-                : engine.ReadInto(ref reader, existingInstance, declaredType);
-
-            if (reader.Remaining != 0)
-                throw new BinaryFormatException(
-                    $"Payload contains {reader.Remaining} trailing byte(s) after the root value.");
-
-            return result;
+            return DecodePayload(ref reader, declaredType, existingInstance, payloadOperation);
         }
         finally
         {
             decompressed.Dispose();
             decrypted.Dispose();
         }
+    }
+
+    /// <summary>
+    /// The header decides whether the payload uses reference framing, so the engine follows the
+    /// payload rather than the local configuration.
+    /// </summary>
+    private static SerializationOperation PayloadOperation(
+        in BinaryFormatHeaderV1 header,
+        SerializationOperation operation) =>
+        operation.WithPreserveReferences(header.PreserveReferences);
+
+    /// <summary>Reads the root value, which must consume the payload exactly.</summary>
+    private static object? DecodePayload(
+        ref WireReader reader,
+        Type declaredType,
+        object? existingInstance,
+        SerializationOperation payloadOperation)
+    {
+        using var engine = new GraphReader(payloadOperation);
+
+        object? result = existingInstance is null
+            ? engine.ReadValue(ref reader, declaredType)
+            : engine.ReadInto(ref reader, existingInstance, declaredType);
+
+        if (reader.Remaining != 0)
+            throw new BinaryFormatException(
+                $"Payload contains {reader.Remaining} trailing byte(s) after the root value.");
+
+        return result;
     }
 
     private static RentedBytes Decrypt(

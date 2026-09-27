@@ -53,7 +53,7 @@ Test-layer vocabulary used by the suites:
 
 ```text
 tests/ViShap.Viper.Serialization.Tests/
-  Api/              Api, Options, StreamExtensions, CrossEntryPoint
+  Api/              Api, Options, sources, populate, pooled payload, asynchrony, CrossEntryPoint
   Exceptions/       taxonomy, configuration validation, inner-exception preservation
   Format/           V1 header, V1 envelope, V0 envelope, routing, wire format (§22)
   Contracts/        member plans, attributes, polymorphism, keyed evolution
@@ -62,7 +62,7 @@ tests/ViShap.Viper.Serialization.Tests/
   Limits/           limits, budgets, depth, nodes, phases
   Metering/         metering and windowing over buffers, atomic writes, public stream behaviour
   Algorithms/       compression, checksum, encryption, algorithm catalog
-  Metadata/         inspector, header info, FromHeader / FromStream
+  Metadata/         inspector over a stream, a span and a sequence; header info
   Diagnostics/      BinaryFormatDumper
   Concurrency/      caches, shared serializer, parallel operations
   Hostile/          malformed corpus, truncation, amplification, property tests
@@ -187,22 +187,46 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] API-02 — `new BinarySerializer(null)` is equivalent to the parameterless form *(§3.1)* — `Api/SerializerApiTests`
 - [x] API-03 — `new BinarySerializer(options)` with invalid limits throws `BinaryConfigurationException` at construction *(§5)* — `Api/SerializerApiTests`
 - [x] API-04 — `byte[] Serialize<T>(T)` and `void Serialize<T>(Stream, T)` produce identical bytes *(§3.1)* — `Api/SerializerApiTests`
-- [x] API-05 — `T? Deserialize<T>(byte[])` and `T? Deserialize<T>(Stream)` produce equal results *(§3.1)* — `Api/SerializerApiTests`
-- [x] API-06 — `Deserialize<T>(byte[])` on an empty array throws `BinaryFormatException` *(§3)* — `Api/EmptyPayloadTests`
-- [x] API-07 — `Deserialize<T>(byte[], T existing)` on an empty array throws and leaves the instance untouched *(§3)* — `Api/EmptyPayloadTests`
-- [x] API-08 — `Deserialize<T>(byte[], ref T existing)` on an empty array throws and leaves the value untouched *(§3)* — `Api/EmptyPayloadTests`
-- [x] API-09 — `Deserialize<T>(Stream, T existing)` populates and returns the same instance *(§3)* — `Api/ExistingInstanceTests`
-- [x] API-10 — `Deserialize<T>(…, T existing)` on a formatter-claimed type throws `BinaryTypeException` *(§3)* — `Api/ExistingInstanceTests`
-- [x] API-11 — `Deserialize<T>(…, ref T existing)` restores every member of a struct, including a primitive root *(§3, C01)* — `Api/ExistingInstanceTests`
-- [x] API-12 — `Deserialize<T>(…, ref T existing)` is correct under `PreserveReferences` framing *(§3, A02)* — `Api/ExistingInstanceTests`
-- [x] API-13 — null `destination`, `source`, `bytes` or `existingInstance` throw `ArgumentNullException` *(§8.10)* — `Api/SerializerApiTests`
+- [x] API-05 — `T? Deserialize<T>(ReadOnlySpan<byte>)`, over an array, and `T? Deserialize<T>(Stream)` produce equal results *(§3.1)* — `Api/SerializerApiTests`
+- ~~API-06 — `Deserialize<T>(byte[])` on an empty array throws `BinaryFormatException` *(§3)* — `Api/EmptyPayloadTests`~~ *retired in R3 — the `byte[]` read overloads are gone; an empty input at every read and populate entry point is API-21*
+- ~~API-07 — `Deserialize<T>(byte[], T existing)` on an empty array throws and leaves the instance untouched *(§3)* — `Api/EmptyPayloadTests`~~ *retired in R3 — the `byte[]` read overloads are gone; an empty input at every read and populate entry point is API-21*
+- ~~API-08 — `Deserialize<T>(byte[], ref T existing)` on an empty array throws and leaves the value untouched *(§3)* — `Api/EmptyPayloadTests`~~ *retired in R3 — the `byte[]` read overloads are gone; an empty input at every read and populate entry point is API-21*
+- ~~API-09 — `Deserialize<T>(Stream, T existing)` populates and returns the same instance *(§3)* — `Api/ExistingInstanceTests`~~ *retired in R3 — the existing-instance overloads are gone; `Populate` is API-24*
+- ~~API-10 — `Deserialize<T>(…, T existing)` on a formatter-claimed type throws `BinaryTypeException` *(§3)* — `Api/ExistingInstanceTests`~~ *retired in R3 — the existing-instance overloads are gone; `Populate` is API-24*
+- ~~API-11 — `Deserialize<T>(…, ref T existing)` restores every member of a struct, including a primitive root *(§3, C01)* — `Api/ExistingInstanceTests`~~ *retired in R3 — the `ref` value-type overloads are gone; a struct is read with the ordinary overload, XEP-05*
+- ~~API-12 — `Deserialize<T>(…, ref T existing)` is correct under `PreserveReferences` framing *(§3, A02)* — `Api/ExistingInstanceTests`~~ *retired in R3 — the `ref` value-type overloads are gone; a struct is read with the ordinary overload, XEP-05*
+- [x] API-13 — a null `destination`, `source` or populate `target` throws `ArgumentNullException`, at every entry point that takes one; a null array is an empty payload, not a null argument (API-21). The arguments are typed, because the entry points differ only in the type of their destination or source *(§3.1, §8.10)* — `Api/SerializerApiTests`, `Api/PopulateTests` *(rewritten in R3)*
 - [x] API-14 — a caller stream is never disposed by serialize or deserialize *(§20)* — `Api/SerializerApiTests`
 - [x] API-15 — a caller stream is never rewound; serialization appends at the current position *(§3.1, §20)* — `Api/SerializerApiTests`
 - [x] API-16 — deserialization reads only as far as the payload extends *(§3.1)* — `Api/SerializerApiTests`
-- [x] API-17 — reading from a non-seekable stream throws `NotSupportedException` *(§8.10, §10.3)* — `Api/SerializerApiTests`
+- [x] API-17 — reading a V1 frame from a non-seekable stream succeeds *(§3.1, §20)* — `Api/SerializerApiTests` *(inverted in R3: the magic is decoded from the delivered bytes and the frame is read to its declared length)*
 - [x] API-18 — writing to a non-seekable stream succeeds, for a positional payload and for a keyed one, under V1 and V0, with the same bytes as the array form *(§7.2)* — `Api/SerializerApiTests`
 - [x] API-19 — a serializer instance is reusable across calls with no state carried over *(§2.2)* — `Api/SerializerApiTests`
 - [x] API-20 — a failed operation leaves the stream position where the failure occurred, and the next independent call still succeeds *(§20, §2.2)* — `Api/SerializerApiTests`
+
+- [x] API-21 — an empty span, sequence, stream (seekable or not) or pipe is `BinaryFormatException` at every read and populate entry point, synchronous and asynchronous, under V1 and with the V0 fallback, and a populate target is left untouched; a `null` array is `BinaryFormatException` *(§3.1)* — `Api/EmptyPayloadTests`
+- [x] API-22 — without a bytes-consumed form, trailing bytes after a V1 frame or a V0 root are `BinaryFormatException`; with it, two frames (V1) and two payloads (V0) back to back are read and the reported position is exact, for a span (`int`) and a sequence (`SequencePosition`) cut across the boundary *(§3.4)* — `Api/BytesConsumedTests`
+- [x] API-23 — `PooledPayload` holds the bytes of `Serialize<T>(T)` under V1 and V0 and for a large value; `Dispose` twice is safe; `Memory` and `Span` after `Dispose` are `ObjectDisposedException` *(§3.2)* — `Api/PooledPayloadTests`
+- [x] API-24 — `Populate` fills the instance it was given from a span, a sequence, a stream, and asynchronously from a stream and a pipe; a keyed contract keeps a field absent from the payload; nested objects are new instances; a type with a dedicated formatter and a union of another runtime type are `BinaryTypeException`; a null root and a back-reference root are `BinaryFormatException`; an empty input leaves the target untouched; the bytes-consumed forms stop at the end of the frame *(§3.3)* — `Api/PopulateTests`
+- [x] API-25 — asynchrony: cancellation before any byte and cancellation inside a frame leave a `PipeReader` unconsumed; a malformed frame and a cancelled pending read consume nothing; a frame split across many pipe segments is read and exactly it is consumed; a pipe completed inside the header or the body is `BinaryFormatException`; `SerializeAsync` to a pipe and a stream equals `Serialize`, and a write cancelled before its output or failing mid-graph leaves the destination empty *(§3.5)* — `Api/AsynchronyTests`
+- [x] API-26 — every asynchronous read and populate, from a stream and from a pipe, that meets V0 is `NotSupportedException` naming the rule, and consumes nothing from a pipe; an asynchronous V0 write to a stream and to a pipe succeeds with the bytes of the synchronous write *(§3.5, §10.2)* — `Api/AsynchronyTests`
+- [x] API-27 — `DeserializeAsyncEnumerable` over a `Stream` and a `PipeReader`: 0, 1 and 5 frames yield as many values and complete, consuming every frame; the source ending inside a frame is `BinaryFormatException` after the complete frames were yielded; each frame has its own budget (four frames each just under a cumulative limit all pass); V0 is `NotSupportedException`; cancellation leaves a started frame unconsumed in the pipe *(§3.5)* — `Api/AsyncEnumerableTests`
+- [x] API-28 — a buffer writer that hands out spans shorter than asked for receives the bytes of the array form; one that hands out an empty span is `BinaryStreamException` within a bounded time instead of a copy that never ends, for `Serialize(IBufferWriter<byte>, T)` *(§3.1, §8.8)* — `Api/BufferWriterTests` *(added in R3, owner's decision of 2026-09-27, `rework/Owner-Review.md` log 55)*
+
+**Sources** *(added in R3)*. Every kind of source reads the same value from the same frame, under P0 and
+P6 and, where V0 can be read from it, P7; a source that delivers bytes over time is asked for exactly
+one frame.
+
+- [x] SRC-01 — a span, over an array *(§3.1)* — `Api/SourceTests`
+- [x] SRC-02 — a single-segment sequence *(§3.1)* — `Api/SourceTests`
+- [x] SRC-03 — a multi-segment sequence, cut at every offset of the frame and into one-byte segments *(§3.1)* — `Api/SourceTests`
+- [x] SRC-04 — a seekable `Stream` *(§3.1, §20)* — `Api/SourceTests`
+- [x] SRC-05 — a non-seekable `Stream`, V1 only; V0 there is V0-27 *(§3.1, §20)* — `Api/SourceTests`
+- [x] SRC-06 — a `PipeReader`, awaited, V1 only, and a frame written into a real `Pipe` and read from it *(§3.5)* — `Api/SourceTests`
+- [x] SRC-07 — a `Stream`, awaited, V1 only *(§3.5)* — `Api/SourceTests`
+- [x] SRC-08 — a non-seekable double that fails on any read past the frame proves exactly one V1 frame is taken, synchronously and awaited, and a pipe consumes exactly one, for headers with no optional string, with a key id of 200 bytes, with custom algorithm names and with a checksum, and for payloads from 0 to 70 000 bytes *(§20)* — `Api/SourceTests`
+- [x] SRC-09 — a frame arriving one byte at a time, from a stream and from a pipe *(§20)* — `Api/SourceTests`
+- [x] SRC-10 — INV-3 for a source that cannot tell its length: a declared length is buffered as bytes arrive, the first read offering at most 512 bytes and each growth at most doubling, while a length the source is known to hold is offered at once; a frame declaring 32 MiB on a stream that ends is `BinaryFormatException` *(§20)* — `Api/SourceTests`
 
 ---
 
@@ -222,31 +246,34 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] OPT-12 — registration is per-configuration: a second options instance built without it cannot resolve the custom name *(§4.1)* — `Api/OptionsTests`
 - [x] OPT-13 — a custom registration cannot substitute a built-in algorithm *(§4.1)* — `Api/OptionsTests`
 - [x] OPT-14 — a null name or null factory in a registration throws `ArgumentNullException` *(§8.10)* — `Api/OptionsTests`
-- [x] OPT-15 — `FromHeader(...)` builds options matching the header metadata *(§4.3)* — `Api/OptionsTests`
-- [x] OPT-16 — `FromHeader` with invalid limits throws `BinaryConfigurationException` *(§4.3)* — `Api/OptionsTests`
-- [x] OPT-17 — `FromStream(...)` peeks through `BinaryFormatInspector` and restores the position *(§4.3, §19)* — `Api/OptionsTests`
-- [x] OPT-18 — `FromStream` on a non-seekable stream throws `NotSupportedException` *(§4.3)* — `Api/OptionsTests`
-- [x] OPT-19 — a key resolver receives the header's `KeyId` *(§4.3, §13.2)* — `Api/OptionsTests`
-- [x] OPT-20 — `KeyId` is never treated as key material *(§4.3, §8.7)* — `Api/OptionsTests`
+- ~~OPT-15 — `FromHeader(...)` builds options matching the header metadata *(§4.3)* — `Api/OptionsTests`~~ *retired in R3 — `FromHeader` and `FromStream` are deleted (contract §4.3); keys for reading are `WithKeys`, OPT-22, and a non-seekable source is read, SRC-05*
+- ~~OPT-16 — `FromHeader` with invalid limits throws `BinaryConfigurationException` *(§4.3)* — `Api/OptionsTests`~~ *retired in R3 — `FromHeader` and `FromStream` are deleted (contract §4.3); keys for reading are `WithKeys`, OPT-22, and a non-seekable source is read, SRC-05*
+- ~~OPT-17 — `FromStream(...)` peeks through `BinaryFormatInspector` and restores the position *(§4.3, §19)* — `Api/OptionsTests`~~ *retired in R3 — `FromHeader` and `FromStream` are deleted (contract §4.3); keys for reading are `WithKeys`, OPT-22, and a non-seekable source is read, SRC-05*
+- ~~OPT-18 — `FromStream` on a non-seekable stream throws `NotSupportedException` *(§4.3)* — `Api/OptionsTests`~~ *retired in R3 — `FromHeader` and `FromStream` are deleted (contract §4.3); keys for reading are `WithKeys`, OPT-22, and a non-seekable source is read, SRC-05*
+- [x] OPT-19 — a key resolver given with `WithKeys` receives the header's `KeyId` *(§4.1, §13.2)* — `Api/OptionsTests` *(re-pointed in R3 from `FromStream`)*
+- [x] OPT-20 — `KeyId` is never treated as key material *(§4.1, §8.7)* — `Api/OptionsTests`
 - [x] OPT-21 — `SerializationLimits` is a record: `Default with { … }` derives a policy and `Validate()` is public *(§5)* — `Api/OptionsTests`
+- [x] OPT-22 — `WithKeys` with a key, a resolver and a provider reads an encrypted frame, reads an unencrypted one as well, and encrypts nothing it writes; a key with another id is `BinaryEncryptionKeyException`; keys supplied through both `WithEncryption` and `WithKeys`, in either order and in every form, are `BinaryConfigurationException` at `Build()`; a null resolver or provider is `ArgumentNullException` *(§4.1)* — `Api/OptionsTests`
 
 ---
 
-# 8. Stream extensions — `Api/`
+# 8. Stream extensions — `Api/` — retired in R3
 
-The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
+`StreamExtensions` is deleted (contract §3): the serializer reads every source itself, and keys for
+reading are `WithKeys`. The checkpoints are kept, struck through, so the history of what was proven
+stays readable.
 
-- [x] SX-01 — `Serialize<T>(this Stream, T, BinarySerializerOptions?)` matches `BinarySerializer.Serialize` byte for byte *(§3)* — `Api/StreamExtensionsTests`
-- [x] SX-02 — `Deserialize<T>(this Stream, BinarySerializerOptions)` matches the serializer overload *(§3)* — `Api/StreamExtensionsTests`
-- [x] SX-03 — `Deserialize<T>(this Stream)` configures itself from the header *(§4.3)* — `Api/StreamExtensionsTests`
-- [x] SX-04 — `Deserialize<T>(this Stream, byte[]? key)` decrypts with the supplied key *(§4.3, §13)* — `Api/StreamExtensionsTests`
-- [x] SX-05 — `Deserialize<T>(this Stream, Func<string?, byte[]?>)` resolves by header `KeyId` *(§4.3, §13.2)* — `Api/StreamExtensionsTests`
-- [x] SX-06 — the three existing-reference-instance overloads populate in place *(§3)* — `Api/StreamExtensionsTests`
-- [x] SX-07 — the three `ref struct` overloads assign the value read *(§3)* — `Api/StreamExtensionsTests`
-- [x] SX-08 — every overload leaves the caller's stream open and undisposed *(§20)* — `Api/StreamExtensionsTests`
-- [x] SX-09 — every overload rejects a null stream / resolver with `ArgumentNullException` *(§8.10)* — `Api/StreamExtensionsTests`
-- [x] SX-10 — header-derived overloads apply the caller's `limits`, or the defaults when omitted *(§3.2)* — `Api/StreamExtensionsLimitsTests`
-- [x] SX-11 — a header-derived overload cannot be used to bypass a caller's configured limits *(§3.2)* — `Api/StreamExtensionsLimitsTests`
+- ~~SX-01 — `Serialize<T>(this Stream, T, BinarySerializerOptions?)` matches `BinarySerializer.Serialize` byte for byte *(§3)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-02 — `Deserialize<T>(this Stream, BinarySerializerOptions)` matches the serializer overload *(§3)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-03 — `Deserialize<T>(this Stream)` configures itself from the header *(§4.3)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-04 — `Deserialize<T>(this Stream, byte[]? key)` decrypts with the supplied key *(§4.3, §13)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-05 — `Deserialize<T>(this Stream, Func<string?, byte[]?>)` resolves by header `KeyId` *(§4.3, §13.2)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-06 — the three existing-reference-instance overloads populate in place *(§3)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-07 — the three `ref struct` overloads assign the value read *(§3)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-08 — every overload leaves the caller's stream open and undisposed *(§20)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-09 — every overload rejects a null stream / resolver with `ArgumentNullException` *(§8.10)* — `Api/StreamExtensionsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-10 — header-derived overloads apply the caller's `limits`, or the defaults when omitted *(§3.2)* — `Api/StreamExtensionsLimitsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
+- ~~SX-11 — a header-derived overload cannot be used to bypass a caller's configured limits *(§3.2)* — `Api/StreamExtensionsLimitsTests`~~ *retired in R3 — `StreamExtensions` is deleted*
 
 ---
 
@@ -267,11 +294,11 @@ The 13 public overloads of `StreamExtensions`, enumerated in contract §3.2.
 - [x] EXC-08 — recognized but unsupported version or algorithm → `BinaryFormatNotSupportedException` *(§8.4)* — `Exceptions/ExceptionMappingTests`
 - [x] EXC-09 — checksum or AEAD tag failure → `BinaryIntegrityException` *(§8.5)* — `Exceptions/ExceptionMappingTests`
 - [x] EXC-10 — key missing, unresolvable or mismatched → `BinaryEncryptionKeyException` *(§8.7)* — `Exceptions/ExceptionMappingTests`
-- [x] EXC-11 — caller-stream I/O failure → `BinaryStreamException` *(§8.8)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-11 — caller-stream and caller-pipe I/O failure → `BinaryStreamException`, synchronous and awaited, with the `IOException` preserved *(§8.8)* — `Exceptions/ExceptionMappingTests` *(pipes added in R3)*
 - [x] EXC-12 — invalid CLR type, contract or graph semantics → `BinaryTypeException` *(§8.9)* — `Exceptions/ExceptionMappingTests`
 - [x] EXC-13 — invalid configuration → `BinaryConfigurationException` *(§8.1)* — `Exceptions/ExceptionMappingTests`, `Exceptions/ConfigurationValidationTests`
 - [x] EXC-14 — a null public argument → `ArgumentNullException`, never a Viper type *(§8.10)* — `Exceptions/ExceptionMappingTests`
-- [x] EXC-15 — a required capability such as seekability → `NotSupportedException` *(§8.10)* — `Exceptions/ExceptionMappingTests`
+- [x] EXC-15 — an unsupported capability → `NotSupportedException`: a V0 payload from a stream that cannot seek, and an asynchronous read that meets V0 *(§8.10)* — `Exceptions/ExceptionMappingTests` *(rewritten in R3: no read requires seekability otherwise)*
 
 ## 9.3 Leakage and preservation
 
@@ -358,7 +385,7 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-03 — a `[BinaryContract]` type round-trips on V0 *(§10.2, §14.2)* — `Format/V0FormatTests`
 - [x] V0-04 — a keyed payload written on V0 is read by a V0 reader whose schema has moved on; the unknown key is length-skipped *(§10.2, §14.2)* — `Format/V0FormatTests`
 - [x] V0-05 — V0 ignores `PreserveReferences`; a cycle is a `BinaryTypeException`, not a reference frame *(§10.2, §16)* — `Format/V0FormatTests`
-- [x] V0-06 — V0 may be embedded: bytes after the payload are neither required nor rejected *(§22.8)* — `Format/V0FormatTests`
+- [x] V0-06 — V0 may be embedded in a stream: bytes after the payload are neither required nor rejected *(§22.8)* — `Format/V0FormatTests`
 - [x] V0-07 — `MaxPayloadBytes` applies to V0 on read *(§7.1, S05)* — `Limits/BudgetTests`
 - [x] V0-08 — `MaxPayloadBytes` applies to V0 on write *(§7.2)* — `Format/V0FormatTests`
 - [x] V0-09 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Format/V0FormatTests`
@@ -366,9 +393,9 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-11 — routing selects V0 only when the read fallback is enabled; writing V0 does not enable it *(§10.2, §10.3)* — `Api/WriteVersionTests`
 - [x] V0-12 — no magic with the fallback disabled → `BinaryFormatException` *(§10.3)* — `Format/V0FormatTests`
 - [x] V0-13 — a recognized but unregistered version → `BinaryFormatNotSupportedException` *(§10.3)* — `Format/RoutingTests`
-- [x] V0-14 — routing on a non-seekable stream → `NotSupportedException` *(§10.3)* — `Format/RoutingTests`
-- [x] V0-15 — the version probe restores the stream position before dispatch *(§10.3)* — `Format/RoutingTests`
-- [x] V0-16 — an `IOException` from the probe → `BinaryStreamException` *(§10.3)* — `Format/RoutingTests`
+- [x] V0-14 — routing on a non-seekable stream decodes the magic from the bytes it delivered and reads the V1 frame, taking exactly it *(§10.3)* — `Format/RoutingTests` *(inverted in R3)*
+- [x] V0-15 — routing reads nothing twice: the identifying bytes are the frame's first bytes, so a V0 payload at a non-zero offset is read from where the stream stood *(§10.3)* — `Format/RoutingTests` *(rewritten in R3: there is no probe to restore)*
+- [x] V0-16 — an `IOException` while the identifying bytes are read → `BinaryStreamException` *(§10.3, §8.8)* — `Format/RoutingTests`
 - [x] V0-17 — the probe matches the eight header bytes exactly, so a V0 payload that is shorter
   than the probe window or differs from the magic in any byte is not misrouted; one that literally
   opens with the magic and version 1 *is* read as V1, which is the documented consequence of a V0
@@ -382,6 +409,7 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.8)* — `Format/V0FormatTests`
 - [x] V0-25 — a keyed write on V0 to a destination that cannot seek succeeds and is byte-identical to the write to a seekable one, and a positional write to the same destination succeeds *(§10.2, §14.2)* — `Format/V0FormatTests`, `Metering/PublicStreamTests` *(inverted in R1: the field length is patched in the serializer's buffer)*
 - [x] V0-26 — a byte-reversed magic is not recognised; `Peek` reports no header *(§22)* — `Format/RoutingTests`
+- [x] V0-27 — the V0 read boundary: a span and a sequence are exactly one payload by default, bytes after the root being `BinaryFormatException`; a seekable stream is left at the end of the root, for a positional and a nested keyed payload; a non-seekable stream is `NotSupportedException` naming the rule *(§10.2)* — `Format/V0BoundaryTests`
 
 ---
 
@@ -719,6 +747,7 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] LIM-46 — the documented default table names exactly the limits the type declares *(§5)* — `Exceptions/ConfigurationValidationTests`
 - [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer and which only the engine's entry can create; the engine exposes no payload primitives and holds no reader or writer *(§18, §24)* — `Limits/StructuralBarrierTests`
 - [x] LIM-48 — `WireReader` and `WireWriter` are `ref struct`s, and they are the only types in the engine assembly that declare payload primitives (`Read*`/`Write*` of a boolean, a number, a varint, a string, a blob or a bit count), a `Stream` override excepted *(§2.3, §18)* — `Limits/StructuralBarrierTests`
+- [x] LIM-50 — INV-16: no method in the engine or the formatters is asynchronous — none carries an async state machine or returns a task, a value task or an async enumerable — and the check recognizes an awaitable return *(§2.4)* — `Limits/StructuralBarrierTests` *(added in R3)*
 
 ---
 
@@ -761,7 +790,7 @@ frame, which replace the three stream decorators; none is dropped.*
 ## 21.4 Public stream behavior
 
 - [x] STR-23 — a seekable `MemoryStream` round-trips *(§20)* — `Metering/PublicStreamTests`
-- [x] STR-24 — a non-seekable source is rejected only by APIs that require seekability *(§10.3)* — `Metering/PublicStreamTests`
+- [x] STR-24 — a non-seekable source is read by every entry point that can read it; only `Peek(Stream)` and a V0 payload refuse it *(§10.2, §19, §20)* — `Metering/PublicStreamTests` *(rewritten in R3)*
 - [x] STR-25 — a stream returning short reads round-trips correctly *(§7.1)* — `Metering/PublicStreamTests`
 - [x] STR-26 — premature EOF → `BinaryFormatException` *(§8.2)* — `Metering/PublicStreamTests`
 - [x] STR-27 — a non-readable source and a non-writable destination fail with normal BCL semantics *(§20)* — `Metering/PublicStreamTests`
@@ -921,6 +950,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] INS-08 — `Peek(stream, null)` → `ArgumentNullException` *(§8.10)* — `Metadata/InspectorTests`
 - [x] INS-09 — an underlying `IOException` during inspection → `BinaryStreamException` *(§19)* — `Metadata/InspectorTests`, both before the magic and inside the header read
 - [x] INS-10 — `BinaryHeaderInfo` reports version, algorithms, custom names and `KeyId` and nothing secret *(§11)* — `Metadata/InspectorTests`
+- [x] INS-11 — `Peek` over a span and over a multi-segment sequence reports the header a stream `Peek` reports, `null` for a V0 payload and for fewer bytes than the magic, `BinaryFormatException` for a malformed header, and honours its limits *(§19)* — `Metadata/InspectorTests` *(added in R3)*
 - [x] DMP-01 — `DumpHeader(byte[])` renders a valid envelope *(§19)* — `Diagnostics/DumperTests`, custom algorithm names included and no key material
 - [x] DMP-02 — `DumpHeader(Stream)` renders a valid envelope and does not consume the stream *(§19)* — `Diagnostics/DumperTests`
 - [x] DMP-03 — unrecognized input produces diagnostic text rather than a thrown exception *(§19)* — `Diagnostics/DumperTests`, for unrecognized bytes, a malformed header, an unsupported version and a failing stream
@@ -987,6 +1017,9 @@ FailingContentStream (real content, then an IOException at a chosen offset)     
 Concurrent.Race (a body on several threads released together) · the Raced* types       (added by M8)
 Cultures.Specific (a culture the host actually has) · the Frozen* compatibility shapes  (added by M8)
 Oracle.Parse · Line · Compare · Normalize · OracleRecorder.SerializeRecorded · Collect (added by R0)
+FrameBoundStream (a non-seekable stream that fails on any read past a boundary)       (added by R3)
+ChunkedPipeReader (a PipeReader whose content arrives a chunk at a time)              (added by R3)
+StingyBufferWriter (an IBufferWriter<byte> that hands out at most N bytes per span)     (added by R3)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
@@ -1012,6 +1045,9 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-15 — `Concurrent.Race` runs its workers at the same time rather than one after another, returns each result under its own index, and rethrows what a worker threw — `Fixtures/UtilityTests`. A helper that quietly serialized would make every L4 checkpoint pass without ever racing anything
 - [x] UTIL-16 — `Cultures.Specific` resolves on the host it runs on, including one with no globalization data — `Fixtures/UtilityTests`. Naming a culture in a test makes it fail wherever that name is absent, which is a property of the machine and not of the format
 - [x] UTIL-17 — the oracle helpers are tested: `Oracle.Compare` reports a changed byte with both outputs in hex and its offset, a change of length, and a missing, an unexpected and a repeated case; `Oracle.Parse` refuses a repeated key, an alternative away from its case and an alternative repeating a recorded output; `Oracle.Compare` accepts any admissible output of a case and reports another against each of them, and accepts any output of a host-dependent case while still requiring it to be produced; `Oracle.Normalize` turns two encryptions of one value into the same bytes, whose body is the unencrypted payload; `OracleRecorder` records a copy of every write inside a collection and nothing outside one — `Fixtures/UtilityTests`
+- [x] UTIL-18 — `FrameBoundStream` serves its bytes up to the boundary, cannot seek, ends when its content does, and fails a read that asks for any byte past the boundary, synchronously and awaited, without taking a byte — `Fixtures/UtilityTests` *(added in R3)*
+- [x] UTIL-19 — `ChunkedPipeReader` delivers a new chunk only once everything shown was examined, shows what arrived and was not consumed in one segment per chunk, completes when its content has all arrived, counts what was consumed, refuses a second read before advancing, reports a cancelled pending read, and without completion waits until the read is cancelled — `Fixtures/UtilityTests` *(added in R3)*
+- [x] UTIL-20 — `StingyBufferWriter` hands out spans of at most its limit, commits what was advanced in order, and with a limit of zero hands out an empty span — `Fixtures/UtilityTests` *(added in R3)*
 
 ---
 
@@ -1306,18 +1342,19 @@ bits so a fixture decodes on a 32-bit runtime as well.
 
 For one logical value under one configuration, all entry points must agree.
 
-- [x] XEP-01 — `byte[]` serialize/deserialize *(§3.1)* — `Api/CrossEntryPointTests`
+- [x] XEP-01 — `byte[]` serialize and span deserialize *(§3.1)* — `Api/CrossEntryPointTests`
 - [x] XEP-02 — `Stream` serialize/deserialize *(§3.1)* — `Api/CrossEntryPointTests`
-- [x] XEP-03 — `StreamExtensions` *(§3.2)* — `Api/CrossEntryPointTests`, in both directions and against the serializer
-- [x] XEP-04 — the existing-instance overloads *(§3)* — `Api/CrossEntryPointTests`
-- [x] XEP-05 — the `ref` value-type overloads *(§3)* — `Api/CrossEntryPointTests`
+- ~~XEP-03 — `StreamExtensions` *(§3.2)* — `Api/CrossEntryPointTests`, in both directions and against the serializer~~ *retired in R3 — `StreamExtensions` is deleted*
+- [x] XEP-04 — the populate entry points fill the target they were given, from a span, a sequence, a stream and, under V1, awaited from a stream and a pipe *(§3.3)* — `Api/CrossEntryPointTests` *(rewritten in R3 for `Populate`)*
+- [x] XEP-05 — a value type read through the span, sequence and stream overloads agrees *(§3.3)* — `Api/CrossEntryPointTests` *(rewritten in R3: the `ref` forms are gone)*
 - [x] XEP-06 — parity under the full V1 pipeline; encrypted payloads compare semantics, never ciphertext bytes *(§22.6)* — `Api/ProtectedCrossEntryPointTests`
-- [x] XEP-07 — parity under V0 for every shape V0 supports *(§10.2)* — `Api/HeaderlessCrossEntryPointTests`; the header-derived overloads are asserted to refuse a headerless payload rather than skipped
+- [x] XEP-07 — parity under V0 for every shape V0 supports *(§10.2)* — `Api/HeaderlessCrossEntryPointTests`; the entry points that need a declared length are asserted to refuse a headerless payload rather than skipped *(rewritten in R3: the header-derived overloads are gone)*
+- [x] XEP-08 — every entry point of §3.1 agrees with the others under P0, P6 and P7: the six writes (`byte[]`, `Stream`, `IBufferWriter<byte>`, `PooledPayload`, awaited `Stream`, awaited `PipeWriter`) produce the same bytes, and every read and populate — span, bytes-consumed span, single- and multi-segment sequence, seekable, short-reading and non-seekable stream, awaited stream and pipe, the frame enumeration — reads what every write wrote; under P7 the entry points that need a declared length are asserted to refuse *(§3.1)* — `Api/CrossEntryPointTests` *(added in R3)*
 - [x] EXT-01 — every §3 public type is exported, and therefore reachable from a consumer assembly *(§3)* — `Api/PublicSurfaceTests`, over the exported types of both assemblies
 - [x] EXT-02 — no normal usage requires an internal type *(§3)* — `Api/PublicSurfaceTests`: the engine types are absent from the exported surface, and every type §3 promises is present. The claim is carried by §3 itself — the whole public surface is enumerated there and compared with the assembly by reflection, so a usage that needed an internal type would need a type the contract does not list
 - [x] EXT-03 — the public algorithm primitives are constructible and implementable externally *(§3)* — `Fixtures/IdentityCompression`, `Sum8`, `UnauthenticatedCipher` and `RecordingKeyProvider` implement all four from outside `src/`, and `Algorithms/AlgorithmCatalogTests` carries a payload through them
 - [x] EXT-04 — every public member carries XML documentation, and it ships beside the assembly *(§3)* — `Api/PublicSurfaceTests` compares the exported surface with the generated XML file. CS1591 stays a warning: see Q15
-- [x] EXT-05 — the compiled public surface contains nothing beyond §3 *(§3)* — `Api/PublicSurfaceTests`
+- [x] EXT-05 — the compiled public surface contains nothing beyond §3: its types, the members of `BinarySerializer` and of `BinarySerializerOptionsBuilder` signature by signature, and no factory on `BinarySerializerOptions` but `Configure` *(§3, §4.1)* — `Api/PublicSurfaceTests` *(re-evaluated in R3 against the new surface)*
 
 ---
 
@@ -1330,7 +1367,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every formatter family in `FormatterRegistry` has mapped coverage. *(RT-01…RT-88, RT-C10; the delegate rejection in CTR-22)*
 - [x] Every §23 family round-trips, including nullability and empty containers. *(RT-01…RT-88, RT-B06, RT-C01, RT-C10)*
 - [x] Interface resolution and ordering guarantees are asserted, not assumed. *(RT-C02…RT-C05)*
-- [x] Every public entry point is covered and mutually consistent. *(API-01…API-20, SX-01…SX-11, XEP-01…XEP-07 under P0, P6 and P7)*
+- [x] Every public entry point is covered and mutually consistent. *(API-01…API-05, API-13…API-28, SRC-01…SRC-10, XEP-01, XEP-02, XEP-04…XEP-08 under P0, P6 and P7; API-06…API-12, SX-01…SX-11 and XEP-03 retired in R3)*
 
 ## Format
 
@@ -1365,9 +1402,9 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Process
 
-- [x] Every checkpoint in this document is `[x]` or `BLOCKED (Qn)`. Nothing is blocked and no question is open.
+- [x] Every checkpoint in this document is `[x]`, `BLOCKED (Qn)` or struck through as retired with the stage that retired it. Nothing is blocked and no question is open.
 - [x] Every question in §30.2 is resolved, and the contract updated accordingly. *(Q1…Q15)*
 - [x] Every bug found during testing was fixed in `src/`, not accommodated by a test. *(D1…D6, NX-01…NX-11)*
 - [x] Every defect in §30.1 and §30.3 is fixed and pinned by its checkpoint. *(D1-01…D6-02, NX-01…NX-11)*
 - [x] No test relies on undocumented project history.
-- [x] `dotnet test` is green with no skipped tests. *(1687 passed, 0 skipped, Debug and Release)*
+- [x] `dotnet test` is green with no skipped tests. *(1807 passed, 0 skipped, Debug and Release)*

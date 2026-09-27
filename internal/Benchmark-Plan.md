@@ -75,6 +75,9 @@ benchmarks/ViShap.Viper.Serialization.Benchmarks/
   Adapters/
     IBufferedSerializer.cs      byte[] in, byte[] out
     IStreamingSerializer.cs     Stream in, Stream out
+    IBufferWriterSerializer     IBufferWriter<byte> in; ReadOnlySpan<byte> and ReadOnlySequence<byte> out
+                                (declared in ISerializerAdapter.cs with the two above; an adapter without
+                                buffer entry points does not implement it and is Unsupported in the family)
     ICapabilityProbe.cs         what an adapter can actually do, proven at run time
     <one file per library>
   Capabilities/                 the probes that produce the capability matrix
@@ -264,7 +267,7 @@ These define the experiment. A number produced outside them is not publishable.
 - [ ] FAIR-04 — the payload a deserialize benchmark consumes is produced in `GlobalSetup` by that same adapter, never inside the timed method
 - [ ] FAIR-05 — every timed method returns its result or feeds a `Consumer`, so no adapter benefits from dead-code elimination another does not get
 - [ ] FAIR-06 — no logging, console output, assertion or verification runs inside a timed region
-- [ ] FAIR-07 — the output buffer strategy is equal in kind: every adapter returns a fresh `byte[]`, or every adapter writes into an equivalently pre-sized stream. A pooled or reused buffer is a separate, labelled family, and Viper's lack of an `IBufferWriter` entry point is reported as a fact rather than hidden by comparing against one
+- [ ] FAIR-07 — the output buffer strategy is equal in kind, family by family: in the `byte[]` family every adapter returns a fresh `byte[]`; in the streaming family every adapter writes into an equivalently pre-sized stream; in the buffer family every adapter writes into the same reset `IBufferWriter<byte>` and reads from a span or a sequence, which makes Viper directly comparable with the buffer entry points of MemoryPack and MessagePack-CSharp. A pooled or reused result — Viper's `PooledPayload` among them — is a separate, labelled family and never competes against an allocating one *(Contract §3.1, §3.2; rewritten in R3, when the buffer entry points arrived)*
 
 ## 7.2 The same data
 
@@ -335,8 +338,8 @@ The configurations a consumer can build, each measured as itself. Built with the
 - [ ] PROF-03 — keyed models against positional ones of the same shape isolate the keyed layout, under B-P0 and B-P7 alike *(Contract §14.2)*
 - [ ] PROF-04 — B-P1 against B-P0 measures reference framing on a graph with no sharing at all, so the price of the option when it is not needed is visible *(Contract §16)*
 - [ ] PROF-05 — B-P2 against B-P0 shows what limit accounting costs; if the difference is not measurable, that is the result and it is published
-- [ ] PROF-06 — the existing-instance and `ref` entry points are measured against their allocating counterparts *(Contract §3.1)*
-- [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so the per-call `StreamExtensions` path has a number *(Contract §3.2)*
+- [ ] PROF-06 — `Populate` into an existing instance is measured against `Deserialize` of the same payload, which allocates the root; there is no `ref` form left to measure — a struct is read with the ordinary overload *(Contract §3.3; rewritten in R3)*
+- [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so what the per-type caches and a fresh serializer cost has a number *(Contract §3; rewritten in R3 — the per-call `StreamExtensions` path it once priced is gone)*
 - [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(Contract §15)*
 - [x] PROF-09 — the same profile set is measured on the `pre-rework` commit, so the matrices of every rework stage compare with it cell by cell — `Baselines/pre-rework/`, 667 cells, none without a number
 
@@ -389,7 +392,7 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 | **WL-04** | Deserialize from `byte[]` | L1, L2 | Payload produced in setup by the same adapter |
 | **WL-05** | Deserialize from `MemoryStream` | L1, L2 | |
 | **WL-06** | Round trip | L1, L2 | Serialize and deserialize in one timed operation |
-| **WL-07** | Deserialize into an existing instance | L2 | `Unsupported` for most libraries; the cell says so *(Contract §3.1)* |
+| **WL-07** | Populate an existing instance | L2 | `Populate` against `Deserialize` of the same payload (PROF-06); `Unsupported` for most libraries, and the cell says so *(Contract §3.3; rewritten in R3)* |
 | **WL-08** | Steady state over one serializer instance | L1, L2 | The default for every comparative suite |
 | **WL-09** | First operation in a fresh process | L4 | §20 |
 | **WL-10** | First operation for a type not seen before | L4 | Type-plan and formatter-cache construction, measured in a fresh process per type family |
@@ -398,8 +401,21 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 | **WL-13** | Sustained load over a fixed duration | L4 | §22 |
 | **WL-14** | Serialize the same graph with reference framing on and off | L2 | DATA-10, DATA-11 |
 | **WL-15** | Read a payload whose schema differs from the model | L1 | DATA-13; the skipping side of evolution |
+| **WL-18** | Deserialize from a non-seekable stream | L2 | The V1 profiles of the representative set below: a frame declares its length, so it is read without seeking — the path that did not exist before; V0 is refused there by design — `ProfileFramedReadBenchmarks` *(Contract §20; added in R3)* |
+| **WL-19** | An encrypted frame written to an `IBufferWriter<byte>`, against the same frame to `byte[]` | L2 | WL-21 under B-P5 and B-P6 against WL-01 of the same profile. The frame still reaches a buffer writer through one copy until the exact ciphertext length of the algorithm contract arrives; then the encryption writes straight into the writer's span and the difference is the copy saved *(Contract §13; added in R3)* |
+| **WL-20** | A long stream of small frames read with `DeserializeAsyncEnumerable` | L2 | 1 000 frames of DATA-01 from a pipe and from a stream, under B-P0 and B-P6b; throughput and allocation per frame, each frame its own operation — `FrameStreamBenchmarks` *(Contract §3.5; added in R3)* |
+| **WL-21** | Serialize to an `IBufferWriter<byte>` | L1, L2 | The buffer family: a reset `ArrayBufferWriter<byte>`, over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.1; added in R3)* |
+| **WL-22** | Deserialize from a `ReadOnlySpan<byte>` and from a `ReadOnlySequence<byte>` of four segments | L1, L2 | The buffer family's read side, over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.1; added in R3)* |
+| **WL-23** | Serialize to a `PooledPayload` | L2 | The pooled family, labelled and never compared with an allocating one (FAIR-07), over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.2; added in R3)* |
+| **WL-24** | The asynchronous family: serialize to a `Stream` and a `PipeWriter`, deserialize from a `Stream` and a `PipeReader`, awaited | L2 | Writes over B-P0, B-P1, B-P5, B-P6b and B-P7, V0 included; reads over the four V1 profiles among them, since V0 is read synchronously — `ProfileAsyncWriteBenchmarks`, `ProfileFramedReadBenchmarks` *(Contract §3.5; added in R3)* |
 
-- [ ] WL-00 — every workload above has a suite, and every suite states which of WL-01…WL-15 it implements
+WL-18 and WL-21…WL-24 measure an entry point, not a configuration. What a profile costs is measured
+over all ten profiles by WL-01…WL-06 (`ProfileMatrixBenchmarks`, `ProfileStreamBenchmarks`), so the
+entry-point suites run over a representative set — the default frame, reference framing, one
+encryption, the full envelope and V0 — which covers every kind of path a frame can take through them
+(PROF-01 is carried by the matrix). *(Owner's decision of 2026-09-27, `rework/Owner-Review.md` log 56.)*
+
+- [ ] WL-00 — every workload above has a suite, and every suite states which of WL-01…WL-24 it implements
 - [ ] WL-16 — no suite mixes two workloads in one timed method
 - [ ] WL-17 — every suite's parameterization is visible in the exported results as columns, not encoded in the method name
 
@@ -465,7 +481,7 @@ Allocation is a first-class result here, not a footnote: the engine's structural
 - [ ] ALLOC-01 — every comparative suite runs with `MemoryDiagnoser`, and allocation is published per operation
 - [ ] ALLOC-02 — Viper's write allocation is attributed by phase — payload write into `PayloadBuffer`, the one linearisation a phased payload needs, checksum, compression and encryption into pooled buffers, header, and the one copy into the destination or the returned `byte[]` — from the §18.1 component measurements, and cross-checked against the profile differentials of §18.2, never inferred from a total *(re-attributed in R2: no `MemoryStream` or intermediate `ToArray` remains on the path)*
 - [ ] ALLOC-03 — the read path is attributed the same way: routing, header, the read-ahead or the array decoded where it lies, decryption and decompression into pooled buffers, payload read, materialization *(re-attributed in R2)*
-- [ ] ALLOC-04 — allocation is reported for the streaming family separately from the `byte[]` family, because the `byte[]` entry point's copy is part of what it costs *(Contract §3.1)*
+- [ ] ALLOC-04 — allocation is reported per family — `byte[]`, streaming, buffer (`IBufferWriter<byte>` in, span and sequence out), pooled and asynchronous — and never summed across them, because the `byte[]` entry point's copy is part of what it costs, a buffer writer's growth belongs to the caller, a pooled payload rents instead of allocating, and an awaited call adds a state machine only when it truly suspends *(Contract §3.1, §3.2, §3.5; rewritten in R3)*
 - [ ] ALLOC-05 — V1 and V0 buffer alike on write — the whole frame in the serializer's pooled buffers, then one copy — so what is measured is what the header and the phases add to V0's frame *(Contract §2.6, §10.2; rewritten in R2)*
 - [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named; re-measured from R2, where pooled phase buffers should remove most crossings for payloads under the pool's largest bucket
 - [ ] ALLOC-07 — the tight-limits profile B-P2 is measured for allocation as well as time, so the accounting structures have a number

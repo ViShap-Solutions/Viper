@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using ViShap.Viper.Engine;
 using ViShap.Viper.Formatters;
 using ViShap.Viper.Io;
@@ -8,7 +9,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Limits;
 
 /// <summary>
-/// Pins LIM-39, LIM-40, LIM-44, LIM-47 and LIM-48: the barriers that make the security checks
+/// Pins LIM-39, LIM-40, LIM-44, LIM-47, LIM-48 and LIM-50: the barriers that make the security checks
 /// structural rather than conventional. None of them has a runtime symptom on its own — a bypass
 /// changes nothing observable until the day it lets an unchecked value through — so the shape of the
 /// code is asserted directly.
@@ -283,6 +284,44 @@ public class StructuralBarrierTests
 
         Assert.Equal([nameof(WireReader), nameof(WireWriter)], declaring);
     }
+
+    // --- LIM-50: the engine never awaits ---------------------------------------------------------
+
+    [Fact]
+    public void TheEngineAndTheFormatters_DeclareNoAsynchronousMethod()
+    {
+        // Waiting for bytes happens at the frame edge. A traversal that could await would hold a
+        // budget, a depth scope and a reference table across a suspension it does not control.
+        string[] layers = ["ViShap.Viper.Engine", "ViShap.Viper.Formatters"];
+
+        var offenders = typeof(BinarySerializer).Assembly
+            .GetTypes()
+            .Where(type => layers.Any(layer => type.Namespace?.StartsWith(layer, StringComparison.Ordinal) == true))
+            .SelectMany(type => type.GetMethods(AllDeclared).Select(method => (type, method)))
+            .Where(pair =>
+                pair.method.GetCustomAttribute<AsyncStateMachineAttribute>() is not null ||
+                pair.method.GetCustomAttribute<AsyncIteratorStateMachineAttribute>() is not null ||
+                IsAwaitable(pair.method.ReturnType))
+            .Select(pair => $"{pair.type.Name}.{pair.method.Name}")
+            .ToArray();
+
+        Assert.True(offenders.Length == 0, $"Asynchronous methods below the pipeline: {string.Join(", ", offenders)}");
+    }
+
+    [Fact]
+    public void TheAsynchronousMethodCheck_RecognizesAnAwaitableReturn()
+    {
+        Assert.True(IsAwaitable(typeof(ValueTask<int>)));
+        Assert.True(IsAwaitable(typeof(Task)));
+        Assert.True(IsAwaitable(typeof(IAsyncEnumerable<int>)));
+        Assert.False(IsAwaitable(typeof(int)));
+    }
+
+    private static bool IsAwaitable(Type type) =>
+        typeof(Task).IsAssignableFrom(type) ||
+        type == typeof(ValueTask) ||
+        type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ValueTask<>) ||
+        type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>);
 
     private static SerializationOperation Operation() =>
         new(SerializationLimits.Default, keys: null, preserveReferences: false,

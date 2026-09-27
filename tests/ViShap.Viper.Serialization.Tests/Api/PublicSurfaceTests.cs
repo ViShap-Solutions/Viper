@@ -4,8 +4,9 @@ using System.Xml.Linq;
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins EXT-01, EXT-04 and EXT-05: the compiled public surface is exactly the one contract §3 lists,
-/// and every member of it is documented. A type that appears here without appearing there is an
+/// Pins EXT-01, EXT-04 and EXT-05: the compiled public surface is exactly the one contract §3 lists —
+/// its types, and the members of the serializer and the builder — and every member of it is
+/// documented. A type that appears here without appearing there is an
 /// unannounced API addition; one that disappears is a break. Either way the contract and the assembly
 /// must be changed together.
 /// </summary>
@@ -17,7 +18,7 @@ public class PublicSurfaceTests
         "ViShap.Viper.BinarySerializer",
         "ViShap.Viper.BinarySerializerOptions",
         "ViShap.Viper.BinarySerializerOptionsBuilder",
-        "ViShap.Viper.StreamExtensions",
+        "ViShap.Viper.PooledPayload",
         "ViShap.Viper.BinaryContractAttribute",
         "ViShap.Viper.BinaryKeyAttribute",
         "ViShap.Viper.BinaryIgnoreAttribute",
@@ -121,7 +122,7 @@ public class PublicSurfaceTests
             "ViShap.Viper.Io.ElementCount",
             "ViShap.Viper.Security.SerializationBudget",
             "ViShap.Viper.Security.SerializationOperation",
-            "ViShap.Viper.Security.MeteredReadStream",
+            "ViShap.Viper.Pipeline.FrameReader",
             "ViShap.Viper.Formatters.ITypeFormatter",
             "ViShap.Viper.Pipeline.FormatRouter"
         ];
@@ -129,6 +130,133 @@ public class PublicSurfaceTests
         var exported = ActualSurface();
 
         Assert.All(internalNames, name => Assert.DoesNotContain(name, exported));
+    }
+
+    // --- EXT-05: the serializer and the builder expose exactly the members §3.1 and §4.1 list -----
+
+    /// <summary>The public members of <see cref="BinarySerializer"/> that contract §3.1 lists.</summary>
+    private static readonly string[] SerializerSurface =
+    [
+        ".ctor(BinarySerializerOptions)",
+        "Serialize<T>(IBufferWriter<Byte>, T) : Void",
+        "Serialize<T>(T) : Byte[]",
+        "SerializePooled<T>(T) : PooledPayload",
+        "Serialize<T>(Stream, T) : Void",
+        "SerializeAsync<T>(Stream, T, CancellationToken) : ValueTask",
+        "SerializeAsync<T>(PipeWriter, T, CancellationToken) : ValueTask",
+        "Deserialize<T>(ReadOnlySpan<Byte>) : T",
+        "Deserialize<T>(ReadOnlySpan<Byte>, out Int32) : T",
+        "Deserialize<T>(ReadOnlySequence<Byte>) : T",
+        "Deserialize<T>(ReadOnlySequence<Byte>, out SequencePosition) : T",
+        "Deserialize<T>(Stream) : T",
+        "DeserializeAsync<T>(Stream, CancellationToken) : ValueTask<T>",
+        "DeserializeAsync<T>(PipeReader, CancellationToken) : ValueTask<T>",
+        "DeserializeAsyncEnumerable<T>(Stream, CancellationToken) : IAsyncEnumerable<T>",
+        "DeserializeAsyncEnumerable<T>(PipeReader, CancellationToken) : IAsyncEnumerable<T>",
+        "Populate<T>(ReadOnlySpan<Byte>, T) : Void",
+        "Populate<T>(ReadOnlySpan<Byte>, T, out Int32) : Void",
+        "Populate<T>(ReadOnlySequence<Byte>, T) : Void",
+        "Populate<T>(ReadOnlySequence<Byte>, T, out SequencePosition) : Void",
+        "Populate<T>(Stream, T) : Void",
+        "PopulateAsync<T>(Stream, T, CancellationToken) : ValueTask",
+        "PopulateAsync<T>(PipeReader, T, CancellationToken) : ValueTask"
+    ];
+
+    /// <summary>The public members of <see cref="BinarySerializerOptionsBuilder"/> that contract §4.1 lists.</summary>
+    private static readonly string[] BuilderSurface =
+    [
+        "WithCompression(ICompressionAlgorithm) : BinarySerializerOptionsBuilder",
+        "WithChecksum(IChecksumAlgorithm) : BinarySerializerOptionsBuilder",
+        "WithEncryption(IEncryptionAlgorithm, ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder",
+        "WithEncryption(IEncryptionAlgorithm, Func<String, Byte[]>, String) : BinarySerializerOptionsBuilder",
+        "WithEncryption(IEncryptionAlgorithm, IKeyProvider, String) : BinarySerializerOptionsBuilder",
+        "WithKeys(ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder",
+        "WithKeys(Func<String, Byte[]>) : BinarySerializerOptionsBuilder",
+        "WithKeys(IKeyProvider) : BinarySerializerOptionsBuilder",
+        "WithVersion(Int32) : BinarySerializerOptionsBuilder",
+        "PreserveReferences(Boolean) : BinarySerializerOptionsBuilder",
+        "WithLimits(SerializationLimits) : BinarySerializerOptionsBuilder",
+        "AllowV0Fallback(Boolean) : BinarySerializerOptionsBuilder",
+        "RequireEncryption(Boolean) : BinarySerializerOptionsBuilder",
+        "RequireChecksum(Boolean) : BinarySerializerOptionsBuilder",
+        "RegisterCustomCompression(String, Func<ICompressionAlgorithm>) : BinarySerializerOptionsBuilder",
+        "RegisterCustomChecksum(String, Func<IChecksumAlgorithm>) : BinarySerializerOptionsBuilder",
+        "RegisterCustomEncryption(String, Func<IEncryptionAlgorithm>) : BinarySerializerOptionsBuilder",
+        "Build() : BinarySerializerOptions"
+    ];
+
+    [Fact]
+    public void BinarySerializer_ExposesExactlyTheContractMembers()
+    {
+        Assert.Equal(
+            SerializerSurface.Order(StringComparer.Ordinal),
+            PublicMembers(typeof(BinarySerializer)).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void BinarySerializerOptionsBuilder_ExposesExactlyTheContractMembers()
+    {
+        Assert.Equal(
+            BuilderSurface.Order(StringComparer.Ordinal),
+            PublicMembers(typeof(BinarySerializerOptionsBuilder)).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void BinarySerializerOptions_ExposesNoFactoryBesidesConfigure()
+    {
+        string[] factories =
+        [
+            .. typeof(BinarySerializerOptions)
+                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                .Where(method => !method.IsSpecialName)
+                .Select(method => method.Name)
+        ];
+
+        Assert.Equal(["Configure"], factories);
+    }
+
+    /// <summary>
+    /// The declared public constructors and methods of <paramref name="type"/>, spelled as
+    /// <c>Name&lt;T&gt;(Parameter, …) : Return</c> with simple type names and without nullability,
+    /// which reflection does not carry on a type.
+    /// </summary>
+    private static IEnumerable<string> PublicMembers(Type type)
+    {
+        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance))
+            yield return $".ctor({Parameters(constructor)})";
+
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            if (method.IsSpecialName || IsCompilerSupplied(method))
+                continue;
+
+            string generics = method.IsGenericMethodDefinition
+                ? $"<{string.Join(", ", method.GetGenericArguments().Select(Spell))}>"
+                : string.Empty;
+
+            yield return $"{method.Name}{generics}({Parameters(method)}) : {Spell(method.ReturnType)}";
+        }
+    }
+
+    private static string Parameters(MethodBase method) =>
+        string.Join(", ", method.GetParameters().Select(parameter =>
+            parameter.IsOut ? $"out {Spell(parameter.ParameterType.GetElementType()!)}"
+            : parameter.ParameterType.IsByRef ? $"ref {Spell(parameter.ParameterType.GetElementType()!)}"
+            : Spell(parameter.ParameterType)));
+
+    private static string Spell(Type type)
+    {
+        if (type.IsGenericParameter)
+            return type.Name;
+
+        if (type.IsArray)
+            return $"{Spell(type.GetElementType()!)}[]";
+
+        if (!type.IsGenericType)
+            return type.Name;
+
+        string name = type.Name[..type.Name.IndexOf('`', StringComparison.Ordinal)];
+        return $"{name}<{string.Join(", ", type.GetGenericArguments().Select(Spell))}>";
     }
 
     // --- EXT-04: every public member carries XML documentation ----------------------------------

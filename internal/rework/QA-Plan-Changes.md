@@ -108,7 +108,7 @@ Also owed now:
   at depth 1 and at depth 500; a deep acyclic graph with repeated (non-cyclic) instances is not
   refused.
 
-## R3 — Public surface and non-seekable reading
+## R3 — Public surface and non-seekable reading — applied
 
 - **Retired:** SX-01…SX-11 (§8, `StreamExtensions` deleted); every OPT checkpoint citing §4.3
   (`FromHeader`/`FromStream` deleted); the `Deserialize` populate checkpoints of §6 are re-expressed
@@ -157,6 +157,20 @@ Also owed now:
 - **§31** extended: **XEP-08** — every new entry point, including `PooledPayload`, `Populate` and the
   asynchronous methods, agrees with the others under P0, P6 and P7.
 - **EXT-05** re-evaluated against the new contract §3.
+- *Applied in R3.* The first of the two points carried from R2 was decided by the owner on
+  2026-09-27 (`Owner-Review.md` log 55): a buffer writer that hands out an empty span is refused with
+  `BinaryStreamException`; it is pinned by **API-28**, with the helper **UTIL-20**
+  (`StingyBufferWriter`). IDs assigned: SRC-01…SRC-10, API-21…API-27, OPT-22, V0-27, XEP-08, and outside
+  this list, because the stage's code needed them: **LIM-50** (INV-16, the engine never awaits — a
+  structural test for the invariant R3 makes reachable; LIM-49 stays reserved for R4), **INS-11**
+  (`Peek` over a span and a sequence, contract §19), **UTIL-18** and **UTIL-19** (the two helpers
+  the stage added, `FrameBoundStream` and `ChunkedPipeReader`). Also retired: API-06…API-12 (the
+  `byte[]`, existing-instance and `ref` overloads they pinned are gone; re-expressed as API-21,
+  API-24 and XEP-05) and XEP-03 (`StreamExtensions`). **OPT-18** is listed above both among the
+  checkpoints citing §4.3, which are retired, and among the inverted ones; its API, `FromStream`,
+  no longer exists, so it is retired, and what an inversion would have said — a non-seekable source
+  is read — is SRC-05. The second carried point is applied: API-13's null cases are written with
+  typed nulls.
 
 ## R4 — Typed engine
 

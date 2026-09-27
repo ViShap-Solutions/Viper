@@ -4,9 +4,9 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins V0-13…V0-19: the reader identifies the wire format from the source instead of guessing at
-/// it, the probe leaves the stream where it found it, and the two formats carry the same payload
-/// bytes for the same value.
+/// Pins V0-13…V0-19: the reader identifies the wire format from the bytes the source has delivered
+/// instead of guessing at it, so no source is asked to rewind, and the two formats carry the same
+/// payload bytes for the same value.
 /// </summary>
 public class RoutingTests
 {
@@ -25,16 +25,18 @@ public class RoutingTests
     }
 
     [Fact]
-    public void Deserialize_NonSeekableSource_ThrowsNotSupported()
+    public void Deserialize_NonSeekableSource_IsRoutedFromTheBytesItDelivered()
     {
-        using var source = new NonSeekableStream(new BinarySerializer().Serialize(42));
+        // The magic number is decoded from the bytes already taken, so the source never rewinds.
+        byte[] frame = new BinarySerializer().Serialize(42);
+        using var source = new FrameBoundStream(frame, boundary: frame.Length);
 
-        AssertEx.Throws<NotSupportedException>(
-            "seekable", () => new BinarySerializer().Deserialize<int>(source));
+        Assert.Equal(42, new BinarySerializer().Deserialize<int>(source));
+        Assert.Equal(frame.Length, source.Taken);
     }
 
     [Fact]
-    public void Deserialize_V0PayloadAtANonZeroOffset_IsReadFromWhereTheProbeFoundIt()
+    public void Deserialize_V0PayloadAtANonZeroOffset_IsReadFromWhereTheStreamStood()
     {
         var serializer = V0;
 
@@ -43,17 +45,17 @@ public class RoutingTests
         serializer.Serialize(stream, new Person { Name = "Ada", Age = 36 });
         stream.Position = 100;
 
-        // A probe that did not restore the position would decode the bytes that follow it.
+        // The bytes that identified the format are the first bytes of the payload, not a probe.
         Assert.Equal("Ada", serializer.Deserialize<Person>(stream)!.Name);
     }
 
     [Fact]
-    public void Deserialize_SourceThatFailsDuringTheProbe_ThrowsStream()
+    public void Deserialize_SourceThatFailsBeforeTheFormatIsKnown_ThrowsStream()
     {
         using var source = new FailingStream(bytesBeforeFailure: 2);
 
         var ex = AssertEx.Throws<BinaryStreamException>(
-            "detecting the binary format", () => new BinarySerializer().Deserialize<int>(source));
+            "underlying stream", () => new BinarySerializer().Deserialize<int>(source));
 
         Assert.IsType<IOException>(ex.InnerException);
     }
