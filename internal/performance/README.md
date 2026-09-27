@@ -71,3 +71,6 @@ Filled in by the repository owner.
 |---|---|---|
 | [PERF-01](PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | Resolved — §5, the XML docs and the limit messages now say so; the wire is unchanged |
 | [PERF-02](PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | Open |
+| [PERF-03](PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream it replaced | Open |
+| [PERF-04](PERF-04-pooled-phase-buffers.md) | The pooled write path of R2 is slower on a large unphased blob and on some compressed cells | Open |
+| [PERF-05](PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth, and eats most of R2's gain at depth 500 | Open |

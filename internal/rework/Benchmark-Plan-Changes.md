@@ -64,7 +64,7 @@ left naming something that no longer exists. A retired checkpoint stays in the p
 - MICRO-06 and MICRO-08 drive their formatter and header through `WireWriter`/`WireReader`; their
   checkpoint text names no removed type and does not change.
 
-## R2 — Pipeline on pooled buffers
+## R2 — Pipeline on pooled buffers — applied
 
 - **ALLOC-02**, **ALLOC-03** re-attributed: `MemoryStream` and `ToArray` disappear from the phase list.
 - **ALLOC-05** rewritten: V0 and V1 now buffer alike (plan §5.1); measure what the header adds.
@@ -77,7 +77,9 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   timed workload, no longer a supported refusal.
 - **MICRO-02**, **MICRO-03**, **MICRO-07** — element-count charging, depth scopes and reference
   tracking are measured through `OperationState` and the pooled reference tables. Whatever of them
-  moves into the codecs in R4 is rewritten again there.
+  moves into the codecs in R4 is rewritten again there. *(Applied in R2 through `SerializationOperation`, which
+  becomes `OperationState` in R4 — see `Claude-Changes.md` R4; MICRO-07 rents and returns the pooled
+  tables.)*
 
 ## R3 — New entry points
 

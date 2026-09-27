@@ -1,7 +1,7 @@
 using ViShap.Viper.Metadata;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
-namespace ViShap.Viper.Serialization.Tests.Streams;
+namespace ViShap.Viper.Serialization.Tests.Metering;
 
 /// <summary>
 /// Pins STR-23…STR-28: how the public entry points behave against the streams a caller really owns

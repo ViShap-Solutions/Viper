@@ -128,6 +128,29 @@ internal sealed class PayloadBuffer : IDisposable
             destination.Write(_current.AsSpan(0, _currentLength));
     }
 
+    /// <summary>Copies the committed bytes into <paramref name="destination"/>, segment by segment.</summary>
+    public void WriteTo(IBufferWriter<byte> destination)
+    {
+        for (int index = 0; index < _segments.Count; index++)
+            CopyInto(destination, _segments[index].AsSpan(0, _segmentLengths[index]));
+
+        if (_current is not null)
+            CopyInto(destination, _current.AsSpan(0, _currentLength));
+    }
+
+    /// <summary>Copies <paramref name="bytes"/> into <paramref name="destination"/>, in as many spans as it hands out.</summary>
+    internal static void CopyInto(IBufferWriter<byte> destination, ReadOnlySpan<byte> bytes)
+    {
+        while (!bytes.IsEmpty)
+        {
+            var span = destination.GetSpan(bytes.Length);
+            int take = Math.Min(span.Length, bytes.Length);
+            bytes[..take].CopyTo(span);
+            destination.Advance(take);
+            bytes = bytes[take..];
+        }
+    }
+
     /// <summary>Clears every segment and returns it to the pool.</summary>
     public void Dispose()
     {

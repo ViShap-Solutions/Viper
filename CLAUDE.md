@@ -30,7 +30,7 @@ currently empty pending that content. Everything below is engineering material �
 and for Claude Code — and lives under `internal/`.
 
 - `internal/System-Contract.md` — **the normative contract and the source of truth.** Public API surface
-  (§3), limits and budgets (§5–6), stream mechanisms (§7), exception taxonomy (§8), versions and
+  (§3), limits and budgets (§5–6), metering and windowing (§7), exception taxonomy (§8), versions and
   header (§10–11), compression and encryption (§12–13), member layouts (§14), polymorphism (§15),
   references (§16), the byte-level wire format (§22), the supported types with their encodings (§23),
   and the release checklist (§24). Read the relevant section before changing behavior; update it in
@@ -83,7 +83,7 @@ never records project history.
 
 The test project follows the layout in `internal/QA-Plan.md` §2 — `Algorithms/`, `Api/`, `Concurrency/`,
 `Contracts/`, `Diagnostics/`, `Exceptions/`, `Fixtures/`, `Format/`, `Hostile/`, `Limits/`,
-`Metadata/`, `References/`, `RoundTrip/`, `Streams/`. Shared helpers live in `Fixtures/` (`AssertEx`,
+`Metadata/`, `References/`, `RoundTrip/`, `Metering/`. Shared helpers live in `Fixtures/` (`AssertEx`,
 `Wire`, `Mutate`, `Concurrent`, `Cultures`, stream doubles) and are themselves tested. A test names no
 culture and no time zone: those come from the host, so the suite is green with and without
 globalization data (`DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`).
@@ -120,7 +120,8 @@ Documented normatively in `internal/System-Contract.md` §2; the reasoning behin
 ```text
 BinarySerializer            creates exactly one SerializationOperation per public call
 SerializationOperation      Limits snapshot, Budget, PhaseBudget, Keys, policies
-FormatPipeline (V0 | V1)    framing, phase order, header + AAD, phase sizes
+FormatPipeline (V0 | V1)    framing, phase order, header + AAD, phase sizes;
+                            phases are transforms over pooled buffers, the frame is built whole
 PayloadEngine               traversal: depth, graph nodes, references, TypeContract
 WireReader / WireWriter     ref structs over memory, the only access to payload bytes
 Formatters                  type encoding only
@@ -172,11 +173,11 @@ The two are mutually exclusive, and every contradiction is rejected when the con
 
 Polymorphism: `[BinaryUnion(tag, typeof(Derived))]` on a base class or interface; a one-byte discriminator precedes the members. Tags must fit in a byte, and only tags travel — never type names. Writing a value whose runtime type differs from the declared type **without** a union map is `BinaryTypeException`, because the reader could not reconstruct it.
 
-References: with `PreserveReferences`, a marker byte and object id precede every structural reference-typed value, containers included. Ids are unique but visible only along the ancestor chain, so a back reference never crosses two sibling keyed fields and skipping an unknown field can never dangle. Without the option a cycle throws `BinaryTypeException`. Member-encoded types are constructed through a parameterless constructor.
+References: with `PreserveReferences`, a marker byte and object id precede every structural reference-typed value, containers included. Ids are unique but visible only along the ancestor chain, so a back reference never crosses two sibling keyed fields and skipping an unknown field can never dangle. Without the option a cycle throws `BinaryTypeException`; it is found by searching the ancestor stack of the current path (a pooled array no deeper than `MaxDepth`), so an instance repeated along two paths is written again, not refused. The reference tables are pooled per operation and returned cleared. Member-encoded types are constructed through a parameterless constructor.
 
 ### Limits and budgets
 
-`SerializationLimits` is the public, immutable policy, validated once when options are built. `SerializationBudget` is the per-operation accounting (elements, graph nodes, keyed fields, depth); `PhaseBudget` is the per-phase size policy. On read, the pipeline takes source bytes into memory within the wire budget, and the `WireReader` over them classifies running out as a limit breach when the budget cut the bytes and as malformed data otherwise; `WireReader.Slice` is the window over one declared keyed field. On write, `PayloadBuffer` refuses space past the payload budget and `MeteredWriteStream` counts the bytes copied to the destination relative to where the operation started.
+`SerializationLimits` is the public, immutable policy, validated once when options are built. `SerializationBudget` is the per-operation accounting (elements, graph nodes, keyed fields, depth); `PhaseBudget` is the per-phase size policy. On read, the pipeline takes source bytes into memory within the wire budget, and the `WireReader` over them classifies running out as a limit breach when the budget cut the bytes and as malformed data otherwise; `WireReader.Slice` is the window over one declared keyed field. On write, `PayloadBuffer` refuses space past the payload budget, and the finished frame (`EncodedFrame`) is checked against the wire budget before it is copied to the destination once — so the budget counts only what the operation produces, a destination never has to seek, and a data or graph error leaves nothing in it. There is no stream decorator: metering and the field window are properties of the reader, the buffer and the frame.
 
 Limit breaches throw `BinaryLimitException`; malformed data throws `BinaryFormatException`; unsupported versions or algorithms throw `BinaryFormatNotSupportedException`; tampering and protection downgrades throw `BinaryIntegrityException`.
 

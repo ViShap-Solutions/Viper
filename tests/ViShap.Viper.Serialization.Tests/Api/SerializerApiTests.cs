@@ -181,6 +181,20 @@ public class SerializerApiTests
         Assert.Equal(serializer.Serialize(Sample()), destination.Written);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    public void Serialize_KeyedContractToNonSeekableDestination_Succeeds(int version)
+    {
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithVersion(version).Build());
+        var value = new CompleteContract { Number = 7, Text = "keyed", Numbers = [1, 2], Child = new Node { Value = 3 } };
+        using var destination = new NonSeekableWriteStream();
+
+        serializer.Serialize(destination, value);
+
+        Assert.Equal(serializer.Serialize(value), destination.Written);
+    }
+
     // --- per-call isolation ------------------------------------------------------------------------------
 
     [Fact]

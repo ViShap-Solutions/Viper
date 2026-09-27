@@ -42,14 +42,16 @@ earlier is reported to the owner by the stage that notices it.
   budgets**: the read half — the `WireReader` classification and `Slice` window replace
   `MeteredReadStream`/`WindowReadStream`; `MeteredWriteStream` stays until R2.
 
-### R2 — Pipeline on pooled buffers
+### R2 — Pipeline on pooled buffers — applied
 
-- **Architecture** — `SerializationOperation` becomes the per-call `OperationState`, a struct passed
-  by reference; the pipeline row says phases are transforms over pooled buffers.
+- **Architecture** — the pipeline row says phases are transforms over pooled buffers. *(The
+  `OperationState` half of this entry moved to R4: `Contract-Changes.md` §2.2 and §6 place the
+  struct in R4, and `Decisions.md` introduces it with the typed codecs that take it by `ref`. A
+  transcription error corrected in R2.)*
 - **Limits and budgets** — `MeteredReadStream`, `MeteredWriteStream` and `WindowReadStream` are gone:
   the wire budget, the exact remaining count and the keyed field window are properties of the reader
-  and writer (plan §5.2). Budget and phase policy restated against `OperationState`. *(The read half
-  was applied in R1.)*
+  and writer (plan §5.2). *(The read half was applied in R1; restating budget and phase policy
+  against `OperationState` moved to R4 with the struct.)*
 - **Versioned envelope** — applied in R1.
 - **Member layouts** — keyed: applied in R1. References: cycle detection by the ancestor stack.
 - **Where the authoritative information lives** — the `Streams/` folder of the test layout, as the
@@ -66,8 +68,11 @@ earlier is reported to the owner by the stage that notices it.
 
 ### R4 — Typed engine
 
-- **Architecture** — the formatter row: typed shapes with engine-owned codecs; a contracts row for
-  `TypeContract<T>` / `ReflectedContract<T>`.
+- **Architecture** — `SerializationOperation` becomes the per-call `OperationState`, a struct passed
+  by reference *(moved here from R2)*; the formatter row: typed shapes with engine-owned codecs; a
+  contracts row for `TypeContract<T>` / `ReflectedContract<T>`.
+- **Limits and budgets** — budget and phase policy restated against `OperationState` *(moved here
+  from R2)*.
 - **Three structural barriers** — 3, engine-owned traversal: the codecs own the loop; a type contract
   receives only `MemberWriter` / `MemberReader`. `GraphReader`/`GraphWriter` renamed or removed as the
   code decides.

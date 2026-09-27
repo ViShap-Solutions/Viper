@@ -33,7 +33,8 @@ contract would already be accurate for it.
   metered streams; the engine row reads "typed codecs"; a row is added for type contracts
   (`TypeContract<T>`). *(R1, R2, R4)* — **R1 applied:** `WireReader / WireWriter` as ref structs over
   memory; the pipeline row names the read-ahead, `PayloadBuffer` and `MeteredWriteStream`, the one
-  stream decorator still in use.
+  stream decorator still in use. **R2 applied:** the pipeline row loses `MeteredWriteStream` and says
+  the phases are transforms over pooled buffers and the frame is built whole.
 - §2.2: `SerializationOperation` → `OperationState`, a struct passed by `ref`; "created exactly once
   per public call" is unchanged (INV-1). *(R4)*
 - §2.3 byte boundary: restated over buffers — the reader knows its exact remaining length; there is no
@@ -42,7 +43,8 @@ contract would already be accurate for it.
 - §2.4 traversal boundary: shapes and engine-owned codecs (plan §10.1); the division of labour
   between a type contract and the engine and the engine's call checks (plan §10.2); boxing only in a
   polymorphic slot (INV-17); the engine never awaits (INV-16). *(R4, R3)*
-- State INV-15 (a data or graph error leaves no byte in the destination). *(R2)*
+- State INV-15 (a data or graph error leaves no byte in the destination). *(R2)* — **R2 applied** as
+  §2.6 "Atomic writes"; §2.5 states the phases over pooled buffers.
 
 ### §3 Public API surface — R3, R5, R8
 
@@ -81,7 +83,7 @@ contract would already be accurate for it.
 ### §5 Serialization limits — R2, R6
 
 - `MaxWireBytes`: the most the adapter buffers from a source and the most the writer emits, relative
-  to the operation's start. Same default. *(R2)*
+  to the operation's start. Same default. *(R2)* — **R2 applied** in §5.10.
 - §5.10 phase limits: restate the order of checks of plan §6.1.4 — `MaxEncryptedBytes` against
   `onDiskLength` at the header; `MaxCompressedBytes` against the plaintext length after decryption;
   the ratio exactly at the header without encryption and exactly after decryption with it. *(R6)*
@@ -104,6 +106,10 @@ contract would already be accurate for it.
   classification by the bound broken, the position after a read), §7.3 became "The field window"
   (`WireReader.Slice`), and the `PayloadBuffer` budget was added. §7.2 `MeteredWriteStream`, which
   still copies the finished bytes to the destination, is left for R2.
+- **R2 applied — the write side.** §7 retitled "Metering and windowing over buffers"; §7.2 became
+  "Metering on write" (the `PayloadBuffer` budget, the patch that is never charged twice, the frame
+  checked against `MaxWireBytes` before it leaves, no seek, `IOException` wrapped); §7.1 notes the
+  array decoded where it lies and the pooled phase buffers on read.
 
 ### §8 Exception taxonomy — R3, R5, R6
 
@@ -161,7 +167,10 @@ contract would already be accurate for it.
 - `GetCiphertextLength`: exact and at least the plaintext length; an algorithm that cannot state it
   is unsupported. *(R5)*
 - `ChaCha20Poly1305Encryption` and the `IsSupported` behaviour of the BCL type under it. *(R5)*
-- The encrypted frame is written straight to the destination without a copy. *(R2, R5)*
+- The encrypted frame is written straight to the destination without a copy. *(R2, R5)* — **R2
+  applied:** the ciphertext is a pooled buffer and the frame reaches a stream or a new array in one
+  copy, which is the write; the associated data is built only under encryption and cleared. Writing
+  straight into a buffer writer's span needs the exact ciphertext length of plan §8.1 and stays for R5.
 
 ### §14 Contracts and members — R4, R6, R8
 
@@ -180,6 +189,7 @@ contract would already be accurate for it.
 - §16: the reference frame is one varint carrying null (plan §6.3.4); explicit ids kept, with the
   skip-desync reason for rejecting implicit ids. *(R6)*
 - Cycle detection without references is an ancestor-stack search; the diagnostic is unchanged. *(R2)*
+  — **R2 applied**, with the pooled reference tables.
 
 ### §17 Arrays and safe materialisation — R4
 
@@ -195,7 +205,8 @@ contract would already be accurate for it.
   `ValueReader`, `ValueWriter`, `BinaryHeaderPeek`, and every reflective accessor cache of
   `Cache/`; state which caches remain (plan §12, R4) and that each is built once per type and safe
   under concurrent first use. — **R1 applied:** `WireReader`, `WireWriter` and `PayloadBuffer` named;
-  `ValueReader` and `ValueWriter` removed.
+  `ValueReader` and `ValueWriter` removed. **R2 applied:** the three stream decorators were never named in §18; `EncodedFrame`
+  and `RentedBytes`, the pipeline's pooled frame and phase output, are named.
 
 ### §19 Format inspection and diagnostics — R3, R6
 

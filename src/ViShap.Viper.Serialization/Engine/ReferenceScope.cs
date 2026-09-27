@@ -2,31 +2,56 @@ namespace ViShap.Viper.Engine;
 
 /// <summary>
 /// Write-side object identity. Ids are unique across the payload, but they are only <em>visible</em>
-/// along the ancestor chain: entering a keyed field opens a scope, leaving it closes one. A back
-/// reference is therefore never emitted across two sibling keyed fields, which is what lets a reader
-/// with an older schema skip a field it does not know without ever meeting a dangling reference.
+/// along the ancestor chain: entering a keyed field opens a scope, leaving it closes one and forgets
+/// every object registered inside it. A back reference is therefore never emitted across two sibling
+/// keyed fields, which is what lets a reader with an older schema skip a field it does not know
+/// without ever meeting a dangling reference.
+/// <para>
+/// One operation uses one table, taken with <see cref="Rent"/> and handed back with
+/// <see cref="Return"/>, which clears it, so a serializer does not build a new table per call.
+/// </para>
 /// </summary>
 internal sealed class WriteReferenceTable
 {
-    private readonly List<Dictionary<object, int>> _scopes = [new(ReferenceEqualityComparer.Instance)];
+    [ThreadStatic]
+    private static WriteReferenceTable? s_cached;
+
+    private readonly Dictionary<object, int> _visible = new(ReferenceEqualityComparer.Instance);
+    private readonly List<object> _registered = [];
+    private readonly List<int> _scopeStarts = [];
     private int _nextId;
 
-    public bool TryGetVisibleId(object value, out int id)
+    /// <summary>A cleared table, reused when the current thread returned one.</summary>
+    public static WriteReferenceTable Rent()
     {
-        for (int i = _scopes.Count - 1; i >= 0; i--)
-        {
-            if (_scopes[i].TryGetValue(value, out id))
-                return true;
-        }
-
-        id = 0;
-        return false;
+        var table = s_cached ?? new WriteReferenceTable();
+        s_cached = null;
+        return table;
     }
+
+    /// <summary>
+    /// Clears <paramref name="table"/>, so it holds no object of the finished operation, and keeps it
+    /// for the next operation on this thread unless it grew past <see cref="ReferencePool.MaxRetainedEntries"/>.
+    /// </summary>
+    public static void Return(WriteReferenceTable table)
+    {
+        bool retain = table._visible.EnsureCapacity(0) <= ReferencePool.MaxRetainedEntries;
+        table._visible.Clear();
+        table._registered.Clear();
+        table._scopeStarts.Clear();
+        table._nextId = 0;
+
+        if (retain)
+            s_cached = table;
+    }
+
+    public bool TryGetVisibleId(object value, out int id) => _visible.TryGetValue(value, out id);
 
     public int Register(object value)
     {
         int id = _nextId++;
-        _scopes[^1][value] = id;
+        _visible[value] = id;
+        _registered.Add(value);
         return id;
     }
 
@@ -39,10 +64,19 @@ internal sealed class WriteReferenceTable
         internal Scope(WriteReferenceTable owner)
         {
             _owner = owner;
-            owner._scopes.Add(new Dictionary<object, int>(ReferenceEqualityComparer.Instance));
+            owner._scopeStarts.Add(owner._registered.Count);
         }
 
-        public void Dispose() => _owner._scopes.RemoveAt(_owner._scopes.Count - 1);
+        public void Dispose()
+        {
+            int start = _owner._scopeStarts[^1];
+            _owner._scopeStarts.RemoveAt(_owner._scopeStarts.Count - 1);
+
+            for (int index = start; index < _owner._registered.Count; index++)
+                _owner._visible.Remove(_owner._registered[index]);
+
+            _owner._registered.RemoveRange(start, _owner._registered.Count - start);
+        }
     }
 }
 
@@ -55,21 +89,41 @@ internal sealed class ReadReferenceTable
 {
     internal static readonly object Pending = new();
 
-    private readonly List<Dictionary<int, object>> _scopes = [[]];
+    [ThreadStatic]
+    private static ReadReferenceTable? s_cached;
+
+    private readonly Dictionary<int, object> _visible = [];
+    private readonly List<int> _registered = [];
+    private readonly List<int> _scopeStarts = [];
+
+    /// <summary>A cleared table, reused when the current thread returned one.</summary>
+    public static ReadReferenceTable Rent()
+    {
+        var table = s_cached ?? new ReadReferenceTable();
+        s_cached = null;
+        return table;
+    }
+
+    /// <summary>
+    /// Clears <paramref name="table"/>, so it holds no object of the finished operation, and keeps it
+    /// for the next operation on this thread unless it grew past <see cref="ReferencePool.MaxRetainedEntries"/>.
+    /// </summary>
+    public static void Return(ReadReferenceTable table)
+    {
+        bool retain = table._visible.EnsureCapacity(0) <= ReferencePool.MaxRetainedEntries;
+        table._visible.Clear();
+        table._registered.Clear();
+        table._scopeStarts.Clear();
+
+        if (retain)
+            s_cached = table;
+    }
 
     public bool TryResolve(int id, out object? value)
     {
-        for (int i = _scopes.Count - 1; i >= 0; i--)
-        {
-            if (_scopes[i].TryGetValue(id, out var found))
-            {
-                value = found;
-                return true;
-            }
-        }
-
-        value = null;
-        return false;
+        bool found = _visible.TryGetValue(id, out var existing);
+        value = existing;
+        return found;
     }
 
     /// <summary>
@@ -78,25 +132,24 @@ internal sealed class ReadReferenceTable
     /// </summary>
     public void Register(int id, object value)
     {
-        if (TryResolve(id, out _))
+        if (!_visible.TryAdd(id, value))
             throw new BinaryFormatException(
                 $"Reference id {id} is declared more than once in the visible object graph.");
 
-        _scopes[^1][id] = value;
+        _registered.Add(id);
     }
 
+    /// <summary>Replaces the object a visible id resolves to, or registers it in the current scope.</summary>
     public void Replace(int id, object value)
     {
-        for (int i = _scopes.Count - 1; i >= 0; i--)
+        if (_visible.ContainsKey(id))
         {
-            if (_scopes[i].ContainsKey(id))
-            {
-                _scopes[i][id] = value;
-                return;
-            }
+            _visible[id] = value;
+            return;
         }
 
-        _scopes[^1][id] = value;
+        _visible[id] = value;
+        _registered.Add(id);
     }
 
     public Scope Enter() => new(this);
@@ -108,9 +161,28 @@ internal sealed class ReadReferenceTable
         internal Scope(ReadReferenceTable owner)
         {
             _owner = owner;
-            owner._scopes.Add([]);
+            owner._scopeStarts.Add(owner._registered.Count);
         }
 
-        public void Dispose() => _owner._scopes.RemoveAt(_owner._scopes.Count - 1);
+        public void Dispose()
+        {
+            int start = _owner._scopeStarts[^1];
+            _owner._scopeStarts.RemoveAt(_owner._scopeStarts.Count - 1);
+
+            for (int index = start; index < _owner._registered.Count; index++)
+                _owner._visible.Remove(_owner._registered[index]);
+
+            _owner._registered.RemoveRange(start, _owner._registered.Count - start);
+        }
     }
+}
+
+/// <summary>What the reference tables keep between operations.</summary>
+internal static class ReferencePool
+{
+    /// <summary>
+    /// The largest capacity a table may have grown to and still be kept for reuse. A table that grew past it
+    /// is left to the collector, so one large graph does not pin its table's capacity to a thread.
+    /// </summary>
+    public const int MaxRetainedEntries = 4096;
 }

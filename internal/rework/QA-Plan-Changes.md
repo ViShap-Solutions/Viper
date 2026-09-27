@@ -90,12 +90,15 @@ Also owed now:
   keyed-V0 example of EXC-15 is removed from `Exceptions/ExceptionMappingTests` (EXC-15 keeps its
   reading case).
 
-## R2 — Pipeline on pooled buffers
+## R2 — Pipeline on pooled buffers — applied
 
 - **§21 rewritten** as "Metering and windowing over buffers" — STR-01…STR-28 re-expressed against the
   reader and writer (budget versus truncation, origin-relative budget, high-water mark across patches,
   window over-read is malformed, bounded skipping, no materialisation). None is dropped. §2 layout:
-  `Streams/` renamed `Wire/`.
+  `Streams/` renamed `Metering/` *(named `Wire/` here at first; renamed by the owner's decision of
+  2026-09-27, `Owner-Review.md` log 54, because "wire" already names the frozen fixtures, the `Wire`
+  frame builder and the wire-format tests of `Format/`, and because the folder must match its
+  namespace)*.
 - **STR-29** — no `MemoryStream` under `Pipeline/` or on the payload path (source-shape test).
 - **STR-30** — INV-15: an exception in the middle of a graph leaves an `IBufferWriter<byte>`, a
   `PipeWriter` and a `Stream` destination with zero bytes written.
@@ -123,6 +126,17 @@ Also owed now:
   the reported position is exact, for span (`int`) and sequence (`SequencePosition`).
 - **API-23** — `PooledPayload`: the bytes equal `Serialize<T>(T)`; `Dispose` twice is safe; access
   after `Dispose` is `ObjectDisposedException`.
+- **Carried from R2 — the buffer-writer destination.** R2 built the write into
+  `IBufferWriter<byte>` as the internal `BinarySerializer.SerializeTo`, pinned by STR-30; R3 makes it
+  the public `Serialize(IBufferWriter<byte>, T)` and retires the internal name. Two points the stage
+  must settle, the first with the owner because the contract is silent on it:
+  - `EncodedFrame.WriteTo(IBufferWriter<byte>)` copies through `GetSpan(n)`; a writer that breaks the
+    `IBufferWriter` contract and returns an empty span would make the copy loop forever. Refuse it
+    (which exception) or trust the contract — an owner question with its test.
+  - A public `Serialize(IBufferWriter<byte>, T)` beside `Serialize(Stream, T)` makes
+    `Serialize(null!, value)` ambiguous at compile time; R2 hit it in `SerializerApiTests`,
+    `PublicStreamTests` and `ExceptionMappingTests` and avoided it only by naming the internal
+    method differently. API-13's null-argument cases must be rewritten with a typed null.
 - **API-24** — `Populate`: a class is populated in place and the same instance is observed; a keyed
   contract keeps a field absent from the payload; nested objects are new instances; a type with a
   dedicated formatter is `BinaryTypeException`; a null root or a back-reference root is
@@ -171,6 +185,11 @@ Also owed now:
 ## R5 — Algorithm contracts
 
 - §23–§26 rewritten for plan §8: one method per direction.
+- **Carried from R2 — STR-29 extended to the built-ins.** STR-29 covers the payload path up to the
+  algorithm services; the built-in `Deflate` still compresses and decompresses through `MemoryStream`
+  (and `source.ToArray()`), because it is rewritten against the `IBufferWriter<byte>` interface of plan
+  §8.1 in this stage. Once ported, STR-29's path list gains `Compression/`, `Checksum/` and `Crypto/`,
+  and no built-in may use `MemoryStream`.
 - **Retired:** CMP-15 (incremental is the only mode). **Kept:** CMP-16.
 - **CMP-17** — `Decompress` producing fewer or more than `expectedLength` bytes is
   `BinaryFormatException`.

@@ -25,62 +25,83 @@ internal sealed class V0FormatPipeline : IFormatPipeline
 
     int IFormatPipeline.Version => Version;
 
-    public void Write<T>(Stream destination, T data, SerializationOperation operation)
+    public EncodedFrame Write<T>(T data, SerializationOperation operation)
     {
-        ArgumentNullException.ThrowIfNull(destination);
-
         var budget = Budget(operation);
-        using var payload = new PayloadBuffer(budget.Maximum, budget.Resource);
+        var payload = new PayloadBuffer(budget.Maximum, budget.Resource);
+        try
+        {
+            var writer = new WireWriter(payload, operation);
+            using (var engine = new GraphWriter(WithoutReferences(operation)))
+                engine.WriteRoot(ref writer, data);
 
-        var writer = new WireWriter(payload, operation);
-        new GraphWriter(WithoutReferences(operation)).WriteRoot(ref writer, data);
-        writer.Flush();
-
-        var wire = new MeteredWriteStream(destination, operation.Limits.MaxWireBytes, "wire");
-        payload.WriteTo(wire);
-        wire.Flush();
+            writer.Flush();
+            return EncodedFrame.Of(header: null, payload, operation.Limits.MaxWireBytes);
+        }
+        catch
+        {
+            payload.Dispose();
+            throw;
+        }
     }
 
-    public T? Read<T>(Stream source, SerializationOperation operation) =>
-        (T?)Read(source, operation, typeof(T), existingInstance: null);
-
-    public T Read<T>(Stream source, T existingInstance, SerializationOperation operation)
-        where T : class
-    {
-        ArgumentNullException.ThrowIfNull(existingInstance);
-
-        return (T)Read(source, operation, typeof(T), existingInstance)!;
-    }
-
-    private static object? Read(
+    public object? Read(
         Stream source,
-        SerializationOperation operation,
         Type declaredType,
-        object? existingInstance)
+        object? existingInstance,
+        SerializationOperation operation)
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        var payloadOperation = WithoutReferences(operation);
         var budget = Budget(operation);
 
         long start = StreamSource.Position(source);
         byte[] buffer = StreamSource.ReadAhead(source, budget.Maximum, "payload", out int length);
         try
         {
-            var reader = new WireReader(buffer.AsSpan(0, length), payloadOperation, budget);
-            var engine = new GraphReader(payloadOperation);
+            object? result = Decode(
+                buffer.AsSpan(0, length), budget, declaredType, existingInstance, operation, out long consumed);
 
-            object? result = existingInstance is null
-                ? engine.ReadValue(ref reader, declaredType)
-                : engine.ReadInto(ref reader, existingInstance, declaredType);
-
-            StreamSource.Seek(source, start + reader.Consumed);
+            StreamSource.Seek(source, start + consumed);
             return result;
         }
         finally
         {
             StreamSource.Return(buffer);
         }
+    }
+
+    public object? Read(
+        ReadOnlySpan<byte> source,
+        Type declaredType,
+        object? existingInstance,
+        SerializationOperation operation)
+    {
+        var budget = Budget(operation);
+
+        return Decode(
+            source[..(int)Math.Min(source.Length, budget.Maximum)],
+            budget, declaredType, existingInstance, operation, out _);
+    }
+
+    private static object? Decode(
+        ReadOnlySpan<byte> bytes,
+        WireBudget budget,
+        Type declaredType,
+        object? existingInstance,
+        SerializationOperation operation,
+        out long consumed)
+    {
+        var payloadOperation = WithoutReferences(operation);
+        var reader = new WireReader(bytes, payloadOperation, budget);
+        using var engine = new GraphReader(payloadOperation);
+
+        object? result = existingInstance is null
+            ? engine.ReadValue(ref reader, declaredType)
+            : engine.ReadInto(ref reader, existingInstance, declaredType);
+
+        consumed = reader.Consumed;
+        return result;
     }
 
     /// <summary>

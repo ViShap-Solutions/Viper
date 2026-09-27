@@ -7,9 +7,10 @@ namespace ViShap.Viper.Compression;
 /// actually produced, so a payload that declares a large uncompressed length never causes the
 /// allocation it describes until that many bytes exist.
 /// <para>
-/// Growth happens exactly once: a probe buffer rented from the pool, then the final array of the
-/// declared size. The payload therefore leaves this type without a copy, and a decompression that
-/// never fills the probe never allocates more than it.
+/// Growth happens exactly once: a probe buffer rented from the pool, then a pooled buffer of the
+/// declared size. The payload leaves this type as that buffer, without a copy, and a decompression
+/// that never fills the probe never takes more than it. Every buffer is cleared before it goes back
+/// to the pool.
 /// </para>
 /// </summary>
 internal sealed class PayloadBufferWriter : IBufferWriter<byte>, IDisposable
@@ -17,10 +18,8 @@ internal sealed class PayloadBufferWriter : IBufferWriter<byte>, IDisposable
     private const int ProbeCapacity = 64 * 1024;
 
     private readonly int _capacity;
-    private byte[] _buffer;
+    private byte[]? _buffer;
     private int _limit;
-    private bool _pooled;
-    private bool _detached;
     private int _written;
 
     /// <param name="capacity">The declared uncompressed length; output may never exceed it.</param>
@@ -30,17 +29,8 @@ internal sealed class PayloadBufferWriter : IBufferWriter<byte>, IDisposable
             throw new ArgumentOutOfRangeException(nameof(capacity));
 
         _capacity = capacity;
-
-        if (capacity <= ProbeCapacity)
-        {
-            _buffer = capacity == 0 ? [] : new byte[capacity];
-            _limit = capacity;
-            return;
-        }
-
-        _buffer = ArrayPool<byte>.Shared.Rent(ProbeCapacity);
-        _limit = ProbeCapacity;
-        _pooled = true;
+        _limit = Math.Min(capacity, ProbeCapacity);
+        _buffer = RentedBytes.RentArray(_limit);
     }
 
     public int WrittenCount => _written;
@@ -69,31 +59,30 @@ internal sealed class PayloadBufferWriter : IBufferWriter<byte>, IDisposable
     /// Hands over the decompressed payload. Valid only when exactly the declared number of bytes was
     /// produced, which is the only outcome the caller accepts.
     /// </summary>
-    public byte[] DetachPayload()
+    public RentedBytes DetachPayload()
     {
-        _detached = true;
-        return _buffer.Length == _capacity ? _buffer : _buffer.AsSpan(0, _written).ToArray();
+        var buffer = _buffer ?? throw new ObjectDisposedException(nameof(PayloadBufferWriter));
+        _buffer = null;
+        _limit = 0;
+
+        return RentedBytes.Adopt(buffer, _written);
     }
 
     /// <summary>Releases the buffer, clearing whatever plaintext was not handed over.</summary>
     public void Dispose()
     {
         var buffer = _buffer;
-        _buffer = [];
+        _buffer = null;
         _limit = 0;
 
-        if (_pooled)
-        {
-            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
-            return;
-        }
-
-        if (!_detached)
-            Array.Clear(buffer);
+        if (buffer is not null)
+            RentedBytes.ReturnArray(buffer);
     }
 
     private void Ensure(int sizeHint)
     {
+        ObjectDisposedException.ThrowIf(_buffer is null, this);
+
         int required = Math.Max(sizeHint, 1);
         if (_limit - _written >= required)
             return;
@@ -106,19 +95,17 @@ internal sealed class PayloadBufferWriter : IBufferWriter<byte>, IDisposable
     }
 
     /// <summary>
-    /// Promotes the probe to the final array. There is nothing to gain from doubling: the declared
-    /// length is the ceiling, and reaching past the probe means the payload is genuinely that large.
+    /// Promotes the probe to the buffer of the declared size. There is nothing to gain from doubling:
+    /// the declared length is the ceiling, and reaching past the probe means the payload is genuinely
+    /// that large.
     /// </summary>
     private void Grow()
     {
-        var final = new byte[_capacity];
+        var final = RentedBytes.RentArray(_capacity);
         _buffer.AsSpan(0, _written).CopyTo(final);
-
-        if (_pooled)
-            ArrayPool<byte>.Shared.Return(_buffer, clearArray: true);
+        RentedBytes.ReturnArray(_buffer!);
 
         _buffer = final;
         _limit = _capacity;
-        _pooled = false;
     }
 }

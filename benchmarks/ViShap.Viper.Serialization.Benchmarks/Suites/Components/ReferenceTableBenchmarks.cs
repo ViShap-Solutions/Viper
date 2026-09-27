@@ -11,9 +11,9 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 /// step the reader performs for the same value.
 /// </summary>
 /// <remarks>
-/// A table accumulates ids and cannot be reused across invocations without measuring a table that
-/// grows for as long as the run lasts, so each invocation builds its own. Construction is therefore
-/// inside the timed region, and the third cell of this class is that construction alone, amortized
+/// One operation takes one table from the per-thread pool and hands it back cleared, so each
+/// invocation rents a table and returns it, as one serialization does. Renting and returning are
+/// therefore inside the timed region, and the third cell of this class is that pair alone, amortized
 /// over the same thousand operations, so it subtracts directly from the other two.
 /// <para>
 /// Explains SCALE-07 and DIFF-04, where the same densities are measured end to end through B-P1.
@@ -48,18 +48,20 @@ public class ReferenceIdentityBenchmarks
         }
 
         // The read side meets the ids the write side produced, in the same order.
-        var table = new WriteReferenceTable();
+        var table = WriteReferenceTable.Rent();
 
         for (var index = 0; index < Operations; index++)
         {
             _ids[index] = table.TryGetVisibleId(_values[index], out int id) ? id : table.Register(_values[index]);
         }
+
+        WriteReferenceTable.Return(table);
     }
 
     [Benchmark(Description = "MICRO-07 write lookup and register", OperationsPerInvoke = Operations)]
     public int WriteIdentity()
     {
-        var table = new WriteReferenceTable();
+        var table = WriteReferenceTable.Rent();
         var backReferences = 0;
 
         for (var index = 0; index < Operations; index++)
@@ -74,13 +76,14 @@ public class ReferenceIdentityBenchmarks
             }
         }
 
+        WriteReferenceTable.Return(table);
         return backReferences;
     }
 
     [Benchmark(Description = "MICRO-07 read register and resolve", OperationsPerInvoke = Operations)]
     public int ReadIdentity()
     {
-        var table = new ReadReferenceTable();
+        var table = ReadReferenceTable.Rent();
         var resolved = 0;
 
         for (var index = 0; index < Operations; index++)
@@ -95,11 +98,17 @@ public class ReferenceIdentityBenchmarks
             }
         }
 
+        ReadReferenceTable.Return(table);
         return resolved;
     }
 
-    [Benchmark(Description = "MICRO-07 table construction", OperationsPerInvoke = Operations)]
-    public object TableConstruction() => new WriteReferenceTable();
+    [Benchmark(Description = "MICRO-07 table rent and return", OperationsPerInvoke = Operations)]
+    public object TableRentAndReturn()
+    {
+        var table = WriteReferenceTable.Rent();
+        WriteReferenceTable.Return(table);
+        return table;
+    }
 }
 
 /// <summary>
@@ -121,8 +130,8 @@ public class ReferenceScopeBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _writeTable = new WriteReferenceTable();
-        _readTable = new ReadReferenceTable();
+        _writeTable = WriteReferenceTable.Rent();
+        _readTable = ReadReferenceTable.Rent();
     }
 
     [Benchmark(Description = "MICRO-07 write scope enter and exit", OperationsPerInvoke = Operations)]

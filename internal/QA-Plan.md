@@ -60,7 +60,7 @@ tests/ViShap.Viper.Serialization.Tests/
   References/       identity, scopes, cycles
   RoundTrip/        the §23 type corpus, by family
   Limits/           limits, budgets, depth, nodes, phases
-  Streams/          MeteredReadStream, MeteredWriteStream, WindowReadStream
+  Metering/         metering and windowing over buffers, atomic writes, public stream behaviour
   Algorithms/       compression, checksum, encryption, algorithm catalog
   Metadata/         inspector, header info, FromHeader / FromStream
   Diagnostics/      BinaryFormatDumper
@@ -86,7 +86,7 @@ Work proceeds stage by stage. A stage closes when every one of its items is `[x]
 | **M3** | Format | §11 header, §12 envelope/canonicity, §13 V0 and routing, §14 wire format | A conforming reader could be written from the tests alone |
 | **M4** | Type system | §15 contracts, §16 keyed evolution, §17 polymorphism, §18 references and cycles | Every §14–§16 invariant pinned |
 | **M5** | Corpus | §19 round trip across §23 | Every supported type family round-trips in V1, and in V0 where V0 supports the shape |
-| **M6** | Resources | §20 limits and budgets, §21 streams, §22 hostile input | Every limit has below / exact / above / invalid |
+| **M6** | Resources | §20 limits and budgets, §21 metering and windowing, §22 hostile input | Every limit has below / exact / above / invalid |
 | **M7** | Algorithms | §23 compression, §24 checksum, §25 encryption, §26 catalog | Every phase boundary and every key-ownership rule pinned |
 | **M8** | Periphery | §27 inspection and diagnostics, §28 concurrency and caches, §29 utilities, §31 cross-entry-point and property corpus | **Closed.** Full suite green (1596 tests, 0 skipped); §32 evaluated and every box proven |
 
@@ -200,7 +200,7 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] API-15 — a caller stream is never rewound; serialization appends at the current position *(§3.1, §20)* — `Api/SerializerApiTests`
 - [x] API-16 — deserialization reads only as far as the payload extends *(§3.1)* — `Api/SerializerApiTests`
 - [x] API-17 — reading from a non-seekable stream throws `NotSupportedException` *(§8.10, §10.3)* — `Api/SerializerApiTests`
-- [x] API-18 — writing to a non-seekable stream succeeds for a positional payload *(§7.2)* — `Api/SerializerApiTests`
+- [x] API-18 — writing to a non-seekable stream succeeds, for a positional payload and for a keyed one, under V1 and V0, with the same bytes as the array form *(§7.2)* — `Api/SerializerApiTests`
 - [x] API-19 — a serializer instance is reusable across calls with no state carried over *(§2.2)* — `Api/SerializerApiTests`
 - [x] API-20 — a failed operation leaves the stream position where the failure occurred, and the next independent call still succeeds *(§20, §2.2)* — `Api/SerializerApiTests`
 
@@ -341,7 +341,7 @@ Field order, types and invariants per §22.6.
 - [x] ENV-06 — a decompressed payload shorter than declared → rejected *(§12)* — `Format/EnvelopeTests`
 - [x] ENV-07 — a decompressed payload longer than declared → rejected *(§12)* — `Format/EnvelopeTests`
 - [x] ENV-08 — the declared plaintext length never exceeds the ciphertext delivered *(§13)* — `Format/EnvelopeTests`
-- [x] ENV-09 — `MaxWireBytes` is charged relative to the operation's start position on write *(§7.2)* — `Streams/MeteredWriteStreamTests`
+- [x] ENV-09 — `MaxWireBytes` is charged relative to the operation's start position on write *(§7.2)* — `Metering/WriteMeteringTests`
 - [x] ENV-10 — `MaxWireBytes` is charged from zero on read regardless of the source's absolute position *(§7.1)* — `Format/EnvelopeTests`
 
 ---
@@ -378,9 +378,9 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-20 — `[BinaryUnion]` polymorphism round-trips on V0 *(§10.2, §15)* — `Format/V0CorpusTests`
 - [x] V0-21 — every §23 family V0 supports round-trips through it, and each one produces the same payload bytes as V1; RT-C08 extends this to the whole corpus *(§10.2)* — `Format/V0CorpusTests`
 - [x] V0-22 — `RequireEncryption` or `RequireChecksum` together with V0 is rejected when the options are built, on the write side and on the read side alike *(§4.1, §10.2, §21.1, D2)* — `Api/OptionsTests`
-- [x] V0-23 — a keyed contract nested inside a keyed contract round-trips on V0, so field windowing works over the metered V0 payload and not only over V1's buffered one *(§7.3, §10.2)* — `Format/V0FormatTests`
+- [x] V0-23 — a keyed contract nested inside a keyed contract round-trips on V0, so field windowing works over the V0 payload read within its budget and not only over V1's decoded one *(§7.3, §10.2)* — `Format/V0FormatTests`
 - [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.8)* — `Format/V0FormatTests`
-- [x] V0-25 — a keyed write on V0 to a destination that cannot seek succeeds and is byte-identical to the write to a seekable one, and a positional write to the same destination succeeds *(§10.2, §14.2)* — `Format/V0FormatTests`, `Streams/PublicStreamTests` *(inverted in R1: the field length is patched in the serializer's buffer)*
+- [x] V0-25 — a keyed write on V0 to a destination that cannot seek succeeds and is byte-identical to the write to a seekable one, and a positional write to the same destination succeeds *(§10.2, §14.2)* — `Format/V0FormatTests`, `Metering/PublicStreamTests` *(inverted in R1: the field length is patched in the serializer's buffer)*
 - [x] V0-26 — a byte-reversed magic is not recognised; `Peek` reports no header *(§22)* — `Format/RoutingTests`
 
 ---
@@ -550,6 +550,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] CYC-08 — equal-but-distinct objects stay distinct *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-09 — a cycle without `PreserveReferences` → `BinaryTypeException` on write *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-10 — deep nesting fails as `BinaryLimitException`; no test may risk a stack overflow *(§5.1)* — `Limits/DepthAndNodeTests`
+- [x] CYC-11 — cycle detection searches the ancestor stack: a cycle at depth 1 and at depth 500 is the same `BinaryTypeException` with the same diagnostic, a cycle closing deep below the root is found, and a deep acyclic graph repeating an instance — along two paths or between siblings — is not refused *(§16)* — `References/CycleDetectionTests`
 
 ---
 
@@ -721,47 +722,55 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ---
 
-# 21. Security streams — `Streams/`
+# 21. Metering and windowing over buffers — `Metering/`
 
-## 21.1 `MeteredReadStream`
+*Rewritten in R2: STR-01…STR-28 re-expressed against `WireReader`, `PayloadBuffer` and the finished
+frame, which replace the three stream decorators; none is dropped.*
 
-- [x] STR-01 — counts from zero regardless of the caller stream's absolute position *(§7.1)* — `Streams/MeteredReadStreamTests`
-- [x] STR-02 — reads under budget succeed; the exact budget succeeds *(§7.1)* — `Streams/MeteredReadStreamTests`
-- [x] STR-03 — an over-read against the budget → `BinaryLimitException`, not a format error *(§7.1)* — D1-05
-- [x] STR-04 — `RemainingBytes` reflects what may still be read: the lesser of the remaining budget and the physical remainder *(§7.1, §17)* — D1-04
-- [x] STR-05 — an underlying `IOException` → `BinaryStreamException` with the original preserved *(§7.1, §9)* — `Streams/MeteredReadStreamTests`
-- [x] STR-06 — the caller's stream is never disposed *(§7.1)* — `Streams/MeteredReadStreamTests`
-- [x] STR-07 — nesting (V0 wire over payload) applies both ceilings independently *(§7.1)* — `Streams/MeteredReadStreamTests`
-- [x] STR-08 — a partial-read source is handled without data loss *(§7.1)* — `Streams/MeteredReadStreamTests`
+## 21.1 Metering on read
 
-## 21.2 `MeteredWriteStream`
+- [x] STR-01 — the budget counts from where the operation starts, whatever the caller stream's absolute position, for V1 and V0 *(§7.1)* — `Metering/ReadMeteringTests`
+- [x] STR-02 — reads under the budget succeed; the exact budget succeeds *(§7.1)* — `Metering/ReadMeteringTests`
+- [x] STR-03 — an over-read against the budget → `BinaryLimitException`, not a format error *(§7.1)* — `Metering/ReadMeteringTests`, D1-05
+- [x] STR-04 — `WireReader.Remaining` is what may still be read: the lesser of the budget and the bytes delivered; beyond the bytes but within the budget is `BinaryFormatException` *(§7.1, §17)* — `Metering/ReadMeteringTests`, D1-04
+- [x] STR-05 — an underlying `IOException` → `BinaryStreamException` with the original preserved *(§7.1, §9)* — `Metering/ReadMeteringTests`
+- [x] STR-06 — the caller's stream is never disposed *(§7.1)* — `Metering/ReadMeteringTests`
+- [x] STR-07 — V0 applies the wire and the payload ceiling together; the tighter one names the failure *(§7.1)* — `Metering/ReadMeteringTests`
+- [x] STR-08 — a partial-read source is handled without data loss, for V1 and V0 *(§7.1)* — `Metering/ReadMeteringTests`
 
-- [x] STR-09 — the budget is relative to the destination's starting position *(§7.2, C06)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-10 — appending to a non-empty stream costs the operation nothing for pre-existing bytes *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-11 — writes under budget succeed; the exact budget succeeds *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-12 — exceeding the budget → `BinaryLimitException` *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-13 — a rewind for keyed-length patching does not double-charge; the budget follows the high-water mark *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-14 — an underlying `IOException` → `BinaryStreamException` *(§7.2, §9)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-15 — the caller's stream is never disposed *(§7.2)* — `Streams/MeteredWriteStreamTests`
-- [x] STR-16 — `CanSeek` follows the inner stream *(§7.2)* — `Streams/MeteredWriteStreamTests`
+## 21.2 Metering on write
 
-## 21.3 `WindowReadStream`
+- [x] STR-09 — the budget is relative to where the operation starts in the destination *(§7.2, C06)* — `Metering/WriteMeteringTests`
+- [x] STR-10 — appending to a non-empty stream costs the operation nothing for pre-existing bytes *(§7.2)* — `Metering/WriteMeteringTests`
+- [x] STR-11 — writes under the budget succeed; the exact budget succeeds, for `PayloadBuffer` and for a whole frame under V1 and V0 *(§7.2)* — `Metering/WriteMeteringTests`
+- [x] STR-12 — exceeding the budget → `BinaryLimitException`, and the destination receives nothing *(§7.2, §2.6)* — `Metering/WriteMeteringTests`
+- [x] STR-13 — a keyed-length patch overwrites bytes already counted and is not charged twice; the budget follows the high-water mark *(§7.2)* — `Metering/WriteMeteringTests`
+- [x] STR-14 — an underlying `IOException` → `BinaryStreamException` *(§7.2, §9)* — `Metering/WriteMeteringTests`
+- [x] STR-15 — the caller's stream is never disposed *(§7.2)* — `Metering/WriteMeteringTests`
+- [x] STR-16 — a destination is never asked to seek: a keyed frame reaches a non-seekable stream byte for byte, under V1 and V0 *(§7.2)* — `Metering/WriteMeteringTests`
 
-- [x] STR-17 — a field decoder may read exactly the declared length *(§7.3)* — `Streams/WindowReadStreamTests`
-- [x] STR-18 — reading past the window → `BinaryFormatException`, not a limit error *(§7.3)* — `Streams/WindowReadStreamTests`
-- [x] STR-19 — a decoder cannot reach into the next field *(§7.3)* — `Streams/WindowReadStreamTests`
-- [x] STR-20 — `SkipRemaining` consumes the rest in bounded chunks *(§7.3)* — `Streams/WindowReadStreamTests`
-- [x] STR-21 — a window never materializes the field payload merely to enforce the boundary *(§7.3)* — `Streams/WindowReadStreamTests`
-- [x] STR-22 — a window shares the parent operation's budget and reference state *(§7.3)* — `Streams/WindowReadStreamTests`
+## 21.3 The field window
+
+- [x] STR-17 — a field decoder may read exactly the declared length through `WireReader.Slice`, and the parent moves past the field *(§7.3)* — `Metering/FieldWindowTests`
+- [x] STR-18 — reading past the window → `BinaryFormatException`, not a limit error *(§7.3)* — `Metering/FieldWindowTests`
+- [x] STR-19 — a decoder cannot reach into the next field *(§7.3)* — `Metering/FieldWindowTests`
+- [x] STR-20 — skipping consumes the rest of a field without reading it, and a skip past the bytes is malformed *(§7.3)* — `Metering/FieldWindowTests`
+- [x] STR-21 — a window never materializes the field payload merely to enforce the boundary *(§7.3)* — `Metering/FieldWindowTests`
+- [x] STR-22 — a window shares the parent operation's budget and reference state *(§7.3)* — `Metering/FieldWindowTests`
 
 ## 21.4 Public stream behavior
 
-- [x] STR-23 — a seekable `MemoryStream` round-trips *(§20)* — `Streams/PublicStreamTests`
-- [x] STR-24 — a non-seekable source is rejected only by APIs that require seekability *(§10.3)* — `Streams/PublicStreamTests`
-- [x] STR-25 — a stream returning short reads round-trips correctly *(§7.1)* — `Streams/PublicStreamTests`
-- [x] STR-26 — premature EOF → `BinaryFormatException` *(§8.2)* — `Streams/PublicStreamTests`
-- [x] STR-27 — a non-readable source and a non-writable destination fail with normal BCL semantics *(§20)* — `Streams/PublicStreamTests`
-- [x] STR-28 — an inspection API restores position even on failure *(§20)* — `Streams/PublicStreamTests`
+- [x] STR-23 — a seekable `MemoryStream` round-trips *(§20)* — `Metering/PublicStreamTests`
+- [x] STR-24 — a non-seekable source is rejected only by APIs that require seekability *(§10.3)* — `Metering/PublicStreamTests`
+- [x] STR-25 — a stream returning short reads round-trips correctly *(§7.1)* — `Metering/PublicStreamTests`
+- [x] STR-26 — premature EOF → `BinaryFormatException` *(§8.2)* — `Metering/PublicStreamTests`
+- [x] STR-27 — a non-readable source and a non-writable destination fail with normal BCL semantics *(§20)* — `Metering/PublicStreamTests`
+- [x] STR-28 — an inspection API restores position even on failure *(§20)* — `Metering/PublicStreamTests`
+
+## 21.5 The payload path and atomic writes
+
+- [x] STR-29 — no `MemoryStream` on the payload path: `BinarySerializer`, `Pipeline/`, `Io/`, `Engine/`, `Formatters/`, `Security/`, the algorithm services and the V1 header (source-shape test) *(§2, §2.5)* — `Metering/AtomicWriteTests`
+- [x] STR-30 — INV-15: an exception in the middle of a graph, or a frame over the wire budget, leaves an `IBufferWriter<byte>`, a `PipeWriter` and a `Stream` destination — seekable or not — with zero bytes written, under V1, V0 and every phase; a successful write reaches each of them with the same bytes *(§2.6)* — `Metering/AtomicWriteTests`
 
 ---
 
@@ -804,7 +813,7 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver `CompressedLength` real bytes *(§12)* — `Hostile/AmplificationTests`
 - [x] HST-22 — nested individually-valid containers cannot bypass the cumulative element budget *(§5.7)* — `Hostile/AmplificationTests`
 - [x] HST-23 — many small keyed objects cannot bypass `MaxTotalKeyedFields` *(§5.9a)* — `Hostile/AmplificationTests`
-- [x] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)* — `Streams/WindowReadStreamTests`
+- [x] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)* — `Metering/FieldWindowTests`
 - [x] HST-25 — a hostile deeply nested payload fails as a limit violation, never a stack overflow *(§5.1)* — `Limits/DepthAndNodeTests`
 - [x] HST-26 — an oversized or infinite `IEnumerable<T>` on write is abandoned at the limit, not enumerated *(§17, S11)* — `Limits/BudgetTests`
 - [x] HST-38 — a tiny frame declaring a huge expansion allocates nothing proportional *(§12)* — `Hostile/AllocationAmplificationTests`
@@ -1046,8 +1055,8 @@ The payload interior is unaffected: the V1 payload is re-read from a seekable `M
 - [x] D1-01 — a tiny frame declaring `OnDiskLength` near `MaxEncryptedBytes` is rejected with no allocation proportional to the declaration *(§17)* — `Hostile/AllocationAmplificationTests`
 - [x] D1-02 — a tiny frame declaring a multi-megabyte custom algorithm name is rejected before allocation *(§17)* — `Hostile/AllocationAmplificationTests`
 - [x] D1-03 — a declared checksum length beyond the bytes present is rejected before allocation *(§17)* — `Hostile/AllocationAmplificationTests`
-- [x] D1-04 — `MeteredReadStream.RemainingBytes` never exceeds the inner stream's physical remainder, through a chain of meters *(L2, §7.1)* — `Streams/MeteredReadStreamTests`
-- [x] D1-05 — the wire-budget semantics of §7.1 still hold: an over-read against the budget remains `BinaryLimitException`, while a declaration beyond the physical bytes is `BinaryFormatException` *(§7.1, §17)* — `Streams/MeteredReadStreamTests`
+- [x] D1-04 — `WireReader.Remaining` never exceeds the bytes delivered, whatever the budget *(L2, §7.1)* — `Metering/ReadMeteringTests` *(re-expressed in R2: the read meter is the reader over memory)*
+- [x] D1-05 — the wire-budget semantics of §7.1 still hold: an over-read against the budget remains `BinaryLimitException`, while a declaration beyond the physical bytes is `BinaryFormatException` *(§7.1, §17)* — `Metering/ReadMeteringTests` *(re-expressed in R2)*
 
 ### D2 — a protection policy combined with V0 is silently ineffective — **FIXED**
 

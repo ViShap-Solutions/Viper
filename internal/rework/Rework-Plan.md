@@ -80,8 +80,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | Stage | Branch (from `release/v1.0.0`) | After the owner merges it | Status | Closed by (merge commit) |
 |---|---|---|---|---|
 | R0 — Baseline and oracle | `rework/r0-baseline` | — | closed | `530262a` |
-| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | gate holds — awaiting commit | |
-| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | not started | |
+| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | closed | `1a73c62` |
+| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | gate holds — awaiting commit | |
 | R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |
 | R4 — Typed engine | `rework/r4-typed-engine` | — | not started | |
 | R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | not started | |

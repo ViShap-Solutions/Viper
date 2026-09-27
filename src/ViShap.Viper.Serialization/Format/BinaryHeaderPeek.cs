@@ -4,10 +4,12 @@ namespace ViShap.Viper.Format;
 
 internal static class BinaryHeaderPeek
 {
+    private const int PrefixLength = 8;
+
     public static bool TryPeekMagicAndVersion(Stream source, out int formatVersion)
     {
         long position = source.Position;
-        Span<byte> buffer = stackalloc byte[8];
+        Span<byte> buffer = stackalloc byte[PrefixLength];
         int read = 0;
         try
         {
@@ -25,9 +27,15 @@ internal static class BinaryHeaderPeek
             source.Position = position;
         }
 
-        if (read == 8 && BinaryPrimitives.ReadInt32LittleEndian(buffer) == BinaryFormatConstants.Magic)
+        return TryReadMagicAndVersion(buffer[..read], out formatVersion);
+    }
+
+    public static bool TryReadMagicAndVersion(ReadOnlySpan<byte> source, out int formatVersion)
+    {
+        if (source.Length >= PrefixLength
+            && BinaryPrimitives.ReadInt32LittleEndian(source) == BinaryFormatConstants.Magic)
         {
-            formatVersion = BinaryPrimitives.ReadInt32LittleEndian(buffer[4..]);
+            formatVersion = BinaryPrimitives.ReadInt32LittleEndian(source[4..]);
             return true;
         }
 

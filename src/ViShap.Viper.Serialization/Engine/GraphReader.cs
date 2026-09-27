@@ -5,15 +5,25 @@ namespace ViShap.Viper.Engine;
 /// incoming data. Depth, node budget, identity registration, keyed-field skipping and the
 /// "consume exactly what was declared" rule all live here, so no formatter can bypass them.
 /// </summary>
-internal sealed class GraphReader
+internal sealed class GraphReader : IDisposable
 {
     private readonly SerializationOperation _operation;
-    private readonly ReadReferenceTable? _references;
+    private ReadReferenceTable? _references;
 
     public GraphReader(SerializationOperation operation)
     {
         _operation = operation;
-        _references = operation.PreserveReferences ? new ReadReferenceTable() : null;
+        _references = operation.PreserveReferences ? ReadReferenceTable.Rent() : null;
+    }
+
+    /// <summary>Returns the reference table, cleared, to its pool.</summary>
+    public void Dispose()
+    {
+        if (_references is not null)
+        {
+            ReadReferenceTable.Return(_references);
+            _references = null;
+        }
     }
 
     public T? ReadRoot<T>(ref WireReader reader) => (T?)ReadValue(ref reader, typeof(T));
