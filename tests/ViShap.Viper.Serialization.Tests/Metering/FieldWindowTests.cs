@@ -1,78 +1,98 @@
+using ViShap.Viper.Io;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
-namespace ViShap.Viper.Serialization.Tests.Streams;
+namespace ViShap.Viper.Serialization.Tests.Metering;
 
 /// <summary>
-/// Pins STR-17…STR-22: a window exposes exactly one declared subrange of an already metered stream.
-/// A field decoder may consume its declared length and not one byte more, running past it is a
-/// malformed payload rather than a limit violation, and an unknown field is skipped in bounded
-/// chunks instead of being copied into an attacker-sized array.
+/// Pins STR-17…STR-22: <see cref="WireReader.Slice"/> is a reader over exactly one declared keyed
+/// field. A field decoder may consume its declared length and not one byte more, running past it is
+/// a malformed payload rather than a limit violation, and an unknown field is skipped without being
+/// copied.
 /// </summary>
-public class WindowReadStreamTests
+public class FieldWindowTests
 {
     /// <summary>Bytes the whole operation may allocate. Generous, and orders below the declarations.</summary>
     private const long AllocationCeiling = 1024 * 1024;
 
-    private static WindowReadStream Window(int windowLength, int physicalBytes)
-    {
-        byte[] content = [.. Enumerable.Range(0, physicalBytes).Select(value => (byte)value)];
-        return new WindowReadStream(new MemoryStream(content), windowLength, "Key 1 payload");
-    }
+    private static SerializationOperation Operation() =>
+        new(SerializationLimits.Default, keys: null, preserveReferences: false,
+            requireEncryption: false, requireChecksum: false);
+
+    private static byte[] Counting(int length) => [.. Enumerable.Range(0, length).Select(value => (byte)value)];
 
     // --- STR-17: exactly the declared length ----------------------------------------------------
 
     [Fact]
-    public void Read_TheDeclaredLength_Succeeds()
+    public void Slice_ReadsTheDeclaredLength()
     {
-        var window = Window(windowLength: 4, physicalBytes: 16);
+        var reader = new WireReader(Counting(16), Operation());
+        var window = reader.Slice(4, "Key 1 payload");
 
         byte[] destination = new byte[4];
-        window.ReadExactly(destination);
+        window.ReadExact(destination, "Field");
 
         Assert.Equal([0, 1, 2, 3], destination);
-        Assert.Equal(0, window.RemainingBytes);
+        Assert.Equal(0, window.Remaining);
     }
 
     [Fact]
-    public void Read_InSeveralSteps_ConsumesTheWindowExactly()
+    public void Slice_MovesTheParentPastTheField()
     {
-        var window = Window(windowLength: 4, physicalBytes: 16);
+        var reader = new WireReader(Counting(16), Operation());
 
-        Assert.Equal(0, window.ReadByte());
-        Assert.Equal(1, window.ReadByte());
-        Assert.Equal(2, window.RemainingBytes);
+        reader.Slice(4, "Key 1 payload");
+
+        Assert.Equal(4, reader.Consumed);
+        Assert.Equal(4, reader.ReadByte());
     }
 
     [Fact]
-    public void Length_IsTheDeclaredLength()
+    public void Slice_Remaining_IsTheDeclaredLength()
     {
-        var window = Window(windowLength: 4, physicalBytes: 16);
+        var reader = new WireReader(Counting(16), Operation());
 
-        Assert.Equal(4, window.Length);
+        Assert.Equal(4, reader.Slice(4, "Key 1 payload").Remaining);
     }
 
     // --- STR-18 / STR-19: the boundary is the end of the field -----------------------------------
 
     [Fact]
-    public void Read_PastTheWindow_ReturnsNothingRatherThanTheNextField()
+    public void Read_PastTheWindow_IsAMalformedPayloadRatherThanTheNextField()
     {
-        var window = Window(windowLength: 4, physicalBytes: 16);
-        window.ReadExactly(new byte[4]);
+        var ex = Record.Exception(() =>
+        {
+            var reader = new WireReader(Counting(16), Operation(), new WireBudget("wire", 16));
+            var window = reader.Slice(4, "Key 1 payload");
+            window.ReadExact(new byte[4], "Field");
+            window.ReadByte();
+        });
 
-        Assert.Equal(0, window.Read(new byte[4]));
-        Assert.Equal(-1, window.ReadByte());
+        Assert.IsType<BinaryFormatException>(ex);
     }
 
     [Fact]
-    public void Exceeded_BeyondTheWindow_IsAMalformedPayloadAndNotALimitViolation()
+    public void RequireAvailable_BeyondTheWindow_IsAMalformedPayloadAndNotALimitViolation()
     {
-        var window = Window(windowLength: 4, physicalBytes: 16);
-
-        var ex = window.Exceeded(8, "String byte length");
+        var ex = Record.Exception(() =>
+        {
+            var reader = new WireReader(Counting(16), Operation(), new WireBudget("wire", 16));
+            reader.Slice(4, "Key 1 payload").RequireAvailable(8, "String byte length");
+        });
 
         Assert.IsType<BinaryFormatException>(ex);
-        Assert.IsNotType<BinaryLimitException>(ex);
+    }
+
+    [Fact]
+    public void Slice_DeclaringMoreThanTheParentHolds_IsClassifiedByTheParent()
+    {
+        var ex = Record.Exception(() =>
+        {
+            var reader = new WireReader(Counting(4), Operation());
+            reader.Slice(16, "Key 1 payload");
+        });
+
+        Assert.IsType<BinaryFormatException>(ex);
     }
 
     [Fact]
@@ -97,7 +117,7 @@ public class WindowReadStreamTests
     [Fact]
     public void Deserialize_AFieldWithTrailingBytesInsideItsWindow_ThrowsFormat()
     {
-        // Key 2 of OldSchema decodes a Node, which is shorter than the six bytes declared.
+        // Key 2 of OldSchema decodes a Node, which is shorter than the seven bytes declared.
         byte[] frame = Wire.Frame(
         [
             .. Wire.NotNull,
@@ -111,36 +131,45 @@ public class WindowReadStreamTests
             "trailing", () => new BinarySerializer().Deserialize<OldSchema>(frame));
     }
 
-    // --- STR-20: the rest is consumed in bounded chunks ------------------------------------------
+    // --- STR-20: skipping consumes the field without reading it ----------------------------------
 
     [Fact]
-    public void SkipRemaining_ConsumesTheRestOfTheWindowOnly()
+    public void Skip_ConsumesTheRestOfTheWindowOnly()
     {
-        var window = Window(windowLength: 4, physicalBytes: 16);
-        window.ReadExactly(new byte[1]);
+        var reader = new WireReader(Counting(16), Operation());
+        var window = reader.Slice(4, "Key 1 payload");
+        window.ReadByte();
 
-        window.SkipRemaining();
+        window.Skip(window.Remaining, "Key 1 payload");
 
-        Assert.Equal(0, window.RemainingBytes);
-        Assert.Equal(4, window.Position);
+        Assert.Equal(0, window.Remaining);
+        Assert.Equal(4, window.Consumed);
+        Assert.Equal(4, reader.Consumed);
     }
 
     [Fact]
-    public void SkipRemaining_OverATruncatedSource_ThrowsFormat()
+    public void Skip_BeyondTheBytes_ThrowsFormat()
     {
-        var window = Window(windowLength: 16, physicalBytes: 4);
+        var ex = Record.Exception(() =>
+        {
+            var reader = new WireReader(Counting(4), Operation());
+            reader.Skip(16, "Key 1 payload");
+        });
 
-        Assert.Throws<BinaryFormatException>(() => window.SkipRemaining());
+        Assert.IsType<BinaryFormatException>(ex);
     }
 
     [Fact]
-    public void SkipRemaining_OverALargeWindow_AllocatesNothingProportional()
+    public void Skip_OverALargeWindow_AllocatesNothingProportional()
     {
         byte[] content = new byte[4 * 1024 * 1024];
 
         AssertEx.AllocatesLessThan(AllocationCeiling, () =>
-            new WindowReadStream(new MemoryStream(content), content.Length, "Key 1 payload")
-                .SkipRemaining());
+        {
+            var reader = new WireReader(content, Operation());
+            var window = reader.Slice(content.Length, "Key 1 payload");
+            window.Skip(window.Remaining, "Key 1 payload");
+        });
     }
 
     // --- STR-21: the window never materializes the field -----------------------------------------
@@ -161,8 +190,8 @@ public class WindowReadStreamTests
     [Fact]
     public void Deserialize_ALargeUnknownField_IsSkippedWithoutCopyingIt()
     {
-        // V0 reads straight from the source instead of buffering the payload, so nothing but the
-        // skip itself can account for an allocation here.
+        // A V0 payload read from an array is decoded where it lies, so nothing but the skip itself
+        // could account for an allocation here.
         byte[] payload =
         [
             .. Wire.NotNull,
@@ -210,9 +239,13 @@ public class WindowReadStreamTests
     }
 
     [Fact]
-    public void Constructor_WithANegativeLength_ThrowsArgumentOutOfRange()
+    public void Slice_SharesTheParentOperation()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new WindowReadStream(new MemoryStream(), -1, "Key 1 payload"));
+        var operation = Operation();
+        var reader = new WireReader(Counting(16), operation);
+
+        var window = reader.Slice(4, "Key 1 payload");
+
+        Assert.Same(operation, window.Operation);
     }
 }

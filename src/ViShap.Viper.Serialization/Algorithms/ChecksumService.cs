@@ -6,7 +6,7 @@ internal sealed class ChecksumService(IChecksumAlgorithm algorithm)
     public ChecksumAlgorithm Kind => algorithm.Kind;
     public string? CustomName => algorithm.CustomName;
 
-    public byte[] Compute(byte[] rawPayload)
+    public byte[] Compute(ReadOnlySpan<byte> rawPayload)
     {
         var destination = new byte[HashSize(algorithm)];
         algorithm.Compute(rawPayload, destination);
@@ -15,7 +15,7 @@ internal sealed class ChecksumService(IChecksumAlgorithm algorithm)
 
     public static void Verify(
         IChecksumAlgorithm algorithm,
-        byte[] rawPayload,
+        ReadOnlySpan<byte> rawPayload,
         byte[] expectedChecksum)
     {
         int size = HashSize(algorithm);

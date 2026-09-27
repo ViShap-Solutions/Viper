@@ -53,7 +53,8 @@ internal static class TrackRunner
         ("A4", typeof(ReferenceIdentityBenchmarks)),
         ("A4", typeof(ReferenceScopeBenchmarks)),
         ("A4", typeof(HeaderBenchmarks)),
-        ("A4", typeof(StreamMechanismBenchmarks)),
+        ("A4", typeof(MeteringBenchmarks)),
+        ("A4", typeof(CycleDetectionBenchmarks)),
         ("A4", typeof(CompressionPrimitiveBenchmarks)),
         ("A4", typeof(ProtectionPrimitiveBenchmarks)),
 

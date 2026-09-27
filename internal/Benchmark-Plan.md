@@ -38,7 +38,7 @@ Measurement layers used below:
 |---|---|
 | **L1** | **Comparative.** Viper against another library, inside one capability tier (§6). |
 | **L2** | **Configuration.** Viper against Viper: format version, profile, options, member layout. |
-| **L3** | **Component.** One mechanism measured on its own: directly, below the public API through an `InternalsVisibleTo` grant — formatters, value primitives, contracts, budgets, header, metered streams — or, where no grant exists, by subtracting two public measurements that differ in that mechanism alone. |
+| **L3** | **Component.** One mechanism measured on its own: directly, below the public API through an `InternalsVisibleTo` grant — formatters, value primitives, contracts, budgets, header, metering — or, where no grant exists, by subtracting two public measurements that differ in that mechanism alone. |
 | **L4** | **System.** Process-level: cold start, parallel throughput, sustained load, working set. |
 
 Result states, used in every published cell:
@@ -385,7 +385,7 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 |---|---|---|---|
 | **WL-01** | Serialize to a new `byte[]` | L1, L2 | The primary comparative family |
 | **WL-02** | Serialize to a pre-sized `MemoryStream` | L1, L2 | The streaming family; the stream is reset, never reallocated, inside the timed region |
-| **WL-03** | Serialize to a non-seekable stream | L2 | Viper-specific: V0 with a keyed contract requires a seekable destination, which is measured as a supported refusal rather than a timing *(Contract §10.2)* |
+| **WL-03** | Serialize to a non-seekable stream | L2 | Viper-specific: every profile, V0 and keyed contracts included, writes to a destination that cannot seek, so it is a timed workload — `ProfileStreamBenchmarks` *(Contract §7.2; rewritten in R2)* |
 | **WL-04** | Deserialize from `byte[]` | L1, L2 | Payload produced in setup by the same adapter |
 | **WL-05** | Deserialize from `MemoryStream` | L1, L2 | |
 | **WL-06** | Round trip | L1, L2 | Serialize and deserialize in one timed operation |
@@ -463,13 +463,14 @@ The failure modes that silently produce wrong benchmarks. Each is closed by cons
 Allocation is a first-class result here, not a footnote: the engine's structural barriers exist to bound allocation, so what they cost and what they prevent both belong in the report.
 
 - [ ] ALLOC-01 — every comparative suite runs with `MemoryDiagnoser`, and allocation is published per operation
-- [ ] ALLOC-02 — Viper's write allocation is attributed by phase — payload write, checksum, compression, encryption, header, final `byte[]` assembly — from the §18.1 component measurements, and cross-checked against the profile differentials of §18.2, never inferred from a total
-- [ ] ALLOC-03 — the read path is attributed the same way: routing, header, decryption, decompression, payload read, materialization
+- [ ] ALLOC-02 — Viper's write allocation is attributed by phase — payload write into `PayloadBuffer`, the one linearisation a phased payload needs, checksum, compression and encryption into pooled buffers, header, and the one copy into the destination or the returned `byte[]` — from the §18.1 component measurements, and cross-checked against the profile differentials of §18.2, never inferred from a total *(re-attributed in R2: no `MemoryStream` or intermediate `ToArray` remains on the path)*
+- [ ] ALLOC-03 — the read path is attributed the same way: routing, header, the read-ahead or the array decoded where it lies, decryption and decompression into pooled buffers, payload read, materialization *(re-attributed in R2)*
 - [ ] ALLOC-04 — allocation is reported for the streaming family separately from the `byte[]` family, because the `byte[]` entry point's copy is part of what it costs *(Contract §3.1)*
-- [ ] ALLOC-05 — the buffering V1 performs on write is measured against V0's straight-through write, so what the envelope costs in memory is visible *(Contract §10.2)*
-- [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named
+- [ ] ALLOC-05 — V1 and V0 buffer alike on write — the whole frame in the serializer's pooled buffers, then one copy — so what is measured is what the header and the phases add to V0's frame *(Contract §2.6, §10.2; rewritten in R2)*
+- [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named; re-measured from R2, where pooled phase buffers should remove most crossings for payloads under the pool's largest bucket
 - [ ] ALLOC-07 — the tight-limits profile B-P2 is measured for allocation as well as time, so the accounting structures have a number
 - [ ] ALLOC-08 — no allocation number is published from a run that also produced a timing in the same iteration when the diagnoser is known to perturb it; where it does, the timing comes from a separate run and the report says so
+- [ ] ALLOC-09 — cycle detection without references: the engine's ancestor stack against a per-operation `HashSet` by reference over the same path, at depths 4, 32 and 500; the depth-500 engine cell also against SCALE-03 of `Baselines/pre-rework/` *(Contract §16; added in R2)* — `CycleDetectionBenchmarks`
 
 ---
 
@@ -560,14 +561,14 @@ Diagnostic, never a market comparison. They exist for two readers: the engineer 
 Measured directly on the internal type that owns the mechanism, through the grant of §18.3.
 
 - [ ] MICRO-01 — `WireWriter`/`WireReader` primitives: varint, fixed-width, string, blob, on both directions, compared cell by cell with the `ValueWriter`/`ValueReader` cells of `Baselines/pre-rework/`; a write cell includes filling the `PayloadBuffer` from empty and returning it, as one serialization does *(Contract §22.1; rewritten in R1)*
-- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop *(Contract §6)*
+- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop, through the operation the pipeline creates *(Contract §6)*
 - [ ] MICRO-03 — depth scope entry and exit, and the unwind on the exceptional path *(Contract §5.1)*
 - [ ] MICRO-04 — `TypeContract` construction for a cold type, and lookup once cached, positional and keyed *(Contract §14)*
 - [ ] MICRO-05 — `FormatterRegistry.Resolve` for a claimed type and for a member-encoded one
 - [ ] MICRO-06 — one formatter per shape family: scalar, sequence, map, composite
-- [ ] MICRO-07 — reference identity tracking: registration, lookup, scope exit, at several sharing densities *(Contract §16)*
+- [ ] MICRO-07 — reference identity tracking through the pooled reference tables: rent, registration, lookup, scope exit and return, at several sharing densities *(Contract §16; rewritten in R2)*
 - [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(Contract §11, §13.1)*
-- [ ] MICRO-09 — `MeteredReadStream`, `MeteredWriteStream` and `WindowReadStream` against the bare stream *(Contract §7)*
+- [ ] MICRO-09 — metering and windowing over buffers against a bare copy: the `PayloadBuffer` budget on write, the `WireReader` budget on read, the `WireReader.Slice` window read and skip, and the copy of a finished buffer to a stream *(Contract §7; rewritten in R2, where the three stream decorators were removed)* — `MeteringBenchmarks`
 - [ ] MICRO-10 — the algorithm primitives over spans, outside the pipeline: `Deflate`, `Brotli`, `Crc32`, `Aes256Gcm` *(Contract §12, §13)*
 - [x] MICRO-11 — allocation is recorded for every microbenchmark above, not only time, since the per-component allocation record is what a later version compares against
 - [x] MICRO-12 — every microbenchmark names the end-to-end measurement it explains; one that explains nothing is deleted
@@ -790,6 +791,8 @@ can be recorded against it.
 | [PERF-01](performance/PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | B0 verification, DATA-08 and DATA-14 | Resolved by the owner, as a clarification of Contract §5; no behavior and no bytes changed |
 | [PERF-02](performance/PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | A5, SCALE-02 and SCALE-09 | Open |
 | [PERF-03](performance/PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream the old MICRO-01 cell used | MICRO-01, rework R1 | Open |
+| [PERF-04](performance/PERF-04-pooled-phase-buffers.md) | The pooled write path is slower on a large unphased blob (×1.15) and on a few compressed cells (×1.05–1.07), while the rest of the matrix is ×0.43–0.99 | ALLOC-02, ALLOC-03, ALLOC-06, rework R2 | Open |
+| [PERF-05](performance/PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth; SCALE-03 goes from ×0.56 at depth 1 to ×0.94 at depth 500 | ALLOC-09, SCALE-03, rework R2 | Open |
 
 ## 27.2 Open questions
 

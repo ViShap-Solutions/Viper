@@ -1,24 +1,18 @@
-using System.Buffers;
-
 namespace ViShap.Viper.Compression;
 
 /// <summary>
 /// Runs a compression algorithm. It is internal on purpose: phase sizes are checked by the pipeline
 /// that calls it, so the barrier cannot be replaced from outside, and an algorithm implementation
-/// never has to know a limit.
+/// never has to know a limit. Every result is a pooled buffer owned by the caller.
 /// </summary>
 internal sealed class CompressionService(ICompressionAlgorithm algorithm)
 {
     public CompressionAlgorithm Kind => algorithm.Kind;
     public string? CustomName => algorithm.CustomName;
 
-    public byte[] Compress(byte[] rawPayload, long maxCompressedBytes)
+    /// <summary>Compresses <paramref name="rawPayload"/>. Not called for <see cref="CompressionAlgorithm.None"/>.</summary>
+    public RentedBytes Compress(ReadOnlySpan<byte> rawPayload, long maxCompressedBytes)
     {
-        ArgumentNullException.ThrowIfNull(rawPayload);
-
-        if (algorithm.Kind == CompressionAlgorithm.None)
-            return rawPayload;
-
         int maxLength = algorithm.GetMaxCompressedLength(rawPayload.Length);
         if (maxLength < 0)
             throw new BinaryConfigurationException(
@@ -27,7 +21,7 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
         int destinationLength = (int)Math.Min(maxLength, maxCompressedBytes);
         bool capped = destinationLength < maxLength;
 
-        byte[] rented = ArrayPool<byte>.Shared.Rent(destinationLength);
+        byte[] rented = RentedBytes.RentArray(destinationLength);
         try
         {
             int written;
@@ -47,17 +41,30 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
                 throw new BinaryConfigurationException(
                     $"The compression algorithm returned an invalid output length of {written}.");
 
-            return rented.AsSpan(0, written).ToArray();
+            return RentedBytes.Adopt(rented, written);
         }
-        finally
+        catch
         {
-            ArrayPool<byte>.Shared.Return(rented, clearArray: true);
+            RentedBytes.ReturnArray(rented);
+            throw;
         }
     }
 
     /// <summary>
+    /// Checks a payload stored without compression: its length is the declared uncompressed length.
+    /// </summary>
+    public static void RequireStored(ReadOnlySpan<byte> compressedPayload, int uncompressedLength)
+    {
+        if (compressedPayload.Length != uncompressedLength)
+            throw new BinaryFormatException(
+                $"Compressed payload length {compressedPayload.Length} does not match the declared " +
+                $"uncompressed length {uncompressedLength} when compression is None.");
+    }
+
+    /// <summary>
     /// Produces exactly the declared number of bytes. The algorithm must produce that many and no
-    /// more — a stream that expands further is rejected rather than silently truncated.
+    /// more — a stream that expands further is rejected rather than silently truncated. Not called
+    /// for <see cref="CompressionAlgorithm.None"/>; see <see cref="RequireStored"/>.
     /// <para>
     /// An algorithm that decompresses incrementally is driven through a buffer that grows as output
     /// arrives, so the declared length bounds the result without being allocated up front. One that
@@ -66,31 +73,17 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
     /// pipeline checks before calling here.
     /// </para>
     /// </summary>
-    public static byte[] Decompress(
+    public static RentedBytes Decompress(
         ICompressionAlgorithm algorithm,
-        byte[] compressedPayload,
-        int uncompressedLength)
-    {
-        ArgumentNullException.ThrowIfNull(compressedPayload);
-
-        if (algorithm.Kind == CompressionAlgorithm.None)
-        {
-            if (compressedPayload.Length != uncompressedLength)
-                throw new BinaryFormatException(
-                    $"Compressed payload length {compressedPayload.Length} does not match the declared " +
-                    $"uncompressed length {uncompressedLength} when compression is None.");
-
-            return compressedPayload;
-        }
-
-        return algorithm.SupportsIncrementalDecompression
+        ReadOnlySpan<byte> compressedPayload,
+        int uncompressedLength) =>
+        algorithm.SupportsIncrementalDecompression
             ? Incrementally(algorithm, compressedPayload, uncompressedLength)
             : AtOnce(algorithm, compressedPayload, uncompressedLength);
-    }
 
-    private static byte[] Incrementally(
+    private static RentedBytes Incrementally(
         ICompressionAlgorithm algorithm,
-        byte[] compressedPayload,
+        ReadOnlySpan<byte> compressedPayload,
         int uncompressedLength)
     {
         using var buffer = new PayloadBufferWriter(uncompressedLength);
@@ -114,36 +107,35 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
         return buffer.DetachPayload();
     }
 
-    private static byte[] AtOnce(
+    private static RentedBytes AtOnce(
         ICompressionAlgorithm algorithm,
-        byte[] compressedPayload,
+        ReadOnlySpan<byte> compressedPayload,
         int uncompressedLength)
     {
-        var result = new byte[uncompressedLength];
-        int written;
+        byte[] rented = RentedBytes.RentArray(uncompressedLength);
         try
         {
-            written = algorithm.Decompress(compressedPayload, result);
+            int written;
+            try
+            {
+                written = algorithm.Decompress(compressedPayload, rented.AsSpan(0, uncompressedLength));
+            }
+            catch (InvalidDataException ex)
+            {
+                throw new BinaryFormatException(
+                    "Decompression failed because the compressed payload is malformed.", ex);
+            }
+
+            if (written != uncompressedLength)
+                throw new BinaryFormatException(
+                    $"Decompression produced {written} bytes, expected {uncompressedLength}.");
+
+            return RentedBytes.Adopt(rented, written);
         }
-        catch (InvalidDataException ex)
+        catch
         {
-            Array.Clear(result);
-            throw new BinaryFormatException(
-                "Decompression failed because the compressed payload is malformed.", ex);
-        }
-        catch (BinarySerializerException)
-        {
-            Array.Clear(result);
+            RentedBytes.ReturnArray(rented);
             throw;
         }
-
-        if (written != uncompressedLength)
-        {
-            Array.Clear(result);
-            throw new BinaryFormatException(
-                $"Decompression produced {written} bytes, expected {uncompressedLength}.");
-        }
-
-        return result;
     }
 }

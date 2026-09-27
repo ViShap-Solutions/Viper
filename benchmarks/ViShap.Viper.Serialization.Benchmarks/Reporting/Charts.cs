@@ -163,7 +163,7 @@ internal static class Charts
         foreach (var (suite, title, file, unit) in new[]
         {
             ("ValuePrimitiveBenchmarks", "MICRO-01 payload primitives", "components-primitives.svg", "nanoseconds per call"),
-            ("StreamMechanismBenchmarks", "MICRO-09 stream mechanisms", "components-streams.svg", "nanoseconds per call"),
+            ("MeteringBenchmarks", "MICRO-09 metering and windowing", "components-metering.svg", "nanoseconds per call"),
         })
         {
             var rows = results.Where(row => row.SuiteName == suite && row.State == "Supported").ToList();

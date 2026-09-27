@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace ViShap.Viper.Engine;
 
 /// <summary>
@@ -5,19 +7,38 @@ namespace ViShap.Viper.Engine;
 /// graph, so depth, object-graph nodes, cycle detection, reference identity and the keyed layout are
 /// each implemented exactly once. Formatters contribute encoding, never accounting.
 /// </summary>
-internal sealed class GraphWriter
+internal sealed class GraphWriter : IDisposable
 {
+    private const int FirstAncestorCapacity = 16;
+
     private readonly SerializationOperation _operation;
-    private readonly WriteReferenceTable? _references;
-    private readonly HashSet<object>? _activeAncestors;
+    private readonly bool _detectsCycles;
+    private WriteReferenceTable? _references;
+    private object?[]? _ancestors;
+    private int _ancestorCount;
 
     public GraphWriter(SerializationOperation operation)
     {
         _operation = operation;
-        _references = operation.PreserveReferences ? new WriteReferenceTable() : null;
-        _activeAncestors = operation.PreserveReferences
-            ? null
-            : new HashSet<object>(ReferenceEqualityComparer.Instance);
+        _detectsCycles = !operation.PreserveReferences;
+        _references = operation.PreserveReferences ? WriteReferenceTable.Rent() : null;
+    }
+
+    /// <summary>Returns the reference table and the ancestor stack, both cleared, to their pools.</summary>
+    public void Dispose()
+    {
+        if (_references is not null)
+        {
+            WriteReferenceTable.Return(_references);
+            _references = null;
+        }
+
+        if (_ancestors is not null)
+        {
+            ArrayPool<object?>.Shared.Return(_ancestors, clearArray: true);
+            _ancestors = null;
+            _ancestorCount = 0;
+        }
     }
 
     public void WriteRoot<T>(ref WireWriter writer, T value) => WriteValue(ref writer, value, typeof(T));
@@ -72,13 +93,9 @@ internal sealed class GraphWriter
         using var depth = _operation.Budget.EnterDepth();
         _operation.Budget.ConsumeObjectGraphNodes(1);
 
-        bool tracksCycles = _activeAncestors is not null && !effectiveType.IsValueType;
-        if (tracksCycles && !_activeAncestors!.Add(value))
-            throw new BinaryTypeException(
-                $"Circular reference detected while serializing '{value.GetType()}' — an object of " +
-                "this type refers back to an ancestor already being written. Enable " +
-                "BinarySerializerOptions.Configure().PreserveReferences(), break the cycle, or " +
-                "exclude one side with [BinaryIgnore].");
+        bool tracksCycles = _detectsCycles && !effectiveType.IsValueType;
+        if (tracksCycles)
+            PushAncestor(value);
 
         try
         {
@@ -101,8 +118,46 @@ internal sealed class GraphWriter
         finally
         {
             if (tracksCycles)
-                _activeAncestors!.Remove(value);
+                _ancestors![--_ancestorCount] = null;
         }
+    }
+
+    /// <summary>
+    /// Enters <paramref name="value"/> on the path from the root, refusing it when it is already on
+    /// that path: without reference framing a cycle has no finite encoding. The path is never deeper
+    /// than the depth budget, which has admitted this value, so a linear search by reference is
+    /// bounded by <c>MaxDepth</c> and a value shared between siblings is not mistaken for a cycle.
+    /// </summary>
+    private void PushAncestor(object value)
+    {
+        for (int index = 0; index < _ancestorCount; index++)
+        {
+            if (ReferenceEquals(_ancestors![index], value))
+                throw new BinaryTypeException(
+                    $"Circular reference detected while serializing '{value.GetType()}' — an object of " +
+                    "this type refers back to an ancestor already being written. Enable " +
+                    "BinarySerializerOptions.Configure().PreserveReferences(), break the cycle, or " +
+                    "exclude one side with [BinaryIgnore].");
+        }
+
+        if (_ancestors is null || _ancestorCount == _ancestors.Length)
+            GrowAncestors();
+
+        _ancestors![_ancestorCount++] = value;
+    }
+
+    private void GrowAncestors()
+    {
+        var grown = ArrayPool<object?>.Shared.Rent(
+            _ancestors is null ? FirstAncestorCapacity : _ancestors.Length * 2);
+
+        if (_ancestors is not null)
+        {
+            _ancestors.AsSpan(0, _ancestorCount).CopyTo(grown);
+            ArrayPool<object?>.Shared.Return(_ancestors, clearArray: true);
+        }
+
+        _ancestors = grown;
     }
 
     private void WriteSequence(

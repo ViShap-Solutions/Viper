@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace ViShap.Viper;
 
 /// <summary>
@@ -11,8 +13,8 @@ namespace ViShap.Viper;
 /// </para>
 /// <para>
 /// Version 1 payloads are self-describing: the header records the format version and the algorithms
-/// used, so a reader configured differently still knows how to unwrap the data. Reading therefore
-/// needs a seekable stream, since the version is inspected before anything is consumed.
+/// used, so a reader configured differently still knows how to unwrap the data. Reading from a stream
+/// therefore needs a seekable one, since the version is inspected before anything is consumed.
 /// </para>
 /// <para>
 /// Version 0 is the compact alternative for a transport that already supplies its own context: a
@@ -75,18 +77,20 @@ public sealed class BinarySerializer
     /// <param name="data">The value to write. May be <see langword="null"/> for reference types.</param>
     /// <param name="destination">
     /// The stream to append to. It is left open, and its position is not reset; only the bytes this
-    /// call produces count against <see cref="Security.SerializationLimits.MaxWireBytes"/>. Writing a
-    /// <see cref="BinaryContractAttribute"/> type under format version 0 needs it to be seekable,
-    /// because that version writes through instead of buffering the payload.
+    /// call produces count against <see cref="Security.SerializationLimits.MaxWireBytes"/>. It does not
+    /// need to be seekable. The whole payload is encoded before the first byte is written, so a value
+    /// that cannot be encoded leaves the stream as it was.
     /// </param>
     /// <exception cref="Exceptions.BinaryTypeException">The type or the object graph cannot be encoded.</exception>
     /// <exception cref="Exceptions.BinaryLimitException">A configured limit was exceeded.</exception>
     /// <exception cref="Exceptions.BinaryStreamException">The destination stream failed.</exception>
-    /// <exception cref="NotSupportedException">
-    /// A keyed contract is written under format version 0 to a stream that cannot seek.
-    /// </exception>
-    public void Serialize<T>(Stream destination, T data) =>
-        _router.ForWriting(_options.WriteVersion).Write(destination, data, BeginOperation());
+    public void Serialize<T>(Stream destination, T data)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        using var frame = Encode(data);
+        frame.WriteTo(destination);
+    }
 
     /// <summary>Writes <paramref name="data"/> to a new byte array.</summary>
     /// <typeparam name="T">The declared type; see <see cref="Serialize{T}(Stream, T)"/>.</typeparam>
@@ -94,9 +98,20 @@ public sealed class BinarySerializer
     /// <returns>The encoded payload.</returns>
     public byte[] Serialize<T>(T data)
     {
-        using var buffer = new MemoryStream();
-        Serialize(buffer, data);
-        return buffer.ToArray();
+        using var frame = Encode(data);
+        return frame.ToArray();
+    }
+
+    /// <summary>
+    /// Writes <paramref name="data"/> to <paramref name="destination"/>. The whole payload is encoded
+    /// before the first byte is copied, so a value that cannot be encoded advances nothing.
+    /// </summary>
+    internal void SerializeTo<T>(IBufferWriter<byte> destination, T data)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+
+        using var frame = Encode(data);
+        frame.WriteTo(destination);
     }
 
     /// <summary>Reads a value from <paramref name="source"/>.</summary>
@@ -113,7 +128,7 @@ public sealed class BinarySerializer
     /// <exception cref="Exceptions.BinaryEncryptionKeyException">Key material is missing or does not match.</exception>
     /// <exception cref="Exceptions.BinaryTypeException">The payload does not fit the requested type.</exception>
     public T? Deserialize<T>(Stream source) =>
-        _router.ForReading(source).Read<T>(source, BeginOperation());
+        (T?)_router.ForReading(source).Read(source, typeof(T), existingInstance: null, BeginOperation());
 
     /// <summary>Reads a value from a byte array.</summary>
     /// <typeparam name="T">The declared type the payload was written with.</typeparam>
@@ -125,8 +140,7 @@ public sealed class BinarySerializer
         ArgumentNullException.ThrowIfNull(bytes);
         RequireNonEmpty(bytes);
 
-        using var buffer = new MemoryStream(bytes, writable: false);
-        return Deserialize<T>(buffer);
+        return (T?)_router.ForReading(bytes).Read(bytes, typeof(T), existingInstance: null, BeginOperation());
     }
 
     /// <summary>Reads a payload into an object you already have, instead of allocating a new one.</summary>
@@ -143,7 +157,7 @@ public sealed class BinarySerializer
     public T? Deserialize<T>(Stream source, T existingInstance) where T : class
     {
         ArgumentNullException.ThrowIfNull(existingInstance);
-        return _router.ForReading(source).Read(source, existingInstance, BeginOperation());
+        return (T)_router.ForReading(source).Read(source, typeof(T), existingInstance, BeginOperation())!;
     }
 
     /// <summary>Reads a payload into an object you already have.</summary>
@@ -158,8 +172,7 @@ public sealed class BinarySerializer
         ArgumentNullException.ThrowIfNull(existingInstance);
         RequireNonEmpty(bytes);
 
-        using var buffer = new MemoryStream(bytes, writable: false);
-        return Deserialize(buffer, existingInstance);
+        return (T)_router.ForReading(bytes).Read(bytes, typeof(T), existingInstance, BeginOperation())!;
     }
 
     /// <summary>Reads a value type, assigning the result to <paramref name="existingInstance"/>.</summary>
@@ -185,6 +198,9 @@ public sealed class BinarySerializer
 
         existingInstance = Deserialize<T>(bytes);
     }
+
+    private EncodedFrame Encode<T>(T data) =>
+        _router.ForWriting(_options.WriteVersion).Write(data, BeginOperation());
 
     private static void RequireNonEmpty(byte[] bytes)
     {

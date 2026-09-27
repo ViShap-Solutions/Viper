@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Security.Cryptography;
 
 namespace ViShap.Viper.Crypto;
@@ -6,7 +5,8 @@ namespace ViShap.Viper.Crypto;
 /// <summary>
 /// Runs an encryption algorithm over a payload, binding the format metadata as associated data.
 /// Key material is always an owned <see cref="SecretKey"/> obtained from the configured provider and
-/// disposed here, so the serializer never clears memory it does not own.
+/// disposed here, so the serializer never clears memory it does not own. Every result is a pooled
+/// buffer owned by the caller.
 /// </summary>
 internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? keyId)
 {
@@ -15,17 +15,13 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
     public string? KeyId => keyId;
     public bool AuthenticatesAssociatedData => algorithm.AuthenticatesAssociatedData;
 
-    public byte[] Encrypt(
-        byte[] plaintext,
+    /// <summary>Encrypts <paramref name="plaintext"/>. Not called for <see cref="EncryptionAlgorithm.None"/>.</summary>
+    public RentedBytes Encrypt(
+        ReadOnlySpan<byte> plaintext,
         ReadOnlySpan<byte> associatedData,
         IKeyProvider? keys,
         long maxEncryptedBytes)
     {
-        ArgumentNullException.ThrowIfNull(plaintext);
-
-        if (algorithm.Kind == EncryptionAlgorithm.None)
-            return plaintext;
-
         using var key = Resolve(keys, keyId);
 
         int maxLength = algorithm.GetMaxCiphertextLength(plaintext.Length);
@@ -36,7 +32,7 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
         int destinationLength = (int)Math.Min(maxLength, maxEncryptedBytes);
         bool capped = destinationLength < maxLength;
 
-        byte[] rented = ArrayPool<byte>.Shared.Rent(destinationLength);
+        byte[] rented = RentedBytes.RentArray(destinationLength);
         try
         {
             int written;
@@ -62,34 +58,38 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
                 throw new BinaryConfigurationException(
                     $"The encryption algorithm returned an invalid output length of {written}.");
 
-            return rented.AsSpan(0, written).ToArray();
+            return RentedBytes.Adopt(rented, written);
         }
-        finally
+        catch
         {
-            ArrayPool<byte>.Shared.Return(rented, clearArray: true);
+            RentedBytes.ReturnArray(rented);
+            throw;
         }
     }
 
-    public static byte[] Decrypt(
+    /// <summary>
+    /// Checks a payload stored without encryption: its length is the declared plaintext length.
+    /// </summary>
+    public static void RequireStored(ReadOnlySpan<byte> ciphertext, int expectedPlaintextLength)
+    {
+        if (ciphertext.Length != expectedPlaintextLength)
+            throw new BinaryFormatException(
+                $"Ciphertext length {ciphertext.Length} does not match the declared plaintext " +
+                $"length {expectedPlaintextLength} when encryption is None.");
+    }
+
+    /// <summary>
+    /// Decrypts <paramref name="ciphertext"/> into exactly the declared plaintext length. Not called
+    /// for <see cref="EncryptionAlgorithm.None"/>; see <see cref="RequireStored"/>.
+    /// </summary>
+    public static RentedBytes Decrypt(
         IEncryptionAlgorithm algorithm,
-        byte[] ciphertext,
+        ReadOnlySpan<byte> ciphertext,
         ReadOnlySpan<byte> associatedData,
         IKeyProvider? keys,
         string? headerKeyId,
         int expectedPlaintextLength)
     {
-        ArgumentNullException.ThrowIfNull(ciphertext);
-
-        if (algorithm.Kind == EncryptionAlgorithm.None)
-        {
-            if (ciphertext.Length != expectedPlaintextLength)
-                throw new BinaryFormatException(
-                    $"Ciphertext length {ciphertext.Length} does not match the declared plaintext " +
-                    $"length {expectedPlaintextLength} when encryption is None.");
-
-            return ciphertext;
-        }
-
         // Decryption never expands: the declared plaintext cannot exceed the ciphertext that was
         // actually delivered, so a short frame cannot force a large allocation by claiming one.
         if (expectedPlaintextLength > ciphertext.Length)
@@ -99,32 +99,32 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
 
         using var key = Resolve(keys, headerKeyId);
 
-        var result = new byte[expectedPlaintextLength];
-        int written;
+        byte[] rented = RentedBytes.RentArray(expectedPlaintextLength);
         try
         {
-            written = algorithm.Decrypt(ciphertext, key.Span, associatedData, result);
+            int written;
+            try
+            {
+                written = algorithm.Decrypt(
+                    ciphertext, key.Span, associatedData, rented.AsSpan(0, expectedPlaintextLength));
+            }
+            catch (CryptographicException ex)
+            {
+                throw new BinaryIntegrityException(
+                    "Decryption failed: wrong key, tampered payload, or tampered format metadata.", ex);
+            }
+
+            if (written != expectedPlaintextLength)
+                throw new BinaryFormatException(
+                    $"Decryption produced {written} bytes, expected {expectedPlaintextLength}.");
+
+            return RentedBytes.Adopt(rented, written);
         }
-        catch (BinarySerializerException)
+        catch
         {
-            Array.Clear(result);
+            RentedBytes.ReturnArray(rented);
             throw;
         }
-        catch (CryptographicException ex)
-        {
-            Array.Clear(result);
-            throw new BinaryIntegrityException(
-                "Decryption failed: wrong key, tampered payload, or tampered format metadata.", ex);
-        }
-
-        if (written != expectedPlaintextLength)
-        {
-            Array.Clear(result);
-            throw new BinaryFormatException(
-                $"Decryption produced {written} bytes, expected {expectedPlaintextLength}.");
-        }
-
-        return result;
     }
 
     private static SecretKey Resolve(IKeyProvider? keys, string? keyId) =>

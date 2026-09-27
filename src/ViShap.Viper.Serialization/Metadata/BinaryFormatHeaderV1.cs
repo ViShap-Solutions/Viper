@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Buffers.Binary;
+using System.Text;
 
 namespace ViShap.Viper.Metadata;
 
@@ -122,25 +123,72 @@ internal readonly record struct BinaryFormatHeaderV1(
     /// </summary>
     public byte[] BuildAssociatedData()
     {
-        using var buffer = new MemoryStream(64);
-        using var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true);
+        var image = new byte[AssociatedDataLength];
+        WriteAssociatedData(image);
+        return image;
+    }
 
-        writer.Write(Version);
-        writer.Write((byte)Compression);
-        writer.Write(CustomCompressionName ?? string.Empty);
-        writer.Write((byte)ChecksumAlgorithm);
-        writer.Write(CustomChecksumName ?? string.Empty);
-        writer.Write((byte)Encryption);
-        writer.Write(CustomEncryptionName ?? string.Empty);
-        writer.Write(KeyId ?? string.Empty);
-        writer.Write(PreserveReferences);
-        writer.Write(UncompressedLength);
-        writer.Write(CompressedLength);
-        writer.Write((byte)Checksum.Length);
-        writer.Write(Checksum);
-        writer.Flush();
+    /// <summary>The length of the image <see cref="WriteAssociatedData"/> writes.</summary>
+    public int AssociatedDataLength =>
+        sizeof(int)
+        + sizeof(byte) + ImageStringLength(CustomCompressionName)
+        + sizeof(byte) + ImageStringLength(CustomChecksumName)
+        + sizeof(byte) + ImageStringLength(CustomEncryptionName)
+        + ImageStringLength(KeyId)
+        + sizeof(bool)
+        + 2 * sizeof(int)
+        + sizeof(byte) + Checksum.Length;
 
-        return buffer.ToArray();
+    /// <summary>
+    /// Writes the image of <see cref="BuildAssociatedData"/> into the first
+    /// <see cref="AssociatedDataLength"/> bytes of <paramref name="destination"/>. Integers are
+    /// little-endian, a boolean is one byte, and a string is its UTF-8 byte count as a 7-bit encoded
+    /// integer followed by the bytes, an absent one written as empty.
+    /// </summary>
+    public void WriteAssociatedData(Span<byte> destination)
+    {
+        int position = 0;
+        BinaryPrimitives.WriteInt32LittleEndian(destination[position..], Version);
+        position += sizeof(int);
+        destination[position++] = (byte)Compression;
+        position += WriteImageString(destination[position..], CustomCompressionName);
+        destination[position++] = (byte)ChecksumAlgorithm;
+        position += WriteImageString(destination[position..], CustomChecksumName);
+        destination[position++] = (byte)Encryption;
+        position += WriteImageString(destination[position..], CustomEncryptionName);
+        position += WriteImageString(destination[position..], KeyId);
+        destination[position++] = PreserveReferences ? (byte)1 : (byte)0;
+        BinaryPrimitives.WriteInt32LittleEndian(destination[position..], UncompressedLength);
+        position += sizeof(int);
+        BinaryPrimitives.WriteInt32LittleEndian(destination[position..], CompressedLength);
+        position += sizeof(int);
+        destination[position++] = (byte)Checksum.Length;
+        Checksum.CopyTo(destination[position..]);
+    }
+
+    private static int ImageStringLength(string? value)
+    {
+        int byteCount = Encoding.UTF8.GetByteCount(value ?? string.Empty);
+        int prefix = 1;
+        for (uint remaining = (uint)byteCount; remaining >= 0x80; remaining >>= 7)
+            prefix++;
+
+        return prefix + byteCount;
+    }
+
+    private static int WriteImageString(Span<byte> destination, string? value)
+    {
+        value ??= string.Empty;
+        int position = 0;
+        uint remaining = (uint)Encoding.UTF8.GetByteCount(value);
+        while (remaining >= 0x80)
+        {
+            destination[position++] = (byte)(remaining | 0x80);
+            remaining >>= 7;
+        }
+
+        destination[position++] = (byte)remaining;
+        return position + Encoding.UTF8.GetBytes(value, destination[position..]);
     }
 
     public BinaryHeaderInfo ToInfo() =>

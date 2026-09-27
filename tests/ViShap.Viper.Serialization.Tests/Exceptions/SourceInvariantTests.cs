@@ -40,9 +40,7 @@ public class SourceInvariantTests
         // relabel a format or limit failure as a stream failure.
         string[] allowed =
         [
-            "ViShap.Viper.Serialization/Security/MeteredReadStream.cs",
-            "ViShap.Viper.Serialization/Security/MeteredWriteStream.cs",
-            "ViShap.Viper.Serialization/Security/WindowReadStream.cs",
+            "ViShap.Viper.Serialization/Pipeline/EncodedFrame.cs",
             "ViShap.Viper.Serialization/Pipeline/FormatRouter.cs",
             "ViShap.Viper.Serialization/Pipeline/StreamSource.cs",
             "ViShap.Viper.Serialization/Metadata/BinaryFormatInspector.cs"

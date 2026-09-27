@@ -49,8 +49,10 @@ public class ProfileMatrixBenchmarks
 }
 
 /// <summary>
-/// B1 — the same profiles through the stream entry points (WL-02, WL-05). The destination is reset
-/// rather than reallocated, so the measurement is the write and not the buffer growth.
+/// B1 — the same profiles through the stream entry points (WL-02, WL-03, WL-05). The destination is
+/// reset rather than reallocated, so the measurement is the write and not the buffer growth. WL-03
+/// writes the same bytes into the same buffer through a stream that cannot seek, under every profile
+/// and for keyed contracts too.
 /// </summary>
 [MemoryDiagnoser]
 public class ProfileStreamBenchmarks
@@ -58,6 +60,7 @@ public class ProfileStreamBenchmarks
     private ViperAdapter _adapter = null!;
     private Dataset _dataset = null!;
     private MemoryStream _destination = null!;
+    private ForwardOnlyStream _forwardOnly = null!;
     private MemoryStream _source = null!;
 
     public static IEnumerable<ViperProfile> Profiles => ViperProfiles.All;
@@ -79,6 +82,7 @@ public class ProfileStreamBenchmarks
         var payload = _dataset.Serialize(_adapter);
 
         _destination = new MemoryStream(payload.Length);
+        _forwardOnly = new ForwardOnlyStream(new MemoryStream(payload.Length));
         _source = new MemoryStream(payload, writable: false);
     }
 
@@ -86,6 +90,7 @@ public class ProfileStreamBenchmarks
     public void Cleanup()
     {
         _destination.Dispose();
+        _forwardOnly.Dispose();
         _source.Dispose();
     }
 
@@ -95,6 +100,14 @@ public class ProfileStreamBenchmarks
         _destination.Position = 0;
         _dataset.SerializeTo(_adapter, _destination);
         return _destination.Position;
+    }
+
+    [Benchmark(Description = "WL-03 serialize → non-seekable Stream")]
+    public long SerializeToNonSeekableStream()
+    {
+        _forwardOnly.Reset();
+        _dataset.SerializeTo(_adapter, _forwardOnly);
+        return _forwardOnly.Written;
     }
 
     [Benchmark(Description = "WL-05 deserialize ← Stream")]
@@ -133,4 +146,44 @@ public class HarnessFloorBenchmarks
 
     [Benchmark(Description = "floor deserialize")]
     public object? Deserialize() => _dataset.Deserialize(_adapter, _payload);
+}
+
+/// <summary>
+/// A write-only destination that cannot seek, such as a socket or a pipe, over a buffer the suite
+/// rewinds between invocations.
+/// </summary>
+internal sealed class ForwardOnlyStream(MemoryStream inner) : Stream
+{
+    public long Written => inner.Position;
+
+    public override bool CanRead => false;
+    public override bool CanSeek => false;
+    public override bool CanWrite => true;
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    /// <summary>Rewinds the buffer underneath; the stream itself still cannot seek.</summary>
+    public void Reset() => inner.Position = 0;
+
+    public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+    public override void Write(ReadOnlySpan<byte> buffer) => inner.Write(buffer);
+    public override void Flush() { }
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            inner.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
 }

@@ -35,7 +35,8 @@ Public API            BinarySerializer · StreamExtensions · attributes · exce
 SerializationOperation    Limits snapshot · Budget · PhaseBudget · Keys · policies
       │
 FormatPipeline (V0|V1)    framing · phase order · header + AAD · phase sizes
-      │  source bytes read ahead into memory · PayloadBuffer · MeteredWriteStream
+      │  source bytes read ahead into memory · phases as transforms over pooled buffers ·
+      │  the whole frame built in PayloadBuffer, then copied to the destination once
 PayloadEngine             traversal · depth · graph nodes · references · TypeContract
       │  WireReader / WireWriter — ref structs over memory, the only access to payload bytes
 Formatters                type encoding only
@@ -118,6 +119,20 @@ limits: they are called **inside** the barrier, never instead of it.
 
 Public algorithm contracts (`ICompressionAlgorithm`, `IChecksumAlgorithm`, `IEncryptionAlgorithm`)
 contain no serializer policy, so an external implementation cannot weaken a limit.
+
+Each phase reads one pooled buffer and writes the next; the input of a phase is cleared and returned
+to its pool as soon as its output exists. A V1 payload with no phase goes out as the engine wrote it.
+Under any phase the payload is made contiguous once, because each phase works on a single span.
+
+## 2.6 Atomic writes
+
+A data or graph error leaves no byte in the destination (INV-15). A pipeline builds the whole frame
+— header and body — in the serializer's own pooled buffers, checks it against `MaxWireBytes`, and
+only then copies it to the destination. A type error, a limit breach or an algorithm failure
+therefore raises before the destination is touched, whatever the destination is: a stream, seekable
+or not, or a buffer writer. Only a failure of the destination itself, while the finished bytes are
+being copied, can leave part of a frame behind (§20). Encryption starts only after the whole payload
+is in the serializer's buffer.
 
 ---
 
@@ -489,7 +504,10 @@ are already required to be equal.
 
 `MaxEncryptedBytes` bounds the encrypted/on-disk representation.
 
-`MaxWireBytes` bounds physical stream bytes consumed/produced by one operation.
+`MaxWireBytes` bounds the bytes one operation takes from its source and the bytes it emits to its
+destination, each counted from where the operation starts. On read, the pipeline never buffers more
+than this from the source (§7.1). On write, a finished frame longer than this is refused with
+`BinaryLimitException` before any byte is copied out (§7.2).
 
 ---
 
@@ -519,11 +537,11 @@ A charge is per element, never per byte, and the element type does not change it
 
 ---
 
-# 7. Security stream mechanisms
+# 7. Metering and windowing over buffers
 
-There are two mechanisms: metering and windowing. On the read side both are properties of
-`WireReader`; on the write side metering is split between the serializer's `PayloadBuffer` and
-`MeteredWriteStream`.
+There are two mechanisms: metering and windowing. Neither is a stream: on the read side both are
+properties of `WireReader`, which reads memory; on the write side metering is a property of the
+serializer's `PayloadBuffer` and of the finished frame, which is checked before it is copied out.
 
 **Metering** — counting what one operation consumes or produces, relative to where it started.
 
@@ -535,7 +553,9 @@ There are two mechanisms: metering and windowing. On the read side both are prop
   than the operation's budget: V1 reads its header (at most the largest header the format admits)
   and then exactly the declared on-disk length; V0, which has no header, reads up to the tighter of
   `MaxWireBytes` and `MaxPayloadBytes`, so `MaxPayloadBytes` applies symmetrically to reading and
-  writing;
+  writing. A byte array is already in memory and is decoded where it lies, cut to the same budget;
+- a phased V1 payload is decrypted and decompressed into pooled buffers, each cleared when the value
+  has been read; an unphased one is decoded straight from the bytes read;
 - the `WireReader` over those bytes knows exactly how many remain, so a declared length is rejected
   before it drives an allocation;
 - a declaration the bytes cannot satisfy is classified by which bound it broke: beyond the budget is
@@ -547,22 +567,25 @@ There are two mechanisms: metering and windowing. On the read side both are prop
 - underlying `IOException` is wrapped as `BinaryStreamException`;
 - the caller's stream is never disposed.
 
-## 7.2 `MeteredWriteStream`
+## 7.2 Metering on write
 
 > Caps the bytes this operation produces.
 
-- the budget is relative to the destination's starting position, so appending to a stream that
+- the payload is written into the serializer's `PayloadBuffer`, which never hands out space past
+  its budget — `MaxPayloadBytes`, and under V0, where the payload is the whole frame, the tighter of
+  `MaxPayloadBytes` and `MaxWireBytes` — so a graph that would exceed it fails with
+  `BinaryLimitException` while it is being written;
+- the budget counts only the bytes this operation produces, so appending to a destination that
   already holds data costs the operation nothing;
-- rewinds used for keyed-field length patching do not double-charge: the budget follows the
-  high-water mark;
-- tracks its own cursor rather than polling the underlying stream on every write;
-- wraps underlying `IOException` as `BinaryStreamException`;
-- never disposes the caller's stream.
-
-The serializer's `PayloadBuffer` carries the payload budget on the write side: it never hands out
-space past `MaxPayloadBytes` (under V0 the tighter of `MaxPayloadBytes` and `MaxWireBytes`), so a
-graph that would exceed it fails with `BinaryLimitException` while it is being written, before any
-byte reaches the destination.
+- a keyed field's length is patched in place in the buffer, over bytes already counted, so a patch
+  is never charged twice: the budget follows the high-water mark;
+- the finished frame is checked against `MaxWireBytes` before it leaves; a frame longer than the
+  budget is `BinaryLimitException`, and the destination receives nothing (§2.6);
+- the frame is then copied to the destination once, in order. A destination is never asked to seek,
+  to report its position or its length, so any writable stream and any buffer writer will do;
+- an `IOException` from a stream destination, while writing or flushing, is wrapped as
+  `BinaryStreamException` with the original preserved;
+- the caller's stream is never disposed.
 
 **Windowing** — exposing exactly one declared subrange.
 
@@ -971,6 +994,11 @@ expected plaintext length ≤ MaxCompressedBytes
 The declared plaintext length may never exceed the ciphertext actually delivered, so a short frame
 cannot force a large allocation by claiming one.
 
+The ciphertext is written into a pooled buffer, and the frame — the header, then that buffer — goes
+to the destination in one copy, which for a stream or a new byte array is the write itself. The
+associated data image is built only when the payload is encrypted, in memory the serializer owns,
+and is cleared once the phase is done; so is the plaintext on the way in and on the way out.
+
 ## 13.1 Authenticated metadata
 
 The V1 header is bound to authenticated encryption as associated data. The canonical image covers the
@@ -1151,6 +1179,16 @@ Rules:
 - cycles without permitted reference preservation are rejected as graph/type errors;
 - the reader and writer use reference identity, not overridden `Equals`.
 
+Without `PreserveReferences`, a cycle is found by searching the path from the root to the value being
+written: an ancestor stack, never deeper than the depth budget admits, searched by reference for
+every structural reference-typed value. A value already on that path is a cycle and is
+`BinaryTypeException`, with the same diagnostic at every depth. A value that appears more than once
+without being its own ancestor — shared between siblings, or reachable along two paths — is not a
+cycle and is simply written again.
+
+The reference tables of one operation, and its ancestor stack, come from pools and go back to them
+cleared when the operation ends, so no object of one call is reachable from the next.
+
 ## 16.1 Registration order
 
 A container that exists before its children are read — a member-encoded object, a mutable collection
@@ -1221,6 +1259,9 @@ SerializationOperation   = everything one public call may consume
 WireReader               = read-side checked primitives over memory   (the only byte access)
 WireWriter               = write-side checked primitives into PayloadBuffer (the only byte access)
 PayloadBuffer            = the serializer's pooled write buffer: one byte budget, patching in place
+EncodedFrame             = one finished frame in pooled buffers, checked against the wire budget,
+                           copied to its destination once
+RentedBytes              = the pooled output of one pipeline phase, cleared when it is released
 ElementCount             = a count that has been validated and charged
 
 GraphReader / GraphWriter = graph traversal, depth, nodes, identity, keyed layout
@@ -1261,6 +1302,8 @@ Serializer-created readers/writers use `leaveOpen: true` where caller-owned stre
 `BinarySerializer` never disposes the caller's stream.
 
 A successful read leaves the stream positioned where the decoded bytes end. A failed operation may leave the stream position anywhere between where it started and the furthest byte it read, unless a specific inspection API promises position restoration.
+
+A write that fails before its frame is complete writes nothing to the stream (§2.6).
 
 Inspection APIs that promise non-consuming behavior must restore position even on failure.
 
@@ -1331,7 +1374,7 @@ C02 collection reference identity            → identity covers containers (§1
 C03 unknown keyed fields + reference table   → ancestor-visible scopes (§16.2)
 C04 implicit positional polymorphism         → write-side rejection (§15)
 C05 BinaryKey/BinaryIgnore contradiction     → contract validation (§14.2)
-C06 operation-relative write budget          → MeteredWriteStream origin (§7.2)
+C06 operation-relative write budget          → PayloadBuffer budget and frame check (§7.2)
 C07 primitive truncation exceptions          → checked fixed-size reads (§2.3)
 A01 populate-in-place on non-member types    → explicit rejection (§3)
 A02 ref-struct framing under references      → ref overload reads the root (§3)
