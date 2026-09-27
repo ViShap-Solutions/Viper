@@ -31,12 +31,14 @@ contract would already be accurate for it.
 
 - Diagram: `ValueReader / ValueWriter` → `WireReader / WireWriter`; the pipeline row loses the three
   metered streams; the engine row reads "typed codecs"; a row is added for type contracts
-  (`TypeContract<T>`). *(R1, R2, R4)*
+  (`TypeContract<T>`). *(R1, R2, R4)* — **R1 applied:** `WireReader / WireWriter` as ref structs over
+  memory; the pipeline row names the read-ahead, `PayloadBuffer` and `MeteredWriteStream`, the one
+  stream decorator still in use.
 - §2.2: `SerializationOperation` → `OperationState`, a struct passed by `ref`; "created exactly once
   per public call" is unchanged (INV-1). *(R4)*
 - §2.3 byte boundary: restated over buffers — the reader knows its exact remaining length; there is no
   stream under the engine; a type contract receives only `MemberWriter` / `MemberReader` (INV-2).
-  *(R1, R4)*
+  *(R1, R4)* — **R1 applied**, all but the type-contract clause.
 - §2.4 traversal boundary: shapes and engine-owned codecs (plan §10.1); the division of labour
   between a type contract and the engine and the engine's call checks (plan §10.2); boxing only in a
   polymorphic slot (INV-17); the engine never awaits (INV-16). *(R4, R3)*
@@ -91,17 +93,24 @@ contract would already be accurate for it.
 - The budget lives in `OperationState`. `EnterDepth()` returning a `ref struct` scope stays.
 - Collection capacity and direct array allocation follow the bytes-backed rule (plan §10.1, INV-3).
 
-### §7 Security stream mechanisms — R2
+### §7 Security stream mechanisms — R1, R2
 
 - **Rewritten entirely** as "Metering and windowing over buffers" (plan §5.2). Every rule it states
   today is kept: budget versus truncation classification, origin-relative write budget,
   high-water-mark accounting across patches, window over-read is malformed, unknown keyed fields
   skipped without materialisation.
+- **R1 applied — the read side and the write budget.** A `WireReader` over memory leaves no stream on
+  the read path to describe, so §7.1 became "Metering on read" (read-ahead within the budget,
+  classification by the bound broken, the position after a read), §7.3 became "The field window"
+  (`WireReader.Slice`), and the `PayloadBuffer` budget was added. §7.2 `MeteredWriteStream`, which
+  still copies the finished bytes to the destination, is left for R2.
 
 ### §8 Exception taxonomy — R3, R5, R6
 
 - §8.10 `NotSupportedException`: seekability removed. Remaining uses: a V0 payload from a non-seekable
   stream without a length; an asynchronous read that meets V0. *(R3)*
+- §8.10: the keyed V0 write to a non-seekable destination is no longer a use. *(R1 — applied; moved
+  from R2 by the owner's decision of 2026-09-27, `Owner-Review.md` log 53)*
 - §8.8 `BinaryStreamException`: add `PipeReader` / `PipeWriter` failures. *(R3)*
 - Add: `OperationCanceledException` from the asynchronous methods is standard .NET, outside the
   taxonomy. *(R3)*
@@ -124,8 +133,9 @@ contract would already be accurate for it.
   a property of the frame. *(R6)*
 - §10.2 V0: V0 differs from V1 only in what needs metadata — the header services and the reference
   mode; the read boundary of plan §7; keyed writes to any destination (the "requires a seekable
-  destination" paragraph is deleted, R2); the **required V0 explanation and example** of plan §9.5.
-  "Unauthenticated by construction" stays true and stays. *(R2, R3)*
+  destination" paragraph is deleted — **R1 applied**, moved from R2 by the owner's decision of
+  2026-09-27; §14.2's matching sentence with it); the **required V0 explanation and example** of plan
+  §9.5. "Unauthenticated by construction" stays true and stays. *(R1, R3)*
 - §10.3 routing: no peek-and-rewind; the magic is decoded from the buffered source. *(R3)*
 
 ### §11 V1 header fields — R6
@@ -184,7 +194,8 @@ contract would already be accurate for it.
   `ReflectedContract<T>`, `MemberWriter`, `MemberReader`. Remove the three stream decorators,
   `ValueReader`, `ValueWriter`, `BinaryHeaderPeek`, and every reflective accessor cache of
   `Cache/`; state which caches remain (plan §12, R4) and that each is built once per type and safe
-  under concurrent first use.
+  under concurrent first use. — **R1 applied:** `WireReader`, `WireWriter` and `PayloadBuffer` named;
+  `ValueReader` and `ValueWriter` removed.
 
 ### §19 Format inspection and diagnostics — R3, R6
 
@@ -192,11 +203,13 @@ contract would already be accurate for it.
   its position" applies only to the stream overload. *(R3)*
 - `BinaryHeaderInfo` and `BinaryFormatDumper` report the service records. *(R6)*
 
-### §20 Stream ownership — R3
+### §20 Stream ownership — R1, R3
 
 - **Rewritten.** Any stream; exactly one V1 frame is read and nothing past it; V0 from a non-seekable
   stream needs a length; a seekable stream is left at the end of the root; after a failed or
-  cancelled read the position is undefined.
+  cancelled read the position is undefined. *(R3)*
+- **R1 applied:** a successful read leaves the stream where the decoded bytes end; a failed one may
+  leave it anywhere up to the furthest byte read ahead.
 
 ### §21 Semantic clarifications — R3, R9a
 
@@ -220,7 +233,10 @@ contract would already be accurate for it.
 - No type is added or removed. Re-verify every note against the typed engine, especially memory-like
   values, `ImmutableArray<T>` and `Lazy<T>`.
 
-### Invariants — R9a
+### Invariants — R1, R9a
+
+- **R1 applied:** the architecture checklist names `WireReader`/`WireWriter` as the only access to
+  payload bytes.
 
 - Every invariant INV-1…INV-18 of `Rework-Plan.md` §3 is stated in the section it governs. After the
   release the plan is a historical record, so an invariant written only there would no longer bind

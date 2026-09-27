@@ -559,7 +559,7 @@ Diagnostic, never a market comparison. They exist for two readers: the engineer 
 
 Measured directly on the internal type that owns the mechanism, through the grant of §18.3.
 
-- [ ] MICRO-01 — `ValueWriter`/`ValueReader` primitives: varint, fixed-width, string, blob, on both directions *(Contract §22.1)*
+- [ ] MICRO-01 — `WireWriter`/`WireReader` primitives: varint, fixed-width, string, blob, on both directions, compared cell by cell with the `ValueWriter`/`ValueReader` cells of `Baselines/pre-rework/`; a write cell includes filling the `PayloadBuffer` from empty and returning it, as one serialization does *(Contract §22.1; rewritten in R1)*
 - [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop *(Contract §6)*
 - [ ] MICRO-03 — depth scope entry and exit, and the unwind on the exceptional path *(Contract §5.1)*
 - [ ] MICRO-04 — `TypeContract` construction for a cold type, and lookup once cached, positional and keyed *(Contract §14)*
@@ -592,6 +592,7 @@ The component suites see internals through `src/ViShap.Viper.Serialization/Prope
 - [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `internal/performance/` (§27.4)
 - [ ] MICRO-15 — `CollectionCountCache` lookup, and the write-side fast path it enables for sets, frozen and immutable sets, against the old materialising path. NX-02 removed an intermediate list per set written; it may be the largest incidental gain of the NX changes and nothing records it
 - [ ] MICRO-16 — the duplicate check after `Complete`, the count read on every container read that NX-02 put on the read path of every collection
+- [ ] MICRO-17 — a positional record of sixteen booleans, eight bytes and eight 16-bit integers, written and read through the engine: the shape where a call per byte dominates, so the gain of the primitives moving off `Stream` is visible rather than averaged away *(Contract §2.3, §22.1; added in R1)* — `SmallFieldBenchmarks`
 
 ---
 
@@ -788,6 +789,7 @@ can be recorded against it.
 |---|---|---|---|
 | [PERF-01](performance/PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | B0 verification, DATA-08 and DATA-14 | Resolved by the owner, as a clarification of Contract §5; no behavior and no bytes changed |
 | [PERF-02](performance/PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | A5, SCALE-02 and SCALE-09 | Open |
+| [PERF-03](performance/PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream the old MICRO-01 cell used | MICRO-01, rework R1 | Open |
 
 ## 27.2 Open questions
 

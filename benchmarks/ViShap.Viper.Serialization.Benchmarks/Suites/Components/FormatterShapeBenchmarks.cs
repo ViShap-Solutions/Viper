@@ -20,7 +20,8 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 /// <para>
 /// A container cell is one container of a hundred elements, so the per-element figure is the mean
 /// divided by a hundred. Explains the shape rows of WL-01 and WL-04, and the intercept of SCALE-01
-/// and SCALE-06.
+/// and SCALE-06. A write invocation fills the payload buffer from empty and returns its segments to
+/// the pool, as one serialization does.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]
@@ -34,21 +35,14 @@ public class FormatterShapeBenchmarks
     private SerializationOperation _operation = null!;
     private IScalarFormatter _guidFormatter = null!;
 
-    private MemoryStream _destination = null!;
-    private ValueWriter _writer = null!;
+    private PayloadBuffer _destination = null!;
     private GraphWriter _graphWriter = null!;
+    private GraphReader _graphReader = null!;
 
-    private MemoryStream _scalarSource = null!;
-    private ValueReader _scalarReader = null!;
-
-    private MemoryStream _sequenceSource = null!;
-    private GraphReader _sequenceReader = null!;
-
-    private MemoryStream _mapSource = null!;
-    private GraphReader _mapReader = null!;
-
-    private MemoryStream _compositeSource = null!;
-    private GraphReader _compositeReader = null!;
+    private byte[] _scalarPayload = [];
+    private byte[] _sequencePayload = [];
+    private byte[] _mapPayload = [];
+    private byte[] _compositePayload = [];
 
     private List<int> _sequence = [];
     private Dictionary<int, long> _map = [];
@@ -69,57 +63,51 @@ public class FormatterShapeBenchmarks
         _composite = (42, "composite", 0.5);
         _compositeType = _composite.GetType();
 
-        _destination = new MemoryStream(Elements * 32);
-        _writer = new ValueWriter(_destination, _operation);
-        _graphWriter = new GraphWriter(_writer, _operation);
+        _destination = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
+        _graphWriter = new GraphWriter(_operation);
+        _graphReader = new GraphReader(_operation);
 
-        (_scalarSource, _scalarReader) = ComponentFixtures.Decoder(
-            _operation,
-            ComponentFixtures.Encode(_operation, writer =>
+        _scalarPayload = ComponentFixtures.Encode(_operation, (ref WireWriter writer) =>
+        {
+            for (var i = 0; i < ScalarOperations; i++)
             {
-                for (var i = 0; i < ScalarOperations; i++)
-                {
-                    _guidFormatter.Write(writer, Scalar, typeof(Guid));
-                }
-            }));
+                _guidFormatter.Write(ref writer, Scalar, typeof(Guid));
+            }
+        });
 
-        (_sequenceSource, _sequenceReader) = Graph(graph => graph.WriteValue(_sequence, typeof(List<int>)));
-        (_mapSource, _mapReader) = Graph(graph => graph.WriteValue(_map, typeof(Dictionary<int, long>)));
-        (_compositeSource, _compositeReader) = Graph(graph => graph.WriteValue(_composite, _compositeType));
+        _sequencePayload = ComponentFixtures.Encode(_operation, (ref WireWriter writer) =>
+            _graphWriter.WriteValue(ref writer, _sequence, typeof(List<int>)));
+        _mapPayload = ComponentFixtures.Encode(_operation, (ref WireWriter writer) =>
+            _graphWriter.WriteValue(ref writer, _map, typeof(Dictionary<int, long>)));
+        _compositePayload = ComponentFixtures.Encode(_operation, (ref WireWriter writer) =>
+            _graphWriter.WriteValue(ref writer, _composite, _compositeType));
     }
 
     [GlobalCleanup]
-    public void Cleanup()
-    {
-        _destination.Dispose();
-        _scalarSource.Dispose();
-        _sequenceSource.Dispose();
-        _mapSource.Dispose();
-        _compositeSource.Dispose();
-    }
+    public void Cleanup() => _destination.Dispose();
 
     [Benchmark(Description = "MICRO-06 scalar write", OperationsPerInvoke = ScalarOperations)]
     public long ScalarWrite()
     {
-        _destination.Position = 0;
+        var writer = new WireWriter(_destination, _operation);
 
         for (var i = 0; i < ScalarOperations; i++)
         {
-            _guidFormatter.Write(_writer, Scalar, typeof(Guid));
+            _guidFormatter.Write(ref writer, Scalar, typeof(Guid));
         }
 
-        return _destination.Position;
+        return Complete(ref writer);
     }
 
     [Benchmark(Description = "MICRO-06 scalar read", OperationsPerInvoke = ScalarOperations)]
     public object ScalarRead()
     {
-        _scalarSource.Position = 0;
+        var reader = new WireReader(_scalarPayload, _operation);
         object value = Scalar;
 
         for (var i = 0; i < ScalarOperations; i++)
         {
-            value = _guidFormatter.Read(_scalarReader, typeof(Guid));
+            value = _guidFormatter.Read(ref reader, typeof(Guid));
         }
 
         return value;
@@ -128,54 +116,54 @@ public class FormatterShapeBenchmarks
     [Benchmark(Description = "MICRO-06 sequence write")]
     public long SequenceWrite()
     {
-        _destination.Position = 0;
-        _graphWriter.WriteValue(_sequence, typeof(List<int>));
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        _graphWriter.WriteValue(ref writer, _sequence, typeof(List<int>));
+        return Complete(ref writer);
     }
 
     [Benchmark(Description = "MICRO-06 sequence read")]
     public object? SequenceRead()
     {
-        _sequenceSource.Position = 0;
-        return _sequenceReader.ReadValue(typeof(List<int>));
+        var reader = new WireReader(_sequencePayload, _operation);
+        return _graphReader.ReadValue(ref reader, typeof(List<int>));
     }
 
     [Benchmark(Description = "MICRO-06 map write")]
     public long MapWrite()
     {
-        _destination.Position = 0;
-        _graphWriter.WriteValue(_map, typeof(Dictionary<int, long>));
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        _graphWriter.WriteValue(ref writer, _map, typeof(Dictionary<int, long>));
+        return Complete(ref writer);
     }
 
     [Benchmark(Description = "MICRO-06 map read")]
     public object? MapRead()
     {
-        _mapSource.Position = 0;
-        return _mapReader.ReadValue(typeof(Dictionary<int, long>));
+        var reader = new WireReader(_mapPayload, _operation);
+        return _graphReader.ReadValue(ref reader, typeof(Dictionary<int, long>));
     }
 
     [Benchmark(Description = "MICRO-06 composite write")]
     public long CompositeWrite()
     {
-        _destination.Position = 0;
-        _graphWriter.WriteValue(_composite, _compositeType);
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        _graphWriter.WriteValue(ref writer, _composite, _compositeType);
+        return Complete(ref writer);
     }
 
     [Benchmark(Description = "MICRO-06 composite read")]
     public object? CompositeRead()
     {
-        _compositeSource.Position = 0;
-        return _compositeReader.ReadValue(_compositeType);
+        var reader = new WireReader(_compositePayload, _operation);
+        return _graphReader.ReadValue(ref reader, _compositeType);
     }
 
-    private (MemoryStream Source, GraphReader Reader) Graph(Action<GraphWriter> write)
+    /// <summary>Commits what the writer holds and empties the buffer for the next invocation.</summary>
+    private long Complete(ref WireWriter writer)
     {
-        using var buffer = new MemoryStream(Elements * 32);
-        write(new GraphWriter(new ValueWriter(buffer, _operation), _operation));
-
-        var source = new MemoryStream(buffer.ToArray(), writable: false);
-        return (source, new GraphReader(new ValueReader(source, _operation), _operation));
+        writer.Flush();
+        long written = _destination.Length;
+        _destination.Dispose();
+        return written;
     }
 }

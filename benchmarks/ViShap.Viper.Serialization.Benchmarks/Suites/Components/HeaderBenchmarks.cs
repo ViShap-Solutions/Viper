@@ -23,10 +23,8 @@ public class HeaderBenchmarks
 {
     private SerializationOperation _operation = null!;
     private BinaryFormatHeaderV1 _header;
-    private MemoryStream _destination = null!;
-    private ValueWriter _writer = null!;
-    private MemoryStream _source = null!;
-    private ValueReader _reader = null!;
+    private PayloadBuffer _destination = null!;
+    private byte[] _encoded = [];
 
     /// <summary>
     /// <c>false</c> is the header a default write produces; <c>true</c> carries a custom name for each
@@ -56,33 +54,30 @@ public class HeaderBenchmarks
                 UncompressedLength: 4_096, CompressedLength: 4_096, OnDiskLength: 4_096,
                 Checksum: []);
 
-        _destination = new MemoryStream(256);
-        _writer = new ValueWriter(_destination, _operation);
-
-        (_source, _reader) = ComponentFixtures.Decoder(
-            _operation, ComponentFixtures.Encode(_operation, _header.WriteTo));
+        _destination = new PayloadBuffer(_operation.Limits.MaxWireBytes, "wire");
+        _encoded = ComponentFixtures.Encode(_operation, _header.WriteTo);
     }
 
     [GlobalCleanup]
-    public void Cleanup()
-    {
-        _destination.Dispose();
-        _source.Dispose();
-    }
+    public void Cleanup() => _destination.Dispose();
 
     [Benchmark(Description = "MICRO-08 write header")]
     public long Write()
     {
-        _destination.Position = 0;
-        _header.WriteTo(_writer);
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        _header.WriteTo(ref writer);
+        writer.Flush();
+
+        long written = _destination.Length;
+        _destination.Dispose();
+        return written;
     }
 
     [Benchmark(Description = "MICRO-08 parse header")]
     public int Parse()
     {
-        _source.Position = 0;
-        return BinaryFormatHeaderV1.ReadFrom(_reader).UncompressedLength;
+        var reader = new WireReader(_encoded, _operation);
+        return BinaryFormatHeaderV1.ReadFrom(ref reader).UncompressedLength;
     }
 
     [Benchmark(Description = "MICRO-08 build associated data")]

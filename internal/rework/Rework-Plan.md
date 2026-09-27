@@ -79,8 +79,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 
 | Stage | Branch (from `release/v1.0.0`) | After the owner merges it | Status | Closed by (merge commit) |
 |---|---|---|---|---|
-| R0 — Baseline and oracle | `rework/r0-baseline` | — | gate holds — awaiting commit | |
-| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | not started | |
+| R0 — Baseline and oracle | `rework/r0-baseline` | — | closed | `530262a` |
+| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | gate holds — awaiting commit | |
 | R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | not started | |
 | R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |
 | R4 — Typed engine | `rework/r4-typed-engine` | — | not started | |
@@ -1170,7 +1170,14 @@ materialised collection, and the first use of a type.
 Internals first (R1–R5), then the format (R6): the encoding code is written once, directly in the new
 types, and the old fixtures and the oracle catch any unintended change on the way. A stage's
 measurement follows `Development-Workflow.md` §6.5, "Замер рабочей ветки", against
-`Baselines/pre-rework/`: by the raw files until R4, through `BASE-02` from R4 on. "Wire unchanged"
+`Baselines/pre-rework/`: by the raw files until R4, through `BASE-02` from R4 on. A stage measures
+the suites its section of `Benchmark-Plan-Changes.md` names, and the soak run is always kept (it is
+what shows a pooled buffer that never goes back to the pool). R1, R2, R3, R4 and R6 change the path
+of every public call, so they also measure the profile matrix (`ProfileMatrixBenchmarks`): it is the
+only measurement of a whole call under every profile, and a regression in the code a stage adds
+around the primitives shows there, in the stage that caused it. R5 and R8 do not. Nothing else runs
+on the machine while a stage is measured — a cell whose error grew several times over is
+interference, not a result. "Wire unchanged"
 means the thirteen fixtures and the oracle pass byte for byte. Each stage applies its part of the
 four change files.
 
@@ -1194,11 +1201,15 @@ four change files.
   and `PayloadBuffer`. `ValueReader` / `ValueWriter` become thin adapters, then are deleted once no
   caller remains.
 - The structural tests for INV-2, INV-3 and INV-4 are rewritten for the new types.
+- V0 writes through `PayloadBuffer` here, not in R2, so a keyed V0 write to a non-seekable
+  destination succeeds and V0-25 is inverted in this stage (owner's decision of 2026-09-27,
+  `Owner-Review.md` log 53).
 - **Gate:** fixtures and oracle byte-identical; no virtual call per byte on the write path; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R2 — Pipeline on pooled buffers — *wire unchanged*
 
 - V0 and V1 write into `PayloadBuffer`; keyed lengths patched in place; atomic writes (INV-15).
+  *(Done in R1 for the payload; R2 carries the phases, the destinations and STR-30.)*
 - `MeteredReadStream`, `MeteredWriteStream`, `WindowReadStream` and every `MemoryStream` on the
   payload path are deleted (§5.2).
 - Cycle detection by ancestor stack; pooled reference tables (§11).

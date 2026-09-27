@@ -22,13 +22,15 @@ public enum PayloadPrimitive
 }
 
 /// <summary>
-/// MICRO-01 — the fixed-width and 7-bit encoded primitives of <see cref="ValueWriter"/> and
-/// <see cref="ValueReader"/>, in both directions.
+/// MICRO-01 — the fixed-width and 7-bit encoded primitives of <see cref="WireWriter"/> and
+/// <see cref="WireReader"/>, in both directions.
 /// </summary>
 /// <remarks>
 /// Explains WL-01 and WL-04 for every dataset: the payload cost of a value is a sum of these calls,
 /// so a profile-matrix row that surprises is read against this table before anything else. One
-/// invocation is a thousand calls, and the cell is per call.
+/// invocation is a thousand calls, and the cell is per call. A write invocation fills the payload
+/// buffer from empty and returns its segments to the pool, as one serialization does, so the cell
+/// carries that buffer's share of a thousand calls.
 /// </remarks>
 [MemoryDiagnoser]
 public class ValuePrimitiveBenchmarks
@@ -36,10 +38,8 @@ public class ValuePrimitiveBenchmarks
     private const int Operations = 1_000;
 
     private SerializationOperation _operation = null!;
-    private MemoryStream _destination = null!;
-    private ValueWriter _writer = null!;
-    private MemoryStream _source = null!;
-    private ValueReader _reader = null!;
+    private PayloadBuffer _destination = null!;
+    private byte[] _payload = [];
 
     [Params(
         PayloadPrimitive.Byte,
@@ -57,40 +57,38 @@ public class ValuePrimitiveBenchmarks
     {
         _operation = ComponentFixtures.Operation();
 
-        _destination = new MemoryStream(Operations * 16);
-        _writer = new ValueWriter(_destination, _operation);
-
-        var payload = ComponentFixtures.Encode(_operation, writer => WriteAll(writer, Primitive));
-        (_source, _reader) = ComponentFixtures.Decoder(_operation, payload);
+        _destination = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
+        _payload = ComponentFixtures.Encode(
+            _operation, (ref WireWriter writer) => WriteAll(ref writer, Primitive));
     }
 
     [GlobalCleanup]
-    public void Cleanup()
-    {
-        _destination.Dispose();
-        _source.Dispose();
-    }
+    public void Cleanup() => _destination.Dispose();
 
     [Benchmark(Description = "MICRO-01 write", OperationsPerInvoke = Operations)]
     public long Write()
     {
-        _destination.Position = 0;
-        WriteAll(_writer, Primitive);
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        WriteAll(ref writer, Primitive);
+        writer.Flush();
+
+        long written = _destination.Length;
+        _destination.Dispose();
+        return written;
     }
 
     [Benchmark(Description = "MICRO-01 read", OperationsPerInvoke = Operations)]
     public long Read()
     {
-        _source.Position = 0;
-        return ReadAll(_reader, Primitive);
+        var reader = new WireReader(_payload, _operation);
+        return ReadAll(ref reader, Primitive);
     }
 
     /// <summary>
     /// The primitive is selected once and the loop runs inside the branch, so the timed region holds
     /// a thousand calls to one method and no dispatch of its own.
     /// </summary>
-    private static void WriteAll(ValueWriter writer, PayloadPrimitive primitive)
+    private static void WriteAll(ref WireWriter writer, PayloadPrimitive primitive)
     {
         switch (primitive)
         {
@@ -163,7 +161,7 @@ public class ValuePrimitiveBenchmarks
         }
     }
 
-    private static long ReadAll(ValueReader reader, PayloadPrimitive primitive)
+    private static long ReadAll(ref WireReader reader, PayloadPrimitive primitive)
     {
         long consumed = 0;
 
@@ -246,12 +244,9 @@ public class ValuePrimitiveBenchmarks
 public class ValueTextBenchmarks
 {
     private SerializationOperation _operation = null!;
-    private MemoryStream _destination = null!;
-    private ValueWriter _writer = null!;
-    private MemoryStream _stringSource = null!;
-    private ValueReader _stringReader = null!;
-    private MemoryStream _blobSource = null!;
-    private ValueReader _blobReader = null!;
+    private PayloadBuffer _destination = null!;
+    private byte[] _stringPayload = [];
+    private byte[] _blobPayload = [];
     private string _text = string.Empty;
     private byte[] _blob = [];
 
@@ -276,53 +271,53 @@ public class ValueTextBenchmarks
 
         _blob = new DataSets.DeterministicRandom(0x0000_1801).NextBytes(Bytes);
 
-        _destination = new MemoryStream((Bytes * 2) + 64);
-        _writer = new ValueWriter(_destination, _operation);
+        _destination = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
 
-        (_stringSource, _stringReader) = ComponentFixtures.Decoder(
-            _operation,
-            ComponentFixtures.Encode(_operation, writer => writer.WriteString(_text)));
+        _stringPayload = ComponentFixtures.Encode(
+            _operation, (ref WireWriter writer) => writer.WriteString(_text));
 
-        (_blobSource, _blobReader) = ComponentFixtures.Decoder(
-            _operation,
-            ComponentFixtures.Encode(_operation, writer => writer.WriteBlob(_blob, "MICRO-01")));
+        _blobPayload = ComponentFixtures.Encode(
+            _operation, (ref WireWriter writer) => writer.WriteBlob(_blob, "MICRO-01"));
     }
 
     [GlobalCleanup]
-    public void Cleanup()
-    {
-        _destination.Dispose();
-        _stringSource.Dispose();
-        _blobSource.Dispose();
-    }
+    public void Cleanup() => _destination.Dispose();
 
     [Benchmark(Description = "MICRO-01 write string")]
     public long WriteString()
     {
-        _destination.Position = 0;
-        _writer.WriteString(_text);
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        writer.WriteString(_text);
+        writer.Flush();
+
+        long written = _destination.Length;
+        _destination.Dispose();
+        return written;
     }
 
     [Benchmark(Description = "MICRO-01 read string")]
     public string ReadString()
     {
-        _stringSource.Position = 0;
-        return _stringReader.ReadString();
+        var reader = new WireReader(_stringPayload, _operation);
+        return reader.ReadString();
     }
 
     [Benchmark(Description = "MICRO-01 write blob")]
     public long WriteBlob()
     {
-        _destination.Position = 0;
-        _writer.WriteBlob(_blob, "MICRO-01");
-        return _destination.Position;
+        var writer = new WireWriter(_destination, _operation);
+        writer.WriteBlob(_blob, "MICRO-01");
+        writer.Flush();
+
+        long written = _destination.Length;
+        _destination.Dispose();
+        return written;
     }
 
     [Benchmark(Description = "MICRO-01 read blob")]
     public byte[] ReadBlob()
     {
-        _blobSource.Position = 0;
-        return _blobReader.ReadBlob("MICRO-01");
+        var reader = new WireReader(_blobPayload, _operation);
+        return reader.ReadBlob("MICRO-01");
     }
 }

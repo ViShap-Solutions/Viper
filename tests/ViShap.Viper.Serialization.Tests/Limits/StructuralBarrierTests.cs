@@ -8,9 +8,10 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Limits;
 
 /// <summary>
-/// Pins LIM-39, LIM-40 and LIM-44: the barriers that make the security checks structural rather than
-/// conventional. None of them has a runtime symptom on its own — a bypass changes nothing observable
-/// until the day it lets an unchecked value through — so the shape of the code is asserted directly.
+/// Pins LIM-39, LIM-40, LIM-44, LIM-47 and LIM-48: the barriers that make the security checks
+/// structural rather than conventional. None of them has a runtime symptom on its own — a bypass
+/// changes nothing observable until the day it lets an unchecked value through — so the shape of the
+/// code is asserted directly.
 /// </summary>
 public class StructuralBarrierTests
 {
@@ -74,13 +75,13 @@ public class StructuralBarrierTests
         Assert.Equal(
             [
                 "ViShap.Viper.Serialization/Engine/CompositeSurface.cs",
-                "ViShap.Viper.Serialization/Io/ValueReader.cs",
-                "ViShap.Viper.Serialization/Io/ValueWriter.cs"
+                "ViShap.Viper.Serialization/Io/WireReader.cs",
+                "ViShap.Viper.Serialization/Io/WireWriter.cs"
             ],
             callers);
     }
 
-    // --- a composite formatter cannot express a loop over an unchecked count ----------------------
+    // --- LIM-47: a composite formatter cannot express a loop over an unchecked count -------------
 
     [Fact]
     public void CompositeReader_ExposesOnlyTheCheckedOperations()
@@ -89,7 +90,7 @@ public class StructuralBarrierTests
         // except as a validated ElementCount or ArrayShape.
         Assert.Equal(
             ["ReadCount", "ReadFlag", "ReadShape", "ReadValue"],
-            DeclaredMethodNames(typeof(CompositeReader)));
+            DeclaredMethodNames(typeof(CompositeReader), BindingFlags.Instance));
     }
 
     [Fact]
@@ -97,7 +98,26 @@ public class StructuralBarrierTests
     {
         Assert.Equal(
             ["WriteCount", "WriteFlag", "WriteShape", "WriteValue"],
-            DeclaredMethodNames(typeof(CompositeWriter)));
+            DeclaredMethodNames(typeof(CompositeWriter), BindingFlags.Instance));
+    }
+
+    [Fact]
+    public void CompositeSurfaces_AreCreatedOnlyByTheEngineEntry()
+    {
+        // A formatter cannot build a surface around a reader or writer of its own: the constructor is
+        // private, and the one static member is the entry the engine calls with the formatter.
+        const BindingFlags instance = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        const BindingFlags statics =
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        foreach (var surface in new[] { typeof(CompositeReader), typeof(CompositeWriter) })
+        {
+            Assert.All(surface.GetConstructors(instance), constructor => Assert.True(
+                constructor.IsPrivate, $"{surface.Name} has a non-private constructor."));
+
+            var entry = Assert.Single(surface.GetMethods(statics));
+            Assert.Equal(typeof(ICompositeFormatter), entry.GetParameters()[0].ParameterType);
+        }
     }
 
     [Fact]
@@ -105,18 +125,21 @@ public class StructuralBarrierTests
     {
         Type[] forbidden =
         [
-            typeof(GraphReader), typeof(GraphWriter), typeof(ValueReader), typeof(ValueWriter)
+            typeof(GraphReader), typeof(GraphWriter), typeof(WireReader), typeof(WireWriter)
         ];
 
         foreach (var method in typeof(ICompositeFormatter).GetMethods(AllDeclared))
-            Assert.All(method.GetParameters(), parameter => Assert.DoesNotContain(
-                parameter.ParameterType, forbidden));
+        foreach (var parameter in method.GetParameters())
+        {
+            var type = parameter.ParameterType;
+            Assert.DoesNotContain(type.IsByRef ? type.GetElementType()! : type, forbidden);
+        }
     }
 
     [Fact]
     public void CompositeFormatters_NeverNameTheEngineOrThePayloadPrimitives()
     {
-        string[] forbidden = ["GraphReader", "GraphWriter", "ValueReader", "ValueWriter", "ReadInt32"];
+        string[] forbidden = ["GraphReader", "GraphWriter", "WireReader", "WireWriter", "ReadInt32"];
 
         var offenders = SourceTree.ProductionFiles
             .Where(file => file.Key.Contains(
@@ -133,14 +156,25 @@ public class StructuralBarrierTests
     [Fact]
     public void TheEngine_HandsOutNoPayloadPrimitives()
     {
-        // The engine once exposed its ValueReader and ValueWriter so composites could reach them;
-        // with the surface in place nothing needs to, and nothing may.
+        // The engine holds no reader or writer of its own: each call receives one by reference, so
+        // there is nothing it could hand to a composite except through the surface.
         Assert.Null(typeof(GraphReader).GetProperty("Values", AllDeclared));
         Assert.Null(typeof(GraphWriter).GetProperty("Values", AllDeclared));
+
+        Type[] wire = [typeof(WireReader), typeof(WireWriter)];
+        foreach (var engine in new[] { typeof(GraphReader), typeof(GraphWriter) })
+        {
+            Assert.All(engine.GetFields(AllDeclared), field =>
+                Assert.DoesNotContain(field.FieldType, wire));
+            Assert.All(engine.GetProperties(AllDeclared), property =>
+                Assert.DoesNotContain(property.PropertyType, wire));
+            Assert.All(engine.GetMethods(AllDeclared), method =>
+                Assert.DoesNotContain(method.ReturnType, wire));
+        }
     }
 
-    private static string[] DeclaredMethodNames(Type type) =>
-        [.. type.GetMethods(AllDeclared)
+    private static string[] DeclaredMethodNames(Type type, BindingFlags scope) =>
+        [.. type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly | scope)
             .Where(method => !method.IsSpecialName)
             .Select(method => method.Name)
             .Order(StringComparer.Ordinal)];
@@ -185,26 +219,74 @@ public class StructuralBarrierTests
     }
 
     [Fact]
-    public void ValueReader_HandsOutNoStream()
+    public void WireReader_HandsOutNoStream()
     {
-        AssertNoStreamIsReachable(typeof(ValueReader));
+        AssertNoStreamIsReachable(typeof(WireReader));
     }
 
     [Fact]
-    public void ValueWriter_HandsOutNoStream()
+    public void WireWriter_HandsOutNoStream()
     {
-        AssertNoStreamIsReachable(typeof(ValueWriter));
+        AssertNoStreamIsReachable(typeof(WireWriter));
     }
 
     [Fact]
-    public void PayloadWindow_ExposesOnlyABoundedStream()
+    public void Slice_YieldsAReaderBoundedToTheDeclaredField()
     {
-        // OpenWindow is the single member that yields a stream at all, and the stream it yields
-        // knows its own boundary, so a decoder inside it still cannot reach the caller's source.
-        var stream = typeof(PayloadWindow).GetProperty(nameof(PayloadWindow.Stream))!;
+        // Slice is the single member that yields a reader over part of the payload, and the reader
+        // it yields ends where the field ends, so a decoder inside it cannot reach the next field.
+        Assert.Equal(typeof(WireReader), typeof(WireReader).GetMethod(nameof(WireReader.Slice))!.ReturnType);
 
-        Assert.Equal(typeof(WindowReadStream), stream.PropertyType);
+        var ex = Record.Exception(() =>
+        {
+            var reader = new WireReader(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }, Operation());
+            var field = reader.Slice(2, "Field");
+            Assert.Equal(6, reader.Remaining);
+            Assert.Equal(2, field.Remaining);
+            field.ReadInt32();
+        });
+
+        Assert.IsType<BinaryFormatException>(ex);
     }
+
+    // --- LIM-48: the payload primitives live on two ref structs and nowhere else ----------------
+
+    [Fact]
+    public void WireReaderAndWireWriter_AreRefStructs()
+    {
+        // A ref struct cannot be stored on the heap, captured by a lambda or held across an await,
+        // so a reader or writer cannot outlive the call that was handed it.
+        Assert.True(typeof(WireReader).IsByRefLike);
+        Assert.True(typeof(WireWriter).IsByRefLike);
+    }
+
+    [Fact]
+    public void OnlyWireReaderAndWireWriter_DeclarePayloadPrimitives()
+    {
+        string[] primitives =
+        [
+            "Boolean", "Byte", "SByte", "Int16", "UInt16", "Char", "Int32", "UInt32", "Int64",
+            "UInt64", "Single", "Double", "Decimal", "7BitEncodedInt", "String", "Blob", "BitCount"
+        ];
+
+        var names = primitives
+            .SelectMany(primitive => new[] { $"Read{primitive}", $"Write{primitive}" })
+            .ToHashSet(StringComparer.Ordinal);
+
+        var declaring = typeof(BinarySerializer).Assembly
+            .GetTypes()
+            .Where(type => type.GetMethods(AllDeclared).Any(method =>
+                names.Contains(method.Name) && method.GetBaseDefinition().DeclaringType != typeof(Stream)))
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([nameof(WireReader), nameof(WireWriter)], declaring);
+    }
+
+    private static SerializationOperation Operation() =>
+        new(SerializationLimits.Default, keys: null, preserveReferences: false,
+            requireEncryption: false, requireChecksum: false);
 
     // --- LIM-39: the phase policy belongs to the pipeline, not to an algorithm -------------------
 

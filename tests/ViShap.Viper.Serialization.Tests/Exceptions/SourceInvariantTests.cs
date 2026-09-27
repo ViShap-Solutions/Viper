@@ -43,9 +43,8 @@ public class SourceInvariantTests
             "ViShap.Viper.Serialization/Security/MeteredReadStream.cs",
             "ViShap.Viper.Serialization/Security/MeteredWriteStream.cs",
             "ViShap.Viper.Serialization/Security/WindowReadStream.cs",
-            "ViShap.Viper.Serialization/Io/ValueReader.cs",
-            "ViShap.Viper.Serialization/Io/ValueWriter.cs",
             "ViShap.Viper.Serialization/Pipeline/FormatRouter.cs",
+            "ViShap.Viper.Serialization/Pipeline/StreamSource.cs",
             "ViShap.Viper.Serialization/Metadata/BinaryFormatInspector.cs"
         ];
 

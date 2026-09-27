@@ -7,14 +7,12 @@ namespace ViShap.Viper.Engine;
 /// </summary>
 internal sealed class GraphWriter
 {
-    private readonly ValueWriter _values;
     private readonly SerializationOperation _operation;
     private readonly WriteReferenceTable? _references;
     private readonly HashSet<object>? _activeAncestors;
 
-    public GraphWriter(ValueWriter values, SerializationOperation operation)
+    public GraphWriter(SerializationOperation operation)
     {
-        _values = values;
         _operation = operation;
         _references = operation.PreserveReferences ? new WriteReferenceTable() : null;
         _activeAncestors = operation.PreserveReferences
@@ -22,16 +20,16 @@ internal sealed class GraphWriter
             : new HashSet<object>(ReferenceEqualityComparer.Instance);
     }
 
-    public void WriteRoot<T>(T value) => WriteValue(value, typeof(T));
+    public void WriteRoot<T>(ref WireWriter writer, T value) => WriteValue(ref writer, value, typeof(T));
 
-    public void WriteValue(object? value, Type declaredType)
+    public void WriteValue(ref WireWriter writer, object? value, Type declaredType)
     {
         var effectiveType = Nullable.GetUnderlyingType(declaredType) ?? declaredType;
         bool canBeNull = !declaredType.IsValueType || effectiveType != declaredType;
 
         if (canBeNull)
         {
-            _values.WriteBoolean(value is not null);
+            writer.WriteBoolean(value is not null);
             if (value is null)
                 return;
         }
@@ -45,26 +43,30 @@ internal sealed class GraphWriter
 
         if (formatter is IScalarFormatter scalar)
         {
-            scalar.Write(_values, value!, effectiveType);
+            scalar.Write(ref writer, value!, effectiveType);
             return;
         }
 
-        WriteStructural(value!, effectiveType, formatter);
+        WriteStructural(ref writer, value!, effectiveType, formatter);
     }
 
-    private void WriteStructural(object value, Type effectiveType, ITypeFormatter? formatter)
+    private void WriteStructural(
+        ref WireWriter writer,
+        object value,
+        Type effectiveType,
+        ITypeFormatter? formatter)
     {
         if (_references is not null && !effectiveType.IsValueType)
         {
             if (_references.TryGetVisibleId(value, out int existingId))
             {
-                _values.WriteByte(1);
-                _values.WriteInt32(existingId);
+                writer.WriteByte(1);
+                writer.WriteInt32(existingId);
                 return;
             }
 
-            _values.WriteByte(0);
-            _values.WriteInt32(_references.Register(value));
+            writer.WriteByte(0);
+            writer.WriteInt32(_references.Register(value));
         }
 
         using var depth = _operation.Budget.EnterDepth();
@@ -83,16 +85,16 @@ internal sealed class GraphWriter
             switch (formatter)
             {
                 case ISequenceFormatter sequence:
-                    WriteSequence(sequence, value, effectiveType);
+                    WriteSequence(ref writer, sequence, value, effectiveType);
                     break;
                 case IMapFormatter map:
-                    WriteMap(map, value, effectiveType);
+                    WriteMap(ref writer, map, value, effectiveType);
                     break;
                 case ICompositeFormatter composite:
-                    composite.Write(new CompositeWriter(this, _values), value, effectiveType);
+                    CompositeWriter.Encode(composite, this, ref writer, value, effectiveType);
                     break;
                 default:
-                    WriteObject(value, effectiveType);
+                    WriteObject(ref writer, value, effectiveType);
                     break;
             }
         }
@@ -103,14 +105,18 @@ internal sealed class GraphWriter
         }
     }
 
-    private void WriteSequence(ISequenceFormatter formatter, object value, Type declaredType)
+    private void WriteSequence(
+        ref WireWriter writer,
+        ISequenceFormatter formatter,
+        object value,
+        Type declaredType)
     {
         var elementType = formatter.ElementType(declaredType);
         long maximum = MaximumFor(formatter.CountKind);
 
         if (!formatter.ReverseOnWrite && formatter.CountOf(value) is { } knownCount)
         {
-            var count = _values.WriteCount(knownCount, formatter.CountKind, formatter.CountName);
+            var count = writer.WriteCount(knownCount, formatter.CountKind, formatter.CountName);
 
             int written = 0;
             foreach (var element in formatter.Enumerate(value, declaredType))
@@ -119,7 +125,7 @@ internal sealed class GraphWriter
                     throw new BinaryFormatException(
                         $"{formatter.CountName} changed while writing '{declaredType}'.");
 
-                WriteValue(element, elementType);
+                WriteValue(ref writer, element, elementType);
                 written++;
             }
 
@@ -134,19 +140,19 @@ internal sealed class GraphWriter
         if (formatter.ReverseOnWrite)
             items.Reverse();
 
-        _values.WriteCount(items.Count, formatter.CountKind, formatter.CountName);
+        writer.WriteCount(items.Count, formatter.CountKind, formatter.CountName);
         foreach (var element in items)
-            WriteValue(element, elementType);
+            WriteValue(ref writer, element, elementType);
     }
 
-    private void WriteMap(IMapFormatter formatter, object value, Type declaredType)
+    private void WriteMap(ref WireWriter writer, IMapFormatter formatter, object value, Type declaredType)
     {
         var (keyType, valueType) = formatter.EntryTypes(declaredType);
         long maximum = MaximumFor(formatter.CountKind);
 
         if (formatter.CountOf(value) is { } knownCount)
         {
-            var count = _values.WriteCount(knownCount, formatter.CountKind, formatter.CountName);
+            var count = writer.WriteCount(knownCount, formatter.CountKind, formatter.CountName);
 
             int written = 0;
             foreach (var (entryKey, entryValue) in formatter.Enumerate(value, declaredType))
@@ -155,8 +161,8 @@ internal sealed class GraphWriter
                     throw new BinaryFormatException(
                         $"{formatter.CountName} changed while writing '{declaredType}'.");
 
-                WriteValue(entryKey, keyType);
-                WriteValue(entryValue, valueType);
+                WriteValue(ref writer, entryKey, keyType);
+                WriteValue(ref writer, entryValue, valueType);
                 written++;
             }
 
@@ -168,11 +174,11 @@ internal sealed class GraphWriter
         }
 
         var entries = Materialize(formatter.Enumerate(value, declaredType), maximum, formatter.CountName);
-        _values.WriteCount(entries.Count, formatter.CountKind, formatter.CountName);
+        writer.WriteCount(entries.Count, formatter.CountKind, formatter.CountName);
         foreach (var (entryKey, entryValue) in entries)
         {
-            WriteValue(entryKey, keyType);
-            WriteValue(entryValue, valueType);
+            WriteValue(ref writer, entryKey, keyType);
+            WriteValue(ref writer, entryValue, valueType);
         }
     }
 
@@ -204,7 +210,7 @@ internal sealed class GraphWriter
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
-    private void WriteObject(object value, Type declaredType)
+    private void WriteObject(ref WireWriter writer, object value, Type declaredType)
     {
         var runtimeType = value.GetType();
         var union = TypeContractCache.GetUnion(declaredType);
@@ -216,7 +222,7 @@ internal sealed class GraphWriter
                     $"Runtime type '{runtimeType}' is not allowed for declared type '{declaredType}' — " +
                     $"add [BinaryUnion(tag, typeof({runtimeType.Name}))] to '{declaredType.Name}'.");
 
-            _values.WriteByte(tag);
+            writer.WriteByte(tag);
         }
         else if (runtimeType != declaredType)
         {
@@ -230,22 +236,20 @@ internal sealed class GraphWriter
         var contract = TypeContractCache.Get(runtimeType);
         if (contract.Layout == MemberLayout.Keyed)
         {
-            WriteKeyedMembers(value, contract);
+            WriteKeyedMembers(ref writer, value, contract);
             return;
         }
 
         foreach (var member in contract.Members)
-            WriteValue(member.Get(value), member.MemberType);
+            WriteValue(ref writer, member.Get(value), member.MemberType);
     }
 
-    private void WriteKeyedMembers(object value, TypeContract contract)
+    /// <summary>
+    /// Writes each keyed field as its key, a length and the field. The length is reserved ahead of
+    /// the field and patched in the serializer's buffer once the field's size is known.
+    /// </summary>
+    private void WriteKeyedMembers(ref WireWriter writer, object value, TypeContract contract)
     {
-        if (!_values.CanSeek)
-            throw new NotSupportedException(
-                $"Type '{contract.Type}' uses [BinaryContract]/[BinaryKey], which requires a " +
-                "seekable payload stream: each field's length is written ahead of the field and " +
-                "patched once the field's size is known.");
-
         var members = contract.Members;
         if (members.Length > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
@@ -253,19 +257,19 @@ internal sealed class GraphWriter
                 $"{_operation.Limits.MaxKeyedFields} (MaxKeyedFields).");
 
         _operation.Budget.ConsumeKeyedFields(members.Length);
-        _values.Write7BitEncodedInt(members.Length);
+        writer.Write7BitEncodedInt(members.Length);
 
         foreach (var member in members)
         {
-            _values.Write7BitEncodedInt(member.Key!.Value);
+            writer.Write7BitEncodedInt(member.Key!.Value);
 
-            long lengthPosition = _values.Position;
-            _values.WriteInt32(0);
-            long payloadStart = _values.Position;
+            long lengthPosition = writer.Position;
+            writer.WriteInt32(0);
+            long payloadStart = writer.Position;
 
-            WriteKeyedFieldPayload(member, value);
+            WriteKeyedFieldPayload(ref writer, member, value);
 
-            long payloadEnd = _values.Position;
+            long payloadEnd = writer.Position;
             long payloadLength = payloadEnd - payloadStart;
 
             if (payloadLength > int.MaxValue)
@@ -274,9 +278,7 @@ internal sealed class GraphWriter
 
             _operation.Phases.CheckPayload(payloadLength, $"Keyed member '{member.Name}' payload length");
 
-            _values.Position = lengthPosition;
-            _values.WriteInt32((int)payloadLength);
-            _values.Position = payloadEnd;
+            writer.PatchInt32(lengthPosition, (int)payloadLength);
         }
     }
 
@@ -285,15 +287,15 @@ internal sealed class GraphWriter
     /// field is written out again instead of becoming a back reference that a reader skipping this
     /// field could never resolve.
     /// </summary>
-    private void WriteKeyedFieldPayload(MemberBinding member, object value)
+    private void WriteKeyedFieldPayload(ref WireWriter writer, MemberBinding member, object value)
     {
         if (_references is null)
         {
-            WriteValue(member.Get(value), member.MemberType);
+            WriteValue(ref writer, member.Get(value), member.MemberType);
             return;
         }
 
         using var scope = _references.Enter();
-        WriteValue(member.Get(value), member.MemberType);
+        WriteValue(ref writer, member.Get(value), member.MemberType);
     }
 }

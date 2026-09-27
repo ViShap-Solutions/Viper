@@ -77,13 +77,18 @@ Also owed now:
 - **UTIL-17** — the oracle helper is itself tested: a deliberately changed byte is reported with both
   hex dumps (§29 — shared helpers are tested).
 
-## R1 — Wire primitives on buffers
+## R1 — Wire primitives on buffers — applied
 
 - **LIM-44** rewritten: payload bytes are reachable only through `WireReader`/`WireWriter`.
 - **LIM-40**, **LIM-47** rewritten for the new types; the rule text does not change.
 - **LIM-48** — `WireReader` and `WireWriter` are `ref struct`s and the only types exposing payload
   primitives (source-shape test, like the existing barrier tests).
 - WF-* and HST-* are untouched: they are the evidence that R1 changed nothing on the wire.
+- **V0-25 inverted** — moved here from R2 by the owner's decision of 2026-09-27 (`Owner-Review.md`
+  log 53): `WireWriter` writes into `PayloadBuffer` under V0 as well, so the refusal it pinned no
+  longer exists. The matching case in `Streams/PublicStreamTests` is inverted with it, and the
+  keyed-V0 example of EXC-15 is removed from `Exceptions/ExceptionMappingTests` (EXC-15 keeps its
+  reading case).
 
 ## R2 — Pipeline on pooled buffers
 
@@ -94,8 +99,7 @@ Also owed now:
 - **STR-29** — no `MemoryStream` under `Pipeline/` or on the payload path (source-shape test).
 - **STR-30** — INV-15: an exception in the middle of a graph leaves an `IBufferWriter<byte>`, a
   `PipeWriter` and a `Stream` destination with zero bytes written.
-- **V0-25 inverted** — a V0 keyed write to a non-seekable destination succeeds and is byte-identical
-  to the seekable one.
+- **V0-25 inverted** — applied in R1 (see there).
 - **API-18** extended to keyed payloads.
 - **CYC-11** — cycle detection by ancestor stack: the same `BinaryTypeException` as today, for a cycle
   at depth 1 and at depth 500; a deep acyclic graph with repeated (non-cyclic) instances is not

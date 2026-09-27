@@ -262,9 +262,11 @@ public class TruncationTests
     [Fact]
     public void ReadInt32_OverATruncatedSource_YieldsNoValueAtAll()
     {
-        var reader = new ValueReader(new MemoryStream([1, 2]), Operation());
-
-        Assert.Throws<BinaryFormatException>(() => reader.ReadInt32());
+        Assert.Throws<BinaryFormatException>(() =>
+        {
+            var reader = new WireReader(new byte[] { 1, 2 }, Operation());
+            reader.ReadInt32();
+        });
     }
 
     [Fact]
@@ -272,7 +274,7 @@ public class TruncationTests
     {
         AssertEx.AllocatesLessThan(1024 * 1024, () =>
         {
-            var reader = new ValueReader(new MemoryStream(new byte[4]), Operation());
+            var reader = new WireReader(new byte[4], Operation());
             reader.ReadBytes(8 * 1024 * 1024, "Blob");
         });
     }

@@ -16,19 +16,45 @@ internal static class FormatterRegistry
         new DelegateFormatter(),
 
         // Scalars.
-        new PrimitiveFormatter<bool>((w, v) => w.WriteBoolean(v), r => r.ReadBoolean()),
-        new PrimitiveFormatter<byte>((w, v) => w.WriteByte(v), r => r.ReadByte()),
-        new PrimitiveFormatter<sbyte>((w, v) => w.WriteSByte(v), r => r.ReadSByte()),
-        new PrimitiveFormatter<short>((w, v) => w.WriteInt16(v), r => r.ReadInt16()),
-        new PrimitiveFormatter<ushort>((w, v) => w.WriteUInt16(v), r => r.ReadUInt16()),
-        new PrimitiveFormatter<int>((w, v) => w.WriteInt32(v), r => r.ReadInt32()),
-        new PrimitiveFormatter<uint>((w, v) => w.WriteUInt32(v), r => r.ReadUInt32()),
-        new PrimitiveFormatter<long>((w, v) => w.WriteInt64(v), r => r.ReadInt64()),
-        new PrimitiveFormatter<ulong>((w, v) => w.WriteUInt64(v), r => r.ReadUInt64()),
-        new PrimitiveFormatter<float>((w, v) => w.WriteSingle(v), r => r.ReadSingle()),
-        new PrimitiveFormatter<double>((w, v) => w.WriteDouble(v), r => r.ReadDouble()),
-        new PrimitiveFormatter<decimal>((w, v) => w.WriteDecimal(v), r => r.ReadDecimal()),
-        new PrimitiveFormatter<char>((w, v) => w.WriteChar(v), r => r.ReadChar()),
+        new PrimitiveFormatter<bool>(
+            (ref WireWriter w, bool v) => w.WriteBoolean(v),
+            (ref WireReader r) => r.ReadBoolean()),
+        new PrimitiveFormatter<byte>(
+            (ref WireWriter w, byte v) => w.WriteByte(v),
+            (ref WireReader r) => r.ReadByte()),
+        new PrimitiveFormatter<sbyte>(
+            (ref WireWriter w, sbyte v) => w.WriteSByte(v),
+            (ref WireReader r) => r.ReadSByte()),
+        new PrimitiveFormatter<short>(
+            (ref WireWriter w, short v) => w.WriteInt16(v),
+            (ref WireReader r) => r.ReadInt16()),
+        new PrimitiveFormatter<ushort>(
+            (ref WireWriter w, ushort v) => w.WriteUInt16(v),
+            (ref WireReader r) => r.ReadUInt16()),
+        new PrimitiveFormatter<int>(
+            (ref WireWriter w, int v) => w.WriteInt32(v),
+            (ref WireReader r) => r.ReadInt32()),
+        new PrimitiveFormatter<uint>(
+            (ref WireWriter w, uint v) => w.WriteUInt32(v),
+            (ref WireReader r) => r.ReadUInt32()),
+        new PrimitiveFormatter<long>(
+            (ref WireWriter w, long v) => w.WriteInt64(v),
+            (ref WireReader r) => r.ReadInt64()),
+        new PrimitiveFormatter<ulong>(
+            (ref WireWriter w, ulong v) => w.WriteUInt64(v),
+            (ref WireReader r) => r.ReadUInt64()),
+        new PrimitiveFormatter<float>(
+            (ref WireWriter w, float v) => w.WriteSingle(v),
+            (ref WireReader r) => r.ReadSingle()),
+        new PrimitiveFormatter<double>(
+            (ref WireWriter w, double v) => w.WriteDouble(v),
+            (ref WireReader r) => r.ReadDouble()),
+        new PrimitiveFormatter<decimal>(
+            (ref WireWriter w, decimal v) => w.WriteDecimal(v),
+            (ref WireReader r) => r.ReadDecimal()),
+        new PrimitiveFormatter<char>(
+            (ref WireWriter w, char v) => w.WriteChar(v),
+            (ref WireReader r) => r.ReadChar()),
         new StringFormatter(),
         new EnumFormatter(),
         new HalfFormatter(),

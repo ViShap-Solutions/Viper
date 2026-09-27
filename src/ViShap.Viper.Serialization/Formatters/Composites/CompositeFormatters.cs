@@ -10,7 +10,7 @@ internal sealed class KeyValuePairFormatter : ICompositeFormatter
         declaredType.IsGenericType &&
         declaredType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>);
 
-    public void Write(CompositeWriter writer, object value, Type declaredType)
+    public void Write(ref CompositeWriter writer, object value, Type declaredType)
     {
         var arguments = declaredType.GetGenericArguments();
         var accessors = DictionaryAccessorCache.GetEntryAccessors(declaredType);
@@ -18,7 +18,7 @@ internal sealed class KeyValuePairFormatter : ICompositeFormatter
         writer.WriteValue(accessors.ValueGetter(value), arguments[1]);
     }
 
-    public object Read(CompositeReader reader, Type declaredType)
+    public object Read(ref CompositeReader reader, Type declaredType)
     {
         var arguments = declaredType.GetGenericArguments();
         var key = reader.ReadValue(arguments[0]);
@@ -41,14 +41,14 @@ internal sealed class TupleFormatter : ICompositeFormatter
     public bool CanHandle(Type declaredType) =>
         declaredType.IsGenericType && Definitions.Contains(declaredType.GetGenericTypeDefinition());
 
-    public void Write(CompositeWriter writer, object value, Type declaredType)
+    public void Write(ref CompositeWriter writer, object value, Type declaredType)
     {
         var accessors = TupleAccessorCache.GetAccessors(declaredType);
         for (int i = 0; i < accessors.ArgTypes.Length; i++)
             writer.WriteValue(accessors.Getters[i](value), accessors.ArgTypes[i]);
     }
 
-    public object Read(CompositeReader reader, Type declaredType)
+    public object Read(ref CompositeReader reader, Type declaredType)
     {
         var accessors = TupleAccessorCache.GetAccessors(declaredType);
         var values = new object?[accessors.ArgTypes.Length];
@@ -64,12 +64,12 @@ internal sealed class LazyFormatter : ICompositeFormatter
     public bool CanHandle(Type declaredType) =>
         declaredType.IsGenericType && declaredType.GetGenericTypeDefinition() == typeof(Lazy<>);
 
-    public void Write(CompositeWriter writer, object value, Type declaredType) =>
+    public void Write(ref CompositeWriter writer, object value, Type declaredType) =>
         writer.WriteValue(
             LazyAccessorCache.GetValueGetter(declaredType)(value),
             declaredType.GetGenericArguments()[0]);
 
-    public object Read(CompositeReader reader, Type declaredType)
+    public object Read(ref CompositeReader reader, Type declaredType)
     {
         var valueType = declaredType.GetGenericArguments()[0];
         return LazyAccessorCache.GetFactory(valueType)(reader.ReadValue(valueType));
@@ -86,7 +86,7 @@ internal sealed class ImmutableArrayFormatter : ICompositeFormatter
         declaredType.IsGenericType &&
         declaredType.GetGenericTypeDefinition() == typeof(ImmutableArray<>);
 
-    public void Write(CompositeWriter writer, object value, Type declaredType)
+    public void Write(ref CompositeWriter writer, object value, Type declaredType)
     {
         var elementType = declaredType.GetGenericArguments()[0];
 
@@ -105,7 +105,7 @@ internal sealed class ImmutableArrayFormatter : ICompositeFormatter
             writer.WriteValue(array.GetValue(i), elementType);
     }
 
-    public object Read(CompositeReader reader, Type declaredType)
+    public object Read(ref CompositeReader reader, Type declaredType)
     {
         var elementType = declaredType.GetGenericArguments()[0];
 
@@ -133,7 +133,7 @@ internal sealed class MultiDimensionalArrayFormatter : ICompositeFormatter
     public bool CanHandle(Type declaredType) =>
         declaredType.IsArray && declaredType.GetArrayRank() > 1;
 
-    public void Write(CompositeWriter writer, object value, Type declaredType)
+    public void Write(ref CompositeWriter writer, object value, Type declaredType)
     {
         var array = (Array)value;
         var elementType = declaredType.GetElementType()!;
@@ -148,7 +148,7 @@ internal sealed class MultiDimensionalArrayFormatter : ICompositeFormatter
             writer.WriteValue(element, elementType);
     }
 
-    public object Read(CompositeReader reader, Type declaredType)
+    public object Read(ref CompositeReader reader, Type declaredType)
     {
         var elementType = declaredType.GetElementType()!;
         var shape = reader.ReadShape(declaredType.GetArrayRank(), "Multi-dimensional array");
