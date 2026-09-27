@@ -10,14 +10,14 @@ internal sealed class GuidFormatter : IScalarFormatter
 
     public bool CanHandle(Type declaredType) => declaredType == typeof(Guid);
 
-    public void Write(ValueWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, object value, Type declaredType)
     {
         Span<byte> buffer = stackalloc byte[Size];
         ((Guid)value).TryWriteBytes(buffer);
         writer.Write(buffer);
     }
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         Span<byte> buffer = stackalloc byte[Size];
         reader.ReadExact(buffer, "Guid");
@@ -29,10 +29,10 @@ internal sealed class UriFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(Uri);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteString(((Uri)value).OriginalString);
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         string text = reader.ReadString();
         if (!Uri.TryCreate(text, UriKind.RelativeOrAbsolute, out var uri))
@@ -46,10 +46,10 @@ internal sealed class VersionFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(Version);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteString(((Version)value).ToString());
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         string text = reader.ReadString();
         if (!Version.TryParse(text, out var version))
@@ -63,10 +63,10 @@ internal sealed class StringBuilderFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(StringBuilder);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteString(value.ToString()!);
 
-    public object Read(ValueReader reader, Type declaredType) =>
+    public object Read(ref WireReader reader, Type declaredType) =>
         new StringBuilder(reader.ReadString());
 }
 
@@ -74,10 +74,10 @@ internal sealed class CultureInfoFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(CultureInfo);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteString(((CultureInfo)value).Name);
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         string name = reader.ReadString();
 
@@ -97,7 +97,7 @@ internal sealed class BitArrayFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(BitArray);
 
-    public void Write(ValueWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, object value, Type declaredType)
     {
         var bits = (BitArray)value;
         writer.WriteBitCount(bits.Length, "BitArray length");
@@ -107,7 +107,7 @@ internal sealed class BitArrayFormatter : IScalarFormatter
         writer.WriteBlob(bytes, "BitArray data");
     }
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         int length = reader.ReadBitCount("BitArray length");
         byte[] bytes = reader.ReadBlob("BitArray data");
@@ -126,11 +126,11 @@ internal sealed class DelegateFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => typeof(Delegate).IsAssignableFrom(declaredType);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         throw new BinaryTypeException(
             $"Delegate types cannot be serialized ('{declaredType}') — as a root value, a member, " +
             "or a collection element. Exclude the containing member with [BinaryIgnore] instead.");
 
-    public object Read(ValueReader reader, Type declaredType) =>
+    public object Read(ref WireReader reader, Type declaredType) =>
         throw new BinaryTypeException($"Delegate types cannot be deserialized ('{declaredType}').");
 }

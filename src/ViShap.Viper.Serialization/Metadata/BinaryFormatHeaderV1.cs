@@ -23,17 +23,33 @@ internal readonly record struct BinaryFormatHeaderV1(
 {
     public const int Version = 1;
 
-    public void WriteTo(ValueWriter writer)
+    /// <summary>
+    /// The most bytes a V1 header can occupy: the fixed fields, four optional strings at their
+    /// format ceiling with a two-byte length prefix each, and the longest checksum a length byte can
+    /// declare. Reading a header never needs more than this many bytes of the source.
+    /// </summary>
+    public const int MaxLength =
+        sizeof(int) + sizeof(int)
+        + 3 * (sizeof(byte) + OptionalStringMaxLength)
+        + OptionalStringMaxLength
+        + sizeof(bool)
+        + 3 * sizeof(int)
+        + sizeof(byte) + byte.MaxValue;
+
+    private const int OptionalStringMaxLength =
+        sizeof(bool) + 2 + BinaryFormatConstants.MaxHeaderStringBytes;
+
+    public void WriteTo(ref WireWriter writer)
     {
         writer.WriteInt32(BinaryFormatConstants.Magic);
         writer.WriteInt32(Version);
         writer.WriteByte((byte)Compression);
-        WriteOptionalString(writer, CustomCompressionName, nameof(CustomCompressionName));
+        WriteOptionalString(ref writer, CustomCompressionName, nameof(CustomCompressionName));
         writer.WriteByte((byte)ChecksumAlgorithm);
-        WriteOptionalString(writer, CustomChecksumName, nameof(CustomChecksumName));
+        WriteOptionalString(ref writer, CustomChecksumName, nameof(CustomChecksumName));
         writer.WriteByte((byte)Encryption);
-        WriteOptionalString(writer, CustomEncryptionName, nameof(CustomEncryptionName));
-        WriteOptionalString(writer, KeyId, nameof(KeyId));
+        WriteOptionalString(ref writer, CustomEncryptionName, nameof(CustomEncryptionName));
+        WriteOptionalString(ref writer, KeyId, nameof(KeyId));
         writer.WriteBoolean(PreserveReferences);
         writer.WriteInt32(UncompressedLength);
         writer.WriteInt32(CompressedLength);
@@ -47,7 +63,7 @@ internal readonly record struct BinaryFormatHeaderV1(
         writer.Write(Checksum);
     }
 
-    public static BinaryFormatHeaderV1 ReadFrom(ValueReader reader)
+    public static BinaryFormatHeaderV1 ReadFrom(ref WireReader reader)
     {
         int magic = reader.ReadInt32();
         if (magic != BinaryFormatConstants.Magic)
@@ -59,13 +75,13 @@ internal readonly record struct BinaryFormatHeaderV1(
             throw new BinaryFormatNotSupportedException(
                 $"Expected format version {Version}, but found {formatVersion}.");
 
-        var compression = ReadEnum<CompressionAlgorithm>(reader, "compression");
-        string? customCompression = ReadOptionalString(reader, nameof(CustomCompressionName));
-        var checksumAlgorithm = ReadEnum<ChecksumAlgorithm>(reader, "checksum");
-        string? customChecksum = ReadOptionalString(reader, nameof(CustomChecksumName));
-        var encryption = ReadEnum<EncryptionAlgorithm>(reader, "encryption");
-        string? customEncryption = ReadOptionalString(reader, nameof(CustomEncryptionName));
-        string? keyId = ReadOptionalString(reader, nameof(KeyId));
+        var compression = ReadEnum<CompressionAlgorithm>(ref reader, "compression");
+        string? customCompression = ReadOptionalString(ref reader, nameof(CustomCompressionName));
+        var checksumAlgorithm = ReadEnum<ChecksumAlgorithm>(ref reader, "checksum");
+        string? customChecksum = ReadOptionalString(ref reader, nameof(CustomChecksumName));
+        var encryption = ReadEnum<EncryptionAlgorithm>(ref reader, "encryption");
+        string? customEncryption = ReadOptionalString(ref reader, nameof(CustomEncryptionName));
+        string? keyId = ReadOptionalString(ref reader, nameof(KeyId));
         bool preserveReferences = reader.ReadBoolean();
 
         int uncompressedLength = reader.ReadInt32();
@@ -165,7 +181,7 @@ internal readonly record struct BinaryFormatHeaderV1(
                 $"{what} {value} exceeds the configured maximum of {maximum}.");
     }
 
-    private static TEnum ReadEnum<TEnum>(ValueReader reader, string what) where TEnum : struct, Enum
+    private static TEnum ReadEnum<TEnum>(ref WireReader reader, string what) where TEnum : struct, Enum
     {
         byte raw = reader.ReadByte();
         var value = (TEnum)Enum.ToObject(typeof(TEnum), raw);
@@ -175,7 +191,7 @@ internal readonly record struct BinaryFormatHeaderV1(
         return value;
     }
 
-    private static void WriteOptionalString(ValueWriter writer, string? value, string what)
+    private static void WriteOptionalString(ref WireWriter writer, string? value, string what)
     {
         bool hasValue = !string.IsNullOrEmpty(value);
         writer.WriteBoolean(hasValue);
@@ -183,7 +199,7 @@ internal readonly record struct BinaryFormatHeaderV1(
             writer.WriteString(value!, BinaryFormatConstants.MaxHeaderStringBytes, what);
     }
 
-    private static string? ReadOptionalString(ValueReader reader, string what) =>
+    private static string? ReadOptionalString(ref WireReader reader, string what) =>
         reader.ReadBoolean()
             ? reader.ReadString(BinaryFormatConstants.MaxHeaderStringBytes, what)
             : null;

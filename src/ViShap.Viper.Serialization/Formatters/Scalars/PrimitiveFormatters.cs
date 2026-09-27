@@ -4,43 +4,50 @@ using System.Text;
 
 namespace ViShap.Viper.Formatters;
 
+/// <summary>Writes one primitive value through the payload writer.</summary>
+internal delegate void WirePrimitiveWriter<in T>(ref WireWriter writer, T value);
+
+/// <summary>Reads one primitive value through the payload reader.</summary>
+internal delegate T WirePrimitiveReader<out T>(ref WireReader reader);
+
 internal sealed class PrimitiveFormatter<T>(
-    Action<ValueWriter, T> write,
-    Func<ValueReader, T> read) : IScalarFormatter
+    WirePrimitiveWriter<T> write,
+    WirePrimitiveReader<T> read) : IScalarFormatter
     where T : notnull
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(T);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) => write(writer, (T)value);
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
+        write(ref writer, (T)value);
 
-    public object Read(ValueReader reader, Type declaredType) => read(reader);
+    public object Read(ref WireReader reader, Type declaredType) => read(ref reader);
 }
 
 internal sealed class StringFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(string);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteString((string)value);
 
-    public object Read(ValueReader reader, Type declaredType) => reader.ReadString();
+    public object Read(ref WireReader reader, Type declaredType) => reader.ReadString();
 }
 
 internal sealed class EnumFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType.IsEnum;
 
-    public void Write(ValueWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, object value, Type declaredType)
     {
         var underlyingType = Enum.GetUnderlyingType(declaredType);
         var underlying = Convert.ChangeType(value, underlyingType);
-        Underlying(underlyingType).Write(writer, underlying, underlyingType);
+        Underlying(underlyingType).Write(ref writer, underlying, underlyingType);
     }
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         var underlyingType = Enum.GetUnderlyingType(declaredType);
-        return Enum.ToObject(declaredType, Underlying(underlyingType).Read(reader, underlyingType));
+        return Enum.ToObject(declaredType, Underlying(underlyingType).Read(ref reader, underlyingType));
     }
 
     private static IScalarFormatter Underlying(Type underlyingType) =>
@@ -53,10 +60,10 @@ internal sealed class HalfFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(Half);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteInt16(BitConverter.HalfToInt16Bits((Half)value));
 
-    public object Read(ValueReader reader, Type declaredType) =>
+    public object Read(ref WireReader reader, Type declaredType) =>
         BitConverter.Int16BitsToHalf(reader.ReadInt16());
 }
 
@@ -64,14 +71,14 @@ internal sealed class Int128Formatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(Int128);
 
-    public void Write(ValueWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, object value, Type declaredType)
     {
         Span<byte> buffer = stackalloc byte[16];
         BinaryPrimitives.WriteInt128LittleEndian(buffer, (Int128)value);
         writer.Write(buffer);
     }
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         Span<byte> buffer = stackalloc byte[16];
         reader.ReadExact(buffer, "Int128");
@@ -83,14 +90,14 @@ internal sealed class UInt128Formatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(UInt128);
 
-    public void Write(ValueWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, object value, Type declaredType)
     {
         Span<byte> buffer = stackalloc byte[16];
         BinaryPrimitives.WriteUInt128LittleEndian(buffer, (UInt128)value);
         writer.Write(buffer);
     }
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         Span<byte> buffer = stackalloc byte[16];
         reader.ReadExact(buffer, "UInt128");
@@ -102,30 +109,30 @@ internal sealed class IntPtrFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(IntPtr);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteInt64(((IntPtr)value).ToInt64());
 
-    public object Read(ValueReader reader, Type declaredType) => new IntPtr(reader.ReadInt64());
+    public object Read(ref WireReader reader, Type declaredType) => new IntPtr(reader.ReadInt64());
 }
 
 internal sealed class UIntPtrFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(UIntPtr);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteUInt64(((UIntPtr)value).ToUInt64());
 
-    public object Read(ValueReader reader, Type declaredType) => new UIntPtr(reader.ReadUInt64());
+    public object Read(ref WireReader reader, Type declaredType) => new UIntPtr(reader.ReadUInt64());
 }
 
 internal sealed class RuneFormatter : IScalarFormatter
 {
     public bool CanHandle(Type declaredType) => declaredType == typeof(Rune);
 
-    public void Write(ValueWriter writer, object value, Type declaredType) =>
+    public void Write(ref WireWriter writer, object value, Type declaredType) =>
         writer.WriteInt32(((Rune)value).Value);
 
-    public object Read(ValueReader reader, Type declaredType)
+    public object Read(ref WireReader reader, Type declaredType)
     {
         int value = reader.ReadInt32();
         if (!Rune.IsValid(value))
@@ -141,7 +148,7 @@ internal sealed class BigIntegerFormatter : IScalarFormatter
 
     public bool CanHandle(Type declaredType) => declaredType == typeof(BigInteger);
 
-    public void Write(ValueWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, object value, Type declaredType)
     {
         var number = (BigInteger)value;
         int byteCount = number.GetByteCount();
@@ -154,6 +161,6 @@ internal sealed class BigIntegerFormatter : IScalarFormatter
         writer.WriteBlob(buffer[..written], "BigInteger");
     }
 
-    public object Read(ValueReader reader, Type declaredType) =>
+    public object Read(ref WireReader reader, Type declaredType) =>
         new BigInteger(reader.ReadBlob("BigInteger"));
 }

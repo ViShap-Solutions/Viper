@@ -64,6 +64,10 @@ and for Claude Code — and lives under `internal/`.
   kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how tags
   are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how benchmark
   baselines are taken, hotfixes, and what an agent may and may not do.
+  It is the general guide to developing Viper, independent of any current rework or plan, and it is
+  kept clean: it holds no notes, rules or history for a particular agent, skill, rework or stage.
+  Those belong to the plan or the skill they concern — for the rework, `internal/rework/`. An agent
+  changes this file only when the owner asks for a change to the general workflow itself.
 - `internal/audit/` — the historical record of the audit that led to the rework: the original probes
   (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the test that now pins it.
@@ -118,7 +122,7 @@ BinarySerializer            creates exactly one SerializationOperation per publi
 SerializationOperation      Limits snapshot, Budget, PhaseBudget, Keys, policies
 FormatPipeline (V0 | V1)    framing, phase order, header + AAD, phase sizes
 PayloadEngine               traversal: depth, graph nodes, references, TypeContract
-ValueReader / ValueWriter   the only access to payload bytes
+WireReader / WireWriter     ref structs over memory, the only access to payload bytes
 Formatters                  type encoding only
 Algorithms                  pure mechanics over spans
 ```
@@ -129,7 +133,7 @@ Dependencies point strictly downwards. **No type below `Pipeline/` may reference
 
 These are why the codebase does not carry a security check in every class. Do not work around them:
 
-1. **Byte monopoly.** `ValueReader`/`ValueWriter` (`Io/`) are the only types that touch payload bytes; there is no raw stream accessor. Fixed-size reads throw `BinaryFormatException` on truncation, strings and blobs are bounded by their limits, and every declared length is compared with the bytes physically remaining before anything is allocated.
+1. **Byte monopoly.** `WireReader`/`WireWriter` (`Io/`) are the only types that touch payload bytes. They are `ref struct`s over memory and are passed by `ref`, never stored: `WireReader` reads a span or a `ReadOnlySequence<byte>`, `WireWriter` writes into the serializer's pooled `PayloadBuffer`, and there is no stream under the engine. Fixed-size reads throw `BinaryFormatException` on truncation, strings and blobs are bounded by their limits, and every declared length is compared with `WireReader.Remaining` — exact, because the bytes are in memory — before anything is allocated. A composite formatter gets `ref CompositeReader`/`ref CompositeWriter`, which only the engine's entry creates and which expose no raw integer.
 2. **Validated counts.** A loop bound over wire data exists only as an `ElementCount`, whose sole factory checks the count against its limit and charges the element budget. There is no other way to obtain one, so "read a length, then allocate" is not expressible.
 3. **Engine-owned traversal.** `GraphReader`/`GraphWriter` (`Engine/`) own all recursion: depth scopes, node budget, reference identity and scopes, cycle detection, the keyed layout, and the element loop of every container. A formatter never writes a loop over attacker-controlled data.
 
@@ -153,7 +157,7 @@ No shape fits a plain object: a type no formatter claims is member-encoded throu
 V0 and V1 are peers with different jobs, not a current format and a deprecated one — see `internal/System-Contract.md` §10.
 
 - **V1** (`V1FormatPipeline`) — full envelope: `BinaryFormatHeaderV1` followed by the payload. Write order is serialize → checksum over the raw payload → compress → build AAD → encrypt → header. Read reverses it, verifies every declared length, and requires the payload to be consumed exactly. Only V1 supports reference framing. The header is bound to authenticated encryption as associated data, so no header field can be altered without breaking the tag.
-- **V0** (`V0FormatPipeline`) — the compact codec: a bare payload with no header at all, for transports that already supply their own context (private or tightly coordinated channels, IPC, protocols with their own framing). Having no header it has no reference framing and no compression/checksum/encryption phase — configured algorithms are simply not applied on a V0 write. Everything the payload itself expresses is unchanged: the full §23 type set, unions, **keyed contracts**, limits, budgets and metering, and for one value under one layout the payload bytes are identical to V1's. Because V0 writes straight through instead of buffering, a keyed write needs a seekable destination, otherwise `NotSupportedException`. A V0 payload is unauthenticated by construction, so `Build()` refuses `RequireEncryption`/`RequireChecksum` together with `WithVersion(0)` or `AllowV0Fallback` — both directions, so no operation-time check is needed. It may be embedded in a larger stream, so it does not require the source to end with the payload, and nothing in it identifies it, which is why reading one takes an explicit `AllowV0Fallback`.
+- **V0** (`V0FormatPipeline`) — the compact codec: a bare payload with no header at all, for transports that already supply their own context (private or tightly coordinated channels, IPC, protocols with their own framing). Having no header it has no reference framing and no compression/checksum/encryption phase — configured algorithms are simply not applied on a V0 write. Everything the payload itself expresses is unchanged: the full §23 type set, unions, **keyed contracts**, limits, budgets and metering, and for one value under one layout the payload bytes are identical to V1's. Like V1 it is built in the serializer's own buffer and copied to the destination once, so a keyed write works with any destination and a failed write leaves nothing in it. A V0 payload is unauthenticated by construction, so `Build()` refuses `RequireEncryption`/`RequireChecksum` together with `WithVersion(0)` or `AllowV0Fallback` — both directions, so no operation-time check is needed. It may be embedded in a larger stream: reading takes bytes ahead within the operation's budget and puts the position back where the root value ends, so it does not require the source to end with the payload, and nothing in it identifies it, which is why reading one takes an explicit `AllowV0Fallback`.
 
 Adding a format version means a pipeline registered in `BinarySerializer`; the router picks it up. Formatters, the engine, the algorithms and the limits are untouched.
 
@@ -162,7 +166,7 @@ Adding a format version means a pipeline registered in `BinarySerializer`; the r
 `TypeContract` (`Engine/`) is the single materialized description of a concrete type, used identically by reader and writer:
 
 - **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields and indexers are skipped. A delegate-typed member is **rejected** — it carries behaviour, not data — so it must be marked `[BinaryIgnore]`. Field order *is* the wire format.
-- **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Payload-level, so it works under both format versions; the length is patched after the field is written, so it requires a seekable payload stream — invisible under V1, which buffers, but under V0 the caller's destination must seek.
+- **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Payload-level, so it works under both format versions; the length is patched in the serializer's buffer after the field is written, so no destination needs to seek.
 
 The two are mutually exclusive, and every contradiction is rejected when the contract is built: `[BinaryKey]` without `[BinaryContract]`, `[BinaryOrder]`/`[BinaryInclude]` on a contract, an unmarked contract member, `[BinaryKey]` together with `[BinaryIgnore]`, `[BinaryInclude]` together with `[BinaryIgnore]`, duplicate keys or orders.
 
@@ -172,7 +176,7 @@ References: with `PreserveReferences`, a marker byte and object id precede every
 
 ### Limits and budgets
 
-`SerializationLimits` is the public, immutable policy, validated once when options are built. `SerializationBudget` is the per-operation accounting (elements, graph nodes, keyed fields, depth); `PhaseBudget` is the per-phase size policy. `MeteredReadStream`/`MeteredWriteStream` count bytes relative to where the operation started; `WindowReadStream` exposes one declared subrange.
+`SerializationLimits` is the public, immutable policy, validated once when options are built. `SerializationBudget` is the per-operation accounting (elements, graph nodes, keyed fields, depth); `PhaseBudget` is the per-phase size policy. On read, the pipeline takes source bytes into memory within the wire budget, and the `WireReader` over them classifies running out as a limit breach when the budget cut the bytes and as malformed data otherwise; `WireReader.Slice` is the window over one declared keyed field. On write, `PayloadBuffer` refuses space past the payload budget and `MeteredWriteStream` counts the bytes copied to the destination relative to where the operation started.
 
 Limit breaches throw `BinaryLimitException`; malformed data throws `BinaryFormatException`; unsupported versions or algorithms throw `BinaryFormatNotSupportedException`; tampering and protection downgrades throw `BinaryIntegrityException`.
 

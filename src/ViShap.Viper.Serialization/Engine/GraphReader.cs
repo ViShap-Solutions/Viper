@@ -7,51 +7,41 @@ namespace ViShap.Viper.Engine;
 /// </summary>
 internal sealed class GraphReader
 {
-    private readonly ValueReader _values;
     private readonly SerializationOperation _operation;
     private readonly ReadReferenceTable? _references;
 
-    public GraphReader(ValueReader values, SerializationOperation operation)
-        : this(values, operation, operation.PreserveReferences ? new ReadReferenceTable() : null)
+    public GraphReader(SerializationOperation operation)
     {
-    }
-
-    private GraphReader(
-        ValueReader values,
-        SerializationOperation operation,
-        ReadReferenceTable? references)
-    {
-        _values = values;
         _operation = operation;
-        _references = references;
+        _references = operation.PreserveReferences ? new ReadReferenceTable() : null;
     }
 
-    public T? ReadRoot<T>() => (T?)ReadValue(typeof(T));
+    public T? ReadRoot<T>(ref WireReader reader) => (T?)ReadValue(ref reader, typeof(T));
 
-    public object? ReadValue(Type declaredType)
+    public object? ReadValue(ref WireReader reader, Type declaredType)
     {
         var effectiveType = Nullable.GetUnderlyingType(declaredType) ?? declaredType;
         bool canBeNull = !declaredType.IsValueType || effectiveType != declaredType;
 
-        if (canBeNull && !_values.ReadBoolean())
+        if (canBeNull && !reader.ReadBoolean())
             return null;
 
         var formatter = FormatterRegistry.Resolve(effectiveType);
 
         if (formatter is IScalarFormatter scalar)
-            return scalar.Read(_values, effectiveType);
+            return scalar.Read(ref reader, effectiveType);
 
-        return ReadStructural(effectiveType, formatter);
+        return ReadStructural(ref reader, effectiveType, formatter);
     }
 
-    private object ReadStructural(Type effectiveType, ITypeFormatter? formatter)
+    private object ReadStructural(ref WireReader reader, Type effectiveType, ITypeFormatter? formatter)
     {
         int referenceId = -1;
 
         if (_references is not null && !effectiveType.IsValueType)
         {
-            byte marker = _values.ReadByte();
-            int id = _values.ReadInt32();
+            byte marker = reader.ReadByte();
+            int id = reader.ReadInt32();
 
             if (id < 0)
                 throw new BinaryFormatException($"Reference id {id} must be non-negative.");
@@ -70,10 +60,10 @@ internal sealed class GraphReader
 
         return formatter switch
         {
-            ISequenceFormatter sequence => ReadSequence(sequence, effectiveType, referenceId),
-            IMapFormatter map => ReadMap(map, effectiveType, referenceId),
-            ICompositeFormatter composite => ReadComposite(composite, effectiveType, referenceId),
-            _ => ReadObject(effectiveType, referenceId)
+            ISequenceFormatter sequence => ReadSequence(ref reader, sequence, effectiveType, referenceId),
+            IMapFormatter map => ReadMap(ref reader, map, effectiveType, referenceId),
+            ICompositeFormatter composite => ReadComposite(ref reader, composite, effectiveType, referenceId),
+            _ => ReadObject(ref reader, effectiveType, referenceId)
         };
     }
 
@@ -93,17 +83,21 @@ internal sealed class GraphReader
         return existing!;
     }
 
-    private object ReadSequence(ISequenceFormatter formatter, Type declaredType, int referenceId)
+    private object ReadSequence(
+        ref WireReader reader,
+        ISequenceFormatter formatter,
+        Type declaredType,
+        int referenceId)
     {
         var elementType = formatter.ElementType(declaredType);
-        var count = _values.ReadCount(formatter.CountKind, formatter.CountName);
+        var count = reader.ReadCount(formatter.CountKind, formatter.CountName);
 
         var builder = formatter.CreateBuilder(declaredType, count.CapacityHint);
         Register(referenceId, formatter.BuilderIsInstance ? builder : ReadReferenceTable.Pending);
 
         for (int i = 0; i < count.Value; i++)
         {
-            var element = ReadValue(elementType);
+            var element = ReadValue(ref reader, elementType);
             try
             {
                 formatter.Add(builder, element, declaredType);
@@ -132,18 +126,18 @@ internal sealed class GraphReader
         return completed;
     }
 
-    private object ReadMap(IMapFormatter formatter, Type declaredType, int referenceId)
+    private object ReadMap(ref WireReader reader, IMapFormatter formatter, Type declaredType, int referenceId)
     {
         var (keyType, valueType) = formatter.EntryTypes(declaredType);
-        var count = _values.ReadCount(formatter.CountKind, formatter.CountName);
+        var count = reader.ReadCount(formatter.CountKind, formatter.CountName);
 
         var builder = formatter.CreateBuilder(declaredType, count.CapacityHint);
         Register(referenceId, formatter.BuilderIsInstance ? builder : ReadReferenceTable.Pending);
 
         for (int i = 0; i < count.Value; i++)
         {
-            var key = ReadValue(keyType);
-            var value = ReadValue(valueType);
+            var key = ReadValue(ref reader, keyType);
+            var value = ReadValue(ref reader, valueType);
             try
             {
                 formatter.Add(builder, key, value, declaredType);
@@ -196,24 +190,28 @@ internal sealed class GraphReader
                 "duplicate key or element is not admitted.");
     }
 
-    private object ReadComposite(ICompositeFormatter formatter, Type declaredType, int referenceId)
+    private object ReadComposite(
+        ref WireReader reader,
+        ICompositeFormatter formatter,
+        Type declaredType,
+        int referenceId)
     {
         Register(referenceId, ReadReferenceTable.Pending);
-        var value = formatter.Read(new CompositeReader(this, _values), declaredType);
+        var value = CompositeReader.Decode(formatter, this, ref reader, declaredType);
         if (referenceId >= 0)
             _references!.Replace(referenceId, value);
 
         return value;
     }
 
-    private object ReadObject(Type declaredType, int referenceId)
+    private object ReadObject(ref WireReader reader, Type declaredType, int referenceId)
     {
         var runtimeType = declaredType;
         var union = TypeContractCache.GetUnion(declaredType);
 
         if (union is not null)
         {
-            byte tag = _values.ReadByte();
+            byte tag = reader.ReadByte();
             if (!union.TryGetType(tag, out var resolved) || resolved is null)
                 throw new BinaryTypeException(
                     $"Unknown discriminator '{tag}' for declared type '{declaredType}'.");
@@ -223,12 +221,12 @@ internal sealed class GraphReader
 
         var instance = Construct(runtimeType);
         Register(referenceId, instance);
-        PopulateMembers(instance, TypeContractCache.Get(runtimeType));
+        PopulateMembers(ref reader, instance, TypeContractCache.Get(runtimeType));
         return instance;
     }
 
     /// <summary>Populates an instance the caller supplied, used by the populate-in-place overloads.</summary>
-    public object ReadInto(object instance, Type declaredType)
+    public object ReadInto(ref WireReader reader, object instance, Type declaredType)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
@@ -237,15 +235,15 @@ internal sealed class GraphReader
                 $"Populate-in-place is only supported for member-encoded types; '{declaredType}' is " +
                 $"encoded by {formatter.GetType().Name}. Use the parameterless Deserialize<T>() overload.");
 
-        if (!_values.ReadBoolean())
+        if (!reader.ReadBoolean())
             throw new BinaryFormatException(
                 "The payload holds a null root value, which cannot populate an existing instance.");
 
         int referenceId = -1;
         if (_references is not null)
         {
-            byte marker = _values.ReadByte();
-            int id = _values.ReadInt32();
+            byte marker = reader.ReadByte();
+            int id = reader.ReadInt32();
 
             if (id < 0)
                 throw new BinaryFormatException($"Reference id {id} must be non-negative.");
@@ -267,7 +265,7 @@ internal sealed class GraphReader
         var union = TypeContractCache.GetUnion(declaredType);
         if (union is not null)
         {
-            byte tag = _values.ReadByte();
+            byte tag = reader.ReadByte();
             if (!union.TryGetType(tag, out var runtimeType) || runtimeType is null)
                 throw new BinaryTypeException(
                     $"Unknown discriminator '{tag}' for declared type '{declaredType}'.");
@@ -286,7 +284,7 @@ internal sealed class GraphReader
         }
 
         Register(referenceId, instance);
-        PopulateMembers(instance, TypeContractCache.Get(instance.GetType()));
+        PopulateMembers(ref reader, instance, TypeContractCache.Get(instance.GetType()));
         return instance;
     }
 
@@ -316,21 +314,21 @@ internal sealed class GraphReader
         }
     }
 
-    private void PopulateMembers(object instance, TypeContract contract)
+    private void PopulateMembers(ref WireReader reader, object instance, TypeContract contract)
     {
         if (contract.Layout == MemberLayout.Keyed)
         {
-            ReadKeyedMembers(instance, contract);
+            ReadKeyedMembers(ref reader, instance, contract);
             return;
         }
 
         foreach (var member in contract.Members)
-            member.Set(instance, ReadValue(member.MemberType));
+            member.Set(instance, ReadValue(ref reader, member.MemberType));
     }
 
-    private void ReadKeyedMembers(object instance, TypeContract contract)
+    private void ReadKeyedMembers(ref WireReader reader, object instance, TypeContract contract)
     {
-        int fieldCount = _values.Read7BitEncodedInt("keyed field count");
+        int fieldCount = reader.Read7BitEncodedInt("keyed field count");
         if (fieldCount > _operation.Limits.MaxKeyedFields)
             throw new BinaryLimitException(
                 $"Keyed field count {fieldCount} exceeds the configured maximum of " +
@@ -343,7 +341,7 @@ internal sealed class GraphReader
 
         for (int i = 0; i < fieldCount; i++)
         {
-            int key = _values.Read7BitEncodedInt("field key");
+            int key = reader.Read7BitEncodedInt("field key");
             if (key == previousKey)
                 throw new BinaryFormatException($"Duplicate keyed field key {key}.");
 
@@ -354,39 +352,41 @@ internal sealed class GraphReader
 
             previousKey = key;
 
-            int payloadLength = _values.ReadInt32();
+            int payloadLength = reader.ReadInt32();
             _operation.Phases.CheckPayload(payloadLength, $"Key {key} payload length");
-            _values.RequireAvailable(payloadLength, $"Key {key} payload");
+            reader.RequireAvailable(payloadLength, $"Key {key} payload");
 
             if (!members.TryGetValue(key, out var member))
             {
-                _values.Skip(payloadLength, $"Key {key} payload");
+                reader.Skip(payloadLength, $"Key {key} payload");
                 continue;
             }
 
-            ReadKeyedFieldPayload(instance, member, key, payloadLength);
+            var field = reader.Slice(payloadLength, $"Key {key} payload");
+            ReadKeyedFieldPayload(ref field, instance, member, key);
         }
     }
 
-    private void ReadKeyedFieldPayload(object instance, MemberBinding member, int key, int payloadLength)
+    /// <summary>
+    /// Reads one keyed field from a reader over exactly its declared bytes, inside its own reference
+    /// scope, and requires the field to be consumed exactly.
+    /// </summary>
+    private void ReadKeyedFieldPayload(ref WireReader field, object instance, MemberBinding member, int key)
     {
-        var window = _values.OpenWindow(payloadLength, $"Key {key} payload");
-        var child = new GraphReader(window.Reader, _operation, _references);
-
         object? value;
         if (_references is null)
         {
-            value = child.ReadValue(member.MemberType);
+            value = ReadValue(ref field, member.MemberType);
         }
         else
         {
             using var scope = _references.Enter();
-            value = child.ReadValue(member.MemberType);
+            value = ReadValue(ref field, member.MemberType);
         }
 
-        if (window.Stream.RemainingBytes != 0)
+        if (field.Remaining != 0)
             throw new BinaryFormatException(
-                $"Key {key} payload contains {window.Stream.RemainingBytes} trailing byte(s) after " +
+                $"Key {key} payload contains {field.Remaining} trailing byte(s) after " +
                 $"decoding '{member.Name}'.");
 
         member.Set(instance, value);

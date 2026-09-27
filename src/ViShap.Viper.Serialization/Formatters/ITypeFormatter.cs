@@ -2,7 +2,7 @@ namespace ViShap.Viper.Formatters;
 
 /// <summary>
 /// Describes how one family of types is encoded. A formatter never sees a limit, a budget, or a
-/// stream: it is handed checked primitives (<see cref="ValueReader"/>/<see cref="ValueWriter"/>) or,
+/// stream: it is handed checked primitives (<see cref="WireReader"/>/<see cref="WireWriter"/>) or,
 /// for containers, only the builder callbacks the engine drives.
 /// </summary>
 internal interface ITypeFormatter
@@ -16,8 +16,8 @@ internal interface ITypeFormatter
 /// </summary>
 internal interface IScalarFormatter : ITypeFormatter
 {
-    void Write(ValueWriter writer, object value, Type declaredType);
-    object Read(ValueReader reader, Type declaredType);
+    void Write(ref WireWriter writer, object value, Type declaredType);
+    object Read(ref WireReader reader, Type declaredType);
 }
 
 /// <summary>
@@ -97,6 +97,6 @@ internal interface IMapFormatter : ITypeFormatter
 /// </summary>
 internal interface ICompositeFormatter : ITypeFormatter
 {
-    void Write(CompositeWriter writer, object value, Type declaredType);
-    object Read(CompositeReader reader, Type declaredType);
+    void Write(ref CompositeWriter writer, object value, Type declaredType);
+    object Read(ref CompositeReader reader, Type declaredType);
 }

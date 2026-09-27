@@ -122,14 +122,19 @@ public class V0FormatTests
     }
 
     [Fact]
-    public void Serialize_KeyedContractOnV0ToANonSeekableDestination_ThrowsNotSupported()
+    public void Serialize_KeyedContractOnV0ToANonSeekableDestination_MatchesTheSeekableWrite()
     {
+        // A keyed field's length is patched in the serializer's own buffer, so the destination is
+        // written once, front to back, and never has to seek.
+        var value = new OldSchema { Kept = new Node { Value = 1 } };
         using var destination = new NonSeekableWriteStream();
+        using var seekable = new MemoryStream();
 
-        var ex = Assert.Throws<NotSupportedException>(
-            () => V0().Serialize(destination, new OldSchema { Kept = new Node { Value = 1 } }));
+        V0().Serialize(destination, value);
+        V0().Serialize(seekable, value);
 
-        Assert.Contains("seekable payload stream", ex.Message);
+        Assert.Equal(seekable.ToArray(), destination.Written);
+        Assert.Equal(1, V0().Deserialize<OldSchema>(destination.Written)!.Kept!.Value);
     }
 
     [Fact]

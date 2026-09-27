@@ -45,63 +45,61 @@ internal sealed class V1FormatPipeline(
 
         operation.Phases.CheckEncrypted(onDisk.LongLength, "On-disk payload length");
 
-        var wire = new MeteredWriteStream(destination, operation.Limits.MaxWireBytes, "wire");
-        var writer = new ValueWriter(wire, operation);
-
-        (header with { OnDiskLength = onDisk.Length }).WriteTo(writer);
-        writer.Write(onDisk);
+        using var headerBytes = new PayloadBuffer(operation.Limits.MaxWireBytes, "wire");
+        var writer = new WireWriter(headerBytes, operation);
+        (header with { OnDiskLength = onDisk.Length }).WriteTo(ref writer);
         writer.Flush();
+
+        var wire = new MeteredWriteStream(destination, operation.Limits.MaxWireBytes, "wire");
+        headerBytes.WriteTo(wire);
+        wire.Write(onDisk);
+        wire.Flush();
     }
 
-    public T? Read<T>(Stream source, SerializationOperation operation)
-    {
-        var rawPayload = ReadAndUnwrap(source, operation, out bool preserveReferences);
-        return ReadPayload(rawPayload, preserveReferences, operation,
-            engine => engine.ReadRoot<T>());
-    }
+    public T? Read<T>(Stream source, SerializationOperation operation) =>
+        (T?)Read(source, operation, typeof(T), existingInstance: null);
 
     public T Read<T>(Stream source, T existingInstance, SerializationOperation operation)
         where T : class
     {
         ArgumentNullException.ThrowIfNull(existingInstance);
 
-        var rawPayload = ReadAndUnwrap(source, operation, out bool preserveReferences);
-        return ReadPayload(rawPayload, preserveReferences, operation,
-            engine => (T)engine.ReadInto(existingInstance, typeof(T)))!;
+        return (T)Read(source, operation, typeof(T), existingInstance)!;
     }
 
     private static byte[] WritePayload<T>(T data, SerializationOperation operation)
     {
-        using var buffer = new MemoryStream();
-        var payload = new MeteredWriteStream(buffer, operation.Limits.MaxPayloadBytes, "payload");
-        var writer = new ValueWriter(payload, operation);
+        using var payload = new PayloadBuffer(operation.Limits.MaxPayloadBytes, "payload");
+        var writer = new WireWriter(payload, operation);
 
-        new GraphWriter(writer, operation).WriteRoot(data);
+        new GraphWriter(operation).WriteRoot(ref writer, data);
 
         writer.Flush();
-        return buffer.ToArray();
+        return payload.ToArray();
     }
 
-    private static TResult ReadPayload<TResult>(
-        byte[] rawPayload,
-        bool preserveReferences,
+    private object? Read(
+        Stream source,
         SerializationOperation operation,
-        Func<GraphReader, TResult> read)
+        Type declaredType,
+        object? existingInstance)
     {
+        var rawPayload = ReadAndUnwrap(source, operation, out bool preserveReferences);
+
         // The header decides whether the payload uses reference framing, so the engine follows the
         // payload rather than the local configuration.
         var payloadOperation = operation.WithPreserveReferences(preserveReferences);
 
-        using var buffer = new MemoryStream(rawPayload, writable: false);
-        var reader = new ValueReader(buffer, payloadOperation);
-        var engine = new GraphReader(reader, payloadOperation);
+        var reader = new WireReader(rawPayload, payloadOperation);
+        var engine = new GraphReader(payloadOperation);
 
-        var result = read(engine);
+        object? result = existingInstance is null
+            ? engine.ReadValue(ref reader, declaredType)
+            : engine.ReadInto(ref reader, existingInstance, declaredType);
 
-        if (buffer.Position != rawPayload.Length)
+        if (reader.Remaining != 0)
             throw new BinaryFormatException(
-                $"Payload contains {rawPayload.Length - buffer.Position} trailing byte(s) after the " +
-                "root value.");
+                $"Payload contains {reader.Remaining} trailing byte(s) after the root value.");
 
         return result;
     }
@@ -113,10 +111,17 @@ internal sealed class V1FormatPipeline(
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        var wire = new MeteredReadStream(source, operation.Limits.MaxWireBytes, "wire");
-        var reader = new ValueReader(wire, operation);
+        var budget = new WireBudget("wire", operation.Limits.MaxWireBytes);
+        long start = StreamSource.Position(source);
+        long available = StreamSource.Remaining(source);
 
-        var header = BinaryFormatHeaderV1.ReadFrom(reader);
+        Span<byte> prefix = stackalloc byte[BinaryFormatHeaderV1.MaxLength];
+        prefix = prefix[..(int)Math.Min(prefix.Length, Math.Min(available, budget.Maximum))];
+        prefix = prefix[..StreamSource.Read(source, prefix, "the format header")];
+
+        var headerReader = new WireReader(prefix, operation, budget);
+        var header = BinaryFormatHeaderV1.ReadFrom(ref headerReader);
+        long headerLength = headerReader.Consumed;
         preserveReferences = header.PreserveReferences;
 
         if (operation.RequireEncryption && header.Encryption == EncryptionAlgorithm.None)
@@ -137,8 +142,16 @@ internal sealed class V1FormatPipeline(
 
         // Two-phase framing: the declared size is compared with the configured maximum and with the
         // bytes that can still arrive before the buffer for it is allocated.
-        reader.RequireAvailable(header.OnDiskLength, "On-disk payload");
-        byte[] onDisk = reader.ReadBytes(header.OnDiskLength, "On-disk payload");
+        if (header.OnDiskLength > Math.Min(budget.Maximum, available) - headerLength)
+            throw budget.Exceeded(
+                header.OnDiskLength, headerLength, available - headerLength, "On-disk payload");
+
+        StreamSource.Seek(source, start + headerLength);
+        byte[] onDisk = new byte[header.OnDiskLength];
+        int read = StreamSource.Read(source, onDisk, "the on-disk payload");
+        if (read != onDisk.Length)
+            throw new BinaryFormatException(
+                $"On-disk payload ended early. Expected {onDisk.Length} bytes, got {read}.");
 
         byte[] compressed = EncryptionService.Decrypt(
             payloadEncryption,

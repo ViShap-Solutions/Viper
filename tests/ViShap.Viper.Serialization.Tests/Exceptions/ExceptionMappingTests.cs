@@ -321,19 +321,6 @@ public class ExceptionMappingTests
         Assert.Throws<NotSupportedException>(() => new BinarySerializer().Deserialize<int>(source));
     }
 
-    [Fact]
-    public void Serialize_AKeyedContractToANonSeekableV0Destination_ThrowsNotSupported()
-    {
-        // A keyed field's length is patched after the field is written; V0 writes straight through.
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithVersion(0).Build());
-
-        using var destination = new NonSeekableWriteStream();
-
-        Assert.Throws<NotSupportedException>(
-            () => serializer.Serialize(destination, new NewSchema { Kept = new Node { Value = 1 } }));
-    }
-
     private static BinarySerializer Encrypted(byte[] key, string? keyId = null) =>
         new(BinarySerializerOptions.Configure()
             .WithEncryption(new Aes256Gcm(), key, keyId)

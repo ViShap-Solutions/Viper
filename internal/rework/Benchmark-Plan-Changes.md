@@ -55,12 +55,14 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   previous release.
 - **PROF-09** — the same profile set on `pre-rework`, so the matrices compare cell by cell.
 
-## R1 — Wire primitives on buffers
+## R1 — Wire primitives on buffers — applied
 
 - **MICRO-01** rewritten for `WireReader`/`WireWriter`, compared cell by cell with the `pre-rework`
   `ValueReader`/`ValueWriter` numbers.
 - **MICRO-17** — a positional record of many booleans and small integers: the path where a virtual
   call per byte dominates, so R1's gain is visible rather than averaged away.
+- MICRO-06 and MICRO-08 drive their formatter and header through `WireWriter`/`WireReader`; their
+  checkpoint text names no removed type and does not change.
 
 ## R2 — Pipeline on pooled buffers
 

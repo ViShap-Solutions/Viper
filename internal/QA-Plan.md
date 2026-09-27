@@ -380,7 +380,7 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-22 — `RequireEncryption` or `RequireChecksum` together with V0 is rejected when the options are built, on the write side and on the read side alike *(§4.1, §10.2, §21.1, D2)* — `Api/OptionsTests`
 - [x] V0-23 — a keyed contract nested inside a keyed contract round-trips on V0, so field windowing works over the metered V0 payload and not only over V1's buffered one *(§7.3, §10.2)* — `Format/V0FormatTests`
 - [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.8)* — `Format/V0FormatTests`
-- [x] V0-25 — a keyed write on V0 to a destination that cannot seek → `NotSupportedException` naming the seekable payload stream, while a positional write to the same destination succeeds *(§10.2, §14.2, §8.10)* — `Format/V0FormatTests`
+- [x] V0-25 — a keyed write on V0 to a destination that cannot seek succeeds and is byte-identical to the write to a seekable one, and a positional write to the same destination succeeds *(§10.2, §14.2)* — `Format/V0FormatTests`, `Streams/PublicStreamTests` *(inverted in R1: the field length is patched in the serializer's buffer)*
 - [x] V0-26 — a byte-reversed magic is not recognised; `Peek` reports no header *(§22)* — `Format/RoutingTests`
 
 ---
@@ -710,13 +710,14 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 
 ## 20.6 Internal invariants (L2)
 
-- [x] LIM-40 — an `ElementCount` can only be obtained through `Validate` or `ValidateShape`, called only from `ValueReader`, `ValueWriter` and the engine's composite surface, which check and charge together *(§6, §17)* — `Limits/StructuralBarrierTests`
+- [x] LIM-40 — an `ElementCount` can only be obtained through `Validate` or `ValidateShape`, called only from `WireReader`, `WireWriter` and the engine's composite surface, which check and charge together *(§6, §17)* — `Limits/StructuralBarrierTests`
 - [x] LIM-41 — `CountKind` selects the correct limit for array, collection and dictionary counts *(L2, §6)* — `Limits/BudgetAccountingTests`
 - [x] LIM-42 — `ElementCount.CapacityHint` bounds initial capacity; a declared count never allocates its full size up front *(§17)* — `Limits/BudgetAccountingTests`
 - [x] LIM-43 — no type below `Pipeline/` references `SerializationLimits` *(§2, architecture invariant)* — `Exceptions/SourceInvariantTests`
-- [x] LIM-44 — payload bytes are reachable only through `ValueReader` / `ValueWriter` *(§2.3)* — `Limits/StructuralBarrierTests`
+- [x] LIM-44 — payload bytes are reachable only through `WireReader` / `WireWriter`; neither hands out a stream, and the one reader over part of the payload, `WireReader.Slice`, ends where the declared field ends *(§2.3, §7.3)* — `Limits/StructuralBarrierTests`
 - [x] LIM-46 — the documented default table names exactly the limits the type declares *(§5)* — `Exceptions/ConfigurationValidationTests`
-- [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer; the engine exposes no payload primitives *(§18, §24)* — `Limits/StructuralBarrierTests`
+- [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer and which only the engine's entry can create; the engine exposes no payload primitives and holds no reader or writer *(§18, §24)* — `Limits/StructuralBarrierTests`
+- [x] LIM-48 — `WireReader` and `WireWriter` are `ref struct`s, and they are the only types in the engine assembly that declare payload primitives (`Read*`/`Write*` of a boolean, a number, a varint, a string, a blob or a bit count), a `Stream` override excepted *(§2.3, §18)* — `Limits/StructuralBarrierTests`
 
 ---
 

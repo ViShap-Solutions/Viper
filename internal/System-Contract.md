@@ -35,9 +35,9 @@ Public API            BinarySerializer · StreamExtensions · attributes · exce
 SerializationOperation    Limits snapshot · Budget · PhaseBudget · Keys · policies
       │
 FormatPipeline (V0|V1)    framing · phase order · header + AAD · phase sizes
-      │  MeteredReadStream / MeteredWriteStream · WindowReadStream
+      │  source bytes read ahead into memory · PayloadBuffer · MeteredWriteStream
 PayloadEngine             traversal · depth · graph nodes · references · TypeContract
-      │  ValueReader / ValueWriter — the only access to payload bytes
+      │  WireReader / WireWriter — ref structs over memory, the only access to payload bytes
 Formatters                type encoding only
       │
 Algorithms                pure mechanics over spans
@@ -84,13 +84,17 @@ accounting stays cumulative for the whole call.
 
 ## 2.3 The byte boundary
 
-`ValueReader` and `ValueWriter` are the only types that touch payload bytes. They expose checked
-primitives: fixed-size reads that fail with `BinaryFormatException` instead of a framework exception,
-length-prefixed strings and blobs bounded by their limits, and counts that can only be obtained as a
-validated `ElementCount`.
+`WireReader` and `WireWriter` are the only types that touch payload bytes. Both are `ref struct`s
+over memory, never over a stream: `WireReader` reads a span or a `ReadOnlySequence<byte>` and always
+knows exactly how many bytes remain; `WireWriter` writes into the serializer's own `PayloadBuffer`.
+They expose checked primitives: fixed-size reads that fail with `BinaryFormatException` instead of a
+framework exception, length-prefixed strings and blobs bounded by their limits, every declared length
+compared with the bytes that remain before it drives an allocation, and counts that can only be
+obtained as a validated `ElementCount`.
 
-There is no raw escape hatch. A formatter holds a `ValueReader`/`ValueWriter` and nothing else, so
-"read a length and allocate it" is not expressible.
+There is no raw escape hatch and no stream under the engine. A formatter is handed a
+`WireReader`/`WireWriter` by reference and nothing else, so "read a length and allocate it" is not
+expressible, and a reader or writer cannot outlive the call it was handed to.
 
 ## 2.4 The traversal boundary
 
@@ -517,28 +521,31 @@ A charge is per element, never per byte, and the element type does not change it
 
 # 7. Security stream mechanisms
 
-There are two mechanisms, in three types.
+There are two mechanisms: metering and windowing. On the read side both are properties of
+`WireReader`; on the write side metering is split between the serializer's `PayloadBuffer` and
+`MeteredWriteStream`.
 
 **Metering** — counting what one operation consumes or produces, relative to where it started.
 
-## 7.1 `MeteredReadStream`
+## 7.1 Metering on read
 
 > Caps the bytes this operation reads from a caller-owned stream.
 
-- counts from zero regardless of the caller stream's absolute position;
-- exposes `RemainingBytes` — the lesser of the remaining budget and the bytes the source can still
-  physically deliver — so a declared length is rejected before it drives an allocation. A chain of
-  meters propagates the physical truth, because each one answers for itself;
-- classifies a declaration it cannot satisfy by which bound it broke: beyond the configured ceiling
-  is `BinaryLimitException`, while within the ceiling but beyond the remaining bytes means the
-  payload is shorter than it claims, which is `BinaryFormatException`;
-- bounds a *read* by the budget alone, so an ordinary short read stays a truncation for the caller
-  to report rather than being reclassified as a limit violation;
-- wraps underlying `IOException` as `BinaryStreamException`;
-- never disposes the caller's stream.
-
-Read paths compose it: V1 meters the wire; V0 meters the wire and the payload independently, so
-`MaxPayloadBytes` applies symmetrically to reading and writing.
+- the pipeline reads the source ahead into memory, from the caller stream's position, and never more
+  than the operation's budget: V1 reads its header (at most the largest header the format admits)
+  and then exactly the declared on-disk length; V0, which has no header, reads up to the tighter of
+  `MaxWireBytes` and `MaxPayloadBytes`, so `MaxPayloadBytes` applies symmetrically to reading and
+  writing;
+- the `WireReader` over those bytes knows exactly how many remain, so a declared length is rejected
+  before it drives an allocation;
+- a declaration the bytes cannot satisfy is classified by which bound it broke: beyond the budget is
+  `BinaryLimitException`, while within the budget but beyond the bytes the source delivered means the
+  payload is shorter than it claims, which is `BinaryFormatException`. A declared length the budget
+  admits is therefore never reclassified as a limit violation;
+- after a successful read the source's position is where the decoded bytes end — the end of a V1
+  frame, or the end of a V0 root value;
+- underlying `IOException` is wrapped as `BinaryStreamException`;
+- the caller's stream is never disposed.
 
 ## 7.2 `MeteredWriteStream`
 
@@ -552,22 +559,27 @@ Read paths compose it: V1 meters the wire; V0 meters the wire and the payload in
 - wraps underlying `IOException` as `BinaryStreamException`;
 - never disposes the caller's stream.
 
+The serializer's `PayloadBuffer` carries the payload budget on the write side: it never hands out
+space past `MaxPayloadBytes` (under V0 the tighter of `MaxPayloadBytes` and `MaxWireBytes`), so a
+graph that would exceed it fails with `BinaryLimitException` while it is being written, before any
+byte reaches the destination.
+
 **Windowing** — exposing exactly one declared subrange.
 
-## 7.3 `WindowReadStream`
+## 7.3 The field window
 
-> Exposes exactly one declared subrange of an already metered stream.
+> `WireReader.Slice(length)`: a reader over exactly one declared subrange of the payload.
 
 Used for known keyed-field payloads. If a field declares `N` bytes, its decoder may consume at most
-`N` bytes through the window and cannot read into the next field. The window knows its
-`RemainingBytes` and classifies an over-read as `BinaryFormatException`, because running past a
-declared window means the payload is shorter than it claims.
+`N` bytes through the window and cannot read into the next field. The window knows exactly how many
+bytes remain and classifies an over-read as `BinaryFormatException`, because running past a declared
+window means the payload is shorter than it claims.
 
-A window never materializes the field payload merely to enforce the boundary, and a known field is
-decoded through it while sharing the parent operation's budget and reference state.
+A window never copies the field payload merely to enforce the boundary, and a known field is decoded
+through it while sharing the parent operation's budget and reference state.
 
-Unknown keyed fields are skipped in bounded chunks rather than copied into a single attacker-sized
-byte array.
+Unknown keyed fields are skipped by moving past their declared length, never copied into an
+attacker-sized byte array.
 # 8. Exception taxonomy
 
 The exception hierarchy is part of the public API contract:
@@ -700,8 +712,7 @@ These remain intentionally outside `BinarySerializerException`:
 - `ArgumentNullException` — required public argument is null;
 - `ArgumentException` — invalid direct caller argument;
 - `NotSupportedException` — unsupported API capability, e.g. required seekability: reading, which
-  must detect the format version before consuming anything, and writing a keyed contract under a
-  format that does not buffer the payload (§10.2, §14.2).
+  must detect the format version before consuming anything.
 
 Do not wrap every exception merely to force taxonomy symmetry.
 
@@ -806,13 +817,10 @@ directions (§7.1). V0 is not a reduced engine — it is the same engine without
 value under one layout the payload bytes are identical in both formats (§22.8).
 
 Keyed contracts are a property of the type, not of the format, so a `[BinaryContract]` type encodes
-identically under both. One consequence is visible to the caller: a keyed field's length is written
-ahead of the field and patched once the field's size is known, so the payload stream must be
-seekable. V1 buffers the payload and always satisfies this; under V0, which writes straight to the
-destination, the requirement falls on the caller's destination stream, and one that cannot seek is
-`NotSupportedException` (§8.10). The `byte[]` entry points of §3 buffer into memory, so they are
-always seekable and are never affected. Positional writing carries no such requirement under either
-format.
+identically under both. A keyed field's length is written ahead of the field and patched once the
+field's size is known; under both formats that happens in the serializer's own buffer, and the
+finished bytes are copied to the destination once. A keyed write therefore works with any
+destination, seekable or not, and a write that fails leaves nothing in the destination.
 
 V0 and V1 must remain distinct wire formats. V1-specific behavior must not be accidentally required to parse valid V0 payloads.
 
@@ -1093,10 +1101,8 @@ declared length, exactly as it skips any other key it does not know.
 Unknown keyed fields are skipped according to their declared payload length and do not invoke a formatter for an unavailable/unknown member type.
 
 Keyed mode is independent of the wire format version: the encoding lives in the payload, so it
-applies under V0 and V1 alike. It does require a seekable payload stream, because each field's length
-is patched after the field is written. V1 buffers the payload, so the requirement never reaches the
-caller; under V0 it falls on the caller's destination stream, and one that cannot seek is
-`NotSupportedException` (§10.2, §8.10).
+applies under V0 and V1 alike. Each field's length is patched after the field is written, in the
+serializer's own buffer, so keyed mode places no requirement on the caller's destination (§10.2).
 
 ---
 
@@ -1212,8 +1218,9 @@ SerializationBudget      = per-operation mutable accounting
 PhaseBudget              = per-phase size policy
 SerializationOperation   = everything one public call may consume
 
-ValueReader              = read-side checked primitives   (the only byte access)
-ValueWriter              = write-side checked primitives  (the only byte access)
+WireReader               = read-side checked primitives over memory   (the only byte access)
+WireWriter               = write-side checked primitives into PayloadBuffer (the only byte access)
+PayloadBuffer            = the serializer's pooled write buffer: one byte budget, patching in place
 ElementCount             = a count that has been validated and charged
 
 GraphReader / GraphWriter = graph traversal, depth, nodes, identity, keyed layout
@@ -1253,7 +1260,7 @@ Serializer-created readers/writers use `leaveOpen: true` where caller-owned stre
 
 `BinarySerializer` never disposes the caller's stream.
 
-A failed operation may leave the stream position at the point where the failure occurred unless a specific inspection API promises position restoration.
+A successful read leaves the stream positioned where the decoded bytes end. A failed operation may leave the stream position anywhere between where it started and the furthest byte it read, unless a specific inspection API promises position restoration.
 
 Inspection APIs that promise non-consuming behavior must restore position even on failure.
 
@@ -1708,7 +1715,7 @@ A box is checked only when source and a test prove it.
 ## Architecture invariants
 
 - [x] No type below the pipeline references `SerializationLimits`.
-- [x] Payload bytes are reachable only through `ValueReader`/`ValueWriter`.
+- [x] Payload bytes are reachable only through `WireReader`/`WireWriter`, `ref struct`s over memory.
 - [x] A loop bound over wire data exists only as a validated `ElementCount`.
 - [x] Recursion, depth, node and identity accounting live only in the payload engine.
 - [x] No public contract participates in enforcing a limit.

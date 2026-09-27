@@ -80,8 +80,15 @@ public static class BinaryFormatInspector
                 requireEncryption: false,
                 requireChecksum: false);
 
-            var metered = new MeteredReadStream(source, limits.MaxWireBytes, "format inspection");
-            return BinaryFormatHeaderV1.ReadFrom(new ValueReader(metered, operation)).ToInfo();
+            var budget = new WireBudget("format inspection", limits.MaxWireBytes);
+            long available = Math.Max(0, source.Length - start);
+
+            Span<byte> prefix = stackalloc byte[BinaryFormatHeaderV1.MaxLength];
+            prefix = prefix[..(int)Math.Min(prefix.Length, Math.Min(available, budget.Maximum))];
+            prefix = prefix[..ReadPrefix(source, prefix)];
+
+            var reader = new WireReader(prefix, operation, budget);
+            return BinaryFormatHeaderV1.ReadFrom(ref reader).ToInfo();
         }
         catch (IOException ex)
         {
@@ -100,5 +107,20 @@ public static class BinaryFormatInspector
                     "Failed to restore the source stream position after format inspection.", ex);
             }
         }
+    }
+
+    private static int ReadPrefix(Stream source, Span<byte> prefix)
+    {
+        int total = 0;
+        while (total < prefix.Length)
+        {
+            int read = source.Read(prefix[total..]);
+            if (read == 0)
+                break;
+
+            total += read;
+        }
+
+        return total;
     }
 }

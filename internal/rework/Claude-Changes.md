@@ -27,14 +27,20 @@ earlier is reported to the owner by the stage that notices it.
 
 # 2. Stage by stage
 
-### R1 — Wire primitives on buffers
+### R1 — Wire primitives on buffers — applied
 
 - **Architecture** — the layer diagram: `ValueReader / ValueWriter` becomes `WireReader / WireWriter`,
   `ref struct`s over buffers.
 - **Three structural barriers** — 1, byte monopoly: named after `WireReader`/`WireWriter`; "every
   declared length is compared with the bytes physically remaining" restated against
   `WireReader.Remaining`.
-- **Projects** — the `Io/` example of the namespace rule, if the folder or its types move.
+- **Projects** — the `Io/` example of the namespace rule, if the folder or its types move. *(The
+  folder stayed; nothing to change.)*
+- Moved here from R2 by the owner's decision of 2026-09-27 (`Owner-Review.md` log 53), because V0
+  now writes through `PayloadBuffer`: **Versioned envelope** (the V0 `NotSupportedException` sentence
+  removed; the write is atomic) and **Member layouts** (the keyed V0 caveat removed). **Limits and
+  budgets**: the read half — the `WireReader` classification and `Slice` window replace
+  `MeteredReadStream`/`WindowReadStream`; `MeteredWriteStream` stays until R2.
 
 ### R2 — Pipeline on pooled buffers
 
@@ -42,12 +48,10 @@ earlier is reported to the owner by the stage that notices it.
   by reference; the pipeline row says phases are transforms over pooled buffers.
 - **Limits and budgets** — `MeteredReadStream`, `MeteredWriteStream` and `WindowReadStream` are gone:
   the wire budget, the exact remaining count and the keyed field window are properties of the reader
-  and writer (plan §5.2). Budget and phase policy restated against `OperationState`.
-- **Versioned envelope** — V0 no longer writes straight through: every write goes through the
-  serializer's own buffer, is atomic, and a keyed write needs no seekable destination. The
-  `NotSupportedException` sentence is removed.
-- **Member layouts** — keyed: the length is patched in the serializer's buffer, so no layout needs a
-  seekable stream; the V0 caveat is removed. References: cycle detection by the ancestor stack.
+  and writer (plan §5.2). Budget and phase policy restated against `OperationState`. *(The read half
+  was applied in R1.)*
+- **Versioned envelope** — applied in R1.
+- **Member layouts** — keyed: applied in R1. References: cycle detection by the ancestor stack.
 - **Where the authoritative information lives** — the `Streams/` folder of the test layout, as the
   QA plan now names it.
 

@@ -76,16 +76,18 @@ public class PublicStreamTests
     }
 
     [Fact]
-    public void Serialize_AKeyedContractIntoANonSeekableV0Destination_ThrowsNotSupported()
+    public void Serialize_AKeyedContractIntoANonSeekableV0Destination_Succeeds()
     {
-        // V0 writes straight through, and a keyed field length is patched after the field is
-        // written, so that one combination genuinely needs to seek (§10.2, §14.2).
+        // V0 builds the payload in the serializer's own buffer, where a keyed field length is
+        // patched, and copies it out once, so no write needs the destination to seek (§10.2, §14.2).
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure().WithVersion(0).Build());
+        var value = new NewSchema { Kept = new Node { Value = 1 } };
         using var destination = new NonSeekableWriteStream();
 
-        Assert.Throws<NotSupportedException>(
-            () => serializer.Serialize(destination, new NewSchema { Kept = new Node { Value = 1 } }));
+        serializer.Serialize(destination, value);
+
+        Assert.Equal(serializer.Serialize(value), destination.Written);
     }
 
     [Fact]

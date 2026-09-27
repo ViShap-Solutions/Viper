@@ -49,6 +49,7 @@ internal static class TrackRunner
         ("A4", typeof(ContractLookupBenchmarks)),
         ("A4", typeof(FormatterResolutionBenchmarks)),
         ("A4", typeof(FormatterShapeBenchmarks)),
+        ("A4", typeof(SmallFieldBenchmarks)),
         ("A4", typeof(ReferenceIdentityBenchmarks)),
         ("A4", typeof(ReferenceScopeBenchmarks)),
         ("A4", typeof(HeaderBenchmarks)),
