@@ -87,7 +87,7 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | closed | `76b9aa5` |
 | R6 — The final format | `rework/r6-final-format` | no tag: `v1.0.0-beta.1` deliberately not set (owner, 2026-09-29, `Owner-Review.md` log 64) | closed | `4a7d820` |
 | R7 — Removed | — | — | — | — |
-| R8 — Generator ground | `rework/r8-generator-ground` | — | gate holds — awaiting commit | |
+| R8 — Generator ground | `rework/r8-generator-ground` | — | closed | `a41f64a` |
 | R9a — Reconciliation | `rework/r9a-reconcile` | — | not started | |
 | R9b — Consumer documentation | `docs/v1-consumer-docs` | — | not started | |
 | R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | not started | |

@@ -67,8 +67,8 @@ tests/ViShap.Viper.Serialization.Tests/
   Fixtures/Wire/    committed *.bin compatibility fixtures (already wired in the .csproj)
 
 tests/ViShap.Viper.AotConsumer/
-                    a consumer of the packages, outside the solution, built by Api/AotAnalysisTests
-                    under native AOT analysis (EXT-07); it is compiled, never run
+                    a consumer of the packages, in the solution but not built with it, built by
+                    Api/AotAnalysisTests under native AOT analysis (EXT-07); it is compiled, never run
 ```
 
 The `Api/`, `Correctness/` and `Security/` folders that exist today are replaced by this layout during **M0**.

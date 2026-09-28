@@ -143,8 +143,8 @@ entry; inside the engine only the two caches (`FormatterCache<T>`, `TypeContract
 the analysis, on the strength of that. Both packages build with `IsAotCompatible` and report no
 trimming or AOT warning: a new method that reaches the engine takes the attributes the analyzer asks
 for, never a suppression. `Api/AotAnalysisTests` (EXT-07) holds it by reflection and by building
-`tests/ViShap.Viper.AotConsumer` — outside the solution, compiled and never run — under native AOT
-analysis.
+`tests/ViShap.Viper.AotConsumer` — in the solution, not built with it, compiled by the test and never
+run — under native AOT analysis.
 
 ### Three structural barriers
 
