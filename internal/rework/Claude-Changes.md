@@ -109,7 +109,7 @@ earlier is reported to the owner by the stage that notices it.
   the exception is recorded and the "never regenerated" rule restored in the same change
   (`Rework-Plan.md` §0). The oracle paragraph added in R0 is removed.
 
-### R8 — Generator ground
+### R8 — Generator ground — applied
 
 - **Architecture** — the reflection path's public entry points carry `[RequiresDynamicCode]` /
   `[RequiresUnreferencedCode]`; the conformance suite `CONF-*` is named beside the contract seam.

@@ -53,7 +53,7 @@ contract would already be accurate for it.
 - State INV-15 (a data or graph error leaves no byte in the destination). *(R2)* — **R2 applied** as
   §2.6 "Atomic writes"; §2.5 states the phases over pooled buffers.
 
-### §3 Public API surface — R3, R5, R8
+### §3 Public API surface — R3, R5, R8 — applied
 
 - **Type list.** Add `PooledPayload` *(R3)* and `HkdfKeyProvider`, `XxHash3Checksum`,
   `XxHash128Checksum`, `ChaCha20Poly1305Encryption` *(R5)*. Rename `Crc32` → `Crc32Checksum`,
@@ -81,6 +81,10 @@ contract would already be accurate for it.
 - **R5 applied.** §3 lists the family-suffixed built-ins, `XxHash3Checksum`, `XxHash128Checksum`,
   `ChaCha20Poly1305Encryption` and `HkdfKeyProvider`, with a paragraph on why every built-in carries
   its family as a suffix and on the interfaces declaring no default members.
+- **R8 applied.** §3 carries "The reflection path states its requirements": which entry points carry
+  `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` (the 22 generic methods of `BinarySerializer`,
+  the 4 of `BinaryFormatDumper`), why, which members carry neither, `IsAotCompatible` on both
+  packages, and the test that holds it.
 
 ### §4 Options and configuration — R3, R5 — applied
 
@@ -219,7 +223,7 @@ contract would already be accurate for it.
   states. The `Encrypt` signature returns the bytes written, by the owner's decision of 2026-09-28
   (`Owner-Review.md` log 57).
 
-### §14 Contracts and members — R4, R6, R8
+### §14 Contracts and members — R4, R6, R8 — applied
 
 **R6 applied.**
 
@@ -229,6 +233,9 @@ contract would already be accurate for it.
 - §14.2: keyed framing is `varint key · int32 length`, with the reason for the fixed length (plan
   §6.3.1); the field count carries the null fold (plan §6.3.2). *(R6)*
 - Add: the type contract is the unit a generated contract replaces; nothing else is generated. *(R8)*
+- **R8 applied.** §14.1 states that the type contract is the unit a generated contract replaces and
+  that nothing else is generated, and names the conformance suite that fixes what a contract must
+  produce. §21.3's list of deferred work now says the seam is in place and the generator is not.
 
 ### §15 Polymorphism — R4 — applied
 

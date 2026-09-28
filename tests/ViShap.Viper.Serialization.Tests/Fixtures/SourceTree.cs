@@ -6,12 +6,15 @@ namespace ViShap.Viper.Serialization.Tests.Fixtures;
 /// </summary>
 internal static class SourceTree
 {
+    /// <summary>The directory holding the solution.</summary>
+    public static string RepositoryRoot { get; } = FindRepositoryRoot();
+
     /// <summary>Every production <c>.cs</c> file, keyed by its path relative to <c>src/</c>.</summary>
     public static IReadOnlyDictionary<string, string> ProductionFiles { get; } = Load();
 
     private static Dictionary<string, string> Load()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot;
         var src = Path.Combine(root, "src");
 
         if (!Directory.Exists(src))

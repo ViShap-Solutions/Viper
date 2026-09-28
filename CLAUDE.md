@@ -134,6 +134,18 @@ Algorithms                  pure mechanics over spans
 
 Dependencies point strictly downwards. **No type below `Pipeline/` may reference `SerializationLimits`.**
 
+**The reflection path states its requirements.** Codecs and type contracts are built by reflection, so
+every public entry point that encodes or decodes a caller's type — the generic methods of
+`BinarySerializer` and `BinaryFormatDumper` — carries `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]` with the messages of `Engine/ReflectionPath`, and no other public member does.
+The requirement runs down through the pipelines to `Graph.WriteRoot`/`ReadRoot`, the engine's only
+entry; inside the engine only the two caches (`FormatterCache<T>`, `TypeContractCache.Get`) suppress
+the analysis, on the strength of that. Both packages build with `IsAotCompatible` and report no
+trimming or AOT warning: a new method that reaches the engine takes the attributes the analyzer asks
+for, never a suppression. `Api/AotAnalysisTests` (EXT-07) holds it by reflection and by building
+`tests/ViShap.Viper.AotConsumer` — outside the solution, compiled and never run — under native AOT
+analysis.
+
 ### Three structural barriers
 
 These are why the codebase does not carry a security check in every class. Do not work around them:
@@ -175,6 +187,11 @@ Adding a format version means a pipeline registered in `BinarySerializer`; the r
 - **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `varint key, int32 length, payload`, sorted by key; the length is fixed-width because it is patched after the field is written, and the field count before the fields carries a keyed class's null (count + 1) when it is not reference-framed. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Payload-level, so it works under both format versions; the length is patched in the serializer's buffer after the field is written, so no destination needs to seek.
 
 The two are mutually exclusive, and every contradiction is rejected when the contract is built: `[BinaryKey]` without `[BinaryContract]`, `[BinaryOrder]`/`[BinaryInclude]` on a contract, an unmarked contract member, `[BinaryKey]` together with `[BinaryIgnore]`, `[BinaryInclude]` together with `[BinaryIgnore]`, duplicate keys or orders.
+
+A contract built any other way — the source generator planned after v1.0 — must match the reflected
+one: the conformance suite `Contracts/ConformanceTests` (CONF-01…CONF-07) reaches a contract through one
+seam, `ContractOf<T>`, and pins the description and the bytes of every object shape over the partial
+types of `Fixtures/Conformance`.
 
 Polymorphism: `[BinaryUnion(tag, typeof(Derived))]` on a base class or interface; a one-byte discriminator precedes the members. Tags must fit in a byte, and only tags travel — never type names. Writing a value whose runtime type differs from the declared type **without** a union map is `BinaryTypeException`, because the reader could not reconstruct it.
 

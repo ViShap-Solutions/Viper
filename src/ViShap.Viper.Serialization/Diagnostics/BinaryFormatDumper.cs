@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 
@@ -83,7 +84,7 @@ public static class BinaryFormatDumper
     /// <param name="options">The limits, the keys and the custom algorithms to read with; <see langword="null"/> for the defaults and no key.</param>
     /// <returns>The dump. This method does not throw for malformed input.</returns>
     public static BinaryDump Dump(ReadOnlySpan<byte> frame, BinarySerializerOptions? options = null) =>
-        Read<object>(frame, options, typed: false);
+        Read(frame, options, decoder: null, TypeNames.Of(typeof(object)));
 
     /// <summary>
     /// Reads a frame as <typeparamref name="T"/>: the header and the phases as
@@ -94,18 +95,22 @@ public static class BinaryFormatDumper
     /// <param name="frame">The bytes of one frame.</param>
     /// <param name="options">The limits, the keys and the custom algorithms to read with; <see langword="null"/> for the defaults and no key.</param>
     /// <returns>The dump; after a failure, the tree up to it. This method does not throw for malformed input.</returns>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static BinaryDump Dump<T>(ReadOnlySpan<byte> frame, BinarySerializerOptions? options = null) =>
-        Read<T>(frame, options, typed: true);
+        Read(frame, options, new RootDecoder<T>(), TypeNames.Of(typeof(T)));
 
     /// <summary>Reads a frame held in one segment or many as <typeparamref name="T"/>.</summary>
     /// <typeparam name="T">The type the frame was written as.</typeparam>
     /// <param name="frame">The bytes of one frame.</param>
     /// <param name="options">The limits, the keys and the custom algorithms to read with; <see langword="null"/> for the defaults and no key.</param>
     /// <returns>The dump; after a failure, the tree up to it. This method does not throw for malformed input.</returns>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static BinaryDump Dump<T>(ReadOnlySequence<byte> frame, BinarySerializerOptions? options = null) =>
         frame.IsSingleSegment
-            ? Read<T>(frame.FirstSpan, options, typed: true)
-            : Read<T>(frame.ToArray(), options, typed: true);
+            ? Dump<T>(frame.FirstSpan, options)
+            : Dump<T>(frame.ToArray(), options);
 
     /// <summary>Writes <paramref name="value"/> with <paramref name="options"/> and reads back what was written.</summary>
     /// <typeparam name="T">The type to write the value as.</typeparam>
@@ -113,6 +118,8 @@ public static class BinaryFormatDumper
     /// <param name="options">The options to write and read with; <see langword="null"/> for the defaults.</param>
     /// <returns>The dump of the frame the serializer wrote.</returns>
     /// <exception cref="BinarySerializerException">The value cannot be written; the write raises what it always does.</exception>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static BinaryDump DumpValue<T>(T value, BinarySerializerOptions? options = null)
     {
         byte[] frame = new BinarySerializer(options).Serialize(value);
@@ -130,6 +137,8 @@ public static class BinaryFormatDumper
     /// <param name="actual">The frame to compare with it.</param>
     /// <param name="options">The options to read both with; <see langword="null"/> for the defaults and no key.</param>
     /// <returns>The first difference, or <see langword="null"/> when both frames decode to the same tree.</returns>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static BinaryDumpDifference? Compare<T>(
         ReadOnlySpan<byte> expected,
         ReadOnlySpan<byte> actual,
@@ -172,12 +181,18 @@ public static class BinaryFormatDumper
         return null;
     }
 
-    private static BinaryDump Read<T>(ReadOnlySpan<byte> frame, BinarySerializerOptions? options, bool typed)
+    /// <summary>
+    /// Reads a frame: its header, each phase undone, and the payload — as a tree of values when a
+    /// <paramref name="decoder"/> is given, as bytes otherwise.
+    /// </summary>
+    private static BinaryDump Read(
+        ReadOnlySpan<byte> frame,
+        BinarySerializerOptions? options,
+        RootDecoder? decoder,
+        string typeName)
     {
         options ??= BinarySerializerOptions.Default;
         var state = new OperationState(options.Limits, options.Keys, false, false, false);
-        var trace = typed ? new DumpTrace() : null;
-        string typeName = TypeNames.Of(typeof(T));
 
         bool framed;
         try
@@ -190,15 +205,15 @@ public static class BinaryFormatDumper
         }
 
         return framed
-            ? ReadFrame<T>(frame, options, ref state, trace, typeName)
-            : ReadPayload<T>(frame, null, frame.Length, ref state, trace, typeName, preserveReferences: false, null, null, null);
+            ? ReadFrame(frame, options, ref state, decoder, typeName)
+            : ReadPayload(frame, null, frame.Length, ref state, decoder, typeName, preserveReferences: false, null, null, null);
     }
 
-    private static BinaryDump ReadFrame<T>(
+    private static BinaryDump ReadFrame(
         ReadOnlySpan<byte> frame,
         BinarySerializerOptions options,
         ref OperationState state,
-        DumpTrace? trace,
+        RootDecoder? decoder,
         string typeName)
     {
         BinaryFormatHeaderV1 header;
@@ -274,8 +289,8 @@ public static class BinaryFormatDumper
                 checksumVerified = true;
             }
 
-            return ReadPayload<T>(
-                raw, info, frame.Length, ref state, trace, typeName,
+            return ReadPayload(
+                raw, info, frame.Length, ref state, decoder, typeName,
                 header.PreserveReferences, isDecrypted, checksumVerified, compressedLength);
         }
         catch (BinarySerializerException ex)
@@ -293,12 +308,12 @@ public static class BinaryFormatDumper
         }
     }
 
-    private static BinaryDump ReadPayload<T>(
+    private static BinaryDump ReadPayload(
         ReadOnlySpan<byte> payload,
         BinaryHeaderInfo? info,
         int frameLength,
         ref OperationState state,
-        DumpTrace? trace,
+        RootDecoder? decoder,
         string typeName,
         bool preserveReferences,
         bool? decrypted,
@@ -307,14 +322,16 @@ public static class BinaryFormatDumper
     {
         int version = info is null ? 0 : 1;
         BinarySerializerException? failure = null;
+        DumpTrace? trace = null;
 
-        if (trace is not null)
+        if (decoder is not null)
         {
+            trace = new DumpTrace();
             state.Trace = trace;
             try
             {
                 var reader = new WireReader(payload, ref state);
-                Graph.ReadRoot<T>(ref reader, default, preserveReferences);
+                decoder.Decode(ref reader, preserveReferences);
 
                 if (reader.Remaining != 0)
                     throw new BinaryFormatException(
@@ -367,4 +384,22 @@ public static class BinaryFormatDumper
 
     private static string Describe<TKind>(TKind kind, string? customName) where TKind : Enum =>
         customName is null ? kind.ToString() : $"{kind} ('{customName}')";
+
+    /// <summary>Reads the root value of a payload as the type a typed dump names.</summary>
+    private abstract class RootDecoder
+    {
+        public abstract void Decode(ref WireReader reader, bool preserveReferences);
+    }
+
+    /// <summary>
+    /// Reads the root as <typeparamref name="T"/>, through the engine. Only a typed dump creates one,
+    /// so only a typed dump carries the requirements of the reflection path.
+    /// </summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
+    private sealed class RootDecoder<T> : RootDecoder
+    {
+        public override void Decode(ref WireReader reader, bool preserveReferences) =>
+            Graph.ReadRoot<T>(ref reader, default, preserveReferences);
+    }
 }

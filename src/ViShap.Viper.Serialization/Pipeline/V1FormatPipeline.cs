@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ViShap.Viper.Pipeline;
 
@@ -24,6 +25,8 @@ internal sealed class V1FormatPipeline(
         || checksum.Kind != ChecksumAlgorithm.None
         || encryption.Kind != EncryptionAlgorithm.None;
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public EncodedFrame Write<T>(T data, ref OperationState state)
     {
         var payload = new PayloadBuffer(state.Limits.MaxPayloadBytes, "payload");
@@ -226,6 +229,8 @@ internal sealed class V1FormatPipeline(
         return FrameExtent.Known(headerLength + (long)header.OnDiskLength);
     }
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public T? Read<T>(
         ReadOnlySpan<byte> source,
         T? target,
@@ -248,6 +253,8 @@ internal sealed class V1FormatPipeline(
             ref state);
     }
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public T? Read<T>(
         ReadOnlySequence<byte> source,
         T? target,
@@ -365,6 +372,8 @@ internal sealed class V1FormatPipeline(
     /// exactly. The plaintext of an encrypted frame is checked against its limits before it is
     /// decompressed, which is the one allocation the decompression ratio protects.
     /// </summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private static T? Decode<T>(
         in BinaryFormatHeaderV1 header,
         PayloadPhases phases,
@@ -411,6 +420,8 @@ internal sealed class V1FormatPipeline(
     /// payload uses reference framing, so the engine follows the payload rather than the local
     /// configuration.
     /// </summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private static T? DecodePayload<T>(ref WireReader reader, T? target, bool preserveReferences)
     {
         var result = Graph.ReadRoot(ref reader, target, preserveReferences);

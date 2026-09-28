@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -23,7 +24,8 @@ internal sealed class KeyValuePairFormatter<TKey, TValue> : ICompositeFormatter<
 /// <c>Lazy&lt;T&gt;</c> travels as its value, so writing one materializes it. Reading produces a lazy
 /// value that already holds the value and never runs a factory.
 /// </summary>
-internal sealed class LazyFormatter<T> : ICompositeFormatter<Lazy<T>>
+internal sealed class LazyFormatter<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] T>
+    : ICompositeFormatter<Lazy<T>>
 {
     public void Write(ref CompositeWriter writer, Lazy<T> value) => writer.WriteValue(value.Value);
 
@@ -65,7 +67,7 @@ internal sealed class MultiDimensionalArrayFormatter<TArray, TElement> : ICompos
         var shape = reader.ReadShape(Rank, What);
         var elements = reader.ReadElements<TElement>(shape.Total);
 
-        var array = Array.CreateInstance(typeof(TElement), shape.Lengths);
+        var array = Array.CreateInstanceFromArrayType(typeof(TArray), shape.Lengths);
         elements.CopyTo(Elements(array));
         return (TArray)(object)array;
     }

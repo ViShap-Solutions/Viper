@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
@@ -27,6 +28,8 @@ namespace ViShap.Viper.Formatters;
 /// </list>
 /// There is no catch-all formatter that could shadow a more specific one by accident.
 /// </summary>
+[RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+[RequiresDynamicCode(ReflectionPath.DynamicCode)]
 internal static class FormatterRegistry
 {
     private static readonly FrozenDictionary<Type, object> Scalars = new Dictionary<Type, object>

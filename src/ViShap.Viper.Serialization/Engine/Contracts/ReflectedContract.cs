@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -114,6 +115,8 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
 /// the inheritance chain, applies every inclusion rule and every rejection, orders them, and
 /// compiles one accessor per member.
 /// </summary>
+[RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+[RequiresDynamicCode(ReflectionPath.DynamicCode)]
 internal static class ReflectedContract
 {
     public static TypeContract Build(Type type)
