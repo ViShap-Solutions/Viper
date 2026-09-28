@@ -8,10 +8,11 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Hostile;
 
 /// <summary>
-/// Pins HST-10…HST-16: a payload that stops before it has delivered what it declared. Every prefix
-/// of a valid frame fails deterministically, every fixed-size primitive is checked at its own width,
-/// the 7-bit encoding rejects a truncated, overlong or out-of-range integer, and no read that cannot
-/// be satisfied yields a partially filled value.
+/// Pins HST-10…HST-16, HST-40 and HST-41: a payload that stops before it has delivered what it
+/// declared. Every prefix of a valid frame fails deterministically, every fixed-size primitive is
+/// checked at its own width, the 7-bit encoding rejects a truncated, overlong, out-of-range or
+/// non-minimal integer in every structural position, and no read that cannot be satisfied yields a
+/// partially filled value.
 /// </summary>
 public class TruncationTests
 {
@@ -132,8 +133,8 @@ public class TruncationTests
     [Fact]
     public void Deserialize_ATruncated7BitInteger_ThrowsFormat()
     {
-        // A continuation byte that nothing follows.
-        byte[] frame = Wire.Frame([.. Wire.NotNull, 0x80]);
+        // A continuation byte that nothing follows, where the string's length begins.
+        byte[] frame = Wire.Frame([0x80]);
 
         Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<string>(frame));
@@ -142,7 +143,7 @@ public class TruncationTests
     [Fact]
     public void Deserialize_A7BitIntegerWithTooManyContinuationBytes_ThrowsFormat()
     {
-        byte[] frame = Wire.Frame([.. Wire.NotNull, 0x80, 0x80, 0x80, 0x80, 0x80]);
+        byte[] frame = Wire.Frame([0x80, 0x80, 0x80, 0x80, 0x80]);
 
         AssertEx.Throws<BinaryFormatException>(
             "Malformed", () => new BinarySerializer().Deserialize<string>(frame));
@@ -152,7 +153,7 @@ public class TruncationTests
     public void Deserialize_A7BitIntegerAboveInt32MaxValue_ThrowsFormat()
     {
         // Eight in the fifth group is 0x8000_0000, one past the representable range.
-        byte[] frame = Wire.Frame([.. Wire.NotNull, 0x80, 0x80, 0x80, 0x80, 0x08]);
+        byte[] frame = Wire.Frame([0x80, 0x80, 0x80, 0x80, 0x08]);
 
         AssertEx.Throws<BinaryFormatException>(
             "non-negative Int32", () => new BinarySerializer().Deserialize<string>(frame));
@@ -161,12 +162,13 @@ public class TruncationTests
     // --- HST-40: the 7-bit encoding is minimal ----------------------------------------------------
 
     [Theory]
-    [InlineData(new byte[] { 0x85, 0x00 })]
-    [InlineData(new byte[] { 0x85, 0x80, 0x00 })]
-    [InlineData(new byte[] { 0x85, 0x80, 0x80, 0x80, 0x00 })]
+    [InlineData(new byte[] { 0x86, 0x00 })]
+    [InlineData(new byte[] { 0x86, 0x80, 0x00 })]
+    [InlineData(new byte[] { 0x86, 0x80, 0x80, 0x80, 0x00 })]
     public void Deserialize_ANonMinimalStringLength_ThrowsFormat(byte[] lengthOfFive)
     {
-        byte[] frame = Wire.Frame([.. Wire.NotNull, .. lengthOfFive, .. "hello"u8]);
+        // Five bytes, written as six because the length carries the string's null.
+        byte[] frame = Wire.Frame([.. lengthOfFive, .. "hello"u8]);
 
         AssertEx.Throws<BinaryFormatException>(
             "minimally", () => new BinarySerializer().Deserialize<string>(frame));
@@ -175,7 +177,7 @@ public class TruncationTests
     [Fact]
     public void Deserialize_TheMinimalSpellingOfTheSameLength_Succeeds()
     {
-        byte[] frame = Wire.Frame([.. Wire.NotNull, 0x05, .. "hello"u8]);
+        byte[] frame = Wire.Frame([0x06, .. "hello"u8]);
 
         Assert.Equal("hello", new BinarySerializer().Deserialize<string>(frame));
     }
@@ -185,8 +187,9 @@ public class TruncationTests
     {
         byte[] field = [0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 
-        byte[] count = Wire.Frame([.. Wire.NotNull, 0x81, 0x00, 0x00, .. field]);
-        byte[] key = Wire.Frame([.. Wire.NotNull, 0x01, 0x80, 0x00, .. field]);
+        // One field, written as two because the count carries the object's null, then key 0.
+        byte[] count = Wire.Frame([0x82, 0x00, 0x00, .. field]);
+        byte[] key = Wire.Frame([0x02, 0x80, 0x00, .. field]);
 
         AssertEx.Throws<BinaryFormatException>(
             "minimally", () => new BinarySerializer().Deserialize<EmptyContract>(count));
@@ -202,12 +205,13 @@ public class TruncationTests
             BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key, "k7").Build())
             .Serialize(123);
 
-        // magic, version, compression, no custom name, checksum, no custom name, encryption,
-        // no custom name, key id present — then the key id length.
-        const int keyIdLength = 15;
-        Assert.Equal(2, frame[keyIdLength]);
+        // The encryption record's body: AES-256-GCM, then the key id's length plus one, then "k7".
+        var record = Wire.ReadHeader(frame).Service(Wire.EncryptionService);
+        Assert.Equal<byte[]>([0x01, 0x03, 0x6B, 0x37], frame[record.BodyOffset..(record.BodyOffset + record.BodyLength)]);
 
-        byte[] respelled = [.. frame[..keyIdLength], 0x82, 0x00, .. frame[(keyIdLength + 1)..]];
+        byte[] respelled = Wire.FrameWith(
+            Wire.Body(frame),
+            services: [Wire.Service(Wire.EncryptionService, critical: true, [0x01, 0x83, 0x00, 0x6B, 0x37])]);
 
         var reader = new BinarySerializer(
             BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key, "k7").Build());
@@ -219,10 +223,53 @@ public class TruncationTests
     public void Deserialize_A7BitIntegerAtInt32MaxValue_IsRefusedAsALimitRatherThanAsMalformed()
     {
         // The encoding is legal at Int32.MaxValue; what stops it is MaxStringBytes.
-        byte[] frame = Wire.Frame([.. Wire.NotNull, 0xFF, 0xFF, 0xFF, 0xFF, 0x07]);
+        byte[] frame = Wire.Frame([0xFF, 0xFF, 0xFF, 0xFF, 0x07]);
 
         Assert.Throws<BinaryLimitException>(
             () => new BinarySerializer().Deserialize<string>(frame));
+    }
+
+    // --- HST-41: every structural number is minimal ------------------------------------------------
+
+    public static TheoryData<string, byte[]> NonMinimalStructuralNumbers()
+    {
+        byte[] magic = BitConverter.GetBytes(Wire.Magic);
+        byte[] int42 = [42, 0, 0, 0];
+        byte[] field = [0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+        return new TheoryData<string, byte[]>
+        {
+            // A List<int> of one: its count, one plus one, spelled with a trailing zero group.
+            { "count", Wire.Frame([0x82, 0x00, .. int42]) },
+            // A string of five bytes: its length, five plus one.
+            { "length", Wire.Frame([0x86, 0x00, .. "hello"u8]) },
+            // A List<int> under references: the first occurrence of id 0.
+            { "id", Wire.Frame([0x81, 0x00, 0x01, .. int42], preserveReferences: true) },
+            // A keyed class of one field: key 0.
+            { "key", Wire.Frame([0x02, 0x80, 0x00, .. field[1..]]) },
+            { "version", [.. magic, 0x81, 0x00, 0x00, 0x00, 0x04, .. int42] },
+            { "payload mode", [.. magic, 0x01, 0x80, 0x00, 0x00, 0x04, .. int42] },
+            { "service kind", [.. magic, 0x01, 0x00, 0x01, 0x85, 0x00, 0x02, 0x01, 0x04, 0x04, .. int42] },
+            { "service length", [.. magic, 0x01, 0x00, 0x01, 0x05, 0x82, 0x00, 0x01, 0x04, 0x04, .. int42] },
+            { "onDiskLength", [.. magic, 0x01, 0x00, 0x00, 0x84, 0x00, .. int42] }
+        };
+    }
+
+    [Theory]
+    [MemberData(nameof(NonMinimalStructuralNumbers))]
+    public void Deserialize_ANonMinimalStructuralNumber_ThrowsFormat(string position, byte[] frame)
+    {
+        var serializer = new BinarySerializer();
+
+        Action read = position switch
+        {
+            "count" or "id" => () => serializer.Deserialize<List<int>>(frame),
+            "length" => () => serializer.Deserialize<string>(frame),
+            "key" => () => serializer.Deserialize<EmptyContract>(frame),
+            _ => () => serializer.Deserialize<int>(frame)
+        };
+
+        AssertEx.Throws<BinaryFormatException>("minimally", read);
     }
 
     // --- HST-15: V0 truncation ---------------------------------------------------------------------

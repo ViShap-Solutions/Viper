@@ -15,7 +15,7 @@ public class AttributeContractTests
     {
         AssertEx.Throws<BinaryTypeException>(
             "exactly one",
-            () => _serializer.SerializeRecorded(new Contradictory { Secret = "a secret" }));
+            () => _serializer.Serialize(new Contradictory { Secret = "a secret" }));
     }
 
     [Fact]
@@ -24,49 +24,49 @@ public class AttributeContractTests
         // The contradiction must be refused, not resolved in the member's favour.
         var value = new Contradictory { Secret = "a secret" };
 
-        Assert.Throws<BinaryTypeException>(() => _serializer.SerializeRecorded(value));
+        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(value));
     }
 
     [Fact]
     public void Serialize_MemberWithBothIncludeAndIgnore_ThrowsType()
     {
         Assert.Throws<BinaryTypeException>(
-            () => _serializer.SerializeRecorded(new ContradictoryPositional()));
+            () => _serializer.Serialize(new ContradictoryPositional()));
     }
 
     [Fact]
     public void Serialize_ContractMemberWithNeitherKeyNorIgnore_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "Unmarked", () => _serializer.SerializeRecorded(new UnmarkedContractMember { Keyed = 1 }));
+            "Unmarked", () => _serializer.Serialize(new UnmarkedContractMember { Keyed = 1 }));
     }
 
     [Fact]
     public void Serialize_ContractWithInclude_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "[BinaryInclude]", () => _serializer.SerializeRecorded(new ContractWithInclude { Keyed = 1 }));
+            "[BinaryInclude]", () => _serializer.Serialize(new ContractWithInclude { Keyed = 1 }));
     }
 
     [Fact]
     public void Serialize_ContractWithOrder_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "[BinaryOrder]", () => _serializer.SerializeRecorded(new ContractWithOrder { Keyed = 1 }));
+            "[BinaryOrder]", () => _serializer.Serialize(new ContractWithOrder { Keyed = 1 }));
     }
 
     [Fact]
     public void Serialize_DuplicateKeys_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "duplicate [BinaryKey]", () => _serializer.SerializeRecorded(new DuplicateKeys()));
+            "duplicate [BinaryKey]", () => _serializer.Serialize(new DuplicateKeys()));
     }
 
     [Fact]
     public void Serialize_NegativeKey_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "negative [BinaryKey]", () => _serializer.SerializeRecorded(new NegativeKey { Value = 1 }));
+            "negative [BinaryKey]", () => _serializer.Serialize(new NegativeKey { Value = 1 }));
     }
 
     [Fact]
@@ -74,15 +74,15 @@ public class AttributeContractTests
     {
         // The contract is built from the type, so an empty instance is refused exactly like a
         // populated one: the decision never depends on a member's value.
-        Assert.Throws<BinaryTypeException>(() => _serializer.SerializeRecorded(new Contradictory()));
+        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(new Contradictory()));
         Assert.Throws<BinaryTypeException>(
-            () => _serializer.SerializeRecorded(new Contradictory { Secret = "a secret" }));
+            () => _serializer.Serialize(new Contradictory { Secret = "a secret" }));
     }
 
     [Fact]
     public void Deserialize_InterfaceWithoutUnion_ThrowsType()
     {
-        byte[] payload = _serializer.SerializeRecorded(new Person { Name = "Alice", Age = 1 });
+        byte[] payload = _serializer.Serialize(new Person { Name = "Alice", Age = 1 });
 
         Assert.Throws<BinaryTypeException>(() => _serializer.Deserialize<IComparable>(payload));
     }
@@ -90,7 +90,7 @@ public class AttributeContractTests
     [Fact]
     public void Deserialize_AbstractClassWithoutUnion_ThrowsType()
     {
-        byte[] payload = _serializer.SerializeRecorded(new Person { Name = "Alice", Age = 1 });
+        byte[] payload = _serializer.Serialize(new Person { Name = "Alice", Age = 1 });
 
         Assert.Throws<BinaryTypeException>(() => _serializer.Deserialize<AbstractPerson>(payload));
     }

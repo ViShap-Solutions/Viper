@@ -79,12 +79,16 @@ internal static class Elements
             return [];
 
         var codec = FormatterCache<T>.Instance;
+        var trace = reader.State.Trace;
 
         if (count.IsBackedBy(Unsafe.SizeOf<T>(), reader.Remaining))
         {
             var array = new T[count.Value];
             for (int i = 0; i < array.Length; i++)
+            {
+                trace?.LabelIndex(i);
                 array[i] = codec.Read(ref reader);
+            }
 
             return array;
         }
@@ -93,7 +97,10 @@ internal static class Elements
         try
         {
             for (int i = 0; i < count.Value; i++)
+            {
+                trace?.LabelIndex(i);
                 buffer.Add(codec.Read(ref reader));
+            }
 
             return buffer.ToArray();
         }

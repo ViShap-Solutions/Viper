@@ -11,6 +11,8 @@ namespace ViShap.Viper.Crypto;
 /// </summary>
 internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? keyId)
 {
+    public IEncryptionAlgorithm Algorithm => algorithm;
+
     public EncryptionAlgorithm Kind => algorithm.Kind;
     public string? CustomName => algorithm.CustomName;
     public string? KeyId => keyId;
@@ -71,35 +73,18 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
     }
 
     /// <summary>
-    /// Checks a payload stored without encryption: its length is the declared plaintext length.
-    /// </summary>
-    public static void RequireStored(ReadOnlySpan<byte> ciphertext, int expectedPlaintextLength)
-    {
-        if (ciphertext.Length != expectedPlaintextLength)
-            throw new BinaryFormatException(
-                $"Ciphertext length {ciphertext.Length} does not match the declared plaintext " +
-                $"length {expectedPlaintextLength} when encryption is None.");
-    }
-
-    /// <summary>
-    /// Decrypts <paramref name="ciphertext"/>, which must yield exactly the declared plaintext length.
-    /// Not called for <see cref="EncryptionAlgorithm.None"/>; see <see cref="RequireStored"/>.
+    /// Decrypts <paramref name="ciphertext"/> into a pooled buffer as long as the ciphertext, so the
+    /// memory a frame costs follows the bytes it delivered: the plaintext length is not declared, and
+    /// is known only from what the algorithm reports. Not called for
+    /// <see cref="EncryptionAlgorithm.None"/>.
     /// </summary>
     public static RentedBytes Decrypt(
         IEncryptionAlgorithm algorithm,
         ReadOnlySpan<byte> ciphertext,
         ReadOnlySpan<byte> associatedData,
         IKeyProvider? keys,
-        string? headerKeyId,
-        int expectedPlaintextLength)
+        string? headerKeyId)
     {
-        // Decryption never expands: the declared plaintext cannot exceed the ciphertext that was
-        // actually delivered, so a short frame cannot force a large allocation by claiming one.
-        if (expectedPlaintextLength > ciphertext.Length)
-            throw new BinaryFormatException(
-                $"Declared plaintext length {expectedPlaintextLength} exceeds the {ciphertext.Length} " +
-                "ciphertext byte(s) present.");
-
         using var key = Resolve(algorithm, keys, headerKeyId);
 
         byte[] rented = RentedBytes.RentArray(ciphertext.Length);
@@ -127,10 +112,6 @@ internal sealed class EncryptionService(IEncryptionAlgorithm algorithm, string? 
                 throw new BinaryConfigurationException(
                     $"Encryption algorithm '{Name(algorithm)}' reported {written} plaintext byte(s) " +
                     $"from a {ciphertext.Length}-byte ciphertext.");
-
-            if (written != expectedPlaintextLength)
-                throw new BinaryFormatException(
-                    $"Decryption produced {written} bytes, expected {expectedPlaintextLength}.");
 
             return RentedBytes.Adopt(rented, written);
         }

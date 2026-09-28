@@ -13,16 +13,19 @@ internal sealed class ArrayCodec<TCollection, TElement>(IArrayShape<TCollection,
 {
     public override CodecShape Shape => CodecShape.Sequence;
 
-    protected override void WriteBody(ref WireWriter writer, TCollection value)
+    protected override bool FoldsNull => true;
+
+    protected override void WriteBody(ref WireWriter writer, TCollection value, bool nullFolded)
     {
         var elements = shape.Elements(value);
-        writer.WriteCount(elements.Length, shape.CountKind, shape.CountName);
+        writer.WriteCount(elements.Length, shape.CountKind, shape.CountName, nullFolded);
         Elements.Write(ref writer, elements);
     }
 
-    protected override TCollection ReadBody(ref WireReader reader, int referenceId)
+    protected override TCollection ReadBody(ref WireReader reader, int referenceId, bool nullFolded)
     {
-        var count = reader.ReadCount(shape.CountKind, shape.CountName);
+        var count = reader.ReadCount(shape.CountKind, shape.CountName, nullFolded);
+        reader.State.Trace?.Shape(TraceShape.Sequence, count.Value);
         if (referenceId >= 0)
             Register(ref reader, referenceId, ReadReferenceTable.Pending);
 
@@ -36,10 +39,11 @@ internal sealed class ArrayCodec<TCollection, TElement>(IArrayShape<TCollection,
 }
 
 /// <summary>
-/// <see cref="ImmutableArray{T}"/>, whose default state is distinct from empty: a presence flag,
-/// then — when present — the count and the elements. Its backing array is reached through
-/// <see cref="ImmutableCollectionsMarshal"/> in both directions, so it is neither copied on the way
-/// out nor on the way in.
+/// <see cref="ImmutableArray{T}"/>, whose default state is distinct from empty. It is a value type and
+/// cannot be null, so the zero of its count stands for the default instance: <c>0</c> is default, and
+/// any other value is the count plus one, followed by the elements. Its backing array is reached
+/// through <see cref="ImmutableCollectionsMarshal"/> in both directions, so it is neither copied on the
+/// way out nor on the way in.
 /// </summary>
 internal sealed class ImmutableArrayCodec<TElement> : StructuralCodec<ImmutableArray<TElement>>
 {
@@ -47,23 +51,29 @@ internal sealed class ImmutableArrayCodec<TElement> : StructuralCodec<ImmutableA
 
     public override CodecShape Shape => CodecShape.Sequence;
 
-    protected override void WriteBody(ref WireWriter writer, ImmutableArray<TElement> value)
+    protected override void WriteBody(ref WireWriter writer, ImmutableArray<TElement> value, bool nullFolded)
     {
-        writer.WriteBoolean(!value.IsDefault);
         if (value.IsDefault)
+        {
+            writer.WriteNull();
             return;
+        }
 
         var elements = value.AsSpan();
-        writer.WriteCount(elements.Length, CountKind.Array, CountName);
+        writer.WriteCount(elements.Length, CountKind.Array, CountName, nullFolded: true);
         Elements.Write(ref writer, elements);
     }
 
-    protected override ImmutableArray<TElement> ReadBody(ref WireReader reader, int referenceId)
+    protected override ImmutableArray<TElement> ReadBody(ref WireReader reader, int referenceId, bool nullFolded)
     {
-        if (!reader.ReadBoolean())
+        if (reader.TryReadNull())
+        {
+            reader.State.Trace?.Null();
             return default;
+        }
 
-        var count = reader.ReadCount(CountKind.Array, CountName);
+        var count = reader.ReadCount(CountKind.Array, CountName, nullFolded: true);
+        reader.State.Trace?.Shape(TraceShape.Sequence, count.Value);
         return ImmutableCollectionsMarshal.AsImmutableArray(Elements.ReadArray<TElement>(ref reader, count));
     }
 }

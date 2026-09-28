@@ -15,8 +15,8 @@ public class ScalarWireTests
 {
     private readonly BinarySerializer _serializer = new();
 
-    /// <summary>The payload bytes of a V1 frame, with the fixed-length header removed.</summary>
-    private byte[] Payload<T>(T value) => _serializer.Serialize(value)[Wire.PlainHeaderLength..];
+    /// <summary>The payload bytes of a V1 frame, with the header removed.</summary>
+    private byte[] Payload<T>(T value) => Wire.Body(_serializer.Serialize(value));
 
     // --- WF-01, WF-02: the fixed-size primitives of §22.1 ---------------------------------------
 
@@ -150,13 +150,7 @@ public class ScalarWireTests
     [Fact]
     public void TimeZoneInfo_IsItsSerializedString()
     {
-        Assert.Equal(
-            Wire.Payload(writer =>
-            {
-                writer.Write(true);
-                writer.Write(TimeZoneInfo.Utc.ToSerializedString());
-            }),
-            Payload(TimeZoneInfo.Utc));
+        Assert.Equal(Text(TimeZoneInfo.Utc.ToSerializedString()), Payload(TimeZoneInfo.Utc));
     }
 
     [Fact]
@@ -248,7 +242,7 @@ public class ScalarWireTests
             "not a valid Unicode scalar", () => _serializer.Deserialize<Rune>(frame));
     }
 
-    // --- WF-24: a BitArray is a bit count then a blob of the packed bytes ------------------------
+    // --- WF-24: a BitArray is its bit count plus one, then a blob of the packed bytes ------------
 
     [Theory]
     [InlineData(0, 0)]
@@ -260,10 +254,9 @@ public class ScalarWireTests
     {
         byte[] payload = Payload(new BitArray(bits, defaultValue: false));
 
-        Assert.Equal<byte[]>([1], payload[..1]);                         // non-null
-        Assert.Equal(bits, BitConverter.ToInt32(payload, 1));            // int32 bit count
-        Assert.Equal(expectedBytes, payload[5]);                         // 7-bit blob length
-        Assert.Equal(6 + expectedBytes, payload.Length);
+        Assert.Equal(bits + 1, payload[0]);                              // bit count, plus one: not null
+        Assert.Equal(expectedBytes, payload[1]);                         // 7-bit blob length
+        Assert.Equal(2 + expectedBytes, payload.Length);
     }
 
     [Fact]
@@ -272,16 +265,12 @@ public class ScalarWireTests
         // Bits 0 and 2 set in a nine-bit array: 0b0000_0101 then a byte holding bit 8.
         byte[] payload = Payload(new BitArray([true, false, true, false, false, false, false, false, true]));
 
-        Assert.Equal<byte[]>([1, 9, 0, 0, 0, 2, 0x05, 0x01], payload);
+        Assert.Equal<byte[]>([0x0A, 2, 0x05, 0x01], payload);
     }
 
-    /// <summary>A non-null string value: the null flag, then the §22.1 string encoding.</summary>
+    /// <summary>A string value: its UTF-8 length plus one, which carries its null, then the bytes.</summary>
     private static byte[] Text(string value) =>
-        Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write(value);
-        });
+        [.. Wire.Varint(Encoding.UTF8.GetByteCount(value) + 1), .. Encoding.UTF8.GetBytes(value)];
 
     private static byte[] Floats(params float[] values) =>
         Wire.Payload(writer =>

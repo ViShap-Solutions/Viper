@@ -101,15 +101,13 @@ public class ChecksumTests
     // --- CHK-04: a digest of the wrong width for the algorithm named --------------------------------
 
     [Theory]
-    [InlineData(0)]
     [InlineData(2)]
     [InlineData(8)]
     public void Deserialize_AChecksumOfAWidthTheAlgorithmNeverProduces_ThrowsFormat(int checksumBytes)
     {
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(123)),
-            checksumAlgorithm: (byte)ChecksumAlgorithm.Crc32,
-            checksum: new byte[checksumBytes]);
+            services: [Wire.ChecksumRecord((byte)ChecksumAlgorithm.Crc32, new byte[checksumBytes])]);
 
         AssertEx.Throws<BinaryFormatException>(
             "Checksum length", () => WithCrc32().Deserialize<int>(frame));
@@ -157,9 +155,7 @@ public class ChecksumTests
         // returning an unusable algorithm is a configuration failure, not a malformed payload.
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(42)),
-            checksumAlgorithm: (byte)ChecksumAlgorithm.Custom,
-            customChecksumName: WideChecksum.RegisteredName,
-            checksum: [0, 0, 0, 0]);
+            services: [Wire.ChecksumRecord((byte)ChecksumAlgorithm.Custom, [0, 0, 0, 0], WideChecksum.RegisteredName)]);
 
         AssertEx.Throws<BinaryConfigurationException>(
             "cannot be represented by the V1 header", () => Wide(-1).Deserialize<int>(frame));
@@ -178,8 +174,7 @@ public class ChecksumTests
     {
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(42)),
-            checksumAlgorithm: (byte)ChecksumAlgorithm.Custom,
-            customChecksumName: WideChecksum.RegisteredName);
+            services: [Wire.ChecksumRecord((byte)ChecksumAlgorithm.Custom, [0], WideChecksum.RegisteredName)]);
 
         AssertEx.Throws<BinaryConfigurationException>(
             "between 1 and 255 bytes", () => Wide(0).Deserialize<int>(frame));

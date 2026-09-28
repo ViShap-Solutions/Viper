@@ -6,10 +6,10 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Hostile;
 
 /// <summary>
-/// Pins HST-01…HST-09: a frame that is wrong in exactly one byte. Every edit has a documented
-/// outcome — the magic, the version, an algorithm identifier, an optional string, the reference
-/// flag, each declared length, the checksum and the ciphertext — and under authenticated encryption
-/// no byte of the header can be altered at all.
+/// Pins HST-01…HST-09: a frame that is wrong in exactly one field. Every edit has a documented
+/// outcome — the magic, the version, an algorithm identifier, a header string, the payload mode,
+/// each declared length, the checksum and the ciphertext — and under authenticated encryption no
+/// byte of the header, <c>onDiskLength</c> included, can be altered at all.
 /// </summary>
 public class MutationTests
 {
@@ -18,6 +18,16 @@ public class MutationTests
     private static byte[] Frame() => new BinarySerializer().Serialize(Sample());
 
     private static byte[] NewKey() => RandomNumberGenerator.GetBytes(32);
+
+    private static readonly byte[] FixedKey = new byte[32];
+
+    /// <summary>A serializer that writes every service: CRC-32, Deflate and AES-256-GCM.</summary>
+    private static BinarySerializer Protected(string? keyId = "ring") =>
+        new(BinarySerializerOptions.Configure()
+            .WithChecksum(new Crc32Checksum())
+            .WithCompression(new ViShap.Viper.Compression.DeflateCompression())
+            .WithEncryption(new Aes256GcmEncryption(), FixedKey, keyId)
+            .Build());
 
     // --- HST-01: the magic ------------------------------------------------------------------------
 
@@ -52,10 +62,10 @@ public class MutationTests
     [InlineData(0)]
     [InlineData(2)]
     [InlineData(99)]
-    [InlineData(-1)]
-    public void Deserialize_AnUnsupportedVersion_ThrowsFormatNotSupported(int version)
+    [InlineData(0x7F)]
+    public void Deserialize_AnUnsupportedVersion_ThrowsFormatNotSupported(byte version)
     {
-        byte[] frame = Mutate.SetInt32(Frame(), 4, version);
+        byte[] frame = Mutate.SetByte(Frame(), 4, version);
 
         Assert.Throws<BinaryFormatNotSupportedException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
@@ -63,53 +73,44 @@ public class MutationTests
 
     // --- HST-03: algorithm identifiers ------------------------------------------------------------
 
-    [Fact]
-    public void Deserialize_AnUnknownCompressionIdentifier_ThrowsFormatNotSupported()
+    [Theory]
+    [InlineData(Wire.ChecksumService, "checksum")]
+    [InlineData(Wire.CompressionService, "compression")]
+    [InlineData(Wire.EncryptionService, "encryption")]
+    public void Deserialize_AnUnknownAlgorithmIdentifier_ThrowsFormatNotSupported(int service, string what)
     {
-        byte[] frame = Mutate.SetByte(Frame(), 8, 7);
+        byte[] frame = Protected().Serialize(Sample());
+        var record = Wire.ReadHeader(frame).Service(service);
+
+        byte[] mutated = Mutate.SetByte(frame, record.BodyOffset, 7);
 
         AssertEx.Throws<BinaryFormatNotSupportedException>(
-            "compression", () => new BinarySerializer().Deserialize<Person>(frame));
-    }
-
-    [Fact]
-    public void Deserialize_AnUnknownChecksumIdentifier_ThrowsFormatNotSupported()
-    {
-        // byte 8 compression, byte 9 its absent custom name, byte 10 checksum.
-        byte[] frame = Mutate.SetByte(Frame(), 10, 7);
-
-        AssertEx.Throws<BinaryFormatNotSupportedException>(
-            "checksum", () => new BinarySerializer().Deserialize<Person>(frame));
-    }
-
-    [Fact]
-    public void Deserialize_AnUnknownEncryptionIdentifier_ThrowsFormatNotSupported()
-    {
-        byte[] frame = Mutate.SetByte(Frame(), 12, 7);
-
-        AssertEx.Throws<BinaryFormatNotSupportedException>(
-            "encryption", () => new BinarySerializer().Deserialize<Person>(frame));
+            what, () => Protected().Deserialize<Person>(mutated));
     }
 
     [Fact]
     public void Deserialize_ACustomAlgorithmThatWasNeverRegistered_ThrowsFormatNotSupported()
     {
-        byte[] frame = Wire.FrameWith([], compression: 255, customCompressionName: "nobody");
+        byte[] frame = Wire.FrameWith([], services: [Wire.CompressionRecord(255, 0, "nobody")]);
 
         Assert.Throws<BinaryFormatNotSupportedException>(
             () => new BinarySerializer().Deserialize<int>(frame));
     }
 
-    // --- HST-04: the optional header strings ------------------------------------------------------
+    // --- HST-04: the header strings ---------------------------------------------------------------
 
     [Fact]
-    public void Deserialize_APresenceFlagRaisedOverNothing_ThrowsFormat()
+    public void Deserialize_AnAbsentKeyIdRaisedOverNothing_ThrowsFormat()
     {
-        // Byte 9 is the "custom compression name follows" flag of a frame that carries no name.
-        byte[] frame = Mutate.SetByte(Frame(), 9, 1);
+        // The encryption record of a frame without a key id is the algorithm id, then zero. Raising
+        // the zero declares key id bytes the record does not hold.
+        byte[] frame = Protected(keyId: null).Serialize(Sample());
+        var record = Wire.ReadHeader(frame).Service(Wire.EncryptionService);
+
+        byte[] mutated = Mutate.SetByte(frame, record.BodyOffset + 1, 5);
 
         Assert.Throws<BinaryFormatException>(
-            () => new BinarySerializer().Deserialize<Person>(frame));
+            () => Protected(keyId: null).Deserialize<Person>(mutated));
     }
 
     [Fact]
@@ -131,51 +132,41 @@ public class MutationTests
     }
 
     [Fact]
-    public void Deserialize_AnOptionalStringThatIsNotValidUtf8_ThrowsFormat()
+    public void Deserialize_AHeaderStringThatIsNotValidUtf8_ThrowsFormat()
     {
-        byte[] frame = Wire.Payload(writer =>
-        {
-            writer.Write(Wire.Magic);
-            writer.Write(1);
-            writer.Write((byte)255);                    // CompressionAlgorithm.Custom
-            writer.Write(true);                         // the custom name is present
-            writer.Write7BitEncodedInt(2);
-            writer.Write(new byte[] { 0xC3, 0x28 });    // an invalid two-byte sequence
-            writer.Write((byte)0); writer.Write(false);
-            writer.Write((byte)0); writer.Write(false);
-            writer.Write(false);
-            writer.Write(false);
-            writer.Write(0); writer.Write(0); writer.Write(0);
-            writer.Write((byte)0);
-        });
+        // A custom compression name of two bytes that are not a UTF-8 sequence.
+        byte[] frame = Wire.FrameWith(
+            [], services: [Wire.Service(Wire.CompressionService, critical: true, [0xFF, 0x01, 0x02, 0xC3, 0x28, 0x00])]);
 
         AssertEx.Throws<BinaryFormatException>(
             "UTF-8", () => new BinarySerializer().Deserialize<int>(frame));
     }
 
-    // --- HST-05: the reference flag ---------------------------------------------------------------
+    // --- HST-05: the payload mode ----------------------------------------------------------------
 
     [Fact]
-    public void Deserialize_ThePreserveReferencesFlagRaised_ReadsThePayloadAsFramedAndFails()
+    public void Deserialize_TheReferencesModeRaised_ReadsThePayloadAsFramedAndFails()
     {
-        // The payload was written without reference framing, so reading it as framed hits a marker
-        // byte that is not 0 or 1, or a value the engine cannot resolve.
-        byte[] frame = Mutate.SetByte(Frame(), Wire.PreserveReferencesOffset, 1);
+        // Written without reference framing: the root's flag reads as the first occurrence of id 0,
+        // and the first list's folded count as a back reference to it, which is not a list.
+        byte[] frame = new BinarySerializer().Serialize(new SharedLists { A = [1], B = [2] });
+
+        byte[] mutated = Mutate.SetByte(frame, Wire.ModeOffset, 1);
 
         Assert.Throws<BinaryFormatException>(
-            () => new BinarySerializer().Deserialize<Person>(frame));
+            () => new BinarySerializer().Deserialize<SharedLists>(mutated));
     }
 
     [Fact]
-    public void Deserialize_ThePreserveReferencesFlagCleared_ReadsThePayloadAsUnframedAndFails()
+    public void Deserialize_TheReferencesModeCleared_ReadsThePayloadAsUnframedAndFails()
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure().PreserveReferences().Build());
-        byte[] framed = serializer.Serialize(Sample());
+        byte[] framed = serializer.Serialize(new SharedLists { A = [1], B = [2] });
 
-        byte[] frame = Mutate.SetByte(framed, Wire.PreserveReferencesOffset, 0);
+        byte[] frame = Mutate.SetByte(framed, Wire.ModeOffset, 0);
 
-        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(frame));
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<SharedLists>(frame));
     }
 
     [Fact]
@@ -193,40 +184,31 @@ public class MutationTests
 
     // --- HST-06: the declared lengths -------------------------------------------------------------
 
-    [Theory]
-    [InlineData(Wire.UncompressedLengthOffset)]
-    [InlineData(Wire.CompressedLengthOffset)]
-    [InlineData(Wire.OnDiskLengthOffset)]
-    public void Deserialize_ANegativeDeclaredLength_ThrowsFormat(int offset)
+    [Fact]
+    public void Deserialize_AnOnDiskLengthAboveItsPhaseLimit_ThrowsLimit()
     {
-        byte[] frame = Mutate.SetInt32(Frame(), offset, -1);
-
-        var ex = Assert.Throws<BinaryFormatException>(
-            () => new BinarySerializer().Deserialize<Person>(frame));
-
-        Assert.IsNotType<BinaryLimitException>(ex);
-    }
-
-    [Theory]
-    [InlineData(Wire.UncompressedLengthOffset)]
-    [InlineData(Wire.CompressedLengthOffset)]
-    [InlineData(Wire.OnDiskLengthOffset)]
-    public void Deserialize_ADeclaredLengthAboveItsPhaseLimit_ThrowsLimit(int offset)
-    {
-        byte[] frame = Mutate.SetInt32(Frame(), offset, int.MaxValue);
+        byte[] body = Wire.Body(Frame());
+        byte[] frame = Wire.FrameWith(body, onDiskLength: int.MaxValue);
 
         Assert.Throws<BinaryLimitException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
     }
 
-    [Theory]
-    [InlineData(Wire.UncompressedLengthOffset)]
-    [InlineData(Wire.CompressedLengthOffset)]
-    [InlineData(Wire.OnDiskLengthOffset)]
-    public void Deserialize_ADeclaredLengthDisagreeingWithTheOthers_ThrowsFormat(int offset)
+    [Fact]
+    public void Deserialize_AnUncompressedLengthAboveItsPhaseLimit_ThrowsLimit()
     {
-        // With no compression and no encryption all three must agree, so moving one is malformed.
-        byte[] frame = Mutate.SetInt32(Frame(), offset, 3);
+        byte[] body = Wire.Body(Frame());
+        byte[] frame = Wire.FrameWith(body, services: [Wire.CompressionRecord(1, int.MaxValue)]);
+
+        Assert.Throws<BinaryLimitException>(
+            () => new BinarySerializer().Deserialize<Person>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AnOnDiskLengthShorterThanThePayload_ThrowsFormat()
+    {
+        byte[] body = Wire.Body(Frame());
+        byte[] frame = Wire.Frame(body[..3]);
 
         var ex = Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
@@ -235,9 +217,10 @@ public class MutationTests
     }
 
     [Fact]
-    public void Deserialize_AChecksumLengthLongerThanTheFrame_ThrowsFormat()
+    public void Deserialize_AChecksumRecordLongerThanTheFrame_ThrowsFormat()
     {
-        byte[] frame = Mutate.SetByte(Frame(), Wire.ChecksumLengthOffset, 200);
+        byte[] frame = Wire.FrameWith(
+            [], services: [Wire.Service(Wire.ChecksumService, critical: true, [1, 0, 0, 0, 0], declaredLength: 200)]);
 
         Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(frame));
@@ -252,8 +235,8 @@ public class MutationTests
             BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build());
         byte[] frame = serializer.Serialize(Sample());
 
-        // The checksum bytes follow the one-byte length at the end of the header.
-        byte[] mutated = Mutate.FlipByte(frame, Wire.ChecksumLengthOffset + 1);
+        // The hash is the remainder of the checksum record, after the algorithm id.
+        byte[] mutated = Mutate.FlipByte(frame, Wire.ReadHeader(frame).Service(Wire.ChecksumService).BodyOffset + 1);
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<Person>(mutated));
     }

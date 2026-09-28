@@ -936,7 +936,7 @@ public sealed class BinarySerializer
         if (source.IsEmpty)
             throw EmptyPayload();
 
-        Span<byte> prefix = stackalloc byte[FormatRouter.PrefixLength];
+        Span<byte> prefix = stackalloc byte[FormatRouter.LongestPrefix];
         var identified = source.FirstSpan.Length >= prefix.Length
             ? source.FirstSpan
             : prefix[..CopyPrefix(source, prefix)];

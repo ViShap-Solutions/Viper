@@ -100,7 +100,6 @@ public class FieldWindowTests
         // The string claims eight bytes inside a field that declares four.
         byte[] frame = Wire.Frame(
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody(
             [
                 new Wire.KeyedField(2, [1, 8, 0x61, 0x61])
@@ -119,7 +118,6 @@ public class FieldWindowTests
         // Key 2 of OldSchema decodes a Node, which is shorter than the seven bytes declared.
         byte[] frame = Wire.Frame(
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody(
             [
                 new Wire.KeyedField(2, [1, 7, 0, 0, 0, 9, 9])
@@ -178,7 +176,6 @@ public class FieldWindowTests
     {
         byte[] frame = Wire.Frame(
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody([new Wire.KeyedField(9, [], DeclaredLength: 8 * 1024 * 1024)])
         ]);
 
@@ -193,7 +190,6 @@ public class FieldWindowTests
         // could account for an allocation here.
         byte[] payload =
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody(
             [
                 new Wire.KeyedField(9, new byte[2 * 1024 * 1024]),

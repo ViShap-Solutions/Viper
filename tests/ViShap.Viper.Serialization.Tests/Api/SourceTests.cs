@@ -258,10 +258,7 @@ public class SourceTests
     public void NonSeekableStream_DeclaringMoreThanItDelivers_IsMalformed()
     {
         byte[] frame = new BinarySerializer().Serialize(Value);
-        byte[] declaringMore = Mutate.SetInt32(Mutate.SetInt32(Mutate.SetInt32(
-            frame, Wire.OnDiskLengthOffset, 32 * 1024 * 1024),
-            Wire.CompressedLengthOffset, 32 * 1024 * 1024),
-            Wire.UncompressedLengthOffset, 32 * 1024 * 1024);
+        byte[] declaringMore = Wire.WithLengths(frame, onDiskLength: 32 * 1024 * 1024);
 
         Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<Person>(new NonSeekableStream(declaringMore)));

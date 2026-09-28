@@ -55,6 +55,12 @@ internal struct OperationState
     /// </summary>
     public GraphState Graph;
 
+    /// <summary>
+    /// The observer of a read, which only the diagnostics set; <see langword="null"/> for every
+    /// serializer call. The engine's codecs report to it and change nothing a read does.
+    /// </summary>
+    public IWireTrace? Trace;
+
     public readonly IKeyProvider RequireKeys() =>
         Keys ?? throw new BinaryEncryptionKeyException(
             "The payload is encrypted, but no key material is configured for this serializer.");

@@ -25,8 +25,7 @@ public class DuplicateEntryTests
     private static byte[] DuplicateKey() =>
         Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(2);
+            writer.Write7BitEncodedInt(3);     // two, plus one
             writer.Write(1); writer.Write(10);
             writer.Write(1); writer.Write(20);
         }));
@@ -35,8 +34,7 @@ public class DuplicateEntryTests
     private static byte[] DuplicateElement() =>
         Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(2);
+            writer.Write7BitEncodedInt(3);     // two, plus one
             writer.Write(1);
             writer.Write(1);
         }));
@@ -139,9 +137,8 @@ public class DuplicateEntryTests
     {
         byte[] frame = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(1);
-            writer.Write(false);   // a null key
+            writer.Write7BitEncodedInt(2);     // one entry, plus one
+            writer.Write((byte)0);             // a null key
             writer.Write(10);
         }));
 

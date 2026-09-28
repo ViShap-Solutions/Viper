@@ -10,12 +10,23 @@ internal sealed class ScalarCodec<T>(IScalarFormatter<T> formatter) : Codec<T>
 
     public override void Write(ref WireWriter writer, T value) => formatter.Write(ref writer, value);
 
-    public override T Read(ref WireReader reader) => formatter.Read(ref reader);
+    public override T Read(ref WireReader reader)
+    {
+        if (reader.State.Trace is not { } trace)
+            return formatter.Read(ref reader);
+
+        trace.Begin(typeof(T), reader.Position);
+        var value = formatter.Read(ref reader);
+        trace.Value(value);
+        trace.End(reader.Position);
+        return value;
+    }
 }
 
 /// <summary>
-/// A scalar reference type, such as a string: a null flag, then the formatter's encoding. Scalars are
-/// never reference-framed, so the same string written twice travels twice.
+/// A scalar reference type, such as a string. Its encoding begins with a length or a count, which the
+/// formatter writes one higher, so the engine writes null as that number's zero and nothing else.
+/// Scalars are never reference-framed, so the same string written twice travels twice.
 /// </summary>
 internal sealed class NullableScalarCodec<T>(IScalarFormatter<T> formatter) : Codec<T?>
     where T : class
@@ -24,13 +35,32 @@ internal sealed class NullableScalarCodec<T>(IScalarFormatter<T> formatter) : Co
 
     public override void Write(ref WireWriter writer, T? value)
     {
-        writer.WriteBoolean(value is not null);
-        if (value is not null)
+        if (value is null)
+            writer.WriteNull();
+        else
             formatter.Write(ref writer, value);
     }
 
-    public override T? Read(ref WireReader reader) =>
-        reader.ReadBoolean() ? formatter.Read(ref reader) : null;
+    public override T? Read(ref WireReader reader)
+    {
+        if (reader.State.Trace is not { } trace)
+            return reader.TryReadNull() ? null : formatter.Read(ref reader);
+
+        trace.Begin(typeof(T), reader.Position);
+        T? value = null;
+        if (reader.TryReadNull())
+        {
+            trace.Null();
+        }
+        else
+        {
+            value = formatter.Read(ref reader);
+            trace.Value(value);
+        }
+
+        trace.End(reader.Position);
+        return value;
+    }
 }
 
 /// <summary><see cref="Nullable{T}"/>: a null flag, then the value as <typeparamref name="T"/> encodes it.</summary>
@@ -52,13 +82,27 @@ internal sealed class NullableCodec<T> : Codec<T?>
             ValueCodec.Write(ref writer, value.GetValueOrDefault());
     }
 
-    public override T? Read(ref WireReader reader) =>
-        reader.ReadBoolean() ? ValueCodec.Read(ref reader) : null;
+    public override T? Read(ref WireReader reader)
+    {
+        if (reader.State.Trace is not { } trace)
+            return reader.ReadBoolean() ? ValueCodec.Read(ref reader) : null;
+
+        trace.Begin(typeof(T?), reader.Position);
+        if (!reader.ReadBoolean())
+        {
+            trace.Null();
+            trace.End(reader.Position);
+            return null;
+        }
+
+        trace.Continue();
+        return ValueCodec.Read(ref reader);
+    }
 }
 
 /// <summary>
 /// A type that has no representation on the wire, such as a delegate, which carries behaviour rather
-/// than data. A null value is written as null; any other value is refused.
+/// than data. A null value is written as null, a single zero byte; any other value is refused.
 /// </summary>
 internal sealed class RejectedCodec<T>(string writeMessage, string readMessage) : Codec<T?>
     where T : class
@@ -67,13 +111,24 @@ internal sealed class RejectedCodec<T>(string writeMessage, string readMessage) 
 
     public override void Write(ref WireWriter writer, T? value)
     {
-        writer.WriteBoolean(value is not null);
         if (value is not null)
             throw new BinaryTypeException(writeMessage);
+
+        writer.WriteNull();
     }
 
-    public override T? Read(ref WireReader reader) =>
-        reader.ReadBoolean() ? throw new BinaryTypeException(readMessage) : null;
+    public override T? Read(ref WireReader reader)
+    {
+        var trace = reader.State.Trace;
+        trace?.Begin(typeof(T), reader.Position);
+
+        if (!reader.TryReadNull())
+            throw new BinaryTypeException(readMessage);
+
+        trace?.Null();
+        trace?.End(reader.Position);
+        return null;
+    }
 }
 
 /// <summary>
@@ -87,5 +142,9 @@ internal sealed class UnsupportedCodec<T>(string message) : Codec<T>
 
     public override void Write(ref WireWriter writer, T value) => throw new BinaryTypeException(message);
 
-    public override T Read(ref WireReader reader) => throw new BinaryTypeException(message);
+    public override T Read(ref WireReader reader)
+    {
+        reader.State.Trace?.Begin(typeof(T), reader.Position);
+        throw new BinaryTypeException(message);
+    }
 }

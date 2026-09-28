@@ -120,7 +120,7 @@ public class RoutingTests
         byte[] headerless = V0.Serialize(person);
         byte[] framed = new BinarySerializer().Serialize(person);
 
-        Assert.Equal(headerless, framed[Wire.PlainHeaderLength..]);
+        Assert.Equal(headerless, Wire.Body(framed));
         Assert.Equal(Wire.Fixture("person-v0.bin"), headerless);
     }
 
@@ -132,7 +132,7 @@ public class RoutingTests
         byte[] headerless = V0.Serialize(value);
         byte[] framed = new BinarySerializer().Serialize(value);
 
-        Assert.Equal(headerless, framed[Wire.PlainHeaderLength..]);
+        Assert.Equal(headerless, Wire.Body(framed));
     }
 
     // --- the magic number is little-endian, whatever the host is ---------------------------------

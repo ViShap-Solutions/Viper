@@ -15,6 +15,20 @@ internal sealed class ChecksumService(IChecksumAlgorithm algorithm)
     }
 
     /// <summary>
+    /// Requires the checksum a header recorded to be as long as the hash of the algorithm it names,
+    /// before any phase of the payload runs. A payload without a checksum records none.
+    /// </summary>
+    public static void RequireLength(IChecksumAlgorithm algorithm, byte[] recordedChecksum)
+    {
+        int size = algorithm.Kind == ChecksumAlgorithm.None ? 0 : HashSize(algorithm);
+
+        if (recordedChecksum.Length != size)
+            throw new BinaryFormatException(
+                $"Checksum length {recordedChecksum.Length} does not match the " +
+                $"{size} byte(s) produced by '{algorithm.CustomName ?? algorithm.Kind.ToString()}'.");
+    }
+
+    /// <summary>
     /// Checks <paramref name="expectedChecksum"/>, as the header recorded it, against the checksum of
     /// <paramref name="rawPayload"/>. A payload without a checksum must record none.
     /// </summary>
@@ -23,13 +37,9 @@ internal sealed class ChecksumService(IChecksumAlgorithm algorithm)
         ReadOnlySpan<byte> rawPayload,
         byte[] expectedChecksum)
     {
-        int size = algorithm.Kind == ChecksumAlgorithm.None ? 0 : HashSize(algorithm);
+        RequireLength(algorithm, expectedChecksum);
 
-        if (expectedChecksum.Length != size)
-            throw new BinaryFormatException(
-                $"Checksum length {expectedChecksum.Length} does not match the " +
-                $"{size} byte(s) produced by '{algorithm.Kind}'.");
-
+        int size = expectedChecksum.Length;
         if (size == 0)
             return;
 

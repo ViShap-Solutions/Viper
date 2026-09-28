@@ -1,4 +1,5 @@
-using System.Text;
+using ViShap.Viper.Compression;
+using ViShap.Viper.Crypto;
 using ViShap.Viper.Metadata;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -6,13 +7,13 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins HDR-02…HDR-08, HDR-11…HDR-14, HDR-16, HDR-18 and HDR-19: the V1 header owns the field order
-/// of §22.6 and every invariant over the values it declares, and it decides them before a byte of
-/// payload is touched.
+/// Pins HDR-02…HDR-08, HDR-12, HDR-16, HDR-18, HDR-19 and HDR-21…HDR-32: the V1 header is a list of
+/// service records with exactly one encoding, it owns every invariant over the values it declares,
+/// and it decides them before a byte of payload is touched.
 /// </summary>
 public class HeaderTests
 {
-    /// <summary>An <c>int32</c> root of 42: no null flag, four payload bytes.</summary>
+    /// <summary>An <c>int32</c> root of 42: no null, four payload bytes.</summary>
     private static readonly byte[] Int42 = [42, 0, 0, 0];
 
     private static BinarySerializer Default => new();
@@ -47,16 +48,25 @@ public class HeaderTests
     public static TheoryData<int> HeaderPrefixLengths()
     {
         var lengths = new TheoryData<int>();
-        for (int length = 1; length < Wire.PlainHeaderLength; length++)
+        for (int length = 1; length < Wire.Header(Int42.Length).Length; length++)
             lengths.Add(length);
 
         return lengths;
     }
 
     [Fact]
+    public void Deserialize_HeaderTruncatedInsideAServiceRecord_ThrowsFormat()
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.CompressionRecord(1, 4)]);
+
+        foreach (byte[] prefix in Mutate.Prefixes(frame[..Wire.ReadHeader(frame).HeaderLength]))
+            Assert.Throws<BinaryFormatException>(() => Default.Deserialize<int>(prefix));
+    }
+
+    [Fact]
     public void Deserialize_UndefinedCompressionIdentifier_ThrowsFormatNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Int42, compression: 3);
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.CompressionRecord(3, 4)]);
 
         AssertEx.Throws<BinaryFormatNotSupportedException>(
             "compression", () => Default.Deserialize<int>(frame));
@@ -65,7 +75,7 @@ public class HeaderTests
     [Fact]
     public void Deserialize_UndefinedChecksumIdentifier_ThrowsFormatNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Int42, checksumAlgorithm: 200);
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.ChecksumRecord(200, [0, 0, 0, 0])]);
 
         AssertEx.Throws<BinaryFormatNotSupportedException>(
             "checksum", () => Default.Deserialize<int>(frame));
@@ -74,27 +84,42 @@ public class HeaderTests
     [Fact]
     public void Deserialize_UndefinedEncryptionIdentifier_ThrowsFormatNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Int42, encryption: 200);
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.EncryptionRecord(200)]);
 
         AssertEx.Throws<BinaryFormatNotSupportedException>(
             "encryption", () => Default.Deserialize<int>(frame));
     }
 
     [Fact]
-    public void Peek_OptionalStringsAbsent_ReadBackAsNull()
+    public void Deserialize_AnIdentifierBeyondAByte_ThrowsFormatNotSupported()
+    {
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.Service(Wire.CompressionService, critical: true, [.. Wire.Varint(256), 4])]);
+
+        AssertEx.Throws<BinaryFormatNotSupportedException>(
+            "compression", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Peek_NoService_ReportsNoAlgorithmAndNoName()
     {
         using var stream = new MemoryStream(Default.Serialize(42));
 
         var info = BinaryFormatInspector.Peek(stream)!.Value;
 
+        Assert.Equal(CompressionAlgorithm.None, info.Compression);
+        Assert.Equal(ViShap.Viper.Checksum.ChecksumAlgorithm.None, info.ChecksumAlgorithm);
+        Assert.Equal(EncryptionAlgorithm.None, info.Encryption);
         Assert.Null(info.CustomCompressionName);
         Assert.Null(info.CustomChecksumName);
         Assert.Null(info.CustomEncryptionName);
         Assert.Null(info.KeyId);
+        Assert.Null(info.UncompressedLength);
+        Assert.True(info.Checksum.IsEmpty);
     }
 
     [Fact]
-    public void Peek_OptionalStringsPopulated_ReadBackEveryName()
+    public void Peek_CustomNamesAndKeyIdPopulated_ReadBackEveryName()
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
@@ -112,101 +137,79 @@ public class HeaderTests
         Assert.Equal("ring-7", info.KeyId);
     }
 
-    [Fact]
-    public void Peek_OptionalStringDeclaredPresentButEmpty_ReadsBackAsEmpty()
+    [Theory]
+    [InlineData(new byte[] { 0x00 }, null)]
+    [InlineData(new byte[] { 0x01 }, "")]
+    [InlineData(new byte[] { 0x03, (byte)'k', (byte)'7' }, "k7")]
+    public void Peek_KeyIdAbsentEmptyOrPopulated_ReadsBackAsWritten(byte[] keyIdBytes, string? expected)
     {
-        // A present flag followed by a zero length is legal framing, and is not the same as absent.
-        using var stream = new MemoryStream(Wire.FrameWith(Int42, keyId: string.Empty));
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.Service(Wire.EncryptionService, critical: true, [1, .. keyIdBytes])]);
 
-        var info = BinaryFormatInspector.Peek(stream)!.Value;
+        var info = BinaryFormatInspector.Peek(frame)!.Value;
 
-        Assert.Equal(string.Empty, info.KeyId);
+        Assert.Equal(expected, info.KeyId);
     }
 
     [Theory]
-    [InlineData(Wire.UncompressedLengthOffset)]
-    [InlineData(Wire.CompressedLengthOffset)]
-    [InlineData(Wire.OnDiskLengthOffset)]
-    public void Deserialize_NegativeDeclaredLength_ThrowsFormat(int offset)
+    [InlineData(nameof(SerializationLimits.MaxEncryptedBytes), false)]
+    [InlineData(nameof(SerializationLimits.MaxPayloadBytes), false)]
+    [InlineData(nameof(SerializationLimits.MaxCompressedBytes), true)]
+    public void Deserialize_OnDiskLengthAboveItsPhaseLimit_ThrowsLimitBeforeAllocating(string tightened, bool compressed)
     {
-        byte[] frame = Mutate.SetInt32(Wire.Frame(Int42), offset, -1);
+        // Only the limit named is tightened, so the failure names it alone. Without encryption the
+        // stored bytes are the compressed payload when there is compression, and the payload itself
+        // when there is not.
+        var serializer = Tightened(tightened);
 
-        AssertEx.Throws<BinaryFormatException>(
-            "must be non-negative", () => Default.Deserialize<int>(frame));
-    }
-
-    [Theory]
-    [InlineData(Wire.UncompressedLengthOffset, nameof(SerializationLimits.MaxPayloadBytes))]
-    [InlineData(Wire.CompressedLengthOffset, nameof(SerializationLimits.MaxCompressedBytes))]
-    [InlineData(Wire.OnDiskLengthOffset, nameof(SerializationLimits.MaxEncryptedBytes))]
-    public void Deserialize_DeclaredLengthAboveItsPhaseLimit_ThrowsLimitBeforeAllocating(
-        int offset,
-        string tightened)
-    {
-        // Only the phase this offset belongs to is tightened, so the failure names that phase alone.
-        var limits = SerializationLimits.Default with
-        {
-            MaxPayloadBytes = tightened == nameof(SerializationLimits.MaxPayloadBytes) ? 16 : 1 << 20,
-            MaxCompressedBytes = tightened == nameof(SerializationLimits.MaxCompressedBytes) ? 16 : 1 << 20,
-            MaxEncryptedBytes = tightened == nameof(SerializationLimits.MaxEncryptedBytes) ? 16 : 1 << 20,
-            MaxWireBytes = 1 << 20
-        };
-
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithLimits(limits).Build());
-
-        byte[] frame = Mutate.SetInt32(Wire.Frame(Int42), offset, 1 << 28);
+        byte[] frame = Wire.FrameWith(
+            Int42,
+            services: compressed ? [Wire.CompressionRecord(1, 4)] : [],
+            onDiskLength: 1 << 28);
 
         AssertEx.Throws<BinaryLimitException>(
-            "exceeds the configured maximum of 16", () => serializer.Deserialize<int>(frame));
+            $"exceeds the configured maximum of 16 ({tightened})", () => serializer.Deserialize<int>(frame));
 
         AssertEx.AllocatesLessThan(1 << 20, () => serializer.Deserialize<int>(frame));
     }
 
     [Fact]
-    public void Deserialize_NoCompressionWithMismatchedCompressedLength_ThrowsFormat()
+    public void Deserialize_UncompressedLengthAbovePayloadLimit_ThrowsLimitBeforeAllocating()
     {
-        byte[] frame = Wire.FrameWith(Int42, uncompressedLength: 4, compressedLength: 5, onDiskLength: 5);
+        var serializer = Tightened(nameof(SerializationLimits.MaxPayloadBytes));
 
-        AssertEx.Throws<BinaryFormatException>(
-            "CompressedLength must equal UncompressedLength",
-            () => Default.Deserialize<int>(frame));
+        byte[] frame = Wire.FrameWith([1, 2, 3, 4], services: [Wire.CompressionRecord(1, 1 << 28)]);
+
+        AssertEx.Throws<BinaryLimitException>(
+            "exceeds the configured maximum of 16 (MaxPayloadBytes)", () => serializer.Deserialize<int>(frame));
+
+        AssertEx.AllocatesLessThan(1 << 20, () => serializer.Deserialize<int>(frame));
     }
 
-    [Fact]
-    public void Deserialize_NoEncryptionWithMismatchedOnDiskLength_ThrowsFormat()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(byte.MaxValue)]
+    public void Serialize_ChecksumOfAnyRepresentableWidth_IsTheRemainderOfItsRecordAndRoundTrips(int width)
     {
-        byte[] frame = Wire.FrameWith(Int42, uncompressedLength: 4, compressedLength: 4, onDiskLength: 5);
-
-        AssertEx.Throws<BinaryFormatException>(
-            "OnDiskLength must equal CompressedLength",
-            () => Default.Deserialize<int>(frame));
-    }
-
-    [Fact]
-    public void Serialize_NoChecksum_DeclaresAChecksumLengthOfZero()
-    {
-        byte[] frame = Default.Serialize(42);
-
-        Assert.Equal(0, frame[Wire.ChecksumLengthOffset]);
-        Assert.Equal(42, Default.Deserialize<int>(frame));
-    }
-
-    [Fact]
-    public void Serialize_ChecksumAtTheWidestRepresentableLength_RoundTrips()
-    {
-        var serializer = Wide(byte.MaxValue);
+        var serializer = Wide(width);
 
         byte[] frame = serializer.Serialize(42);
+        var header = Wire.ReadHeader(frame);
+        var record = header.Service(Wire.ChecksumService);
 
-        // The custom checksum name sits between the plain header and the checksum length: a 7-bit
-        // length prefix plus its UTF-8 bytes.
-        int checksumLengthOffset =
-            Wire.ChecksumLengthOffset + 1 + Encoding.UTF8.GetByteCount(WideChecksum.RegisteredName);
-
-        Assert.Equal(byte.MaxValue, frame[checksumLengthOffset]);
-        Assert.Equal(checksumLengthOffset + 1 + byte.MaxValue + Int42.Length, frame.Length);
+        Assert.Equal(width, header.Checksum.Length);
+        Assert.Equal(record.BodyOffset + record.BodyLength, header.OnDiskLengthOffset);
         Assert.Equal(42, serializer.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Serialize_NoChecksum_WritesNoChecksumRecord()
+    {
+        var header = Wire.ReadHeader(Default.Serialize(42));
+
+        Assert.Empty(header.Services);
+        Assert.Empty(header.Checksum);
     }
 
     [Fact]
@@ -226,7 +229,7 @@ public class HeaderTests
         var shared = new List<int> { 1 };
         byte[] frame = writer.Serialize(new SharedLists { A = shared, B = shared });
 
-        // The reader is configured without the option; the header is what decides.
+        // The reader is configured without the option; the payload mode is what decides.
         var restored = new BinarySerializer().Deserialize<SharedLists>(frame)!;
 
         Assert.Same(restored.A, restored.B);
@@ -244,6 +247,189 @@ public class HeaderTests
 
         Assert.Equal([1], restored.A);
         Assert.Equal([2], restored.B);
+    }
+
+    // --- service records ---------------------------------------------------------------------------
+
+    [Fact]
+    public void Deserialize_ServicesOutOfOrder_ThrowsFormat()
+    {
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.EncryptionRecord(1), Wire.CompressionRecord(1, 4)]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "ascending number", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_ARepeatedServiceNumber_ThrowsFormat()
+    {
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.CompressionRecord(1, 4), Wire.CompressionRecord(2, 4)]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "more than once", () => Default.Deserialize<int>(frame));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Deserialize_ServiceNumberZero_ThrowsFormat(bool critical)
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(0, critical, [])]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "Service number 0 is reserved", () => Default.Deserialize<int>(frame));
+    }
+
+    [Theory]
+    [InlineData(Wire.ChecksumService)]
+    [InlineData(Wire.CompressionService)]
+    [InlineData(Wire.EncryptionService)]
+    public void Deserialize_AKnownServiceMarkedSkippable_ThrowsFormat(int number)
+    {
+        byte[] body = number switch
+        {
+            Wire.ChecksumService => [1, 0, 0, 0, 0],
+            Wire.CompressionService => [1, 4],
+            _ => [1, 0]
+        };
+
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(number, critical: false, body)]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "may be skipped", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AnUnknownCriticalService_ThrowsFormatNotSupported()
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(5, critical: true, [1, 2, 3])]);
+
+        AssertEx.Throws<BinaryFormatNotSupportedException>(
+            "Service 5 is critical", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AnUnknownSkippableService_IsSkippedByItsLength()
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(5, critical: false, [0xFF, 0x00, 0x7F])]);
+
+        Assert.Equal(42, Default.Deserialize<int>(frame));
+        Assert.NotNull(BinaryFormatInspector.Peek(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AServiceBodyWithBytesAfterItsLastField_ThrowsFormat()
+    {
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.Service(Wire.CompressionService, critical: true, [1, 4, 0])]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "after its last field", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AServiceBodyShorterThanItsFields_ThrowsFormat()
+    {
+        // The uncompressed length would be read past the body the record declared.
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.Service(Wire.CompressionService, critical: true, [1, 4], declaredLength: 1)]);
+
+        Assert.Throws<BinaryFormatException>(() => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AHeaderLongerThanItsBound_ThrowsFormatBeforeTheBodyIsRead()
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(5, critical: false, new byte[4096])]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "4096-byte header bound", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AHeaderThatFillsItsBoundExactly_IsRead()
+    {
+        // 4 magic + 1 version + 1 mode + 1 count + record (kind 1, length 2, body) + onDiskLength 1.
+        int body = BinaryFormatHeaderV1.MaxLength - 4 - 1 - 1 - 1 - 1 - 2 - 1;
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(5, critical: false, new byte[body])]);
+
+        Assert.Equal(BinaryFormatHeaderV1.MaxLength, Wire.ReadHeader(frame).HeaderLength);
+        Assert.Equal(42, Default.Deserialize<int>(frame));
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(0x80)]
+    public void Deserialize_AReservedPayloadModeBit_ThrowsFormatNotSupported(int mode)
+    {
+        byte[] frame = Wire.FrameWith(Int42, mode: mode);
+
+        AssertEx.Throws<BinaryFormatNotSupportedException>(
+            "Payload mode", () => Default.Deserialize<int>(frame));
+    }
+
+    [Theory]
+    [InlineData(Wire.ChecksumService)]
+    [InlineData(Wire.CompressionService)]
+    [InlineData(Wire.EncryptionService)]
+    public void Deserialize_ARecordNamingIdNone_ThrowsFormat(int number)
+    {
+        byte[] body = number switch
+        {
+            Wire.ChecksumService => [0, 0, 0, 0, 0],
+            Wire.CompressionService => [0, 4],
+            _ => [0, 0]
+        };
+
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.Service(number, critical: true, body)]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "names no algorithm", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_ACustomAlgorithmWithAnEmptyName_ThrowsFormat()
+    {
+        byte[] frame = Wire.FrameWith(
+            Int42, services: [Wire.Service(Wire.CompressionService, critical: true, [0xFF, 0x01, 0x00, 4])]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "empty name", () => Default.Deserialize<int>(frame));
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(5)]
+    public void Deserialize_AChecksumOfTheWrongLengthForItsAlgorithm_ThrowsFormat(int length)
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.ChecksumRecord(1, new byte[length])]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "Checksum length", () => Default.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AChecksumRecordWithoutAHash_ThrowsFormat()
+    {
+        byte[] frame = Wire.FrameWith(Int42, services: [Wire.ChecksumRecord(1, [])]);
+
+        AssertEx.Throws<BinaryFormatException>(
+            "between 1 and 255", () => Default.Deserialize<int>(frame));
+    }
+
+    private static BinarySerializer Tightened(string tightened)
+    {
+        var limits = SerializationLimits.Default with
+        {
+            MaxPayloadBytes = tightened == nameof(SerializationLimits.MaxPayloadBytes) ? 16 : 1 << 29,
+            MaxCompressedBytes = tightened == nameof(SerializationLimits.MaxCompressedBytes) ? 16 : 1 << 29,
+            MaxEncryptedBytes = tightened == nameof(SerializationLimits.MaxEncryptedBytes) ? 16 : 1 << 29,
+            MaxWireBytes = 1 << 29
+        };
+
+        return new BinarySerializer(BinarySerializerOptions.Configure().WithLimits(limits).Build());
     }
 
     private static BinarySerializer Wide(int checksumBytes) =>

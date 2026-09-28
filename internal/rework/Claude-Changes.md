@@ -94,7 +94,7 @@ earlier is reported to the owner by the stage that notices it.
   family-suffixed names (`DeflateCompression`, `BrotliCompression`, `Crc32Checksum`,
   `Aes256GcmEncryption`) and the new ones; `KeySizeInBytes` checked at `Build()`.
 
-### R6 — The final format
+### R6 — The final format — applied
 
 - **Versioned envelope** — the V1 header as a list of service records with its 4 KiB bound; the
   associated data is the exact header bytes; the write order restated.

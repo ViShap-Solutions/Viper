@@ -58,7 +58,7 @@ from its change file in the stage that makes the change real, never ahead of it 
 10. **Branches and tags** follow `internal/Development-Workflow.md` [D9.22]. The rework is collected on
     `release/v1.0.0`, branched from `main`; each stage is worked on `rework/rN-<topic>` from
     `release/v1.0.0` and returns to it through a pull request. Nothing is published before R6; after
-    R6 the owner may tag `v1.0.0-beta.N` on `release/v1.0.0`; after R9, `v1.0.0-rc.N`; the release is
+    R6 no beta is tagged — the owner decided on 2026-09-29 not to set `v1.0.0-beta.1`, because the package READMEs that `dotnet pack` requires are written only in R9 (`Owner-Review.md` log 64); after R9, `v1.0.0-rc.N`; the release is
     `release/v1.0.0` merged into `main` and `v1.0.0` tagged on `main`. The executor never creates or
     merges these branches and never tags `v*`.
 11. **The benchmark harness lives with the code** [D9.27, D9.28]. At the end of every stage — R1–R6, R8
@@ -84,8 +84,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | closed | `7ac46c0` |
 | R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | closed | `48c7bf5` |
 | R4 — Typed engine | `rework/r4-typed-engine` | — | closed | `c215131` |
-| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | gate holds — awaiting commit | |
-| R6 — The final format | `rework/r6-final-format` | the owner may tag `v1.0.0-beta.1` on `release/v1.0.0` | not started | |
+| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | closed | `76b9aa5` |
+| R6 — The final format | `rework/r6-final-format` | no tag: `v1.0.0-beta.1` deliberately not set (owner, 2026-09-29, `Owner-Review.md` log 64) | gate holds — awaiting commit | |
 | R7 — Removed | — | — | — | — |
 | R8 — Generator ground | `rework/r8-generator-ground` | — | not started | |
 | R9a — Reconciliation | `rework/r9a-reconcile` | — | not started | |
@@ -443,6 +443,21 @@ positional object                  flag byte 00 / 01                 the referen
 union                              flag byte, then the tag byte      the reference frame carries null, then the tag byte
 Nullable<T> (T a value type)       flag byte 00 / 01, then T         same — value types are never framed
 type that cannot be null           nothing                           nothing
+```
+
+The types the table leaves out follow the same rule, by the owner's decision of 2026-09-28
+(`Owner-Review.md` log 60): the scalars that travel as a string — `Uri`, `Version`, `StringBuilder`,
+`CultureInfo`, `TimeZoneInfo` — fold the string's length, like `string`, and are never framed;
+`BitArray` is a class and folds its bit count (a varint) — [D4.2.3] calls it non-nullable, which it is
+not; an array of rank greater than one folds its rank, and with references on writes it after the frame
+as is; `Tuple<…>` and `Lazy<T>` begin with no number and take the flag byte, as a positional object
+does. Rank, dimension lengths and the bit count are structural numbers, so varints.
+
+```text
+Uri "a"                  02 61                  null 00
+BitArray of 9 bits       0A 02 8D 01            null 00
+int[2,3]                 03 02 03 <6 × int32>   null 00
+Tuple<int,string>        01 <int32> 04 ...      null 00
 ```
 
 ```text
@@ -891,6 +906,7 @@ public sealed class BinaryDump
     public int NodeCount { get; }
     public override string ToString();                   // the text report below
     public string ToJson();                              // the same, as JSON
+    public string ToXml();                               // the same, as XML (Owner-Review.md log 62)
     public string ToHex();                               // 16 bytes a line, each line labelled with its node
 }
 
@@ -922,6 +938,12 @@ public sealed class BinaryDumpDifference
     public BinaryDumpNode? Actual { get; }
 }
 ```
+
+`BinaryHeaderInfo` reports the service records as flat members, by the owner's decision of 2026-09-28
+(`Owner-Review.md` log 61): beside the version, the algorithms, their custom names and the key id, it
+carries `PreserveReferences`, `UncompressedLength` (`int?`, null without compression), `Checksum`
+(`ReadOnlyMemory<byte>`, empty without a checksum), `HeaderLength` and `OnDiskLength`. An unknown
+non-critical service is skipped and not reported.
 
 **The text report** — `ToString()`, the form a person reads:
 
@@ -1564,7 +1586,7 @@ from `release/v1.0.0`, returned to it through a pull request, and never measured
 before the tag exists [D9.25].
 
 **Tags along the way** [D9.22]: none published before R6 (the local `pre-rework` tag of R0 is never
-pushed); `v1.0.0-beta.N` allowed once R6 is closed — the format is final; `v1.0.0-rc.N` once R9e is
+pushed); `v1.0.0-beta.N` not set: after R6 the owner deliberately skipped it, since `dotnet pack` fails until the package READMEs of R9b exist (`Owner-Review.md` log 64); `v1.0.0-rc.N` once R9e is
 closed — fixes only; `v1.0.0` on `main` after `release/v1.0.0` is merged.
 
 ---
@@ -1577,6 +1599,15 @@ Each of these is additive; none blocks a stage [D9.2, D9.20]:
 - **Zstandard, LZ4, AES-GCM-SIV** — separate packages implementing the §8.1 interfaces.
 - **Source generator** — §13.1.
 - **Benchmark Track B** — on the `v1.0.0` tag.
+
+**Live tracing of ordinary calls** (owner's note of 2026-09-29, not in v1.0). The diagnostics of §9.7
+read a finished frame. Logging each ordinary `Serialize`/`Deserialize` as it runs is additive later:
+the recommended shape is an options switch such as `WithTrace(sink)` whose sink receives the
+`BinaryDump` of each operation — it publishes only the dump model that already exists, and needs the
+seam in the write codecs as well. Publishing the observer itself was rejected for v1.0: it would
+freeze the engine's traversal protocol, which stays internal like the shapes and codecs. Until then the
+documented pattern is a `catch (BinarySerializerException)` that logs `Dump<T>` of the same bytes, and
+`DumpValue<T>` for a write.
 
 ## 13.1 `ViShap.Viper.Generator` — how it joins the system
 

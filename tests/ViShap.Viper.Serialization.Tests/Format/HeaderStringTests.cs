@@ -6,7 +6,8 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins HDR-10: a V1 header string names an algorithm or selects a key, so its ceiling is fixed by
+/// Pins HDR-10: a V1 header string — a custom algorithm name or the key id, inside its service record —
+/// names an algorithm or selects a key, so its ceiling is fixed by
 /// the format rather than borrowed from the payload's string policy.
 /// </summary>
 public class HeaderStringTests
@@ -50,7 +51,7 @@ public class HeaderStringTests
     [Theory]
     [InlineData(MaxHeaderStringBytes + 1)]
     [InlineData(1_000)]
-    [InlineData(100_000)]
+    [InlineData(4_000)]
     public void Deserialize_HeaderStringAboveTheCeiling_IsRefusedByTheCeiling(int declaredLength)
     {
         // The bytes are all present, so only the ceiling can reject this.

@@ -248,7 +248,7 @@ public class SerializerApiTests
     public void Deserialize_AfterAFailure_LeavesTheStreamWhereItStopped()
     {
         var serializer = new BinarySerializer();
-        byte[] truncated = Mutate.Truncate(serializer.Serialize(Sample()), 20);
+        byte[] truncated = Mutate.Truncate(serializer.Serialize(Sample()), 12);
         using var source = new MemoryStream(truncated, writable: false);
 
         Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(source));

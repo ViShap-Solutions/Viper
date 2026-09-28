@@ -5,6 +5,11 @@ namespace ViShap.Viper.Formatters;
 /// strings, blobs. Everything it can read is bounded by a fixed size or by a checked primitive, and
 /// it never sees a limit, a budget or a stream — only the checked primitives of
 /// <see cref="WireReader"/> and <see cref="WireWriter"/>.
+/// <para>
+/// A scalar reference type begins with a length or a count — a string's byte length, a bit array's
+/// bit count — and that number carries its null: the formatter writes it one higher through the
+/// payload string and the folded primitives, and the engine writes a null as its zero.
+/// </para>
 /// </summary>
 internal interface IScalarFormatter<T>
 {
@@ -111,6 +116,12 @@ internal interface IMapShape<TMap, TKey, TValue, TBuilder, TEnumerator>
 /// </summary>
 internal interface ICompositeFormatter<T>
 {
+    /// <summary>
+    /// Whether the value begins with an array shape, whose rank is then the first number of the value
+    /// and carries its null. A composite that begins with a child value carries its null in a flag.
+    /// </summary>
+    bool BeginsWithShape => false;
+
     void Write(ref CompositeWriter writer, T value);
 
     T Read(ref CompositeReader reader);

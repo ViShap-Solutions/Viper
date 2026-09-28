@@ -21,11 +21,13 @@ internal sealed class MapCodec<TMap, TKey, TValue, TBuilder, TEnumerator>(
 
     public override CodecShape Shape => CodecShape.Map;
 
-    protected override void WriteBody(ref WireWriter writer, TMap value)
+    protected override bool FoldsNull => true;
+
+    protected override void WriteBody(ref WireWriter writer, TMap value, bool nullFolded)
     {
         if (shape.CountOf(value) is { } known)
         {
-            var count = writer.WriteCount(known, shape.CountKind, shape.CountName);
+            var count = writer.WriteCount(known, shape.CountKind, shape.CountName, nullFolded);
 
             int written = 0;
             var entries = shape.GetEnumerator(value);
@@ -56,7 +58,7 @@ internal sealed class MapCodec<TMap, TKey, TValue, TBuilder, TEnumerator>(
         var gathered = Gather(ref writer, value);
         try
         {
-            writer.WriteCount(gathered.Count, shape.CountKind, shape.CountName);
+            writer.WriteCount(gathered.Count, shape.CountKind, shape.CountName, nullFolded);
             foreach (var entry in gathered.Items)
             {
                 KeyCodec.Write(ref writer, entry.Key);
@@ -69,9 +71,11 @@ internal sealed class MapCodec<TMap, TKey, TValue, TBuilder, TEnumerator>(
         }
     }
 
-    protected override TMap ReadBody(ref WireReader reader, int referenceId)
+    protected override TMap ReadBody(ref WireReader reader, int referenceId, bool nullFolded)
     {
-        var count = reader.ReadCount(shape.CountKind, shape.CountName);
+        var count = reader.ReadCount(shape.CountKind, shape.CountName, nullFolded);
+        var trace = reader.State.Trace;
+        trace?.Shape(TraceShape.Map, count.Value);
 
         var builder = shape.Create(
             count.CapacityFor(KeyCodec.MinimumWireSize + ValueCodec.MinimumWireSize, reader.Remaining));
@@ -80,7 +84,9 @@ internal sealed class MapCodec<TMap, TKey, TValue, TBuilder, TEnumerator>(
 
         for (int i = 0; i < count.Value; i++)
         {
+            trace?.LabelMapKey(i);
             var key = KeyCodec.Read(ref reader);
+            trace?.LabelMapValue(i);
             var value = ValueCodec.Read(ref reader);
             try
             {

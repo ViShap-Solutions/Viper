@@ -157,7 +157,9 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   `Measurements/c215131-20260928T131001Z` (six suites), compared with `pre-rework` as R-04, with the
   regression in PERF-08; ALLOC-12…ALLOC-14 carry their R5 values.
 
-## R6 — The final format
+## R6 — The final format — applied
+
+Applied: MICRO-08 and SEC-04 rewritten, SIZE-09, SIZE-10 and MICRO-19 added (`format-sizes.csv`, `DumperBenchmarks`); the sizes, the header and the seam published in `internal/performance/PERF-09`; the seam's read cost accepted by the owner (`Owner-Review.md` log 63).
 
 - **§14 re-measured entirely.** SIZE-02 (envelope cost), SIZE-03 (reference framing) and SIZE-05
   (per-string, per-element, per-null costs) are the direct evidence for plan §6; each is published as

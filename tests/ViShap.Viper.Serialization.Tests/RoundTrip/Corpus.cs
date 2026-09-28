@@ -24,13 +24,13 @@ public abstract partial class Corpus
     protected abstract BinarySerializer WithLimits(SerializationLimits limits);
 
     /// <summary>Writes and reads one value back through the profile under test.</summary>
-    protected T? RoundTrip<T>(T value) => Serializer.Deserialize<T>(Serializer.SerializeRecorded(value));
+    protected T? RoundTrip<T>(T value) => Serializer.Deserialize<T>(Serializer.Serialize(value));
 
     /// <summary>Writes and reads one value back through the profile under test, under tighter limits.</summary>
     protected T? RoundTrip<T>(T value, SerializationLimits limits)
     {
         var serializer = WithLimits(limits);
-        return serializer.Deserialize<T>(serializer.SerializeRecorded(value));
+        return serializer.Deserialize<T>(serializer.Serialize(value));
     }
 
     /// <summary>Asserts that every value of a family survives the round trip unchanged.</summary>

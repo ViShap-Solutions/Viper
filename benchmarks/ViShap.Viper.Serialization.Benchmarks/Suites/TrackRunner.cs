@@ -63,6 +63,7 @@ internal static class TrackRunner
         ("A4", typeof(ArrayMaterializationBenchmarks)),
         ("A4", typeof(CompressionPrimitiveBenchmarks)),
         ("A4", typeof(ProtectionPrimitiveBenchmarks)),
+        ("A4", typeof(DumperBenchmarks)),
 
         // A5 — the scaling curves.
         ("A5", typeof(ElementCountScalingBenchmarks)),
@@ -186,6 +187,7 @@ internal static class TrackRunner
 
         // §14 — sizes, which carry no timing beside them.
         Step("sizes", () => SizeReport.Write(SizeReport.Collect(), target.File("payload-sizes.csv")));
+        Step("format sizes", () => FormatSizeReport.Write(FormatSizeReport.Collect(), target.File("format-sizes.csv")));
 
         // §10, §18, §19, §21 — the timed suites, in track order, into the run's own directory.
         var summaries = new List<Summary>();

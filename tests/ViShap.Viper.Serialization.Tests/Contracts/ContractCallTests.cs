@@ -385,7 +385,7 @@ public class ContractCallTests
         var operation = new OperationBox();
         using var buffer = new PayloadBuffer(4096, "payload");
         var writer = new WireWriter(buffer, ref operation.State);
-        ObjectMembers.Write(ref writer, contract, in value);
+        ObjectMembers.Write(ref writer, contract, in value, nullFolded: false);
         writer.Flush();
 
         byte[] bytes = new byte[buffer.Length];
@@ -398,7 +398,7 @@ public class ContractCallTests
     {
         var operation = new OperationBox();
         var reader = new WireReader(bytes, ref operation.State);
-        var value = ObjectMembers.ReadInstance(ref reader, contract, referenceId: -1, target: null);
+        var value = ObjectMembers.ReadInstance(ref reader, contract, referenceId: -1, target: null, nullFolded: false);
         Assert.Equal(0, reader.Remaining);
         return value;
     }

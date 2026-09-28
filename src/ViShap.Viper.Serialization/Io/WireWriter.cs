@@ -115,7 +115,11 @@ internal ref struct WireWriter
         Write(bytes);
     }
 
-    /// <summary>Writes a UTF-8 string bounded by <c>MaxStringBytes</c>.</summary>
+    /// <summary>
+    /// Writes a UTF-8 string of the payload bounded by <c>MaxStringBytes</c>: its byte length plus one,
+    /// then the bytes. A string in the payload is always of a type that can be null, and its null is
+    /// the zero of that length, which the engine writes.
+    /// </summary>
     /// <exception cref="BinaryLimitException">The encoded length exceeds the configured maximum.</exception>
     public void WriteString(string value)
     {
@@ -127,7 +131,8 @@ internal ref struct WireWriter
                 $"String byte length {byteCount} exceeds the configured maximum of " +
                 $"{_state.Limits.MaxStringBytes} (MaxStringBytes).");
 
-        WriteEncodedString(value, byteCount);
+        WriteFolded(byteCount, nullFolded: true, "String byte length");
+        WriteEncodedBytes(value, byteCount);
     }
 
     /// <summary>
@@ -148,19 +153,52 @@ internal ref struct WireWriter
             throw new BinaryConfigurationException(
                 $"{what} encodes to {byteCount} byte(s), but this field admits at most {maxBytes}.");
 
-        WriteEncodedString(value, byteCount);
+        Write7BitEncodedInt(byteCount);
+        WriteEncodedBytes(value, byteCount);
     }
 
-    /// <summary>Validates a count against its limit and the element budget, then writes it.</summary>
-    public ElementCount WriteCount(int count, CountKind kind, string what)
+    /// <summary>
+    /// Writes a UTF-8 string that may be absent and must fit a ceiling the format itself fixes: its
+    /// byte length plus one, or zero when <paramref name="value"/> is <see langword="null"/>, then the
+    /// bytes.
+    /// </summary>
+    /// <exception cref="BinaryConfigurationException">
+    /// The encoded length exceeds <paramref name="maxBytes"/>, so the value cannot be represented.
+    /// </exception>
+    public void WriteOptionalString(string? value, int maxBytes, string what)
+    {
+        if (value is null)
+        {
+            WriteByte(0);
+            return;
+        }
+
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+        if (byteCount > maxBytes)
+            throw new BinaryConfigurationException(
+                $"{what} encodes to {byteCount} byte(s), but this field admits at most {maxBytes}.");
+
+        Write7BitEncodedInt(byteCount + 1);
+        WriteEncodedBytes(value, byteCount);
+    }
+
+    /// <summary>
+    /// Validates a count against its limit and the element budget, then writes it — one higher when
+    /// <paramref name="nullFolded"/>, because the count is the first number of a value whose null is
+    /// its zero.
+    /// </summary>
+    public ElementCount WriteCount(int count, CountKind kind, string what, bool nullFolded)
     {
         var validated = ElementCount.Validate(count, kind, ref _state, what);
-        WriteInt32(validated.Value);
+        WriteFolded(validated.Value, nullFolded, what);
         return validated;
     }
 
-    /// <summary>Validates a bit count bounded by <c>MaxByteBlobBytes</c> × 8, then writes it.</summary>
-    public void WriteBitCount(int bits, string what)
+    /// <summary>
+    /// Validates a bit count bounded by <c>MaxByteBlobBytes</c> × 8, then writes it — one higher when
+    /// <paramref name="nullFolded"/>.
+    /// </summary>
+    public void WriteBitCount(int bits, string what, bool nullFolded)
     {
         if (bits < 0)
             throw new BinaryFormatException($"{what} {bits} must be non-negative.");
@@ -171,8 +209,25 @@ internal ref struct WireWriter
                 $"{what} {bits} exceeds the configured maximum of {maximum} " +
                 $"(MaxByteBlobBytes, in bits).");
 
-        WriteInt32(bits);
+        WriteFolded(bits, nullFolded, what);
     }
+
+    /// <summary>
+    /// Writes a structural number, one higher when <paramref name="nullFolded"/>: the first number of a
+    /// value whose declared type can be null carries that null as its zero.
+    /// </summary>
+    /// <exception cref="BinaryLimitException">The number, raised by one, leaves the range a 7-bit integer admits.</exception>
+    public void WriteFolded(int value, bool nullFolded, string what)
+    {
+        if (nullFolded && value == int.MaxValue)
+            throw new BinaryLimitException(
+                $"{what} {value} cannot be written: one more than it exceeds the largest number the format admits.");
+
+        Write7BitEncodedInt(nullFolded ? value + 1 : value);
+    }
+
+    /// <summary>Writes the null of a value whose declared type can be null: a single zero byte.</summary>
+    public void WriteNull() => WriteByte(0);
 
     public void Write7BitEncodedInt(int value)
     {
@@ -212,9 +267,8 @@ internal ref struct WireWriter
         _buffered = 0;
     }
 
-    private void WriteEncodedString(string value, int byteCount)
+    private void WriteEncodedBytes(string value, int byteCount)
     {
-        Write7BitEncodedInt(byteCount);
         if (byteCount == 0)
             return;
 

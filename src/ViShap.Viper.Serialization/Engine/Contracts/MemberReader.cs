@@ -68,6 +68,7 @@ internal ref struct MemberReader
                 _contract, member, $"it read a '{typeof(TMember)}' for a member of type '{member.MemberType}'");
 
         _calls++;
+        _reader.State.Trace?.Label(member.Name);
         return FormatterCache<TMember>.Instance.Read(ref _reader);
     }
 

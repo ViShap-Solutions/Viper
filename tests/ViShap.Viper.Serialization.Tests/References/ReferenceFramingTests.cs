@@ -3,9 +3,10 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.References;
 
 /// <summary>
-/// Pins REF-05…REF-08, REF-12…REF-16 and REF-19: which values carry a reference frame at all, what the
-/// payload does when the frame is nonsense, and how far an id is visible. The payload, not the local
-/// configuration, decides whether frames are there to be read.
+/// Pins REF-05…REF-08, REF-12, REF-15, REF-16, REF-19 and REF-20: which values carry a reference
+/// frame at all, the frame's bytes, what the payload does when a frame names nothing, and how far an
+/// id is visible. The payload, not the local configuration, decides whether frames are there to be
+/// read.
 /// </summary>
 public class ReferenceFramingTests
 {
@@ -23,16 +24,17 @@ public class ReferenceFramingTests
     {
         // The root object is framed; the struct behind it is not, because a value type cannot be
         // shared and a box of it would be a different object every time.
-        byte[] expected = Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(0);
-            writer.Write(3);
-            writer.Write(4);
-        });
+        byte[] expected =
+        [
+            .. Wire.ReferenceFrame(0, back: false),
+            .. Wire.Payload(writer =>
+            {
+                writer.Write(3);
+                writer.Write(4);
+            })
+        ];
 
-        byte[] body = Body(_framed.SerializeRecorded(
+        byte[] body = Body(_framed.Serialize(
             new StructHolder { Point = new PointStruct { X = 3, Y = 4 } }));
 
         Assert.Equal(expected, body);
@@ -43,17 +45,18 @@ public class ReferenceFramingTests
     {
         var point = new PointStruct { X = 3, Y = 4 };
 
-        byte[] body = Body(_framed.SerializeRecorded(new List<PointStruct> { point, point }));
+        byte[] body = Body(_framed.Serialize(new List<PointStruct> { point, point }));
 
-        byte[] expected = Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(0);
-            writer.Write(2);
-            writer.Write(3); writer.Write(4);
-            writer.Write(3); writer.Write(4);
-        });
+        byte[] expected =
+        [
+            .. Wire.ReferenceFrame(0, back: false),
+            0x02,                                   // the count, as it is: the frame carries null
+            .. Wire.Payload(writer =>
+            {
+                writer.Write(3); writer.Write(4);
+                writer.Write(3); writer.Write(4);
+            })
+        ];
 
         Assert.Equal(expected, body);
     }
@@ -63,16 +66,14 @@ public class ReferenceFramingTests
     {
         string shared = new(['s', 'a', 'm', 'e']);
 
-        byte[] expected = Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(0);
-            writer.Write(true); writer.Write("same");
-            writer.Write(true); writer.Write("same");
-        });
+        byte[] expected =
+        [
+            .. Wire.ReferenceFrame(0, back: false),
+            0x05, .. "same"u8,
+            0x05, .. "same"u8
+        ];
 
-        byte[] body = Body(_framed.SerializeRecorded(new SharedStrings { A = shared, B = shared }));
+        byte[] body = Body(_framed.Serialize(new SharedStrings { A = shared, B = shared }));
 
         Assert.Equal(expected, body);
     }
@@ -84,7 +85,7 @@ public class ReferenceFramingTests
         // own configuration.
         var shared = new List<int> { 1, 2, 3 };
 
-        byte[] payload = _framed.SerializeRecorded(new SharedLists { A = shared, B = shared });
+        byte[] payload = _framed.Serialize(new SharedLists { A = shared, B = shared });
         var result = _plain.Deserialize<SharedLists>(payload)!;
 
         Assert.True(Wire.ReadHeader(payload).PreserveReferences);
@@ -96,7 +97,7 @@ public class ReferenceFramingTests
     {
         var shared = new List<int> { 1, 2, 3 };
 
-        byte[] payload = _plain.SerializeRecorded(new SharedLists { A = shared, B = shared });
+        byte[] payload = _plain.Serialize(new SharedLists { A = shared, B = shared });
         var result = _framed.Deserialize<SharedLists>(payload)!;
 
         Assert.False(Wire.ReadHeader(payload).PreserveReferences);
@@ -107,28 +108,53 @@ public class ReferenceFramingTests
     [Fact]
     public void Deserialize_UnknownReferenceId_ThrowsFormat()
     {
-        byte[] payload = FramedFrame([.. Wire.NotNull, .. Wire.ReferenceFrame(1, 5)]);
+        byte[] payload = FramedFrame(Wire.ReferenceFrame(5, back: true));
 
         AssertEx.Throws<BinaryFormatException>(
             "was not found", () => _framed.Deserialize<Node>(payload));
     }
 
-    [Fact]
-    public void Deserialize_NegativeReferenceId_ThrowsFormat()
-    {
-        byte[] payload = FramedFrame([.. Wire.NotNull, .. Wire.ReferenceFrame(0, -1)]);
+    // --- REF-20: the reference frame, byte for byte ----------------------------------------------
 
-        AssertEx.Throws<BinaryFormatException>(
-            "must be non-negative", () => _framed.Deserialize<Node>(payload));
+    [Fact]
+    public void ReferenceFrame_IsZeroForNullAndTheIdTwiceWithTheBackBitPlusOne()
+    {
+        Assert.Equal<byte[]>([0x00], Wire.NullReference);
+        Assert.Equal<byte[]>([0x01], Wire.ReferenceFrame(0, back: false));
+        Assert.Equal<byte[]>([0x02], Wire.ReferenceFrame(0, back: true));
+        Assert.Equal<byte[]>([0x0B], Wire.ReferenceFrame(5, back: false));
     }
 
     [Fact]
-    public void Deserialize_InvalidReferenceMarker_ThrowsFormat()
+    public void Serialize_FirstOccurrencesAndABackReference_WriteTheDocumentedFrames()
     {
-        byte[] payload = FramedFrame([.. Wire.NotNull, .. Wire.ReferenceFrame(7, 0)]);
+        // The list takes id 0 and its five nodes ids 1 to 5: the fifth node's frame is 0B.
+        var nodes = Enumerable.Range(1, 5).Select(value => new Node { Value = value }).ToList();
 
-        AssertEx.Throws<BinaryFormatException>(
-            "Unknown reference marker 7", () => _framed.Deserialize<Node>(payload));
+        byte[] expected =
+        [
+            0x01,                                   // the list: first occurrence of id 0
+            0x05,                                   // five elements
+            0x03, 1, 0, 0, 0,
+            0x05, 2, 0, 0, 0,
+            0x07, 3, 0, 0, 0,
+            0x09, 4, 0, 0, 0,
+            0x0B, 5, 0, 0, 0                        // first occurrence of id 5
+        ];
+
+        Assert.Equal(expected, Body(_framed.Serialize(nodes)));
+
+        // A node that refers to itself: its Next is a back reference to id 0.
+        var cyclic = new Cyclic();
+        cyclic.Next = cyclic;
+
+        Assert.Equal<byte[]>([0x01, 0x01, 0x02], Body(_framed.Serialize(cyclic)));
+    }
+
+    [Fact]
+    public void Deserialize_ANullReferenceFrame_IsNull()
+    {
+        Assert.Null(_framed.Deserialize<Node>(FramedFrame(Wire.NullReference)));
     }
 
     [Fact]
@@ -138,18 +164,18 @@ public class ReferenceFramingTests
         // names is no longer visible — which is exactly what stops a skipped field from dangling.
         byte[] first =
         [
-            .. Wire.NotNull, .. Wire.ReferenceFrame(0, 1),
+            .. Wire.ReferenceFrame(1, back: false),
             .. Wire.Payload(writer => writer.Write(42))
         ];
 
         byte[] payload = FramedFrame(
         [
-            .. Wire.NotNull, .. Wire.ReferenceFrame(0, 0),
+            .. Wire.ReferenceFrame(0, back: false),
             .. Wire.KeyedBody(
             [
                 new Wire.KeyedField(1, first),
-                new Wire.KeyedField(2, [.. Wire.NotNull, .. Wire.ReferenceFrame(1, 1)])
-            ])
+                new Wire.KeyedField(2, Wire.ReferenceFrame(1, back: true))
+            ], nullFolded: false)
         ]);
 
         AssertEx.Throws<BinaryFormatException>(
@@ -161,27 +187,27 @@ public class ReferenceFramingTests
     {
         var shared = new Node { Value = 9 };
 
-        byte[] body = Body(_framed.SerializeRecorded(new TwoNodes { A = shared, B = shared }));
+        byte[] body = Body(_framed.Serialize(new TwoNodes { A = shared, B = shared }));
 
-        // Both fields open the object afresh, with marker 0 and an id of their own.
+        // Both fields open the object afresh, as a first occurrence under an id of their own.
         byte[] expected =
         [
-            .. Wire.NotNull, .. Wire.ReferenceFrame(0, 0),
+            .. Wire.ReferenceFrame(0, back: false),
             .. Wire.KeyedBody(
             [
                 new Wire.KeyedField(
                     1,
                     [
-                        .. Wire.NotNull, .. Wire.ReferenceFrame(0, 1),
+                        .. Wire.ReferenceFrame(1, back: false),
                         .. Wire.Payload(writer => writer.Write(9))
                     ]),
                 new Wire.KeyedField(
                     2,
                     [
-                        .. Wire.NotNull, .. Wire.ReferenceFrame(0, 2),
+                        .. Wire.ReferenceFrame(2, back: false),
                         .. Wire.Payload(writer => writer.Write(9))
                     ])
-            ])
+            ], nullFolded: false)
         ];
 
         Assert.Equal(expected, body);
@@ -197,7 +223,7 @@ public class ReferenceFramingTests
             B = new ValueEqualNode { Value = 5 }
         };
 
-        var result = _framed.Deserialize<EqualNodePair>(_framed.SerializeRecorded(source))!;
+        var result = _framed.Deserialize<EqualNodePair>(_framed.Serialize(source))!;
 
         Assert.NotSame(result.A, result.B);
         Assert.Equal(result.A, result.B);
@@ -209,7 +235,7 @@ public class ReferenceFramingTests
         var node = new ValueEqualNode { Value = 5 };
 
         var result = _framed.Deserialize<EqualNodePair>(
-            _framed.SerializeRecorded(new EqualNodePair { A = node, B = node }))!;
+            _framed.Serialize(new EqualNodePair { A = node, B = node }))!;
 
         Assert.Same(result.A, result.B);
     }
@@ -221,18 +247,14 @@ public class ReferenceFramingTests
     {
         // Two first occurrences under one id would give a single graph a second spelling, and the
         // later one would quietly replace the object earlier references already resolve to.
-        byte[] frame = FramedFrame(Wire.Payload(writer =>
-        {
-            writer.Write(true);             // the root is present
-            writer.Write((byte)0);          // first occurrence
-            writer.Write(0);                // id 0
-            writer.Write(string.Empty);     // Name
-            writer.Write(true);             // Next is present
-            writer.Write((byte)0);          // first occurrence again
-            writer.Write(0);                // under the id the root already holds
-            writer.Write(string.Empty);
-            writer.Write(false);
-        }));
+        byte[] frame = FramedFrame(
+        [
+            .. Wire.ReferenceFrame(0, back: false), // the root: first occurrence of id 0
+            0x01,                                   // Name: empty
+            .. Wire.ReferenceFrame(0, back: false), // Next: first occurrence again, under the root's id
+            0x01,
+            .. Wire.NullReference
+        ]);
 
         AssertEx.Throws<BinaryFormatException>(
             "declared more than once", () => _framed.Deserialize<Cyclic>(frame));
@@ -241,18 +263,14 @@ public class ReferenceFramingTests
     [Fact]
     public void Deserialize_DistinctIdsForTheSameShape_IsUnaffected()
     {
-        byte[] frame = FramedFrame(Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(0);
-            writer.Write(string.Empty);
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(1);
-            writer.Write(string.Empty);
-            writer.Write(false);
-        }));
+        byte[] frame = FramedFrame(
+        [
+            .. Wire.ReferenceFrame(0, back: false),
+            0x01,
+            .. Wire.ReferenceFrame(1, back: false),
+            0x01,
+            .. Wire.NullReference
+        ]);
 
         Assert.NotNull(_framed.Deserialize<Cyclic>(frame)?.Next);
     }
@@ -264,23 +282,14 @@ public class ReferenceFramingTests
     {
         // Id 1 is a Person; the list member then points back at it. The payload names an object the
         // member cannot hold, which is malformed input, not a cast for the caller to catch.
-        byte[] body = Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(0);
-
-            writer.Write(true);
-            writer.Write((byte)0);
-            writer.Write(1);
-            writer.Write(30);
-            writer.Write(true);
-            writer.Write("Alice");
-
-            writer.Write(true);
-            writer.Write((byte)1);
-            writer.Write(1);
-        });
+        byte[] body =
+        [
+            .. Wire.ReferenceFrame(0, back: false), // the root
+            .. Wire.ReferenceFrame(1, back: false), // A: a Person
+            30, 0, 0, 0,                            // Age
+            0x06, .. "Alice"u8,                     // Name
+            .. Wire.ReferenceFrame(1, back: true)   // B: back to the Person
+        ];
 
         AssertEx.Throws<BinaryFormatException>(
             "resolves to", () => _plain.Deserialize<PersonThenList>(FramedFrame(body)));

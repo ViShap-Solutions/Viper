@@ -25,9 +25,10 @@ internal ref struct MemberWriter
 
     /// <summary>
     /// Opens the members of one value. Under a keyed layout the field count is checked against
-    /// <c>MaxKeyedFields</c>, charged to the keyed field budget and written first.
+    /// <c>MaxKeyedFields</c>, charged to the keyed field budget and written first — one higher when
+    /// <paramref name="nullFolded"/>, because it then carries the value's null.
     /// </summary>
-    internal static MemberWriter Begin(scoped ref WireWriter writer, TypeContract contract)
+    internal static MemberWriter Begin(scoped ref WireWriter writer, TypeContract contract, bool nullFolded)
     {
         if (contract.Layout == MemberLayout.Keyed)
         {
@@ -39,7 +40,7 @@ internal ref struct MemberWriter
                     $"{state.Limits.MaxKeyedFields} (MaxKeyedFields).");
 
             state.Budget.ConsumeKeyedFields(count);
-            writer.Write7BitEncodedInt(count);
+            writer.WriteFolded(count, nullFolded, "Keyed field count");
         }
 
         return new MemberWriter(writer, contract);

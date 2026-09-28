@@ -35,7 +35,7 @@ public class ArrayMaterializationBenchmarks
         int[] values = [.. Enumerable.Range(0, Length)];
         _payload = ComponentFixtures.Encode(ref _operation, (ref WireWriter writer) =>
         {
-            writer.WriteCount(values.Length, CountKind.Array, "Array length");
+            writer.WriteCount(values.Length, CountKind.Array, "Array length", nullFolded: false);
             foreach (var value in values)
             {
                 writer.WriteInt32(value);
@@ -47,7 +47,7 @@ public class ArrayMaterializationBenchmarks
     public int[] Direct()
     {
         var reader = new WireReader(_payload, ref _operation);
-        var count = reader.ReadCount(CountKind.Array, "Array length");
+        var count = reader.ReadCount(CountKind.Array, "Array length", nullFolded: false);
         return Elements.ReadArray<int>(ref reader, count);
     }
 
@@ -55,7 +55,7 @@ public class ArrayMaterializationBenchmarks
     public int[] Pooled()
     {
         var reader = new WireReader(_payload, ref _operation);
-        var count = reader.ReadCount(CountKind.Array, "Array length");
+        var count = reader.ReadCount(CountKind.Array, "Array length", nullFolded: false);
         var codec = FormatterCache<int>.Instance;
 
         var buffer = new ElementBuffer<int>(count.CapacityHint);

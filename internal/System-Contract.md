@@ -114,7 +114,7 @@ only one member's value per call (INV-2).
 The engine's **codecs** are the only recursion over an object graph. There is one per declared type,
 built once and found through `FormatterCache<T>` — a static field read — and together they own:
 
-- the null flag and the reference frame;
+- null — folded into the value's first number, or a flag — and the reference frame (§22.2);
 - depth accounting and unwinding;
 - object-graph node accounting;
 - reference identity and its scopes;
@@ -143,6 +143,14 @@ members are read, so a cycle back to it resolves; populate-in-place supplies the
 declared one — a `[BinaryUnion]` arm, an interface, `object` — is written and read through the
 contract of its runtime type, and that is the one place a value type is boxed. Every other value
 travels as its own type from the caller to the wire and back, enums included.
+
+**The trace seam.** One observer can watch a read: `OperationState.Trace`, internal, `null` for
+every serializer call and set only by the diagnostics of §19. Only the engine's codecs — the entry of
+every value, the sequence, map, array and composite loops, the member surface and the keyed field
+loop — report to it: where a value begins and ends, its declared type, its kind and count, its null,
+its reference frame and union tag, a keyed field's key and length, and a scalar's value through a
+generic call, so nothing is boxed to report it (INV-17). The observer receives no reader and no byte
+(INV-2), and it changes nothing a read does. Formatters and type contracts do not see it (INV-5).
 
 **The engine never awaits** (INV-16). Waiting for bytes happens only at the frame edge, in the
 pipeline's source readers: an asynchronous read awaits a whole frame and then decodes it
@@ -213,7 +221,8 @@ the only additive path.
 
 **`ViShap.Viper.Metadata`** — `BinaryHeaderInfo`, `BinaryFormatInspector`.
 
-**`ViShap.Viper.Diagnostics`** — `BinaryFormatDumper`.
+**`ViShap.Viper.Diagnostics`** — `BinaryFormatDumper`, `BinaryDump`, `BinaryDumpNode`,
+`BinaryDumpNodeKind`, `BinaryDumpDifference` (§19).
 
 **`ViShap.Viper.Exceptions`** — the hierarchy of §8.
 
@@ -545,7 +554,8 @@ The exact default algorithm instances are implementation details; the observable
 
 ## 4.3 Reading a header without reading the payload
 
-`BinaryFormatInspector.Peek` (§19) reads a V1 header's metadata — algorithms, custom names, key id —
+`BinaryFormatInspector.Peek` (§19) reads a V1 header's metadata — payload mode, algorithms, custom
+names, key id, checksum, lengths —
 without decoding the payload, for diagnostics and for choosing a key before committing to a read.
 Options are never derived from a header: reading V1 already takes its algorithms from it, and keys
 come from `WithKeys` (§4.1).
@@ -687,17 +697,40 @@ are data.
 
 `MaxPayloadBytes` bounds logical uncompressed payload.
 
-`MaxCompressedBytes` bounds the compressed representation.
+`MaxCompressedBytes` bounds the compressed representation — the payload itself when there is no
+compression.
 
 `MaxDecompressionRatio` bounds how far a payload may declare that it expands: the declared
-uncompressed length may not exceed the declared compressed length by more than this factor. It is the
-only phase bound that relates a declared size to the bytes that carry it, and it exists because
+uncompressed length may not exceed the compressed length by more than this factor. It is the only
+phase bound that relates a declared size to the bytes that carry it, and it exists because
 compression is the only phase whose output may legitimately exceed its input — and therefore the only
-one where the remaining-bytes rule of §17 cannot apply on its own. It is evaluated while the header is
-read, before any buffer exists, and only when compression is not `None`; with `None` the two lengths
-are already required to be equal.
+one where the remaining-bytes rule of §17 cannot apply on its own. It applies only to a frame with a
+compression record; without one there is no uncompressed length to measure.
 
 `MaxEncryptedBytes` bounds the encrypted/on-disk representation.
+
+The header declares only `onDiskLength` and, with compression, `uncompressedLength`; the plaintext
+length of an encrypted frame is not declared. The checks therefore run in this order, each before the
+buffer it protects exists:
+
+```text
+1. header          onDiskLength ≤ MaxEncryptedBytes and ≤ the bytes that can still arrive;
+                   without encryption, onDiskLength is the compressed payload: ≤ MaxCompressedBytes,
+                     and without compression as well, the payload: ≤ MaxPayloadBytes;
+                   with compression, uncompressedLength ≤ MaxPayloadBytes and
+                     uncompressedLength ≤ onDiskLength × MaxDecompressionRatio — exact without
+                     encryption, an upper bound with it (a ciphertext is never shorter than its plaintext)
+2. decryption      into a buffer no longer than onDiskLength: memory follows the delivered bytes
+3. after it        the plaintext as step 1 checks onDiskLength without encryption:
+                     ≤ MaxCompressedBytes; without compression ≤ MaxPayloadBytes; with compression
+                     uncompressedLength ≤ plaintext length × MaxDecompressionRatio, exactly
+4. decompression   the one allocation the ratio protects — only after step 3
+5. checksum        verified over the raw payload before the engine reads a byte of it
+```
+
+The V1 header itself is at most **4 096 bytes**, from the first byte of the magic to the last byte of
+`onDiskLength`. That is a fixed bound of the format, not a policy limit: a header that would exceed
+it is `BinaryFormatException` (§11).
 
 `MaxWireBytes` bounds the bytes one operation takes from its source and the bytes it emits to its
 destination, each counted from where the operation starts. On read, the pipeline never buffers more
@@ -846,10 +879,15 @@ Malformed or structurally invalid binary input.
 Examples:
 
 - truncated header/payload;
-- malformed 7-bit integers;
-- negative wire counts/lengths;
-- invalid markers;
-- inconsistent header lengths;
+- malformed 7-bit integers: truncated, longer than five bytes, beyond Int32, or not minimally encoded,
+  in every structural position — count, length, reference frame, key, version, payload mode, service
+  kind, service length, `onDiskLength` (§22.1);
+- a negative keyed field length (the one structural number that is a fixed-width `int32`);
+- a zero where a value's first number cannot carry null (§22.2);
+- the header rules of §11: service records out of order or repeated, service number 0, a critical bit
+  that does not match a known service, a record naming the algorithm `None`, an empty custom name, a
+  body not read exactly, a header beyond its 4 096-byte bound, a checksum of the wrong length for its
+  algorithm;
 - malformed keyed payload structure;
 - a duplicate key or element, or a null dictionary key, inside a container that admits neither (§23).
 
@@ -885,6 +923,8 @@ Examples:
 - unsupported format version;
 - unknown built-in algorithm enum;
 - missing custom registration;
+- an unknown service record marked critical (§11);
+- a reserved payload-mode bit that is set (§11);
 - `ChaCha20Poly1305Encryption` on a platform that does not provide it — when options that encrypt
   with it are built, and when a payload that names it is read (§13).
 
@@ -899,6 +939,9 @@ Examples:
 - cryptographic tag failure.
 
 A wrong AES key that causes authenticated-decryption failure is an integrity failure when the payload reaches the cryptographic authentication boundary.
+
+The associated data of an encrypted frame is the header itself (§13.1), so any edit of any header byte
+— `onDiskLength` included — that still parses fails the tag and is an integrity failure here.
 
 ## 8.6 `BinaryEncryptionException`
 
@@ -1015,13 +1058,17 @@ that was not configured by the writer.
 
 Beyond the payload itself it provides:
 
-- V1 header metadata;
-- compression selection;
-- checksum selection;
-- encryption selection;
-- `KeyId`;
-- `PreserveReferences` metadata and reference framing;
-- logical/physical length metadata.
+- the V1 header: a list of service records (§11);
+- compression, checksum and encryption, each a service record naming its algorithm;
+- `KeyId`, inside the encryption record;
+- the payload mode, which says whether the payload carries reference frames;
+- the length of the stored bytes, and with compression the uncompressed length.
+
+A new capability is a new service number. A reader refuses a service it does not know when the
+record marks it critical, with `BinaryFormatNotSupportedException`, and skips it by its length when it
+does not. Whether the payload uses reference frames is a property of the frame, not of the reader's
+configuration: `PreserveReferences()` decides what a writer produces, and a reader follows the payload
+mode.
 
 The type system, `[BinaryUnion]` polymorphism, keyed contracts and the configurable resource limits
 are not V1 features — they belong to the payload and to the engine, and apply to every format
@@ -1136,46 +1183,65 @@ operation.
 
 # 11. V1 header fields
 
-The V1 header carries:
+The V1 header is a list of service records between a fixed prefix and the length of what follows:
 
 ```text
-Compression
-CustomCompressionName
-ChecksumAlgorithm
-CustomChecksumName
-Encryption
-CustomEncryptionName
-KeyId
-PreserveReferences
-UncompressedLength
-CompressedLength
-OnDiskLength
-Checksum
+magic          4 bytes   0x52455342, little-endian
+version        varint    1
+payload mode   varint    bit 0: references; bits 1 and up reserved and zero
+service count  varint    the number of service records
+services       records   kind varint · length varint · body
+onDiskLength   varint    the bytes after the header; always present
+payload        onDiskLength bytes
 ```
 
-Phase consistency rules include:
+A service record's `kind` is `(number << 1) | critical`. The numbers, in the order their phases apply
+on write:
 
-```text
-Compression == None  → CompressedLength == UncompressedLength
-Compression != None  → UncompressedLength <= CompressedLength × MaxDecompressionRatio
-Encryption == None   → OnDiskLength == CompressedLength
-```
+| Number | Service | Class | Kind | Body |
+|---|---|---|---|---|
+| 0 | — | — | `00` / `01` | reserved: `BinaryFormatException`, so zeroed memory is never read as a service |
+| 1 | checksum | annotation, critical | `03` | `id · [name] · hash` — the hash is the rest of the body, 1…255 bytes |
+| 2 | compression | transform, critical | `05` | `id · [name] · uncompressedLength varint` |
+| 3 | encryption | transform, critical | `07` | `id · [name] · keyId` — `keyId` is 0 for none, otherwise its UTF-8 length + 1 and the bytes |
 
-The expansion rule is a configured limit rather than a property of the format, so breaking it is
-`BinaryLimitException` while the other two are `BinaryFormatException`.
+`id` is the algorithm enum value as a varint; `name` is present only when `id` is `Custom` (255, the
+varint `FF 01`): a varint length and 1…256 UTF-8 bytes. An absent phase is an absent record. The order
+of the transforms is fixed by the format, not by the records: serialize, checksum the raw payload,
+compress, encrypt; reading reverses it.
 
-Lengths must be non-negative and within their corresponding phase limits.
+Rules, each `BinaryFormatException` unless noted:
 
-Checksum length must fit the header representation.
+- the magic must match;
+- an unknown version is `BinaryFormatNotSupportedException`;
+- a set reserved payload-mode bit is `BinaryFormatNotSupportedException`;
+- records appear in strictly ascending number: a repeated or out-of-order number is malformed;
+- number 0 is malformed;
+- a known number whose critical bit is not the one this table gives is malformed;
+- an unknown number marked critical is `BinaryFormatNotSupportedException`; one marked skippable is
+  skipped by its length;
+- a body is read exactly: bytes left over or read past are malformed;
+- a record naming the algorithm id `None` is malformed; an id this build does not define is
+  `BinaryFormatNotSupportedException`;
+- a custom algorithm's name is 1…256 UTF-8 bytes: an empty one is malformed;
+- a checksum's hash is as long as the named algorithm's `HashSizeInBytes`;
+- the whole header is at most **4 096 bytes**, checked before each body is read: a body must fit what
+  is left of the bound;
+- every varint is minimally encoded (§22.1);
+- the declared lengths are checked against the limits in the order of §5.10, a breach being
+  `BinaryLimitException`;
+- header truncation is malformed.
 
-Each header string — `CustomCompressionName`, `CustomChecksumName`, `CustomEncryptionName` and
-`KeyId` — is limited to **256 UTF-8 bytes**. The ceiling is fixed by the format, not configured:
-these fields name an algorithm or select a key, so `MaxStringBytes`, which bounds payload data, does
-not apply to them. A declared header string above the ceiling is `BinaryFormatException`, because a
-fixed format bound describes malformed input rather than a policy breach; a configured value too
-large to write is `BinaryConfigurationException`.
+Each header string — a custom algorithm name and `KeyId` — is limited to **256 UTF-8 bytes**. The
+ceiling is fixed by the format, not configured: these fields name an algorithm or select a key, so
+`MaxStringBytes`, which bounds payload data, does not apply to them. A declared header string above
+the ceiling is `BinaryFormatException`, because a fixed format bound describes malformed input rather
+than a policy breach; a configured value too large to write is `BinaryConfigurationException`, as is a
+checksum whose hash is not 1…255 bytes.
 
-Header truncation is `BinaryFormatException`.
+`RequireChecksum` and `RequireEncryption` are satisfied by the presence of the record — and for
+encryption by an algorithm that reports `AuthenticatesAssociatedData` — and a missing one is
+`BinaryIntegrityException`.
 
 ---
 
@@ -1228,8 +1294,9 @@ a declared size is not backed by bytes that must physically arrive. Two rules re
 and both are needed:
 
 - **The declared expansion is bounded against the delivered bytes.** `MaxDecompressionRatio` (§5.10)
-  relates `UncompressedLength` to `CompressedLength`, and `CompressedLength` bytes are metered and
-  physically present before anything is decompressed. The buffer a payload can ask for is therefore
+  relates the declared uncompressed length to the compressed bytes — `onDiskLength` without
+  encryption, the plaintext after decryption with it — and those bytes are metered and physically
+  present before anything is decompressed (§5.10). The buffer a payload can ask for is therefore
   proportional to the payload it actually delivered, not to the number it wrote in its header.
 - **The buffer follows the output, not the declaration.** Every algorithm, built-in or custom,
   decompresses into a writer that starts at 64 KiB and grows to the declared length only once that
@@ -1311,8 +1378,9 @@ destination is touched. The algorithm then encrypts straight into the destinatio
 the new array for `Serialize` and `SerializePooled`; into one pooled buffer written to a stream in one
 call. A writer that hands out less than the whole frame receives it through a pooled buffer instead.
 A cipher that fails therefore leaves nothing committed in any destination (§2.6). The associated data
-image is built only when the payload is encrypted, in memory the serializer owns, and is cleared once
-the frame is written or dropped; so is the plaintext on the way in and on the way out.
+— a copy of the header's bytes — is held only when the payload is encrypted, in memory the serializer
+owns, and is cleared once the frame is written or dropped; so is the plaintext on the way in and on
+the way out.
 
 `ChaCha20Poly1305Encryption` comes from the platform's cryptography library, and not every platform
 provides it. Where it is missing, `Build()` refuses options that encrypt with it, and a payload that
@@ -1320,18 +1388,19 @@ names it is refused when read, both with `BinaryFormatNotSupportedException` nam
 
 ## 13.1 Authenticated metadata
 
-The V1 header is bound to authenticated encryption as associated data. The canonical image covers the
-format version, the algorithm kinds and custom names, the key id, `PreserveReferences`,
-`UncompressedLength`, `CompressedLength` and the checksum bytes.
+The V1 header is bound to authenticated encryption as associated data, and the associated data is
+the header itself: the exact bytes on the wire from the first byte of the magic to the last byte of
+`onDiskLength`. There is no separate image to recompute. Because the ciphertext length is exact
+(§13), `onDiskLength` is known before encryption, so the header is written first and its bytes are
+handed to the algorithm; a reader hands over the same bytes it parsed. The associated data is never
+longer than the 4 096-byte header bound.
 
-`OnDiskLength` is not part of the image; it is self-verifying, since a wrong value either truncates
-the read or fails the authentication tag.
-
-Altering any authenticated header byte fails with `BinaryIntegrityException`.
+Altering any header byte — the version, the payload mode, a service record, `onDiskLength` — either
+breaks the header's own rules (§11) or fails the tag with `BinaryIntegrityException`.
 
 `IEncryptionAlgorithm` has no method without associated data and no default for
-`AuthenticatesAssociatedData`: every algorithm states it. The pipeline always builds the image and
-always hands it over, whatever the property says, so the property is a declaration about the
+`AuthenticatesAssociatedData`: every algorithm states it. The pipeline always hands the header over,
+whatever the property says, so the property is a declaration about the
 algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's undertaking
 that the associated data takes part in the authentication tag; the engine cannot verify it. An
 algorithm that reports `false` leaves the V1 header as unauthenticated metadata.
@@ -1450,6 +1519,14 @@ Keys are ordered numerically and encoded with 7-bit variable-length integers. On
 appear in strictly ascending order; a payload that repeats a key or lists one out of order is
 malformed (§22.3).
 
+Each field is `varint key · int32 length · payload`. The length is a fixed-width little-endian `int32`
+because it is patched after the field is written: a varint would need either a non-minimal spelling
+or a move of the field's bytes, quadratic in the nesting depth. The keyed field count that precedes
+the fields is the object's first number, so for a keyed class that is not reference-framed it
+carries the object's null: zero is null, and any other value is the count plus one (§22.2). A keyed
+struct, a keyed type behind a union tag, and a keyed class after a reference frame write the count as
+it is.
+
 `[BinaryContract]` is **inherited**. A type extending a contract type is itself a contract type, and
 every member it adds needs its own `[BinaryKey]` or `[BinaryIgnore]`; an unmarked one is
 `BinaryTypeException` naming it. The hierarchy shares one key space, so a key the base claims cannot
@@ -1498,7 +1575,15 @@ are read into that same box.
 
 # 16. References and cycles
 
-`PreserveReferences` changes wire interpretation through explicit reference markers/IDs.
+`PreserveReferences` changes wire interpretation through explicit reference frames. The frame is one
+7-bit integer before the value's shape: `0` is null, `((id << 1) | 0) + 1` is the first occurrence of
+`id`, whose shape follows, and `((id << 1) | 1) + 1` a back reference to `id`, which ends the value —
+the first occurrence of id 0 is `01`, a back reference to it `02`, the first occurrence of id 5 `0B`.
+The frame carries the value's null, so a count or a keyed field count after it is written as it is.
+
+Ids are explicit on the wire, not implied by the order of first occurrences. A reader that skips an
+unknown keyed field never sees the ids the writer assigned inside it, so a counter each side kept on
+its own would drift apart; an explicit id cannot.
 
 Rules:
 
@@ -1507,7 +1592,6 @@ Rules:
   shared; scalars, including strings, are not framed either;
 - first occurrence of a tracked object establishes identity;
 - later references point to the existing ID;
-- invalid marker values are `BinaryFormatException`;
 - an ID is declared **once**: a second first-occurrence under an ID already visible is
   `BinaryFormatException`, not an overwrite. Allowing it would give one graph a second spelling on
   the wire and would silently move the object that earlier references resolve to;
@@ -1653,16 +1737,70 @@ direction-specific types say `Read` or `Write` in the name.
 
 `BinaryFormatInspector.Peek` reads the header of a span, a sequence or a stream. Over a span or a
 sequence it reads the bytes in place. The stream overload requires a seekable stream and must restore
-the original stream position, on success and on failure.
+the original stream position, on success and on failure. It reports `BinaryHeaderInfo`: the format
+version, the payload mode (`PreserveReferences`), each algorithm with its custom name, the uncompressed
+length when the frame is compressed, the checksum the header records, the key id, and the lengths of
+the header and of the bytes after it. An unknown service marked skippable is skipped and not reported.
 
 Underlying stream I/O failure becomes `BinaryStreamException`.
 
 Returning `null` is reserved for data that is simply not recognized as a supported inspectable format; malformed recognized data is represented by the documented format exception.
 
-`BinaryFormatDumper.DumpHeader` renders the envelope of a payload as text. It is diagnostic tooling:
-it reports a failure as output instead of propagating it, which production serializer code must never
-do. It catches only `BinarySerializerException`; nothing in `src/` uses a broad catch as generic
-exception normalization.
+**Diagnostics.** A binary frame cannot be read by eye the way JSON or XML can. `BinaryFormatDumper`
+closes that gap: it turns a frame into something a person reads — what was written, where, and why it
+does not read back.
+
+```text
+DumpHeader(span | sequence | Stream)   the header as text: version, payload mode, each service,
+                                       the declared lengths, the checksum in hex; the stream seekable,
+                                       its position restored
+Dump(span, options?)                   without a type: the header, each phase undone with the options'
+                                       keys and verified, then the payload as annotated hex; bytes
+                                       without the magic are shown as a version 0 payload
+Dump<T>(span | sequence, options?)     with T as the schema: the payload as a tree of BinaryDumpNode
+DumpValue<T>(value, options?)          writes the value with the options and dumps what was written
+Compare<T>(expected, actual, options?) the first node at which two frames of T differ, or null
+```
+
+`BinaryDump` reports the format version, the header, the header and payload lengths, whether the
+checksum was verified and whether the frame was decrypted (each `null` when it does not apply), the
+tree, the failure with the offset and the path of the failing value, the depth and the number of
+nodes. `BinaryDumpNode` is one value: its name — the member, `[index]`, `{key}` of a map value, or the
+type for the root — its declared type (the runtime type for a union), its `BinaryDumpNodeKind`, its
+offset and its length in the payload — every byte of it, its framing and its children included — its
+value when it is a scalar, a keyed field's key, a union tag, a reference id, and for a back reference
+the path it points to. `ToString()` renders the report a person reads, `ToJson()` the same as JSON,
+`ToXml()` the same as XML with one element per node, and `ToHex()` every byte of the payload sixteen to a line, each line labelled with its node.
+
+```text
+Viper V1 frame · 1 069 bytes · header 41 bytes
+  compression  Brotli         4 096 → 1 000 bytes (×4.1)
+  checksum     XxHash3        9F 2C 71 04 BE 55 03 3A   verified
+  encryption   Aes256Gcm      key id "2026-q3"   decrypted, header authenticated
+payload 4 096 bytes as Order · depth 4 · 38 nodes
+@0000  Order                                           object · 5 members
+@0001  ├─ Id                        Int64            42
+…
+failure at @0F3A (3898) in Order.Lines[2].Note
+```
+
+Rules:
+
+- The dumper never throws for a malformed or hostile frame: it catches only `BinarySerializerException`
+  and keeps it in `BinaryDump.Failure`, with `FailureOffset` and `FailurePath` pointing at the value
+  that failed and the tree read up to it. It throws `ArgumentNullException` for a null stream and
+  `NotSupportedException` for a stream that cannot seek; a write that `DumpValue` cannot perform raises
+  what `Serialize` raises. It is diagnostic tooling: production serializer code never reports a failure
+  as output, and nothing in `src/` uses a broad catch as generic exception normalization.
+- It reads under the options' limits — `SerializationLimits.Default` when none are given — through the
+  ordinary read, with the engine's trace seam (§2.4) switched on; a hostile frame costs a dump what it
+  costs a read. String values are cut at 256 characters and bit arrays at 64 bytes in the tree.
+- It decrypts only with the options' keys. Without a key the phases stop at the ciphertext, `Decrypted`
+  is `false`, `Failure` is the key failure, and the report says so. Key material is never rendered; a
+  decrypted dump shows plaintext.
+- Values render with the invariant culture and times in UTC, so a dump reads the same on every machine.
+- `Compare<T>` walks both trees in order and reports the first node whose kind, type, value, key, tag or
+  number of children differs; offsets are not compared, so two encryptions of one value are equal.
 
 ---
 
@@ -1789,11 +1927,16 @@ decision about untrusted input.
 # 22. Wire format
 
 This section is normative and complete: a conforming reader can be written from it alone. All
-multi-byte integers are little-endian. "7-bit int" is the LEB128-style encoding used by
+multi-byte integers are little-endian. "varint" is the LEB128-style encoding used by
 `BinaryWriter.Write7BitEncodedInt`: seven bits per byte, high bit set while more bytes follow,
-restricted to non-negative `Int32`.
+restricted to non-negative `Int32`, and minimally encoded. All bytes in examples are hexadecimal.
 
 ## 22.1 Primitives
+
+**Structural numbers** — counts, lengths, reference frames, keys, array ranks and dimensions, bit
+counts, and the numbers of the header — are varints; a negative count cannot be expressed. **Data** —
+`int`, `double` and every other value of §22.4 — is fixed-width little-endian. The union tag is one
+byte. The one structural number that is fixed-width is a keyed field's length (§22.3).
 
 | Element | Encoding |
 |---|---|
@@ -1803,51 +1946,67 @@ restricted to non-negative `Int32`.
 | `int`, `uint`, `float` | 4 bytes |
 | `long`, `ulong`, `double` | 8 bytes |
 | `decimal` | 16 bytes: four `int32` in `decimal.GetBits` order (lo, mid, hi, flags) |
-| string | 7-bit int UTF-8 byte length, then the bytes |
-| blob | 7-bit int byte length, then the bytes |
-| count | `int32` |
-| optional string | `bool` present flag, then the string when present |
+| string | varint UTF-8 byte length + 1, then the bytes (§22.2) |
+| blob | varint byte length, then the bytes |
+| count | varint, plus one when it carries the value's null (§22.2) |
 
-A count is read as an `int32` and is immediately validated against its limit and charged to the
-element budget; a negative count is `BinaryFormatException`.
+A count is validated against its limit and charged to the element budget as soon as it is read.
 
-A 7-bit int is minimally encoded: when it spans more than one byte, its last byte is not zero. A
-reader rejects any longer spelling of the same value — `85 00` or `85 80 00` for 5 — with
-`BinaryFormatException`, so every 7-bit int has exactly one encoding. The rule covers every place
-the encoding appears: string and blob lengths, the keyed field count and keys, and the lengths of
-the header strings. Without it a header string length could be respelled without changing the
-decoded field, and therefore without changing the associated data the authentication tag covers.
+A varint is minimally encoded: when it spans more than one byte, its last byte is not zero. A reader
+rejects any longer spelling of the same value — `85 00` or `85 80 00` for 5 — with
+`BinaryFormatException`, so every varint has exactly one encoding. The rule covers every structural
+number of the payload and of the header. A varint of more than five bytes, or above `Int32.MaxValue`,
+is `BinaryFormatException` too.
 
 A boolean admits exactly the two encodings above. A reader rejects any other byte with
 `BinaryFormatException` rather than treating it as a second spelling of `true`, so the encoding is
-canonical. This is what keeps every header flag unforgeable: authenticated encryption binds the
-header's decoded fields (§13.1), so a non-canonical flag byte would otherwise be an edit the tag
-does not cover.
+canonical.
 
 A string is canonical for the same reason. Its bytes must be valid UTF-8, and a reader that meets a
 sequence which is not rejects it with `BinaryFormatException` instead of substituting U+FFFD. Lenient
 decoding would map an unbounded set of byte sequences onto one string — `C3 28`, `E0 80 28` and
-`F0 80 80 28` all become `�(` — and since the tag is computed over the decoded field, every one
-of those sequences would carry the same tag. The rule applies to every string read off the wire,
-payload and header alike, and costs no valid payload anything: no writer has ever produced a byte
-sequence that is not valid UTF-8.
+`F0 80 80 28` all become `�(`. The rule applies to every string read off the wire, payload and header
+alike, and costs no valid payload anything.
 
 ## 22.2 Value framing
 
-Every value is written as:
+Null is written exactly once, in the first number the value begins with: `0` is null, and any other
+value is the number plus one. This applies only when the declared type can be null — any reference
+type, or `Nullable<T>`. A value that begins with no number carries its null in a flag byte instead.
+
+| Declared type | References off | References on |
+|---|---|---|
+| string, and the scalars that travel as one: `Uri`, `Version`, `StringBuilder`, `CultureInfo`, `TimeZoneInfo` | varint UTF-8 length + 1 | same — never framed |
+| `BitArray` | varint bit count + 1, then the blob | same — never framed |
+| sequence (`byte[]` and every other one-dimensional array included), map | varint count + 1 | reference frame, then the count as it is |
+| array of rank > 1 | varint rank + 1, then the dimensions | reference frame, then the rank as it is |
+| keyed object, no union map | varint field count + 1 | reference frame, then the field count as it is |
+| positional object; `Tuple<…>`; `Lazy<T>` | flag byte `00` / `01` | reference frame |
+| a type with a union map | flag byte, then the tag byte | reference frame, then the tag byte |
+| `Nullable<T>` (`T` a value type) | flag byte `00` / `01`, then `T` | same — value types are never framed |
+| a type that cannot be null | nothing | nothing |
+
+A null is always the single byte `00`. A minimally encoded varint above zero never begins with `00`,
+so a reader tells null from a value by that byte alone.
 
 ```text
-[null flag]  [reference frame]  [shape payload]
+null (string)                          00
+""                                     01
+"hello"                                06 68 65 6C 6C 6F
+List<int> of 3, references off         04 <int32> <int32> <int32>
+List<int> of 3, references on          01 03 <int32> <int32> <int32>
+keyed struct with 2 fields             02 ...                            cannot be null: the count as it is
+int? = 5                               01 05 00 00 00
+int? = null                            00
 ```
 
-- **Null flag** — one `bool`, present only when the declared type can be null: any reference type, or
-  `Nullable<T>`. `false` ends the value. A non-nullable value type has no flag.
-- **Reference frame** — present only when the payload header says `PreserveReferences` and the
-  declared type is a structural **reference** type. One marker byte followed by an `int32` id:
-  marker `0` means first occurrence and the shape payload follows; marker `1` means back reference
-  and the value ends there. Any other marker is `BinaryFormatException`. Scalars, including strings,
-  and all value types are never framed.
-- **Shape payload** — per §22.3.
+**Reference frame** — present only when the payload mode says the payload uses references and the
+declared type is a structural **reference** type (§16). One varint: `0` is null;
+`((id << 1) | 0) + 1` is the first occurrence of `id`, and the shape follows;
+`((id << 1) | 1) + 1` is a back reference to `id`, and the value ends there. The first occurrence of
+id 0 is `01`, a back reference to it `02`, the first occurrence of id 5 `0B`. Scalars, including
+strings, and all value types are never framed. The number after a frame carries no `+ 1`, because the
+frame already carries null.
 
 ## 22.3 Shapes
 
@@ -1857,7 +2016,7 @@ Every value is written as:
 | sequence | count, then each element as a framed value |
 | map | entry count, then each entry as key value, both framed |
 | object, positional | each member as a framed value, in plan order |
-| object, keyed | 7-bit int field count, then each field: 7-bit int key, `int32` payload length, payload |
+| object, keyed | varint field count, then each field: varint key, `int32` payload length, payload |
 | union | one tag byte, then the member layout of the tagged type |
 
 Member plan order for the positional layout: members carrying `[BinaryOrder]` first, ascending by
@@ -1869,7 +2028,8 @@ the one before it with `BinaryFormatException` — a repeated key and an out-of-
 the reader knows the key or would skip it — so a keyed object has exactly one encoding. A field
 payload is exactly as long as its declared length; reading one consumes it exactly, and trailing
 bytes inside a field are `BinaryFormatException`. A reader skips a key it does not know by its
-declared length.
+declared length. The field length is a fixed-width `int32` because it is patched after the field is
+written (§14.2); a negative one is `BinaryFormatException`.
 
 ## 22.4 Scalar encodings
 
@@ -1894,13 +2054,18 @@ declared length.
 | `Version` | string of `ToString()` |
 | `StringBuilder` | string |
 | `CultureInfo` | string of `Name` |
-| `BitArray` | `int32` bit count, then a blob of `ceil(bits / 8)` bytes |
+| `BitArray` | varint bit count + 1, then a blob of `ceil(bits / 8)` bytes |
 | `Complex` | 2 × `double`: real, imaginary |
 | `Vector2`, `Vector3`, `Vector4` | 2 / 3 / 4 × `float` |
 | `Quaternion` | 4 × `float`: X, Y, Z, W |
 | `Plane` | 4 × `float`: normal X, Y, Z, then D |
 | `Matrix3x2` | 6 × `float`: M11, M12, M21, M22, M31, M32 |
 | `Matrix4x4` | 16 × `float`, row-major |
+
+```text
+Uri "a"                  02 61
+BitArray of 9 bits       0A 02 8D 01
+```
 
 ## 22.5 Composite encodings
 
@@ -1909,91 +2074,90 @@ declared length.
 | `KeyValuePair<K,V>` | key, then value |
 | `Tuple<…>`, `ValueTuple<…>` | items in declaration order |
 | `Lazy<T>` | the materialized value |
-| `ImmutableArray<T>` | `bool` present flag; when true, count then elements. A default instance writes `false`, which is how it stays distinct from empty |
-| array, rank > 1 | `int32` rank, then one `int32` per dimension, then elements in row-major order |
+| `ImmutableArray<T>` | a struct with two empty states: `0` is `default`, any other value is the count + 1, then the elements |
+| array, rank > 1 | varint rank, then one varint per dimension, then elements in row-major order |
+
+```text
+ImmutableArray<T> default          00
+ImmutableArray<T> Empty            01
+ImmutableArray<T> of 3             04 <elements>
+ImmutableArray<T>? = null          00          the Nullable flag
+ImmutableArray<T>? = default       01 00       the Nullable flag, then the fold
+ImmutableArray<T>? = Empty         01 01
+int[2,3]                           03 02 03 <6 × int32>
+Tuple<int,string>                  01 <int32> <string>
+```
+
+Writing `default` as `Empty` is not an option: it would change the value across a round trip.
 
 ## 22.6 V1 envelope
 
 ```text
-magic            int32   0x52455342
-version          int32   1
-compression      byte    CompressionAlgorithm
-customCompression        optional string, <= 256 UTF-8 bytes
-checksum         byte    ChecksumAlgorithm
-customChecksum           optional string, <= 256 UTF-8 bytes
-encryption       byte    EncryptionAlgorithm
-customEncryption         optional string, <= 256 UTF-8 bytes
-keyId                    optional string, <= 256 UTF-8 bytes
-preserveReferences bool
-uncompressedLength int32
-compressedLength   int32
-onDiskLength       int32
-checksumLength     byte
-checksum           checksumLength bytes
-payload            onDiskLength bytes
+magic          4 bytes   42 53 45 52      int32 0x52455342, little-endian
+version        varint    01
+payload mode   varint    00 — no references, 01 — references
+service count  varint
+services       records   §11
+onDiskLength   varint    length of the bytes after the header
+payload        onDiskLength bytes
 ```
 
-Phase order when writing: serialize the payload, checksum the raw payload, compress, build the
-associated data, encrypt, then write the header followed by the ciphertext. Reading reverses it.
-
-Header invariants, each `BinaryFormatException` unless noted:
-
-- the magic must match, otherwise the stream is not a Viper payload;
-- an unknown version is `BinaryFormatNotSupportedException`;
-- an undefined algorithm identifier is `BinaryFormatNotSupportedException`;
-- every optional header string is at most 256 UTF-8 bytes;
-- all three lengths are non-negative and within their phase limits, otherwise `BinaryLimitException`;
-- `uncompressedLength` exceeds `compressedLength` by at most `MaxDecompressionRatio`, otherwise
-  `BinaryLimitException`;
-- `Compression = None` implies `compressedLength = uncompressedLength`;
-- `Encryption = None` implies `onDiskLength = compressedLength`;
-- the declared plaintext length never exceeds the ciphertext actually present;
-- the payload is consumed exactly: trailing bytes after the root value are an error.
-
-## 22.7 Associated data
-
-When the encryption algorithm authenticates associated data, the following image is bound to the
-ciphertext. It is never stored — both sides recompute it — and every field in it is therefore
-unforgeable:
+Smallest frame — no service, no references, payload `01` (the empty string):
 
 ```text
-version            int32
-compression        byte
-customCompression  string   (empty when absent)
-checksum           byte
-customChecksum     string
-encryption         byte
-customEncryption   string
-keyId              string
-preserveReferences bool
-uncompressedLength int32
-compressedLength   int32
-checksumLength     byte
-checksum           bytes
+42 53 45 52   magic
+01            version
+00            payload mode
+00            no service
+01            onDiskLength = 1
+01            payload
 ```
 
-`onDiskLength` is not part of the image. It is self-verifying, because a wrong value either
-truncates the read or fails the tag.
+Full frame — Brotli and AES-256-GCM, `KeyId = "k7"`, no references, no checksum:
+
+```text
+42 53 45 52              magic
+01                       version
+00                       payload mode
+02                       two service records
+05 03 02 E8 07           compression: Brotli (id 2), uncompressed 1000
+07 04 01 03 6B 37        encryption: AES-256-GCM (id 1), KeyId "k7"
+<onDiskLength varint>    = GetCiphertextLength(compressed length)
+<ciphertext>             nonce 12 · ciphertext · tag 16
+```
+
+Service record examples: a CRC-32 checksum (id 1, four hash bytes) is `03 05 01 9A 3B C1 07`; a custom
+compression named "lz4x" with 1 000 uncompressed bytes is `05 09 FF 01 04 6C 7A 34 78 E8 07`.
+
+Phase order when writing: serialize the payload, checksum the raw payload, compress, write the header
+with its final `onDiskLength`, then encrypt with the header's bytes as associated data. Reading
+reverses it. The header rules are those of §11, and the length checks run in the order of §5.10. The
+payload is consumed exactly: trailing bytes after the root value are `BinaryFormatException`.
+
+The associated data of an encrypted frame is the header: the exact bytes from the first byte of the
+magic to the last byte of `onDiskLength` (§13.1). No other image exists.
 
 ## 22.8 V0 envelope
 
 No envelope at all: the payload of §22.1–22.5 is written as-is, with no magic number and no leading
-or trailing bytes of any kind. A V0 payload is therefore byte-identical to the payload a V1 frame
-carries for the same value under the same member layout, positional or keyed, when that frame uses
-no compression, checksum, encryption or reference framing — the four things V0 does not have.
-Nothing identifies those bytes, so reading them as V0 requires the caller to opt in (§10.2).
+or trailing bytes of any kind. V0 differs from V1 only in what needs metadata — the service records and
+the payload mode — so a V0 payload is byte-identical to the payload a V1 frame carries for the same
+value under the same member layout, positional or keyed, when that frame uses no service and no
+reference framing. Nothing identifies those bytes, so reading them as V0 requires the caller to opt in
+(§10.2).
 
 Having no header, V0 encodes no reference frames and no compression, checksum or encryption phase.
 The keyed object layout of §22.3 is payload-level and appears under V0 unchanged.
 
-Because the payload is not length-delimited by an envelope, a V0 payload may be embedded in a larger
-stream: the reader stops when the root value is complete and does not require the source to end
-there. A span or a sequence read without a bytes-consumed form is the exception: it is exactly one
-payload, and bytes after the root are `BinaryFormatException` (§3.4, §10.2). A keyed field's declared length is
-still checked against the bytes that can physically arrive before anything is allocated (§17), but
-for an embedded payload those bytes are the remainder of the containing stream rather than of a
-declared payload, so the check is weaker under V0 than under V1. The field window (§7.3) bounds what
-the field's decoder may actually consume in both cases.
+Because the payload is not length-delimited by an envelope, the reader stops when the root value is
+complete. A span or a sequence read without a bytes-consumed form is exactly one payload, and bytes
+after the root are `BinaryFormatException`; a bytes-consumed form reports where the root ended, for
+payloads placed back to back; a seekable stream is read ahead and left where the root ends; a stream
+that cannot seek is `NotSupportedException`, and every asynchronous read refuses V0 (§3.4, §10.2). A
+keyed field's declared length is still checked against the bytes that can physically arrive before
+anything is allocated (§17); for an embedded payload those bytes are the remainder of the containing
+stream rather than of a declared payload, so the check is weaker under V0 than under V1. The field
+window (§7.3) bounds what the field's decoder may actually consume in both cases.
 
 ---
 
@@ -2123,7 +2287,7 @@ A box is checked only when source and a test prove it.
   that cannot be — the uncompressed length — is bounded against them by ratio while the buffer that
   receives it grows with the output rather than with the declaration.
 - [x] Unknown keyed payloads are skipped without whole-payload allocation.
-- [x] Reference markers/IDs are validated, declared once, and ancestor-scoped.
+- [x] Reference frames are validated, declared once, and ancestor-scoped.
 - [x] A duplicate key or element is malformed input, decided by the engine rather than by whichever
   container happens to receive it.
 - [x] The V1 header is authenticated when an AEAD algorithm is used.

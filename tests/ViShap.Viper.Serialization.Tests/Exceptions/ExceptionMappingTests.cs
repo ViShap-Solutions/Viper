@@ -28,14 +28,11 @@ public class ExceptionMappingTests
     // --- EXC-06: malformed structure → BinaryFormatException --------------------------------------
 
     [Fact]
-    public void Deserialize_NegativeCollectionCount_ThrowsFormatNotLimit()
+    public void Deserialize_CollectionCountBeyondInt32_ThrowsFormatNotLimit()
     {
-        // A count below zero is not a resource question: no configuration could make it legal.
-        byte[] frame = Wire.Frame(Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write(-1);
-        }));
+        // A count the format cannot represent is not a resource question: no configuration could
+        // make it legal.
+        byte[] frame = Wire.Frame([0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
 
         Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<List<int>>(frame));
@@ -66,8 +63,7 @@ public class ExceptionMappingTests
         var serializer = Limited(SerializationLimits.Default with { MaxCollectionLength = 2 });
         byte[] frame = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(3);
+            writer.Write7BitEncodedInt(4);      // three elements, plus one
         }));
 
         Assert.Throws<BinaryLimitException>(() => serializer.Deserialize<List<int>>(frame));
@@ -96,7 +92,7 @@ public class ExceptionMappingTests
     [Fact]
     public void Deserialize_AnUndefinedAlgorithmIdentifier_ThrowsNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Wire.Payload(writer => writer.Write(123)), compression: 200);
+        byte[] frame = Wire.FrameWith(Wire.Payload(writer => writer.Write(123)), services: [Wire.CompressionRecord(200, 4)]);
 
         Assert.Throws<BinaryFormatNotSupportedException>(
             () => new BinarySerializer().Deserialize<int>(frame));
@@ -128,8 +124,7 @@ public class ExceptionMappingTests
         byte[] body = Wire.Payload(writer => writer.Write(123));
         byte[] frame = Wire.FrameWith(
             body,
-            checksumAlgorithm: (byte)ChecksumAlgorithm.Crc32,
-            checksum: [0, 0, 0, 0]);
+            services: [Wire.ChecksumRecord((byte)ChecksumAlgorithm.Crc32, [0, 0, 0, 0])]);
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(frame));
     }

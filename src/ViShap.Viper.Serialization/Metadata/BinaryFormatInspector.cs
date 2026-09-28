@@ -195,7 +195,8 @@ public static class BinaryFormatInspector
         var reader = new WireReader(
             prefix[..(int)Math.Min(prefix.Length, budget.Maximum)], ref state, budget);
 
-        return BinaryFormatHeaderV1.ReadFrom(ref reader).ToInfo();
+        var header = BinaryFormatHeaderV1.ReadFrom(ref reader);
+        return header.ToInfo((int)reader.Consumed);
     }
 
     private static int ReadPrefix(Stream source, Span<byte> prefix)

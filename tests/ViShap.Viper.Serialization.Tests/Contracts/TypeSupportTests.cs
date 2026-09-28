@@ -20,7 +20,7 @@ public class TypeSupportTests
     [Fact]
     public void Deserialize_MemberEncodedTypeWithoutAParameterlessConstructor_ThrowsType()
     {
-        byte[] payload = _serializer.SerializeRecorded(new RequiresArguments(5));
+        byte[] payload = _serializer.Serialize(new RequiresArguments(5));
 
         AssertEx.Throws<BinaryTypeException>(
             "cannot be constructed", () => _serializer.Deserialize<RequiresArguments>(payload));
@@ -31,7 +31,7 @@ public class TypeSupportTests
     {
         // The write path has an instance already; only the reader needs to build one, which is why
         // §23 places the failure on the read side.
-        Assert.NotEmpty(_serializer.SerializeRecorded(new RequiresArguments(5)));
+        Assert.NotEmpty(_serializer.Serialize(new RequiresArguments(5)));
     }
 
     [Fact]

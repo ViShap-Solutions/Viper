@@ -1,0 +1,12 @@
+Viper V1 frame · 47 bytes · header 8 bytes
+payload 39 bytes as FrozenKeyed · depth 4 · 10 nodes
+@0000  FrozenKeyed                                     keyed object · 3 fields
+@0001  ├─ Number                      keyed field      key 1 · 9 bytes
+@0006  │  └─ value                    Int32            5
+@000A  ├─ Text                        keyed field      key 2 · 11 bytes
+@000F  │  └─ value                    String           "keyed"
+@0015  └─ Numbers                     keyed field      key 7 · 18 bytes
+@001A     └─ value                    List<Int32>      3 items
+@001B        ├─ [0]                   Int32            1
+@001F        ├─ [1]                   Int32            2
+@0023        └─ [2]                   Int32            3

@@ -25,7 +25,7 @@ public class UnionDeclarationTests
             new Triangle { Label = "t", Base = 3.5 }
         };
 
-        var result = _serializer.Deserialize<List<Shape>>(_serializer.SerializeRecorded(source))!;
+        var result = _serializer.Deserialize<List<Shape>>(_serializer.Serialize(source))!;
 
         Assert.Equal(1.5, Assert.IsType<Circle>(result[0]).Radius);
         Assert.Equal(2.5, Assert.IsType<Square>(result[1]).Side);
@@ -67,14 +67,15 @@ public class UnionDeclarationTests
     {
         var source = new List<TagRange> { new TagZero { Value = 1 }, new TagMax { Value = 2 } };
 
-        byte[] payload = _compact.SerializeRecorded(source);
+        byte[] payload = _compact.Serialize(source);
         var result = new BinarySerializer(BinarySerializerOptions.Configure()
             .WithVersion(0).AllowV0Fallback().Build()).Deserialize<List<TagRange>>(payload)!;
 
         Assert.Equal(1, Assert.IsType<TagZero>(result[0]).Value);
         Assert.Equal(2, Assert.IsType<TagMax>(result[1]).Value);
-        Assert.Equal(0, payload[6]);
-        Assert.Equal(255, payload[12]);
+        // The count, then each element's flag, tag and four-byte value.
+        Assert.Equal(0, payload[2]);
+        Assert.Equal(255, payload[8]);
     }
 
     [Fact]
@@ -125,7 +126,7 @@ public class UnionDeclarationTests
     [Fact]
     public void Serialize_UnionValue_WritesNoTypeName()
     {
-        byte[] payload = _serializer.SerializeRecorded(new List<Shape>
+        byte[] payload = _serializer.Serialize(new List<Shape>
         {
             new Circle { Label = "c", Radius = 1 },
             new Square { Label = "s", Side = 2 }

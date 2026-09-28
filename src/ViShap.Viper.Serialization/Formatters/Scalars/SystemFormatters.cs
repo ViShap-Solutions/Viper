@@ -87,13 +87,17 @@ internal sealed class CultureInfoFormatter : IScalarFormatter<CultureInfo>
     }
 }
 
+/// <summary>
+/// A bit array: its bit count, then a blob of the bytes that hold the bits. It is a reference type, so
+/// the bit count is its first number and carries its null: it is written one higher.
+/// </summary>
 internal sealed class BitArrayFormatter : IScalarFormatter<BitArray>
 {
-    public int MinimumWireSize => sizeof(int) + 1;
+    public int MinimumWireSize => 2;
 
     public void Write(ref WireWriter writer, BitArray value)
     {
-        writer.WriteBitCount(value.Length, "BitArray length");
+        writer.WriteBitCount(value.Length, "BitArray length", nullFolded: true);
 
         byte[] bytes = new byte[(value.Length + 7) / 8];
         value.CopyTo(bytes, 0);
@@ -102,7 +106,7 @@ internal sealed class BitArrayFormatter : IScalarFormatter<BitArray>
 
     public BitArray Read(ref WireReader reader)
     {
-        int length = reader.ReadBitCount("BitArray length");
+        int length = reader.ReadBitCount("BitArray length", nullFolded: true);
         byte[] bytes = reader.ReadBlob("BitArray data");
 
         int expected = (length + 7) / 8;
