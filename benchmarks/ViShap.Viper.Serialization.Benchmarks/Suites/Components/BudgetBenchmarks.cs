@@ -7,8 +7,8 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 
 /// <summary>
 /// MICRO-02 — what a validated count costs: the limit comparison and the element charge that
-/// <see cref="ElementCount.Validate"/> performs, plus the two other charges the engine makes per node
-/// and per keyed field.
+/// <see cref="ElementCount.Validate"/> performs on the budget inside the operation's state, plus the
+/// two other charges the codecs make per node and per keyed field.
 /// </summary>
 /// <remarks>
 /// Explains DIFF-05 and the B-P2 column of the profile matrix: a tight limit policy changes these
@@ -31,7 +31,7 @@ public class BudgetBenchmarks
     /// </summary>
     private static readonly int[] Shape = [16, 16, 16];
 
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
 
     [GlobalSetup]
     public void Setup() => _operation = ComponentFixtures.UnboundedTotals();
@@ -43,7 +43,7 @@ public class BudgetBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            total += ElementCount.Validate(8, CountKind.Collection, _operation, "MICRO-02");
+            total += ElementCount.Validate(8, CountKind.Collection, ref _operation, "MICRO-02");
         }
 
         return total;
@@ -56,7 +56,7 @@ public class BudgetBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            total += ElementCount.Validate(8, CountKind.Array, _operation, "MICRO-02");
+            total += ElementCount.Validate(8, CountKind.Array, ref _operation, "MICRO-02");
         }
 
         return total;
@@ -69,7 +69,7 @@ public class BudgetBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            total += ElementCount.Validate(8, CountKind.Dictionary, _operation, "MICRO-02");
+            total += ElementCount.Validate(8, CountKind.Dictionary, ref _operation, "MICRO-02");
         }
 
         return total;
@@ -82,7 +82,7 @@ public class BudgetBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            total += ElementCount.ValidateShape(Shape, _operation, "MICRO-02");
+            total += ElementCount.ValidateShape(Shape, ref _operation, "MICRO-02");
         }
 
         return total;
@@ -91,7 +91,7 @@ public class BudgetBenchmarks
     [Benchmark(Description = "MICRO-02 charge graph node", OperationsPerInvoke = Operations)]
     public long ChargeGraphNode()
     {
-        var budget = _operation.Budget;
+        ref var budget = ref _operation.Budget;
 
         for (var i = 0; i < Operations; i++)
         {
@@ -104,7 +104,7 @@ public class BudgetBenchmarks
     [Benchmark(Description = "MICRO-02 charge keyed field", OperationsPerInvoke = Operations)]
     public long ChargeKeyedField()
     {
-        var budget = _operation.Budget;
+        ref var budget = ref _operation.Budget;
 
         for (var i = 0; i < Operations; i++)
         {
@@ -129,7 +129,7 @@ public class DepthScopeBenchmarks
 {
     private const int Operations = 1_000;
 
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
 
     /// <summary>Levels per descent, up to just below the default ceiling of 512.</summary>
     [Params(1, 8, 64, 500)]
@@ -141,7 +141,7 @@ public class DepthScopeBenchmarks
     [Benchmark(Description = "MICRO-03 enter and exit", OperationsPerInvoke = Operations)]
     public int EnterAndExit()
     {
-        var budget = _operation.Budget;
+        ref var budget = ref _operation.Budget;
         var reached = 0;
 
         for (var i = 0; i < Operations; i++)
@@ -154,16 +154,16 @@ public class DepthScopeBenchmarks
     }
 
     [Benchmark(Description = "MICRO-03 descend and return")]
-    public int Descend() => Descend(_operation.Budget, Depth);
+    public int Descend() => Descend(ref _operation.Budget, Depth);
 
     [Benchmark(Description = "MICRO-03 descend and unwind")]
     public int Unwind()
     {
-        var budget = _operation.Budget;
+        ref var budget = ref _operation.Budget;
 
         try
         {
-            DescendAndThrow(budget, Depth);
+            DescendAndThrow(ref budget, Depth);
         }
         catch (BinaryFormatException)
         {
@@ -174,13 +174,13 @@ public class DepthScopeBenchmarks
         return budget.Depth;
     }
 
-    private static int Descend(SerializationBudget budget, int remaining)
+    private static int Descend(ref SerializationBudget budget, int remaining)
     {
         using var scope = budget.EnterDepth();
-        return remaining == 0 ? budget.Depth : Descend(budget, remaining - 1);
+        return remaining == 0 ? budget.Depth : Descend(ref budget, remaining - 1);
     }
 
-    private static void DescendAndThrow(SerializationBudget budget, int remaining)
+    private static void DescendAndThrow(ref SerializationBudget budget, int remaining)
     {
         using var scope = budget.EnterDepth();
 
@@ -189,6 +189,6 @@ public class DepthScopeBenchmarks
             throw new BinaryFormatException("MICRO-03 unwind.");
         }
 
-        DescendAndThrow(budget, remaining - 1);
+        DescendAndThrow(ref budget, remaining - 1);
     }
 }

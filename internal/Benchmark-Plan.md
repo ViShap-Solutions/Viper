@@ -486,6 +486,22 @@ Allocation is a first-class result here, not a footnote: the engine's structural
 - [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named; re-measured from R2, where pooled phase buffers should remove most crossings for payloads under the pool's largest bucket
 - [ ] ALLOC-07 — the tight-limits profile B-P2 is measured for allocation as well as time, so the accounting structures have a number
 - [ ] ALLOC-08 — no allocation number is published from a run that also produced a timing in the same iteration when the diagnoser is known to perturb it; where it does, the timing comes from a separate run and the report says so
+- [ ] ALLOC-10…ALLOC-21 — the allocation targets of `Rework-Plan.md` §11, one per line of its table, each with its target and its measured value, bytes per operation after warm-up, from `AllocationTargetBenchmarks` in `Measurements/48c7bf5-20260928T082209Z` *(added in R4)*. A target not met stays open with its number:
+
+  | | Line of §11 | Target | Measured | State |
+  |---|---|---|---|---|
+  | ALLOC-10 | write to `IBufferWriter`, V1, a record of primitives and strings | 0 | 272 | open — two `PayloadBuffer` objects (PERF-07); the engine adds 0 (ALC-01) |
+  | ALLOC-11 | the same, V0 | 0 | 136 | open — one `PayloadBuffer` (PERF-07) |
+  | ALLOC-12 | the same with Brotli | 0 managed | 296 | open — the buffers and the phase; R5 |
+  | ALLOC-13 | the same with Deflate | one `DeflateStream` | 840 | open — R5 rewrites the phase |
+  | ALLOC-14 | the same with encryption | one `AesGcm` | 432 | open — R5 writes the ciphertext straight to the destination |
+  | ALLOC-15 | `Serialize<T>(T)` → `byte[]` | the array | 384 (array alone 112) | open — the buffers (PERF-07); exactly the array beyond them (ALC-02) |
+  | ALLOC-16 | `SerializePooled` | one `PooledPayload` | 304 | open — the buffers; exactly one `PooledPayload` beyond them (ALC-03) |
+  | ALLOC-17 | read from a span, a record of primitives | the record | 152 (record alone 80) | open — 72 B of algorithm objects per read (PERF-07); exactly the record beyond them (ALC-04) |
+  | ALLOC-18 | read a graph | the graph | 22 659 (graph alone 22 584) | met but for the same 72 B — no copy, no reallocation (ALC-05) |
+  | ALLOC-19 | with `PreserveReferences` | as without | read 22 659 = 22 659; write 512 against 368 | read met; write +144 B: the reference frames make the payload 1.3 KB longer, so the payload buffer's segment list grows once more (PERF-07); the tables themselves are pooled (ALC-06) |
+  | ALLOC-20 | asynchronous methods | as the synchronous ones | `SerializeAsync` 368 = 368; `DeserializeAsync` 22 659 = 22 659 | met |
+  | ALLOC-21 | first use of a type | its codec and contract, once | contract: 137 KB for eight members (`contract-cold.csv`) | met in kind — nothing per type after first use (ALC-01, ALC-04); the cost itself is PERF-06 |
 - [ ] ALLOC-09 — cycle detection without references: the engine's ancestor stack against a per-operation `HashSet` by reference over the same path, at depths 4, 32 and 500; the depth-500 engine cell also against SCALE-03 of `Baselines/pre-rework/` *(Contract §16; added in R2)* — `CycleDetectionBenchmarks`
 
 ---
@@ -577,12 +593,12 @@ Diagnostic, never a market comparison. They exist for two readers: the engineer 
 Measured directly on the internal type that owns the mechanism, through the grant of §18.3.
 
 - [ ] MICRO-01 — `WireWriter`/`WireReader` primitives: varint, fixed-width, string, blob, on both directions, compared cell by cell with the `ValueWriter`/`ValueReader` cells of `Baselines/pre-rework/`; a write cell includes filling the `PayloadBuffer` from empty and returning it, as one serialization does *(Contract §22.1; rewritten in R1)*
-- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop, through the operation the pipeline creates *(Contract §6)*
-- [ ] MICRO-03 — depth scope entry and exit, and the unwind on the exceptional path *(Contract §5.1)*
-- [ ] MICRO-04 — `TypeContract` construction for a cold type, and lookup once cached, positional and keyed *(Contract §14)*
-- [ ] MICRO-05 — `FormatterRegistry.Resolve` for a claimed type and for a member-encoded one
-- [ ] MICRO-06 — one formatter per shape family: scalar, sequence, map, composite
-- [ ] MICRO-07 — reference identity tracking through the pooled reference tables: rent, registration, lookup, scope exit and return, at several sharing densities *(Contract §16; rewritten in R2)*
+- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop, on the budget inside the `OperationState` the pipeline creates, reached by reference as the codecs reach it *(Contract §6; rewritten in R4)* — `BudgetBenchmarks`
+- [ ] MICRO-03 — depth scope entry and exit over the state's budget, and the unwind on the exceptional path *(Contract §5.1; rewritten in R4)* — `DepthScopeBenchmarks`
+- [ ] MICRO-04 — `ReflectedContract<T>` construction for a cold type, and the lookup by runtime type the polymorphic slot makes once cached, positional and keyed; a value of its declared type pays no lookup *(Contract §14, §15; rewritten in R4)* — `ContractLookupBenchmarks`, `ContractColdRunner`
+- [ ] MICRO-05 — the codec of a claimed type and of a member-encoded one, read from the static field of `FormatterCache<T>` *(Contract §18; rewritten in R4)* — `FormatterResolutionBenchmarks`
+- [ ] MICRO-06 — one codec per shape family: scalar, sequence, map, composite, the containers through the engine's entry for a payload *(Contract §2.4; rewritten in R4)* — `FormatterShapeBenchmarks`
+- [ ] MICRO-07 — reference identity tracking through the pooled reference tables the payload's traversal rents and returns: rent, registration, lookup, scope exit and return, at several sharing densities *(Contract §16; rewritten in R2; re-read in R4, where the tables moved into `GraphState` unchanged)* — `ReferenceIdentityBenchmarks`
 - [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(Contract §11, §13.1)*
 - [ ] MICRO-09 — metering and windowing over buffers against a bare copy: the `PayloadBuffer` budget on write, the `WireReader` budget on read, the `WireReader.Slice` window read and skip, and the copy of a finished buffer to a stream *(Contract §7; rewritten in R2, where the three stream decorators were removed)* — `MeteringBenchmarks`
 - [ ] MICRO-10 — the algorithm primitives over spans, outside the pipeline: `Deflate`, `Brotli`, `Crc32`, `Aes256Gcm` *(Contract §12, §13)*
@@ -607,9 +623,10 @@ The component suites see internals through `src/ViShap.Viper.Serialization/Prope
 
 - [x] MICRO-13 — the grant exists for `ViShap.Viper.Serialization.Benchmarks`, added by the repository owner on 2026-09-20, and an internal type resolves from the benchmark project in a Release build *(Q1)*
 - [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `internal/performance/` (§27.4)
-- [ ] MICRO-15 — `CollectionCountCache` lookup, and the write-side fast path it enables for sets, frozen and immutable sets, against the old materialising path. NX-02 removed an intermediate list per set written; it may be the largest incidental gain of the NX changes and nothing records it
+- [ ] MICRO-15 — the count a sequence shape reports on write, and the write path it enables for sets, frozen and immutable sets, against the gathering path a sequence without an O(1) count takes. NX-02 removed an intermediate list per set written; it may be the largest incidental gain of the NX changes and nothing records it *(rewritten in R4: `CollectionCountCache` is deleted, each shape counts its own collection)*
 - [ ] MICRO-16 — the duplicate check after `Complete`, the count read on every container read that NX-02 put on the read path of every collection
 - [ ] MICRO-17 — a positional record of sixteen booleans, eight bytes and eight 16-bit integers, written and read through the engine: the shape where a call per byte dominates, so the gain of the primitives moving off `Stream` is visible rather than averaged away *(Contract §2.3, §22.1; added in R1)* — `SmallFieldBenchmarks`
+- [ ] MICRO-18 — a primitive array read into an array of its final length against the pooled path a count the bytes do not back takes, at 16, 4 096 and 1 000 000 elements *(Contract §17; added in R4)* — `ArrayMaterializationBenchmarks`
 
 ---
 
@@ -762,7 +779,7 @@ Every later v1.x that changes `src/` is measured the same way, against its own t
 The rework before `v1.0.0` has a baseline of its own: `Baselines/pre-rework/`, taken once on the commit the rework started from. A rework stage is compared against `pre-rework`; a release is compared against the previous release. The two never mix: a rework stage is not a release, and `pre-rework` is never the baseline of one.
 
 - [ ] BASE-01 — the baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23, produced from a checkout of the `v1.0.0` tag
-- [ ] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error
+- [x] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error — `--compare <baseline> <run>` (`Reporting/BaselineComparison`): every cell of `results.csv`, `components.csv`, `contract-cold.csv` and `cold-start.csv`, faster or slower only when the intervals do not overlap, a suite the run did not measure reported once, a cell on one side only listed *(built in R4)*
 - [ ] BASE-03 — a comparison against an incompatible environment is refused rather than printed
 - [ ] BASE-04 — review thresholds, as triggers for investigation and not automatic failures:
   - a throughput regression beyond 10% that is stable across two runs;
@@ -809,6 +826,8 @@ can be recorded against it.
 | [PERF-03](performance/PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream the old MICRO-01 cell used | MICRO-01, rework R1 | Open |
 | [PERF-04](performance/PERF-04-pooled-phase-buffers.md) | The pooled write path is slower on a large unphased blob (×1.15) and on a few compressed cells (×1.05–1.07), while the rest of the matrix is ×0.43–0.99 | ALLOC-02, ALLOC-03, ALLOC-06, rework R2 | Open |
 | [PERF-05](performance/PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth; SCALE-03 goes from ×0.56 at depth 1 to ×0.94 at depth 500 | ALLOC-09, SCALE-03, rework R2 | Open |
+| [PERF-06](performance/PERF-06-typed-engine-first-use.md) | The first operation of a process is ×1.34–1.69 slower after the typed engine (+20–35 ms), and one member plan ×1.3–1.5; the steady state is ×0.41–0.51 | COLD against pre-rework, MICRO-04, rework R4 | Open |
+| [PERF-07](performance/PERF-07-frame-fixed-allocations.md) | The frame allocates 136 B per payload buffer on write and 72 B of algorithm objects per read; the engine adds nothing | ALLOC-10…ALLOC-17, rework R4 | Open |
 
 ## 27.2 Open questions
 
@@ -831,6 +850,7 @@ The place where an unflattering result is recorded rather than argued with. Each
 |---|---|---|---|---|
 | **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
 | **R-02** | B0 verification, DATA-09 under B-P3b and B-P6b | The Track A run for the `pre-rework` baseline stopped at verification: 2 of 270 pairs failed with `BinaryLimitException` — Brotli wrote 20 000 identical strings, 1 440 005 bytes, as 64, and the reader refused an expansion of 22 500 against the default `MaxDecompressionRatio` of 10 000. Deflate wrote the same payload as 8 496 bytes and passed | The ratio check arrived with the NX fixes after the corpus was sized. Brotli compresses this payload to a few dozen bytes at any count — 76 to 77 bytes anywhere from 2 000 to 10 000 strings — so the ratio grows with the count alone, and at 20 000 the dataset required a limit above `SerializationLimits.Default`, which DATA-23 forbids | Harness defect, fixed by the repository owner's decision of 2026-09-26 before the baseline: DATA-09 holds 5 000 strings, 360 005 bytes, an expansion of about 4 700 under Brotli. It stays compression's best case and needs no relaxed limit, as FAIR-18 requires. Raising the limit in the Brotli profiles, varying the strings and recording the refusal as a result were rejected. `--verify` passes 270 of 270 pairs |
+| **R-03** | Rework R4 against `pre-rework`, `Measurements/48c7bf5-20260928T082209Z`, `comparison-pre-rework.md` | Of 220 matched timed cells of `results.csv`, 211 are faster and 8 slower. The slower are six nanosecond-scale component cells — MICRO-02 `validate array count` 1.3 → 1.7 ns, `charge graph node` 0.9 → 1.0 ns, `charge keyed field` ×1.05; MICRO-03 `descend and return` at depth 64 and `descend and unwind` ×1.02–1.03 — one profile cell, WL-01 B-P3b DATA-01 13 381 ± 47 → 14 412 ± 74 ns (×1.08, with allocation 2 336 → 448 B), and one cell within error. All 18 cold-start cells and both generic contract rows are slower | The budget is reached through a `ref` to the state instead of a class field, which the JIT keeps in a register less often; the Brotli cell is the phase, which R5 rewrites; the cold cells are PERF-06 | Micro cells accepted as the cost of one operation state per call (INV-1), a few tenths of a nanosecond per charge. The cold cells are PERF-06, open. The Brotli cell is re-measured in R5 |
 
 ## 27.4 Proposals — `internal/performance/`
 
@@ -962,6 +982,8 @@ Stage:        A0–A7 written. Every A-stage suite exists, builds and runs; what
               number, which only the publication run produces
 Harness:      frozen? not yet, and nothing further is planned in it. The freeze takes effect when the
               publication run starts
+Last stage:   rework R4 — Measurement 48c7bf5-20260928T082209Z (11 suites, cold start, contract cold,
+              soak), compared with pre-rework through --compare: comparison-pre-rework.md beside it
 Last run:     the pre-rework Baseline — every suite of Track A under the publication job on 916f805, the
               commit the rework started from, tagged locally pre-rework: 667 cells, none without a
               number, 3h54m. Committed under Baselines/pre-rework/. It is the "before" of every rework

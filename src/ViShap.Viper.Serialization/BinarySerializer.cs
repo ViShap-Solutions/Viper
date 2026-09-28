@@ -234,7 +234,7 @@ public sealed class BinarySerializer
     /// <exception cref="Exceptions.BinaryEncryptionKeyException">Key material is missing or does not match.</exception>
     /// <exception cref="Exceptions.BinaryTypeException">The payload does not fit the requested type.</exception>
     public T? Deserialize<T>(ReadOnlySpan<byte> source) =>
-        (T?)ReadExactly(source, typeof(T), existingInstance: null);
+        ReadExactly<T>(source, target: default);
 
     /// <summary>
     /// Reads a value from the payload at the start of <paramref name="source"/> and reports where it
@@ -255,7 +255,7 @@ public sealed class BinarySerializer
     /// <exception cref="Exceptions.BinaryTypeException">The payload does not fit the requested type.</exception>
     public T? Deserialize<T>(ReadOnlySpan<byte> source, out int bytesConsumed)
     {
-        object? value = ReadFirst(source, typeof(T), existingInstance: null, out long consumed);
+        var value = ReadFirst<T>(source, target: default, out long consumed);
         bytesConsumed = (int)consumed;
         return (T?)value;
     }
@@ -275,7 +275,7 @@ public sealed class BinarySerializer
     /// <exception cref="Exceptions.BinaryEncryptionKeyException">Key material is missing or does not match.</exception>
     /// <exception cref="Exceptions.BinaryTypeException">The payload does not fit the requested type.</exception>
     public T? Deserialize<T>(ReadOnlySequence<byte> source) =>
-        (T?)ReadExactly(source, typeof(T), existingInstance: null);
+        ReadExactly<T>(source, target: default);
 
     /// <summary>
     /// Reads a value from the payload at the start of <paramref name="source"/> and reports where it
@@ -296,7 +296,7 @@ public sealed class BinarySerializer
     /// <exception cref="Exceptions.BinaryTypeException">The payload does not fit the requested type.</exception>
     public T? Deserialize<T>(ReadOnlySequence<byte> source, out SequencePosition consumed)
     {
-        object? value = ReadFirst(source, typeof(T), existingInstance: null, out long length);
+        var value = ReadFirst<T>(source, target: default, out long length);
         consumed = source.GetPosition(length);
         return (T?)value;
     }
@@ -325,7 +325,8 @@ public sealed class BinarySerializer
     public T? Deserialize<T>(Stream source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        return (T?)Found(FrameReader.Read(_router, source, typeof(T), existingInstance: null, BeginOperation()));
+        var state = BeginOperation();
+        return Found(FrameReader.Read<T>(_router, source, target: default, ref state));
     }
 
     /// <summary>Reads one version 1 frame from <paramref name="source"/>, awaiting its bytes.</summary>
@@ -585,7 +586,7 @@ public sealed class BinarySerializer
     public void Populate<T>(ReadOnlySpan<byte> source, T target) where T : class
     {
         ArgumentNullException.ThrowIfNull(target);
-        ReadExactly(source, typeof(T), target);
+        ReadExactly(source, target);
     }
 
     /// <summary>
@@ -612,7 +613,7 @@ public sealed class BinarySerializer
     public void Populate<T>(ReadOnlySpan<byte> source, T target, out int bytesConsumed) where T : class
     {
         ArgumentNullException.ThrowIfNull(target);
-        ReadFirst(source, typeof(T), target, out long consumed);
+        ReadFirst(source, target, out long consumed);
         bytesConsumed = (int)consumed;
     }
 
@@ -641,7 +642,7 @@ public sealed class BinarySerializer
     public void Populate<T>(ReadOnlySequence<byte> source, T target) where T : class
     {
         ArgumentNullException.ThrowIfNull(target);
-        ReadExactly(source, typeof(T), target);
+        ReadExactly(source, target);
     }
 
     /// <summary>
@@ -668,7 +669,7 @@ public sealed class BinarySerializer
     public void Populate<T>(ReadOnlySequence<byte> source, T target, out SequencePosition consumed) where T : class
     {
         ArgumentNullException.ThrowIfNull(target);
-        ReadFirst(source, typeof(T), target, out long length);
+        ReadFirst(source, target, out long length);
         consumed = source.GetPosition(length);
     }
 
@@ -698,7 +699,8 @@ public sealed class BinarySerializer
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(target);
-        Found(FrameReader.Read(_router, source, typeof(T), target, BeginOperation()));
+        var state = BeginOperation();
+        Found(FrameReader.Read(_router, source, target, ref state));
     }
 
     /// <summary>
@@ -880,7 +882,10 @@ public sealed class BinarySerializer
     // --- the operation behind every entry point ---------------------------------------------------
 
     private EncodedFrame Encode<T>(T value) =>
-        _router.ForWriting(_options.WriteVersion).Write(value, BeginOperation());
+        Encode(value, BeginOperation());
+
+    private EncodedFrame Encode<T>(T value, OperationState state) =>
+        _router.ForWriting(_options.WriteVersion).Write(value, ref state);
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask WriteAsync<T>(Stream destination, T value, CancellationToken cancellationToken)
@@ -903,39 +908,30 @@ public sealed class BinarySerializer
     }
 
     /// <summary>Reads the frame at the start of <paramref name="source"/>, which must be the whole of it.</summary>
-    private object? ReadExactly(ReadOnlySpan<byte> source, Type declaredType, object? existingInstance)
+    private T? ReadExactly<T>(ReadOnlySpan<byte> source, T? target)
     {
-        object? value = ReadFirst(source, declaredType, existingInstance, out long consumed);
+        var value = ReadFirst(source, target, out long consumed);
         RequireEnd(source.Length, consumed);
         return value;
     }
 
-    /// <summary>Reads the frame at the start of <paramref name="source"/>, which must be the whole of it.</summary>
-    private object? ReadExactly(ReadOnlySequence<byte> source, Type declaredType, object? existingInstance)
+    private T? ReadExactly<T>(ReadOnlySequence<byte> source, T? target)
     {
-        object? value = ReadFirst(source, declaredType, existingInstance, out long consumed);
+        var value = ReadFirst(source, target, out long consumed);
         RequireEnd(source.Length, consumed);
         return value;
     }
 
-    private object? ReadFirst(
-        ReadOnlySpan<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        out long consumed)
+    private T? ReadFirst<T>(ReadOnlySpan<byte> source, T? target, out long consumed)
     {
         if (source.IsEmpty)
             throw EmptyPayload();
 
-        return _router.ForReading(source)
-            .Read(source, declaredType, existingInstance, BeginOperation(), out consumed);
+        var state = BeginOperation();
+        return _router.ForReading(source).Read(source, target, ref state, out consumed);
     }
 
-    private object? ReadFirst(
-        ReadOnlySequence<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        out long consumed)
+    private T? ReadFirst<T>(ReadOnlySequence<byte> source, T? target, out long consumed)
     {
         if (source.IsEmpty)
             throw EmptyPayload();
@@ -945,8 +941,8 @@ public sealed class BinarySerializer
             ? source.FirstSpan
             : prefix[..CopyPrefix(source, prefix)];
 
-        return _router.ForReading(identified)
-            .Read(source, declaredType, existingInstance, BeginOperation(), out consumed);
+        var state = BeginOperation();
+        return _router.ForReading(identified).Read(source, target, ref state, out consumed);
 
         static int CopyPrefix(ReadOnlySequence<byte> source, Span<byte> prefix)
         {
@@ -958,23 +954,23 @@ public sealed class BinarySerializer
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<T?> ReadAsync<T>(Stream source, CancellationToken cancellationToken) =>
-        (T?)Found(await FrameReader.ReadAsync(
-            _router, source, typeof(T), existingInstance: null, BeginOperation(), cancellationToken).ConfigureAwait(false));
+        Found(await FrameReader.ReadAsync<T>(
+            _router, source, target: default, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<T?> ReadAsync<T>(PipeReader source, CancellationToken cancellationToken) =>
-        (T?)Found(await FrameReader.ReadAsync(
-            _router, source, typeof(T), existingInstance: null, BeginOperation(), cancellationToken).ConfigureAwait(false));
+        Found(await FrameReader.ReadAsync<T>(
+            _router, source, target: default, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask PopulateFrameAsync<T>(Stream source, T target, CancellationToken cancellationToken) =>
         Found(await FrameReader.ReadAsync(
-            _router, source, typeof(T), target, BeginOperation(), cancellationToken).ConfigureAwait(false));
+            _router, source, target, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask PopulateFrameAsync<T>(PipeReader source, T target, CancellationToken cancellationToken) =>
         Found(await FrameReader.ReadAsync(
-            _router, source, typeof(T), target, BeginOperation(), cancellationToken).ConfigureAwait(false));
+            _router, source, target, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
     private async IAsyncEnumerable<T?> ReadFramesAsync<T>(
         Stream source,
@@ -982,13 +978,13 @@ public sealed class BinarySerializer
     {
         while (true)
         {
-            var frame = await FrameReader.ReadAsync(
-                _router, source, typeof(T), existingInstance: null, BeginOperation(), cancellationToken).ConfigureAwait(false);
+            var frame = await FrameReader.ReadAsync<T>(
+                _router, source, target: default, BeginOperation(), cancellationToken).ConfigureAwait(false);
 
             if (!frame.Found)
                 yield break;
 
-            yield return (T?)frame.Value;
+            yield return frame.Value;
         }
     }
 
@@ -998,18 +994,18 @@ public sealed class BinarySerializer
     {
         while (true)
         {
-            var frame = await FrameReader.ReadAsync(
-                _router, source, typeof(T), existingInstance: null, BeginOperation(), cancellationToken).ConfigureAwait(false);
+            var frame = await FrameReader.ReadAsync<T>(
+                _router, source, target: default, BeginOperation(), cancellationToken).ConfigureAwait(false);
 
             if (!frame.Found)
                 yield break;
 
-            yield return (T?)frame.Value;
+            yield return frame.Value;
         }
     }
 
     /// <summary>The value of a frame a source delivered; a source that delivered no byte held no payload.</summary>
-    private static object? Found(FrameReader.Frame frame) =>
+    private static T? Found<T>(FrameReader.Frame<T> frame) =>
         frame.Found ? frame.Value : throw EmptyPayload();
 
     private static void RequireEnd(long length, long consumed)
@@ -1023,7 +1019,7 @@ public sealed class BinarySerializer
     private static BinaryFormatException EmptyPayload() =>
         new("The payload is empty. No wire format encodes a value in zero bytes.");
 
-    private SerializationOperation BeginOperation() =>
+    private OperationState BeginOperation() =>
         new(_options.Limits,
             _options.Keys,
             _options.PreserveReferences,

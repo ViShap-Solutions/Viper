@@ -40,6 +40,7 @@ internal static class TrackRunner
         ("A1", typeof(ProfileFramedReadBenchmarks)),
         ("A1", typeof(FrameStreamBenchmarks)),
         ("A1", typeof(HarnessFloorBenchmarks)),
+        ("A1", typeof(AllocationTargetBenchmarks)),
 
         // A3 — the algorithm phases, and the envelope by difference.
         ("A3", typeof(AlgorithmBenchmarks)),
@@ -59,6 +60,7 @@ internal static class TrackRunner
         ("A4", typeof(HeaderBenchmarks)),
         ("A4", typeof(MeteringBenchmarks)),
         ("A4", typeof(CycleDetectionBenchmarks)),
+        ("A4", typeof(ArrayMaterializationBenchmarks)),
         ("A4", typeof(CompressionPrimitiveBenchmarks)),
         ("A4", typeof(ProtectionPrimitiveBenchmarks)),
 

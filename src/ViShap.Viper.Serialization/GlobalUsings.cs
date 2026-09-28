@@ -1,5 +1,4 @@
-﻿global using ViShap.Viper.Cache;
-global using ViShap.Viper.Checksum;
+﻿global using ViShap.Viper.Checksum;
 global using ViShap.Viper.Compression;
 global using ViShap.Viper.Configuration;
 global using ViShap.Viper.Crypto;

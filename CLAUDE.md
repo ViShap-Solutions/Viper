@@ -121,13 +121,17 @@ Documented normatively in `internal/System-Contract.md` §2; the reasoning behin
 BinarySerializer            buffer-first surface: writes to IBufferWriter<byte>, byte[], PooledPayload,
                             Stream, PipeWriter; reads from ReadOnlySpan<byte>, ReadOnlySequence<byte>,
                             Stream, PipeReader; Populate; async only at the frame edge;
-                            creates exactly one SerializationOperation per public call (per frame)
-SerializationOperation      Limits snapshot, Budget, PhaseBudget, Keys, policies
+                            creates exactly one OperationState per public call (per frame)
+OperationState              a struct passed by ref: Limits snapshot, Budget, PhaseBudget, Keys,
+                            policies, and the traversal of the payload (reference tables, ancestors)
 FormatPipeline (V0 | V1)    framing, phase order, header + AAD, phase sizes;
                             phases are transforms over pooled buffers, the frame is built whole
-PayloadEngine               traversal: depth, graph nodes, references, TypeContract
+Engine                      typed codecs, one per declared type (FormatterCache<T>): null, references,
+                            depth, graph nodes, cycles, union tag, keyed framing, every loop over wire data
 WireReader / WireWriter     ref structs over memory, the only access to payload bytes
-Formatters                  type encoding only
+Formatters                  shapes only: IScalarFormatter<T>, sequence / map / array shapes, typed composites
+Type contracts              TypeContract<T>: member order, access, construction (ReflectedContract<T>),
+                            reached only through MemberWriter / MemberReader
 Algorithms                  pure mechanics over spans
 ```
 
@@ -139,20 +143,21 @@ These are why the codebase does not carry a security check in every class. Do no
 
 1. **Byte monopoly.** `WireReader`/`WireWriter` (`Io/`) are the only types that touch payload bytes. They are `ref struct`s over memory and are passed by `ref`, never stored: `WireReader` reads a span or a `ReadOnlySequence<byte>`, `WireWriter` writes into the serializer's pooled `PayloadBuffer`, and there is no stream under the engine. Fixed-size reads throw `BinaryFormatException` on truncation, strings and blobs are bounded by their limits, and every declared length is compared with `WireReader.Remaining` — exact, because the bytes are in memory — before anything is allocated. A composite formatter gets `ref CompositeReader`/`ref CompositeWriter`, which only the engine's entry creates and which expose no raw integer.
 2. **Validated counts.** A loop bound over wire data exists only as an `ElementCount`, whose sole factory checks the count against its limit and charges the element budget. There is no other way to obtain one, so "read a length, then allocate" is not expressible.
-3. **Engine-owned traversal.** `GraphReader`/`GraphWriter` (`Engine/`) own all recursion: depth scopes, node budget, reference identity and scopes, cycle detection, the keyed layout, and the element loop of every container. A formatter never writes a loop over attacker-controlled data.
+3. **Engine-owned traversal.** The engine's codecs (`Engine/Codecs/`) own all recursion: the null flag and reference frame, depth scopes, node budget, reference identity and scopes, cycle detection, the union tag, the keyed layout, and the element loop of every container. A shape receives no count and no primitive, and a type contract receives only a `MemberWriter`/`MemberReader`, which expose one member value per call and nothing else; the engine checks every contract call against the contract's description. A formatter never writes a loop over attacker-controlled data.
 
 ### Adding a formatter
 
-Pick the shape, implement its interface (`Formatters/ITypeFormatter.cs`), and register it in `FormatterRegistry` **before** anything that would also claim the type:
+A declared type resolves once to the engine's codec for it, held in the static field of `FormatterCache<T>`: `FormatterRegistry` (`Formatters/`) applies its rules in order — delegates (refused), `Nullable<T>`, the scalars by exact type and enums, arrays, the fixed table of generic definitions, a concrete `ICollection<T>` with a public parameterless constructor, and last the object codec. Pick the shape, implement its interface (`Formatters/Shapes.cs`), and add it to the registry's table:
 
-- `IScalarFormatter` — self-contained values with no children and no data-driven allocation.
-- `ISequenceFormatter` — element type plus a builder; the engine owns count, loop, depth, nodes and identity. Set `BuilderIsInstance = false` when the final object only exists after `Complete`, and `ReverseOnWrite` for LIFO containers.
-- `IMapFormatter` — the same, for key/value entries.
-- `ICompositeFormatter` — a fixed, type-determined child layout (tuples, pairs, lazies) or an irregular one (array rank). The engine has already charged depth, nodes and identity; any count still comes from `ReadCount`.
+- `IScalarFormatter<T>` — a self-contained value with no children and no data-driven allocation, through the checked primitives of `WireReader`/`WireWriter`; it states its `MinimumWireSize`. A reference type gets its null flag from the engine.
+- `ISequenceShape<TCollection, TElement, TBuilder, TEnumerator>` — count, enumerate, build and complete; the engine's `SequenceCodec` owns count, loop, depth, nodes and identity. A builder that is not the final instance sets `BuilderIsInstance = false`, a LIFO container sets `ReverseOnWrite`, and a struct enumerator keeps writing free of allocation.
+- `IMapShape<TMap, TKey, TValue, TBuilder, TEnumerator>` — the same, for key/value entries.
+- `IArrayShape<TCollection, TElement>` — a sequence whose elements lie in one array: the engine writes them from the span it exposes and reads them into an array of their final length, which the shape wraps.
+- `ICompositeFormatter<T>` — a fixed, type-determined child layout (tuples, pairs, lazies) or an irregular one (array rank), through `CompositeReader`/`CompositeWriter`, which offer child values, a validated array shape and the elements behind it — and no raw integer.
 
-No shape fits a plain object: a type no formatter claims is member-encoded through `TypeContract`. `FormatterRegistry.Resolve` returning `null` means exactly that — there is no catch-all formatter that could shadow a specific one.
+A generic definition's shape is closed once per type; there is no cache of reflective accessors, because a shape calls the collection's own members. No shape fits a plain object: a type no rule claims is member-encoded through its `TypeContract<T>`, and there is no catch-all shape that could shadow a specific one.
 
-`ITypeFormatter` is deliberately `internal` for v1.0; publishing it would freeze the traversal protocol.
+The shapes, the codecs and `TypeContract<T>` are deliberately `internal` for v1.0; publishing them would freeze the traversal protocol.
 
 ### Versioned envelope
 
@@ -167,7 +172,7 @@ Adding a format version means a pipeline registered in `BinarySerializer`; the r
 
 ### Member layouts
 
-`TypeContract` (`Engine/`) is the single materialized description of a concrete type, used identically by reader and writer:
+`TypeContract<T>` (`Engine/Contracts/`) is the single description of a member-encoded type, used identically by reader and writer. It supplies member order, member access, construction and the response to a known key; v1.0 ships `ReflectedContract<T>`, which compiles one typed getter and setter per member, so a struct owner is assigned in place and nothing is boxed:
 
 - **Positional** (default) — members ordered by `[BinaryOrder]` then ordinal name. Public read/write properties and public non-readonly fields are included; non-public ones need `[BinaryInclude]`; `[BinaryIgnore]` excludes. Compiler-generated fields and indexers are skipped. A delegate-typed member is **rejected** — it carries behaviour, not data — so it must be marked `[BinaryIgnore]`. Field order *is* the wire format.
 - **Keyed** (`[BinaryContract]` plus `[BinaryKey(n)]` on every eligible member) — each field is written as `key, int32 length, payload`, sorted by key. Unknown keys are length-skipped, which is what makes schema evolution tolerant. Payload-level, so it works under both format versions; the length is patched in the serializer's buffer after the field is written, so no destination needs to seek.
@@ -176,11 +181,11 @@ The two are mutually exclusive, and every contradiction is rejected when the con
 
 Polymorphism: `[BinaryUnion(tag, typeof(Derived))]` on a base class or interface; a one-byte discriminator precedes the members. Tags must fit in a byte, and only tags travel — never type names. Writing a value whose runtime type differs from the declared type **without** a union map is `BinaryTypeException`, because the reader could not reconstruct it.
 
-References: with `PreserveReferences`, a marker byte and object id precede every structural reference-typed value, containers included. Ids are unique but visible only along the ancestor chain, so a back reference never crosses two sibling keyed fields and skipping an unknown field can never dangle. Without the option a cycle throws `BinaryTypeException`; it is found by searching the ancestor stack of the current path (a pooled array no deeper than `MaxDepth`), so an instance repeated along two paths is written again, not refused. The reference tables are pooled per operation and returned cleared. Member-encoded types are constructed through a parameterless constructor.
+References: with `PreserveReferences`, a marker byte and object id precede every structural reference-typed value, containers included. Ids are unique but visible only along the ancestor chain, so a back reference never crosses two sibling keyed fields and skipping an unknown field can never dangle. Without the option a cycle throws `BinaryTypeException`; it is found by searching the ancestor stack of the current path (a pooled array no deeper than `MaxDepth`), so an instance repeated along two paths is written again, not refused. The reference tables are pooled per operation and returned cleared. A member-encoded type is created through its contract — a parameterless constructor, or `default` for a struct — and registered before its members are read, so a cycle back to it resolves. The polymorphic slot is the only place the engine boxes.
 
 ### Limits and budgets
 
-`SerializationLimits` is the public, immutable policy, validated once when options are built. `SerializationBudget` is the per-operation accounting (elements, graph nodes, keyed fields, depth); `PhaseBudget` is the per-phase size policy. On read, the pipeline takes source bytes into memory within the wire budget, and the `WireReader` over them classifies running out as a limit breach when the budget cut the bytes and as malformed data otherwise; `WireReader.Slice` is the window over one declared keyed field. On write, `PayloadBuffer` refuses space past the payload budget, and the finished frame (`EncodedFrame`) is checked against the wire budget before it is copied to the destination once — so the budget counts only what the operation produces, a destination never has to seek, and a data or graph error leaves nothing in it. There is no stream decorator: metering and the field window are properties of the reader, the buffer and the frame.
+`SerializationLimits` is the public, immutable policy, validated once when options are built. `OperationState` carries the call's `SerializationBudget` — the per-operation accounting of elements, graph nodes, keyed fields and depth — and its `PhaseBudget`, the per-phase size policy; `WireReader` and `WireWriter` hold a reference to the state, so every charge lands in the one budget of the call. A declared count that the remaining bytes back is materialized at once — an array at its final length, a collection at its full capacity — and one they do not back grows as elements arrive. On read, the pipeline takes source bytes into memory within the wire budget, and the `WireReader` over them classifies running out as a limit breach when the budget cut the bytes and as malformed data otherwise; `WireReader.Slice` is the window over one declared keyed field. On write, `PayloadBuffer` refuses space past the payload budget, and the finished frame (`EncodedFrame`) is checked against the wire budget before it is copied to the destination once — so the budget counts only what the operation produces, a destination never has to seek, and a data or graph error leaves nothing in it. There is no stream decorator: metering and the field window are properties of the reader, the buffer and the frame.
 
 Limit breaches throw `BinaryLimitException`; malformed data throws `BinaryFormatException`; unsupported versions or algorithms throw `BinaryFormatNotSupportedException`; tampering and protection downgrades throw `BinaryIntegrityException`.
 

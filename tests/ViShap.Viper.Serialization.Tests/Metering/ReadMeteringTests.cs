@@ -12,16 +12,14 @@ namespace ViShap.Viper.Serialization.Tests.Metering;
 /// </summary>
 public class ReadMeteringTests
 {
-    private static SerializationOperation Operation() =>
-        new(SerializationLimits.Default, keys: null, preserveReferences: false,
-            requireEncryption: false, requireChecksum: false);
+    private static OperationBox Operation() => new();
 
     /// <summary>A reader over <paramref name="physicalBytes"/> bytes cut to <paramref name="budget"/>, as a pipeline builds one.</summary>
     private static long Remaining(int physicalBytes, long budget)
     {
         byte[] bytes = new byte[physicalBytes];
         var reader = new WireReader(
-            bytes.AsSpan(0, (int)Math.Min(physicalBytes, budget)), Operation(), new WireBudget("test", budget));
+            bytes.AsSpan(0, (int)Math.Min(physicalBytes, budget)), ref Operation().State, new WireBudget("test", budget));
         return reader.Remaining;
     }
 
@@ -66,7 +64,7 @@ public class ReadMeteringTests
     [Fact]
     public void Read_UnderTheBudget_Succeeds()
     {
-        var reader = new WireReader(new byte[10], Operation(), new WireBudget("test", 10));
+        var reader = new WireReader(new byte[10], ref Operation().State, new WireBudget("test", 10));
 
         reader.ReadExact(new byte[9], "Blob");
 
@@ -76,7 +74,7 @@ public class ReadMeteringTests
     [Fact]
     public void Read_AtExactlyTheBudget_Succeeds()
     {
-        var reader = new WireReader(new byte[10], Operation(), new WireBudget("test", 10));
+        var reader = new WireReader(new byte[10], ref Operation().State, new WireBudget("test", 10));
 
         reader.ReadExact(new byte[10], "Blob");
 
@@ -89,7 +87,7 @@ public class ReadMeteringTests
     {
         Assert.Throws<BinaryLimitException>(() =>
         {
-            var reader = new WireReader(new byte[10], Operation(), new WireBudget("test", 10));
+            var reader = new WireReader(new byte[10], ref Operation().State, new WireBudget("test", 10));
             reader.ReadExact(new byte[10], "Blob");
             reader.ReadByte();
         });
@@ -133,7 +131,7 @@ public class ReadMeteringTests
     [Fact]
     public void Remaining_AfterReading_Shrinks()
     {
-        var reader = new WireReader(new byte[10], Operation(), new WireBudget("test", 1_000));
+        var reader = new WireReader(new byte[10], ref Operation().State, new WireBudget("test", 1_000));
 
         reader.ReadExact(new byte[4], "Blob");
 
@@ -147,7 +145,7 @@ public class ReadMeteringTests
 
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(bytes.AsSpan(0, 8), Operation(), new WireBudget("test", 8));
+            var reader = new WireReader(bytes.AsSpan(0, 8), ref Operation().State, new WireBudget("test", 8));
             reader.RequireAvailable(20, "Payload");
         });
 
@@ -159,7 +157,7 @@ public class ReadMeteringTests
     {
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(new byte[10], Operation(), new WireBudget("test", 1_000));
+            var reader = new WireReader(new byte[10], ref Operation().State, new WireBudget("test", 1_000));
             reader.RequireAvailable(20, "Payload");
         });
 
@@ -171,7 +169,7 @@ public class ReadMeteringTests
     {
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(new byte[10], Operation());
+            var reader = new WireReader(new byte[10], ref Operation().State);
             reader.RequireAvailable(20, "Payload");
         });
 

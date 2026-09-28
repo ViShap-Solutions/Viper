@@ -7,10 +7,11 @@ using ViShap.Viper.Serialization.Tests.RoundTrip;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins ORC-01 and ORC-02: every case of the existing corpora — the round-trip corpus under each of its
-/// profiles and under reference framing, the V0 corpus, the reference graphs of <c>References/</c> and
-/// the shapes of <c>Contracts/</c> — writes exactly the bytes the oracle recorded, and a difference is
-/// reported with both outputs in hex.
+/// Pins ORC-01, ORC-02 and TYP-01: every case of the existing corpora — the round-trip corpus under
+/// each of its profiles and under reference framing, the V0 corpus, the reference graphs of
+/// <c>References/</c> and the shapes of <c>Contracts/</c> — writes exactly the bytes the oracle
+/// recorded, and a difference is reported with both outputs in hex. Every case is written by the
+/// engine's typed codecs, so the oracle holds each codec to the recorded bytes.
 /// </summary>
 /// <remarks>
 /// The oracle invents no case. It runs the tests of those classes as they are written and hashes what

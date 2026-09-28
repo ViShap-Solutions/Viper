@@ -66,7 +66,7 @@ earlier is reported to the owner by the stage that notices it.
   boundary rules of plan §7 and the asynchronous rule of plan §9.5 are stated. `BinaryHeaderPeek`,
   `FromHeader` and `FromStream` are no longer mentioned.
 
-### R4 — Typed engine
+### R4 — Typed engine — applied
 
 - **Architecture** — `SerializationOperation` becomes the per-call `OperationState`, a struct passed
   by reference *(moved here from R2)*; the formatter row: typed shapes with engine-owned codecs; a
@@ -82,7 +82,9 @@ earlier is reported to the owner by the stage that notices it.
   new interfaces.
 - **Member layouts** — construction goes through the type contract; the reflected contract is the one
   shipped in v1.0.
-- **Projects** — the `Cache/` folder is gone.
+- **Projects** — the `Cache/` folder is gone. *(`CLAUDE.md` never named the folder; nothing to change.
+  `GraphReader`/`GraphWriter` were removed: the codecs own the traversal and `Graph` is the entry for
+  one payload.)*
 
 ### R5 — Algorithm contracts
 

@@ -13,7 +13,7 @@ public sealed class RacedElement
 /// <summary>A key for the racing dictionary and set caches; value semantics, so it can be hashed.</summary>
 public readonly record struct RacedKey(int Value);
 
-/// <summary>The type the racing activator builds.</summary>
+/// <summary>The type whose codec is first used, then used again, to compare the two uses.</summary>
 public sealed class RacedActivated
 {
     public int Value { get; set; }
@@ -48,3 +48,17 @@ public sealed class RacedBudgetType
 {
     public List<int> Items { get; set; } = [];
 }
+
+/// <summary>A declared type whose union map is invalid, because two of its arms share a tag.</summary>
+[BinaryUnion(1, typeof(RacedInvalidArmA))]
+[BinaryUnion(1, typeof(RacedInvalidArmB))]
+public class RacedInvalidUnion
+{
+    public int Z { get; set; }
+}
+
+/// <summary>The first arm of <see cref="RacedInvalidUnion"/>.</summary>
+public sealed class RacedInvalidArmA : RacedInvalidUnion;
+
+/// <summary>The second arm of <see cref="RacedInvalidUnion"/>, under the same tag as the first.</summary>
+public sealed class RacedInvalidArmB : RacedInvalidUnion;

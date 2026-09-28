@@ -113,19 +113,32 @@ public class PublicSurfaceTests
         // any would let a caller step around it.
         string[] internalNames =
         [
-            "ViShap.Viper.Engine.GraphReader",
-            "ViShap.Viper.Engine.GraphWriter",
+            "ViShap.Viper.Engine.Graph",
+            "ViShap.Viper.Engine.Codec`1",
+            "ViShap.Viper.Engine.FormatterCache`1",
             "ViShap.Viper.Engine.TypeContract",
+            "ViShap.Viper.Engine.TypeContract`1",
+            "ViShap.Viper.Engine.ReflectedContract`1",
+            "ViShap.Viper.Engine.MemberWriter",
+            "ViShap.Viper.Engine.MemberReader",
+            "ViShap.Viper.Engine.GraphState",
             "ViShap.Viper.Io.WireReader",
             "ViShap.Viper.Io.WireWriter",
             "ViShap.Viper.Io.PayloadBuffer",
             "ViShap.Viper.Io.ElementCount",
             "ViShap.Viper.Security.SerializationBudget",
-            "ViShap.Viper.Security.SerializationOperation",
+            "ViShap.Viper.Security.OperationState",
             "ViShap.Viper.Pipeline.FrameReader",
-            "ViShap.Viper.Formatters.ITypeFormatter",
+            "ViShap.Viper.Formatters.IScalarFormatter`1",
+            "ViShap.Viper.Formatters.ISequenceShape`4",
+            "ViShap.Viper.Formatters.IMapShape`5",
+            "ViShap.Viper.Formatters.ICompositeFormatter`1",
+            "ViShap.Viper.Formatters.FormatterRegistry",
             "ViShap.Viper.Pipeline.FormatRouter"
         ];
+
+        // Every name must be a type that exists, so the check cannot pass by naming nothing.
+        Assert.All(internalNames, name => Assert.NotNull(typeof(BinarySerializer).Assembly.GetType(name)));
 
         var exported = ActualSurface();
 

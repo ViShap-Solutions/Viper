@@ -184,7 +184,7 @@ public static class BinaryFormatInspector
             throw new BinaryFormatNotSupportedException(
                 $"Format version {version} cannot be inspected.");
 
-        var operation = new SerializationOperation(
+        var state = new OperationState(
             limits,
             keys: null,
             preserveReferences: false,
@@ -193,7 +193,7 @@ public static class BinaryFormatInspector
 
         var budget = new WireBudget("format inspection", limits.MaxWireBytes);
         var reader = new WireReader(
-            prefix[..(int)Math.Min(prefix.Length, budget.Maximum)], operation, budget);
+            prefix[..(int)Math.Min(prefix.Length, budget.Maximum)], ref state, budget);
 
         return BinaryFormatHeaderV1.ReadFrom(ref reader).ToInfo();
     }

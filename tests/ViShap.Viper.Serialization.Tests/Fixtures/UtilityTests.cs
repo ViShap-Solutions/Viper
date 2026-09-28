@@ -6,7 +6,7 @@ using Xunit.Sdk;
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-15 and UTIL-17…UTIL-20. A helper with a bug passes every suite that uses it, so the
+/// Pins UTIL-01…UTIL-15 and UTIL-17…UTIL-21. A helper with a bug passes every suite that uses it, so the
 /// helpers are tested before anything is allowed to rely on them.
 /// </summary>
 /// <remarks>
@@ -874,5 +874,32 @@ public class UtilityTests
 
         Assert.True(writer.GetSpan(16).IsEmpty);
         Assert.True(writer.GetMemory(16).IsEmpty);
+    }
+
+    // --- UTIL-21: the operation state held on the heap -----------------------------------------
+
+    [Fact]
+    public void OperationBox_HoldsAFreshStateUnderTheLimitsItIsGiven()
+    {
+        var defaults = new OperationBox();
+        var tight = new OperationBox(ViShap.Viper.Security.SerializationLimits.Default with { MaxDepth = 3 });
+
+        Assert.Same(ViShap.Viper.Security.SerializationLimits.Default, defaults.State.Limits);
+        Assert.Equal(3, tight.State.Limits.MaxDepth);
+        Assert.Equal(0, defaults.State.Budget.TotalElements);
+        Assert.False(defaults.State.PreserveReferences);
+    }
+
+    [Fact]
+    public void OperationBox_IsTheStateAReaderHandedItChargesAndEachBoxIsItsOwn()
+    {
+        var operation = new OperationBox();
+        var other = new OperationBox();
+        var reader = new ViShap.Viper.Io.WireReader(new byte[] { 3, 0, 0, 0 }, ref operation.State);
+
+        reader.ReadCount(ViShap.Viper.Io.CountKind.Collection, "Collection count");
+
+        Assert.Equal(3, operation.State.Budget.TotalElements);
+        Assert.Equal(0, other.State.Budget.TotalElements);
     }
 }

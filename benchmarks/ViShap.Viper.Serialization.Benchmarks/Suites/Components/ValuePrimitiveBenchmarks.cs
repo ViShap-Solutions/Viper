@@ -37,7 +37,7 @@ public class ValuePrimitiveBenchmarks
 {
     private const int Operations = 1_000;
 
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private PayloadBuffer _destination = null!;
     private byte[] _payload = [];
 
@@ -59,7 +59,7 @@ public class ValuePrimitiveBenchmarks
 
         _destination = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
         _payload = ComponentFixtures.Encode(
-            _operation, (ref WireWriter writer) => WriteAll(ref writer, Primitive));
+            ref _operation, (ref WireWriter writer) => WriteAll(ref writer, Primitive));
     }
 
     [GlobalCleanup]
@@ -68,7 +68,7 @@ public class ValuePrimitiveBenchmarks
     [Benchmark(Description = "MICRO-01 write", OperationsPerInvoke = Operations)]
     public long Write()
     {
-        var writer = new WireWriter(_destination, _operation);
+        var writer = new WireWriter(_destination, ref _operation);
         WriteAll(ref writer, Primitive);
         writer.Flush();
 
@@ -80,7 +80,7 @@ public class ValuePrimitiveBenchmarks
     [Benchmark(Description = "MICRO-01 read", OperationsPerInvoke = Operations)]
     public long Read()
     {
-        var reader = new WireReader(_payload, _operation);
+        var reader = new WireReader(_payload, ref _operation);
         return ReadAll(ref reader, Primitive);
     }
 
@@ -243,7 +243,7 @@ public class ValuePrimitiveBenchmarks
 [MemoryDiagnoser]
 public class ValueTextBenchmarks
 {
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private PayloadBuffer _destination = null!;
     private byte[] _stringPayload = [];
     private byte[] _blobPayload = [];
@@ -274,10 +274,10 @@ public class ValueTextBenchmarks
         _destination = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
 
         _stringPayload = ComponentFixtures.Encode(
-            _operation, (ref WireWriter writer) => writer.WriteString(_text));
+            ref _operation, (ref WireWriter writer) => writer.WriteString(_text));
 
         _blobPayload = ComponentFixtures.Encode(
-            _operation, (ref WireWriter writer) => writer.WriteBlob(_blob, "MICRO-01"));
+            ref _operation, (ref WireWriter writer) => writer.WriteBlob(_blob, "MICRO-01"));
     }
 
     [GlobalCleanup]
@@ -286,7 +286,7 @@ public class ValueTextBenchmarks
     [Benchmark(Description = "MICRO-01 write string")]
     public long WriteString()
     {
-        var writer = new WireWriter(_destination, _operation);
+        var writer = new WireWriter(_destination, ref _operation);
         writer.WriteString(_text);
         writer.Flush();
 
@@ -298,14 +298,14 @@ public class ValueTextBenchmarks
     [Benchmark(Description = "MICRO-01 read string")]
     public string ReadString()
     {
-        var reader = new WireReader(_stringPayload, _operation);
+        var reader = new WireReader(_stringPayload, ref _operation);
         return reader.ReadString();
     }
 
     [Benchmark(Description = "MICRO-01 write blob")]
     public long WriteBlob()
     {
-        var writer = new WireWriter(_destination, _operation);
+        var writer = new WireWriter(_destination, ref _operation);
         writer.WriteBlob(_blob, "MICRO-01");
         writer.Flush();
 
@@ -317,7 +317,7 @@ public class ValueTextBenchmarks
     [Benchmark(Description = "MICRO-01 read blob")]
     public byte[] ReadBlob()
     {
-        var reader = new WireReader(_blobPayload, _operation);
+        var reader = new WireReader(_blobPayload, ref _operation);
         return reader.ReadBlob("MICRO-01");
     }
 }

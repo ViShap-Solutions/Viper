@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using ViShap.Viper.Io;
 using ViShap.Viper.Security;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -15,9 +16,7 @@ public class FieldWindowTests
     /// <summary>Bytes the whole operation may allocate. Generous, and orders below the declarations.</summary>
     private const long AllocationCeiling = 1024 * 1024;
 
-    private static SerializationOperation Operation() =>
-        new(SerializationLimits.Default, keys: null, preserveReferences: false,
-            requireEncryption: false, requireChecksum: false);
+    private static OperationBox Operation() => new();
 
     private static byte[] Counting(int length) => [.. Enumerable.Range(0, length).Select(value => (byte)value)];
 
@@ -26,7 +25,7 @@ public class FieldWindowTests
     [Fact]
     public void Slice_ReadsTheDeclaredLength()
     {
-        var reader = new WireReader(Counting(16), Operation());
+        var reader = new WireReader(Counting(16), ref Operation().State);
         var window = reader.Slice(4, "Key 1 payload");
 
         byte[] destination = new byte[4];
@@ -39,7 +38,7 @@ public class FieldWindowTests
     [Fact]
     public void Slice_MovesTheParentPastTheField()
     {
-        var reader = new WireReader(Counting(16), Operation());
+        var reader = new WireReader(Counting(16), ref Operation().State);
 
         reader.Slice(4, "Key 1 payload");
 
@@ -50,7 +49,7 @@ public class FieldWindowTests
     [Fact]
     public void Slice_Remaining_IsTheDeclaredLength()
     {
-        var reader = new WireReader(Counting(16), Operation());
+        var reader = new WireReader(Counting(16), ref Operation().State);
 
         Assert.Equal(4, reader.Slice(4, "Key 1 payload").Remaining);
     }
@@ -62,7 +61,7 @@ public class FieldWindowTests
     {
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(Counting(16), Operation(), new WireBudget("wire", 16));
+            var reader = new WireReader(Counting(16), ref Operation().State, new WireBudget("wire", 16));
             var window = reader.Slice(4, "Key 1 payload");
             window.ReadExact(new byte[4], "Field");
             window.ReadByte();
@@ -76,7 +75,7 @@ public class FieldWindowTests
     {
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(Counting(16), Operation(), new WireBudget("wire", 16));
+            var reader = new WireReader(Counting(16), ref Operation().State, new WireBudget("wire", 16));
             reader.Slice(4, "Key 1 payload").RequireAvailable(8, "String byte length");
         });
 
@@ -88,7 +87,7 @@ public class FieldWindowTests
     {
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(Counting(4), Operation());
+            var reader = new WireReader(Counting(4), ref Operation().State);
             reader.Slice(16, "Key 1 payload");
         });
 
@@ -136,7 +135,7 @@ public class FieldWindowTests
     [Fact]
     public void Skip_ConsumesTheRestOfTheWindowOnly()
     {
-        var reader = new WireReader(Counting(16), Operation());
+        var reader = new WireReader(Counting(16), ref Operation().State);
         var window = reader.Slice(4, "Key 1 payload");
         window.ReadByte();
 
@@ -152,7 +151,7 @@ public class FieldWindowTests
     {
         var ex = Record.Exception(() =>
         {
-            var reader = new WireReader(Counting(4), Operation());
+            var reader = new WireReader(Counting(4), ref Operation().State);
             reader.Skip(16, "Key 1 payload");
         });
 
@@ -166,7 +165,7 @@ public class FieldWindowTests
 
         AssertEx.AllocatesLessThan(AllocationCeiling, () =>
         {
-            var reader = new WireReader(content, Operation());
+            var reader = new WireReader(content, ref Operation().State);
             var window = reader.Slice(content.Length, "Key 1 payload");
             window.Skip(window.Remaining, "Key 1 payload");
         });
@@ -242,10 +241,10 @@ public class FieldWindowTests
     public void Slice_SharesTheParentOperation()
     {
         var operation = Operation();
-        var reader = new WireReader(Counting(16), operation);
+        var reader = new WireReader(Counting(16), ref operation.State);
 
         var window = reader.Slice(4, "Key 1 payload");
 
-        Assert.Same(operation, window.Operation);
+        Assert.True(Unsafe.AreSame(ref operation.State, ref window.State));
     }
 }

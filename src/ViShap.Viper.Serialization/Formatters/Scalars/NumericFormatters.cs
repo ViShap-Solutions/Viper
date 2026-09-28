@@ -2,150 +2,134 @@ using System.Numerics;
 
 namespace ViShap.Viper.Formatters;
 
-internal sealed class ComplexFormatter : IScalarFormatter
+internal sealed class ComplexFormatter : IScalarFormatter<Complex>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Complex);
+    public int MinimumWireSize => 2 * sizeof(double);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Complex value)
     {
-        var complex = (Complex)value;
-        writer.WriteDouble(complex.Real);
-        writer.WriteDouble(complex.Imaginary);
+        writer.WriteDouble(value.Real);
+        writer.WriteDouble(value.Imaginary);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Complex(reader.ReadDouble(), reader.ReadDouble());
+    public Complex Read(ref WireReader reader) => new(reader.ReadDouble(), reader.ReadDouble());
 }
 
-internal sealed class Vector2Formatter : IScalarFormatter
+internal sealed class Vector2Formatter : IScalarFormatter<Vector2>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Vector2);
+    public int MinimumWireSize => 2 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Vector2 value)
     {
-        var vector = (Vector2)value;
-        writer.WriteSingle(vector.X);
-        writer.WriteSingle(vector.Y);
+        writer.WriteSingle(value.X);
+        writer.WriteSingle(value.Y);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Vector2(reader.ReadSingle(), reader.ReadSingle());
+    public Vector2 Read(ref WireReader reader) => new(reader.ReadSingle(), reader.ReadSingle());
 }
 
-internal sealed class Vector3Formatter : IScalarFormatter
+internal sealed class Vector3Formatter : IScalarFormatter<Vector3>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Vector3);
+    public int MinimumWireSize => 3 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Vector3 value)
     {
-        var vector = (Vector3)value;
-        writer.WriteSingle(vector.X);
-        writer.WriteSingle(vector.Y);
-        writer.WriteSingle(vector.Z);
+        writer.WriteSingle(value.X);
+        writer.WriteSingle(value.Y);
+        writer.WriteSingle(value.Z);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+    public Vector3 Read(ref WireReader reader) =>
+        new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 }
 
-internal sealed class Vector4Formatter : IScalarFormatter
+internal sealed class Vector4Formatter : IScalarFormatter<Vector4>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Vector4);
+    public int MinimumWireSize => 4 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Vector4 value)
     {
-        var vector = (Vector4)value;
-        writer.WriteSingle(vector.X);
-        writer.WriteSingle(vector.Y);
-        writer.WriteSingle(vector.Z);
-        writer.WriteSingle(vector.W);
+        writer.WriteSingle(value.X);
+        writer.WriteSingle(value.Y);
+        writer.WriteSingle(value.Z);
+        writer.WriteSingle(value.W);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Vector4(
-            reader.ReadSingle(), reader.ReadSingle(),
-            reader.ReadSingle(), reader.ReadSingle());
+    public Vector4 Read(ref WireReader reader) =>
+        new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 }
 
-internal sealed class QuaternionFormatter : IScalarFormatter
+internal sealed class QuaternionFormatter : IScalarFormatter<Quaternion>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Quaternion);
+    public int MinimumWireSize => 4 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Quaternion value)
     {
-        var quaternion = (Quaternion)value;
-        writer.WriteSingle(quaternion.X);
-        writer.WriteSingle(quaternion.Y);
-        writer.WriteSingle(quaternion.Z);
-        writer.WriteSingle(quaternion.W);
+        writer.WriteSingle(value.X);
+        writer.WriteSingle(value.Y);
+        writer.WriteSingle(value.Z);
+        writer.WriteSingle(value.W);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Quaternion(
-            reader.ReadSingle(), reader.ReadSingle(),
-            reader.ReadSingle(), reader.ReadSingle());
+    public Quaternion Read(ref WireReader reader) =>
+        new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 }
 
-internal sealed class PlaneFormatter : IScalarFormatter
+internal sealed class PlaneFormatter : IScalarFormatter<Plane>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Plane);
+    public int MinimumWireSize => 4 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Plane value)
     {
-        var plane = (Plane)value;
-        writer.WriteSingle(plane.Normal.X);
-        writer.WriteSingle(plane.Normal.Y);
-        writer.WriteSingle(plane.Normal.Z);
-        writer.WriteSingle(plane.D);
+        writer.WriteSingle(value.Normal.X);
+        writer.WriteSingle(value.Normal.Y);
+        writer.WriteSingle(value.Normal.Z);
+        writer.WriteSingle(value.D);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Plane(
-            reader.ReadSingle(), reader.ReadSingle(),
-            reader.ReadSingle(), reader.ReadSingle());
+    public Plane Read(ref WireReader reader) =>
+        new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 }
 
-internal sealed class Matrix3x2Formatter : IScalarFormatter
+internal sealed class Matrix3x2Formatter : IScalarFormatter<Matrix3x2>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Matrix3x2);
+    public int MinimumWireSize => 6 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Matrix3x2 value)
     {
-        var matrix = (Matrix3x2)value;
-        writer.WriteSingle(matrix.M11);
-        writer.WriteSingle(matrix.M12);
-        writer.WriteSingle(matrix.M21);
-        writer.WriteSingle(matrix.M22);
-        writer.WriteSingle(matrix.M31);
-        writer.WriteSingle(matrix.M32);
+        writer.WriteSingle(value.M11);
+        writer.WriteSingle(value.M12);
+        writer.WriteSingle(value.M21);
+        writer.WriteSingle(value.M22);
+        writer.WriteSingle(value.M31);
+        writer.WriteSingle(value.M32);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Matrix3x2(
+    public Matrix3x2 Read(ref WireReader reader) =>
+        new(
             reader.ReadSingle(), reader.ReadSingle(),
             reader.ReadSingle(), reader.ReadSingle(),
             reader.ReadSingle(), reader.ReadSingle());
 }
 
-internal sealed class Matrix4x4Formatter : IScalarFormatter
+internal sealed class Matrix4x4Formatter : IScalarFormatter<Matrix4x4>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Matrix4x4);
+    public int MinimumWireSize => 16 * sizeof(float);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Matrix4x4 value)
     {
-        var matrix = (Matrix4x4)value;
-        writer.WriteSingle(matrix.M11); writer.WriteSingle(matrix.M12);
-        writer.WriteSingle(matrix.M13); writer.WriteSingle(matrix.M14);
-        writer.WriteSingle(matrix.M21); writer.WriteSingle(matrix.M22);
-        writer.WriteSingle(matrix.M23); writer.WriteSingle(matrix.M24);
-        writer.WriteSingle(matrix.M31); writer.WriteSingle(matrix.M32);
-        writer.WriteSingle(matrix.M33); writer.WriteSingle(matrix.M34);
-        writer.WriteSingle(matrix.M41); writer.WriteSingle(matrix.M42);
-        writer.WriteSingle(matrix.M43); writer.WriteSingle(matrix.M44);
+        writer.WriteSingle(value.M11); writer.WriteSingle(value.M12);
+        writer.WriteSingle(value.M13); writer.WriteSingle(value.M14);
+        writer.WriteSingle(value.M21); writer.WriteSingle(value.M22);
+        writer.WriteSingle(value.M23); writer.WriteSingle(value.M24);
+        writer.WriteSingle(value.M31); writer.WriteSingle(value.M32);
+        writer.WriteSingle(value.M33); writer.WriteSingle(value.M34);
+        writer.WriteSingle(value.M41); writer.WriteSingle(value.M42);
+        writer.WriteSingle(value.M43); writer.WriteSingle(value.M44);
     }
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new Matrix4x4(
+    public Matrix4x4 Read(ref WireReader reader) =>
+        new(
             reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
             reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),
             reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(),

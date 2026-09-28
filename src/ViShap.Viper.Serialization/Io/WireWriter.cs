@@ -16,19 +16,21 @@ namespace ViShap.Viper.Io;
 /// </summary>
 internal ref struct WireWriter
 {
+    private readonly ref OperationState _state;
     private readonly PayloadBuffer _buffer;
     private Span<byte> _span;
     private int _buffered;
 
-    public WireWriter(PayloadBuffer buffer, SerializationOperation operation)
+    public WireWriter(PayloadBuffer buffer, ref OperationState state)
     {
         _buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
-        Operation = operation;
+        _state = ref state;
         _span = default;
         _buffered = 0;
     }
 
-    internal SerializationOperation Operation { get; }
+    /// <summary>The state of the operation these bytes belong to.</summary>
+    internal readonly ref OperationState State => ref _state;
 
     /// <summary>Bytes written so far, counted from the start of the buffer.</summary>
     public readonly long Position => _buffer.Length + _buffered;
@@ -104,10 +106,10 @@ internal ref struct WireWriter
     /// <summary>Writes a length-prefixed byte blob bounded by <c>MaxByteBlobBytes</c>.</summary>
     public void WriteBlob(scoped ReadOnlySpan<byte> bytes, string what)
     {
-        if (bytes.Length > Operation.Limits.MaxByteBlobBytes)
+        if (bytes.Length > _state.Limits.MaxByteBlobBytes)
             throw new BinaryLimitException(
                 $"{what} byte length {bytes.Length} exceeds the configured maximum of " +
-                $"{Operation.Limits.MaxByteBlobBytes} (MaxByteBlobBytes).");
+                $"{_state.Limits.MaxByteBlobBytes} (MaxByteBlobBytes).");
 
         Write7BitEncodedInt(bytes.Length);
         Write(bytes);
@@ -120,10 +122,10 @@ internal ref struct WireWriter
         ArgumentNullException.ThrowIfNull(value);
 
         int byteCount = Encoding.UTF8.GetByteCount(value);
-        if (byteCount > Operation.Limits.MaxStringBytes)
+        if (byteCount > _state.Limits.MaxStringBytes)
             throw new BinaryLimitException(
                 $"String byte length {byteCount} exceeds the configured maximum of " +
-                $"{Operation.Limits.MaxStringBytes} (MaxStringBytes).");
+                $"{_state.Limits.MaxStringBytes} (MaxStringBytes).");
 
         WriteEncodedString(value, byteCount);
     }
@@ -152,7 +154,7 @@ internal ref struct WireWriter
     /// <summary>Validates a count against its limit and the element budget, then writes it.</summary>
     public ElementCount WriteCount(int count, CountKind kind, string what)
     {
-        var validated = ElementCount.Validate(count, kind, Operation, what);
+        var validated = ElementCount.Validate(count, kind, ref _state, what);
         WriteInt32(validated.Value);
         return validated;
     }
@@ -163,7 +165,7 @@ internal ref struct WireWriter
         if (bits < 0)
             throw new BinaryFormatException($"{what} {bits} must be non-negative.");
 
-        long maximum = (long)Operation.Limits.MaxByteBlobBytes * 8L;
+        long maximum = (long)_state.Limits.MaxByteBlobBytes * 8L;
         if (bits > maximum)
             throw new BinaryLimitException(
                 $"{what} {bits} exceeds the configured maximum of {maximum} " +

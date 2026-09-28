@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace ViShap.Viper.Io;
 
@@ -129,6 +130,7 @@ internal sealed class PayloadBuffer : IDisposable
     }
 
     /// <summary>Writes the committed bytes to <paramref name="destination"/>, segment by segment.</summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     public async ValueTask WriteToAsync(Stream destination, CancellationToken cancellationToken)
     {
         for (int index = 0; index < _segments.Count; index++)
