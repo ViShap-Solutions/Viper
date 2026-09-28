@@ -78,15 +78,19 @@ contract would already be accurate for it.
   populate-in-place, §3.4 bytes consumed and §3.5 asynchrony, which carries the required V0
   explanation and example verbatim — the plan asked for them in "§3.1", which is where the whole
   serializer section was before the split. The old §3.2 is gone.
+- **R5 applied.** §3 lists the family-suffixed built-ins, `XxHash3Checksum`, `XxHash128Checksum`,
+  `ChaCha20Poly1305Encryption` and `HkdfKeyProvider`, with a paragraph on why every built-in carries
+  its family as a suffix and on the interfaces declaring no default members.
 
-### §4 Options and configuration — R3, R5
+### §4 Options and configuration — R3, R5 — applied
 
 - §4.1 builder: add `WithKeys` ×3; supplying keys through both `WithEncryption` and `WithKeys` is
   `BinaryConfigurationException` at `Build()` (plan §9.2). *(R3)*
 - §4.1: a static key is checked against `IEncryptionAlgorithm.KeySizeInBytes` at `Build()`;
   `ChaCha20Poly1305Encryption` chosen for writing on a platform where `IsSupported` is false is
   `BinaryFormatNotSupportedException` at `Build()`. The §13.2 sentence "a key size belongs to the
-  algorithm, so no entry point validates it on the way in" is reversed. *(R5)*
+  algorithm, so no entry point validates it on the way in" is reversed. *(R5)* — **R5 applied** to
+  the `Build()` rejection list of §4.1, with the ChaCha20-Poly1305 refusal beside it.
 - §4.1 V0 rules: unchanged — `RequireEncryption` / `RequireChecksum` with `WithVersion(0)` or
   `AllowV0Fallback` stay rejected in both directions.
 - **§4.3 `FromHeader` and `FromStream`** deleted. `BinaryFormatInspector` (§19) is the way to read a
@@ -138,12 +142,15 @@ contract would already be accurate for it.
 - Add: `OperationCanceledException` from the asynchronous methods is standard .NET, outside the
   taxonomy. *(R3)*
 - §8.1 `BinaryConfigurationException`: add the algorithm checks of plan §8.1 (ciphertext length,
-  filled destination, decrypted length, key size, hash size) and keys supplied twice. *(R3, R5)*
+  filled destination, decrypted length, key size, hash size) and keys supplied twice. *(R3, R5)* —
+  **R5 applied**, with a destination refused by the algorithm with `ArgumentException`; §8.7 gains a
+  resolved key of the wrong length and `HkdfKeyProvider` without a key id.
 - §8.2 `BinaryFormatException`: add the header rules of plan §6.1 (service order, duplicate number,
   number 0, critical-bit mismatch, `id = None`, empty custom name, body not read exactly, the 4 KiB
   bound) and the payload rules of plan §6.3. *(R6)*
 - §8.4 `BinaryFormatNotSupportedException`: add an unknown critical service, a set reserved
-  payload-mode bit, and an unsupported ChaCha20-Poly1305. *(R5, R6)*
+  payload-mode bit, and an unsupported ChaCha20-Poly1305. *(R5, R6)* — **R5 applied:** the
+  unsupported ChaCha20-Poly1305, at `Build()` and on read.
 - §8.5 `BinaryIntegrityException`: a flipped header byte of an encrypted frame fails the tag — every
   header byte, since the associated data is the header (INV-14). *(R6)*
 
@@ -170,7 +177,7 @@ contract would already be accurate for it.
   order, the 4 KiB bound. The rules "`Compression = None` → lengths equal" and
   "`Encryption = None` → lengths equal" are deleted.
 
-### §12 Compression contract — R5
+### §12 Compression contract — R5 — applied
 
 - The two halves of NX-01 stay: the ratio bounds the declared expansion, and decompression allocates
   as output arrives. The paragraph on `SupportsIncrementalDecompression` is replaced: decompression
@@ -191,6 +198,16 @@ contract would already be accurate for it.
   applied:** the ciphertext is a pooled buffer and the frame reaches a stream or a new array in one
   copy, which is the write; the associated data is built only under encryption and cleared. Writing
   straight into a buffer writer's span needs the exact ciphertext length of plan §8.1 and stays for R5.
+- **R5 applied.** §13 carries the interface, the table of the service's checks, the frame sized
+  before encryption and encrypted straight into the destination (a buffer writer's span, the new
+  array, one pooled buffer for a stream), and ChaCha20-Poly1305 with its platform refusal; §13.1 says
+  `AuthenticatesAssociatedData` has no default and there is no method without associated data; §13.2
+  the key-size checks and `HkdfKeyProvider`. The two sentences giving "only known after encryption"
+  as the reason `OnDiskLength` is outside the associated data (§13.1, §22.7) no longer hold and now
+  say only that it is outside it and self-verifying; the associated data itself is R6's. §2.5 and
+  §2.6 say where encryption's output goes and that the services hold an algorithm to what it
+  states. The `Encrypt` signature returns the bytes written, by the owner's decision of 2026-09-28
+  (`Owner-Review.md` log 57).
 
 ### §14 Contracts and members — R4, R6, R8
 
@@ -241,6 +258,19 @@ contract would already be accurate for it.
 - `BinaryFormatInspector.Peek` over a span and a sequence; "requires a seekable stream and restores
   its position" applies only to the stream overload. *(R3)* — **R3 applied.**
 - `BinaryHeaderInfo` and `BinaryFormatDumper` report the service records. *(R6)*
+- **§19 rewritten for plan §9.7** *(R6, D9.32)*: the purpose (a binary frame read by a person, as JSON
+  is); the surface — `DumpHeader` over a span, a sequence and a seekable stream (the `byte[]` overload
+  removed), `Dump`, `Dump<T>` over a span and a sequence, `DumpValue<T>`, `Compare<T>`, and
+  `BinaryDump`, `BinaryDumpNode`, `BinaryDumpNodeKind`, `BinaryDumpDifference`; what each reports; the
+  text report with its example; the rules: never throws for a malformed frame (only
+  `BinarySerializerException` is caught and kept in `Failure`, with `FailureOffset` and
+  `FailurePath`), reads under the options' limits, decrypts only with the options' keys and never
+  renders key material, renders values invariantly and times in UTC, bounds values in the tree
+  (strings at 256 characters, blobs at 64 bytes); `Compare<T>` reports the first differing node.
+- §3: the four new types in `ViShap.Viper.Diagnostics`. *(R6)*
+- §2.4: the engine's trace seam — `OperationState.Trace`, null outside the dumper; only the codecs
+  report to it; it receives offsets, names, kinds, generic values and read-only byte views from
+  `WireReader`, and changes nothing a read does. *(R6)*
 
 ### §20 Stream ownership — R1, R3
 

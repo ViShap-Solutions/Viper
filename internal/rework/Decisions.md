@@ -895,9 +895,10 @@ public interface IEncryptionAlgorithm
 
     int GetCiphertextLength(int plaintextLength);          // точная, ≥ plaintextLength
 
-    // destination.Length == GetCiphertextLength(plaintext.Length); заполняется целиком.
-    void Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
-                 ReadOnlySpan<byte> associatedData, Span<byte> destination);
+    // destination.Length == GetCiphertextLength(plaintext.Length); заполняется целиком;
+    // возвращает число записанных байт (Owner-Review, лог 57).
+    int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
 
     // destination.Length == ciphertext.Length; возвращает длину открытого текста.
     int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key,
@@ -934,7 +935,11 @@ HashSizeInBytes      вне 1…255 → BinaryConfigurationException (NX-11)
 ключи        StaticKeyProvider · DelegateKeyProvider · HkdfKeyProvider
                                                                 новый: ключ сообщения = HKDF(корневой ключ,
                                                                 info = KeyId); корневой ключ не раскрывается,
-                                                                выведенный — собственная копия (SecretKey)
+                                                                выведенный — собственная копия (SecretKey);
+                                                                HKDF-SHA-256, info = UTF-8(KeyId), длина ключа
+                                                                параметром (32 по умолчанию), соль
+                                                                необязательна, KeyId = null — ошибка ключа
+                                                                (Owner-Review, лог 58)
 после релиза Zstandard, LZ4, AES-GCM-SIV — отдельные пакеты (§9.2)
 ```
 
@@ -1314,6 +1319,30 @@ R9e  audit/v1-conformance-closure  проверка закрытия, пробн
   рабочей ветки — `Development-Workflow.md` §2.5. `viper_refactorer` сообщает владельцу следующий шаг с
   командами в начале каждой сессии и в каждой передаче, включая шаги, которые делает не он. Отвергнуто: `docs/` после R6 параллельно
   (сверялась бы четыре раза с меняющимся контрактом); гибрид.
+
+---
+
+- **9.32** [ПОДТВЕРЖДЕНО 2026-09-28, Owner-Review лог 59] Диагностика — полноценный инструмент
+  чтения бинарного кадра человеком, а не дамп заголовка. Цель: то, что JSON/XML дают глазами, — увидеть,
+  что записано, где и почему не читается. Делается в R6, последним шагом, против финального формата.
+
+```text
+DumpHeader(span | sequence | stream)   заголовок: сервисы, длины, ratio, контрольная сумма hex
+Dump(frame, options?)                  без типа: заголовок + фазы (расшифровка ключом из options,
+                                       распаковка, проверка суммы) + hex payload
+Dump<T>(frame, options?)               с типом: дерево payload — имя члена, тип, смещение, длина,
+                                       значение; ключ keyed-поля, тег union, id ссылки; при ошибке —
+                                       дерево до места ошибки, смещение и путь (Order.Lines[2].Note)
+DumpValue<T>(value, options?)          записать и разобрать — «что именно записалось»
+Compare<T>(expected, actual, options?) первое расхождение двух кадров: путь, смещения, значения
+BinaryDump                             модель; ToString() — дерево, ToJson(), ToHex() — hex с метками
+```
+
+  Механика: внутренний наблюдатель обхода в движке (`OperationState.Trace`, по умолчанию null),
+  вызываемый кодеками; форматтеры и контракты не меняются (INV-5). Байты наблюдатель получает только
+  от `WireReader` (INV-2); значения — generic, без boxing (INV-17). Дамп идёт под лимитами options,
+  ключ не выводится никогда. Стоимость выключенного наблюдателя меряется в R6; если она заметна —
+  стоп и вопрос владельцу. CLI и разбор без типа по схеме — после релиза.
 
 ---
 

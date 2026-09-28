@@ -139,7 +139,7 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   cold comparison is a regression, written up as PERF-06; the fixed allocations outside the engine are
   PERF-07; the slower cells are R-03 of §27.3. Measurement: `Measurements/48c7bf5-20260928T082209Z`.
 
-## R5 — Algorithm contracts
+## R5 — Algorithm contracts — applied
 
 - **§15** unchanged in scope — ZLib is not added. **§16**: add `XxHash3Checksum`,
   `XxHash128Checksum` and `ChaCha20Poly1305Encryption`; the renamed built-ins (`Crc32Checksum`,
@@ -150,6 +150,12 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   keeps its identity across the rename.
 - Note in **§16**: ChaCha20-Poly1305 against AES-GCM depends on AES hardware support; the manifest
   records the CPU, and the result must name it.
+- *Applied in R5.* New profiles **B-P4x3**, **B-P4x128**, **B-P5c**; **SEC-09** (the XXH3 checksums)
+  and **SEC-10** (ChaCha20-Poly1305) added to §16; MICRO-10 covers every built-in; the enum members of
+  `ViperProfile` keep their names, since a cell's parameters record them and BASE-02 matches on them —
+  the plan IDs alone would not have kept the identity. The stage measurement is
+  `Measurements/c215131-20260928T131001Z` (six suites), compared with `pre-rework` as R-04, with the
+  regression in PERF-08; ALLOC-12…ALLOC-14 carry their R5 values.
 
 ## R6 — The final format
 
@@ -162,6 +168,13 @@ left naming something that no longer exists. A retired checkpoint stays in the p
 - **MICRO-08** rewritten: header write and parse over service records; the separate AAD image is gone
   (the associated data is the header bytes).
 - **SEC-04** rewritten for the same reason.
+- **The trace seam of plan §9.7, switched off.** The read cells of `ProfileMatrixBenchmarks` (WL-02)
+  are measured twice in R6: before the diagnostics step and after it, same machine, nothing else
+  running. The comparison is published in `internal/performance/`; a difference outside error stops
+  the stage for the owner.
+- **MICRO-19** — the dumper itself, informational: `Dump<T>` of DATA-01, DATA-04 and DATA-08, time and
+  allocation per node. It gates nothing — diagnostics is not a hot path — but it states what a dump of
+  a large frame costs, and it catches an accidental quadratic rendering.
 
 ## R8 — Generator ground
 

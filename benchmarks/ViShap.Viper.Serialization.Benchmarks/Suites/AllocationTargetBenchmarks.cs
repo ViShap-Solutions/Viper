@@ -40,13 +40,13 @@ public class AllocationTargetBenchmarks
         new(BinarySerializerOptions.Configure().PreserveReferences().Build());
 
     private readonly BinarySerializer _brotli =
-        new(BinarySerializerOptions.Configure().WithCompression(new Brotli()).Build());
+        new(BinarySerializerOptions.Configure().WithCompression(new BrotliCompression()).Build());
 
     private readonly BinarySerializer _deflate =
-        new(BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build());
+        new(BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build());
 
     private readonly BinarySerializer _encrypted =
-        new(BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), Key, "bench").Build());
+        new(BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), Key, "bench").Build());
 
     private readonly ArrayBufferWriter<byte> _destination = new(1 << 20);
     private readonly MemoryStream _stream = new(new byte[1 << 20], 0, 1 << 20, writable: true, publiclyVisible: true);

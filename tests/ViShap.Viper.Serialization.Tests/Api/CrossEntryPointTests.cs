@@ -251,9 +251,9 @@ public sealed class ProtectedCrossEntryPointTests : CrossEntryPoint
     ];
 
     protected override BinarySerializerOptions Options { get; } = BinarySerializerOptions.Configure()
-        .WithCompression(new Brotli())
-        .WithChecksum(new Crc32())
-        .WithEncryption(new Aes256Gcm(), Material, keyId: "primary")
+        .WithCompression(new BrotliCompression())
+        .WithChecksum(new Crc32Checksum())
+        .WithEncryption(new Aes256GcmEncryption(), Material, keyId: "primary")
         .Build();
 
     protected override bool BytesAreDeterministic => false;

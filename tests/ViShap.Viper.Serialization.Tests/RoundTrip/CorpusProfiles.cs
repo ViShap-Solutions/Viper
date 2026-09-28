@@ -57,9 +57,9 @@ public sealed class ProtectedCorpusTests : Corpus
 
     private static BinarySerializerOptions Build(SerializationLimits limits) =>
         BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key)
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key)
             .WithLimits(limits)
             .Build();
 }
@@ -86,9 +86,9 @@ public sealed class DeflateProtectedCorpusTests : Corpus
 
     private static BinarySerializerOptions Build(SerializationLimits limits) =>
         BinarySerializerOptions.Configure()
-            .WithCompression(new Deflate())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key)
+            .WithCompression(new DeflateCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key)
             .WithLimits(limits)
             .Build();
 }

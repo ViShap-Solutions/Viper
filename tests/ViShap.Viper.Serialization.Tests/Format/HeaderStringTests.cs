@@ -15,7 +15,7 @@ public class HeaderStringTests
 
     private static BinarySerializer Encrypted(string keyId) =>
         new(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), RandomNumberGenerator.GetBytes(32), keyId)
+            .WithEncryption(new Aes256GcmEncryption(), RandomNumberGenerator.GetBytes(32), keyId)
             .Build());
 
     [Fact]

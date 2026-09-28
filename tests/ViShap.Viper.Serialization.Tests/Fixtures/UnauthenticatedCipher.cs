@@ -19,15 +19,27 @@ internal sealed class UnauthenticatedCipher : IEncryptionAlgorithm
 
     public string? CustomName => RegisteredName;
 
-    public int GetMaxCiphertextLength(int plaintextLength) => plaintextLength;
+    public bool AuthenticatesAssociatedData => false;
 
-    public int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key, Span<byte> destination)
+    public int KeySizeInBytes => 32;
+
+    public int GetCiphertextLength(int plaintextLength) => plaintextLength;
+
+    public int Encrypt(
+        ReadOnlySpan<byte> plaintext,
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> associatedData,
+        Span<byte> destination)
     {
         plaintext.CopyTo(destination);
         return plaintext.Length;
     }
 
-    public int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key, Span<byte> destination)
+    public int Decrypt(
+        ReadOnlySpan<byte> ciphertext,
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> associatedData,
+        Span<byte> destination)
     {
         ciphertext.CopyTo(destination);
         return ciphertext.Length;

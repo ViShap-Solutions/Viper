@@ -105,8 +105,8 @@ type fails the build's test run until the contract lists it.
 
 ## Projects
 
-- `ViShap.Viper.Core` — contracts only, no dependencies: attributes, the `CompressionAlgorithm`/`ChecksumAlgorithm`/`EncryptionAlgorithm` enums with their `I*Algorithm` primitives, `SecretKey`/`IKeyProvider`, and the exception hierarchy (all derive from `BinarySerializerException`). Core carries **no policy**: no limits, no orchestration, nothing that enforces a resource ceiling.
-- `ViShap.Viper.Serialization` — the entire engine. Depends on Core + `System.IO.Hashing`.
+- `ViShap.Viper.Core` — contracts only, no dependencies: attributes, the `CompressionAlgorithm`/`ChecksumAlgorithm`/`EncryptionAlgorithm` enums with their `ICompressionAlgorithm`/`IChecksumAlgorithm`/`IEncryptionAlgorithm` primitives and the `No*` pass-throughs, `SecretKey`/`IKeyProvider`, and the exception hierarchy (all derive from `BinarySerializerException`). Core carries **no policy**: no limits, no orchestration, nothing that enforces a resource ceiling.
+- `ViShap.Viper.Serialization` — the entire engine, and the built-in algorithms and key providers (`DeflateCompression`, `BrotliCompression`, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption`, `ChaCha20Poly1305Encryption`, `StaticKeyProvider`, `DelegateKeyProvider`, `HkdfKeyProvider`). Depends on Core + `System.IO.Hashing`.
 - `ViShap.Viper` — meta-package, references both, ships no code.
 
 **Namespaces do not follow the folder/assembly layout.** Everything roots at `ViShap.Viper.*` regardless of project (e.g. `src/ViShap.Viper.Serialization/Io/` → `ViShap.Viper.Io`). The *public* API (`BinarySerializer`, `BinarySerializerOptions`, `PooledPayload`, the attributes) sits in the bare `ViShap.Viper` namespace so consumers need one `using`. `GlobalUsings.cs` imports every sub-namespace, so new files in the Serialization project usually need no `using` for in-project types.
@@ -191,9 +191,11 @@ Limit breaches throw `BinaryLimitException`; malformed data throws `BinaryFormat
 
 ### Algorithms
 
-Each family has a public primitive (`I*Algorithm`, span-based, policy-free) and an internal service (`CompressionService`, `ChecksumService`, `EncryptionService`) that the pipeline calls **inside** the phase barrier. Custom algorithms are registered on the options builder and snapshotted into an `AlgorithmCatalog`; there is no process-wide registry, and built-ins cannot be substituted.
+Each family has a public primitive (`I*Algorithm`, policy-free) and an internal service (`CompressionService`, `ChecksumService`, `EncryptionService`) that the pipeline calls **inside** the phase barrier. A primitive has one method per direction and no default members — a member added after v1.0 comes with a default implementation, the only additive path. Compression writes into an `IBufferWriter<byte>` the service supplies (bounded by `MaxCompressedBytes` on the way out, by the declared length on the way in) and must produce exactly `expectedLength` bytes; a checksum states `HashSizeInBytes` (1…255); a cipher states `KeySizeInBytes` and an exact `GetCiphertextLength`, always takes associated data, and returns what it wrote. The services hold every algorithm to what it states, and a breach is `BinaryConfigurationException` (§8.1 of the contract).
 
-Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvider`. The serializer never zeroes memory it does not own.
+The built-ins carry their family as a suffix — `DeflateCompression`, `BrotliCompression`, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption`, `ChaCha20Poly1305Encryption` — so none collides with a BCL type; the enum members (`ChecksumAlgorithm.Crc32`, …) keep the short names. `ChaCha20Poly1305Encryption` where the platform lacks it is `BinaryFormatNotSupportedException` at `Build()` and on read. Because the ciphertext length is exact, an encrypted frame is sized, budget-checked and keyed before the destination is touched, and the cipher then writes straight into the destination (`Pipeline/SealedBody`); a buffer writer is advanced only once the whole frame is in it. Custom algorithms are registered on the options builder and snapshotted into an `AlgorithmCatalog`; there is no process-wide registry, and built-ins cannot be substituted.
+
+Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvider`. A fixed key given to `WithEncryption` is checked against `KeySizeInBytes` at `Build()`; a provided key when it is resolved. `HkdfKeyProvider` derives one key per key id (HKDF-SHA-256, id as info) from a root key it never exposes. The serializer never zeroes memory it does not own.
 
 ## Conventions
 

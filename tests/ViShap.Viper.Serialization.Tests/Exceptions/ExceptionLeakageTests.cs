@@ -163,5 +163,5 @@ public class ExceptionLeakageTests
     }
 
     private static BinarySerializer Encrypted(byte[] key) =>
-        new(BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key).Build());
+        new(BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key).Build());
 }

@@ -199,7 +199,7 @@ public class TruncationTests
     {
         byte[] key = RandomNumberGenerator.GetBytes(32);
         byte[] frame = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key, "k7").Build())
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key, "k7").Build())
             .Serialize(123);
 
         // magic, version, compression, no custom name, checksum, no custom name, encryption,
@@ -210,7 +210,7 @@ public class TruncationTests
         byte[] respelled = [.. frame[..keyIdLength], 0x82, 0x00, .. frame[(keyIdLength + 1)..]];
 
         var reader = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key, "k7").Build());
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key, "k7").Build());
 
         AssertEx.Throws<BinaryFormatException>("minimally", () => reader.Deserialize<int>(respelled));
     }

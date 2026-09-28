@@ -83,8 +83,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | closed | `1a73c62` |
 | R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | closed | `7ac46c0` |
 | R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | closed | `48c7bf5` |
-| R4 — Typed engine | `rework/r4-typed-engine` | — | gate holds — awaiting commit | |
-| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | not started | |
+| R4 — Typed engine | `rework/r4-typed-engine` | — | closed | `c215131` |
+| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | gate holds — awaiting commit | |
 | R6 — The final format | `rework/r6-final-format` | the owner may tag `v1.0.0-beta.1` on `release/v1.0.0` | not started | |
 | R7 — Removed | — | — | — | — |
 | R8 — Generator ground | `rework/r8-generator-ground` | — | not started | |
@@ -585,9 +585,10 @@ public interface IEncryptionAlgorithm
 
     int GetCiphertextLength(int plaintextLength);                        // exact, and ≥ plaintextLength
 
-    // destination.Length == GetCiphertextLength(plaintext.Length); filled completely.
-    void Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
-                 ReadOnlySpan<byte> associatedData, Span<byte> destination);
+    // destination.Length == GetCiphertextLength(plaintext.Length); filled completely;
+    // returns the number of bytes written.
+    int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
 
     // destination.Length == ciphertext.Length; returns the plaintext length.
     int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key,
@@ -613,7 +614,7 @@ Checks the services perform:
 KeySizeInBytes        a static key — at Build(), BinaryConfigurationException;
                       a provided key — when resolved, BinaryEncryptionKeyException
 GetCiphertextLength   negative or below plaintextLength → BinaryConfigurationException
-Encrypt               destination not filled exactly → BinaryConfigurationException
+Encrypt               result other than destination.Length → BinaryConfigurationException
 Decrypt               result outside 0…ciphertext.Length → BinaryConfigurationException
 Decompress            not exactly expectedLength bytes → BinaryFormatException
 HashSizeInBytes       outside 1…255 → BinaryConfigurationException (NX-11)
@@ -631,7 +632,10 @@ none          NoCompression · NoChecksum · NoEncryption          unchanged
 key providers StaticKeyProvider · DelegateKeyProvider · HkdfKeyProvider
                                                                 new: message key = HKDF(root key, info = KeyId);
                                                                 the root key is never exposed; the derived key is
-                                                                an owned copy (SecretKey)
+                                                                an owned copy (SecretKey); HKDF-SHA-256,
+                                                                info = UTF-8(KeyId), key size a parameter
+                                                                (32 by default), optional salt, a null KeyId
+                                                                is BinaryEncryptionKeyException
 ```
 
 **Names** [D9.18]. Every built-in carries its family as a suffix, in the style of `NoChecksum`, so
@@ -837,6 +841,142 @@ which behaves identically. The rules of contract §3.1 carry over: a type with a
 different union runtime type is `BinaryTypeException`; an empty input leaves the target untouched. Only
 the root is populated — nested objects are created afresh — and a keyed contract keeps the current
 value of every field absent from the payload.
+
+## 9.7 Diagnostics [D9.32]
+
+**Why.** A binary frame cannot be read by eye the way JSON or XML can. `ViShap.Viper.Diagnostics` is
+what closes that gap: it turns a frame into text a person can read — what was written, where, and why
+it does not read back. Today it renders five header fields. After R6 it renders the header, every
+phase, and the payload as a tree, and it points at the byte and the member where a read fails.
+
+**Surface** (namespace `ViShap.Viper.Diagnostics`, all new public types listed in contract §3):
+
+```csharp
+public static class BinaryFormatDumper
+{
+    // The header alone; no type, no key. The byte[] overload goes: an array converts to a span.
+    public static string DumpHeader(ReadOnlySpan<byte> frame);
+    public static string DumpHeader(ReadOnlySequence<byte> frame);
+    public static string DumpHeader(Stream source);                       // seekable; position restored
+
+    // The whole frame without a type: header, then each phase undone with the options' keys and
+    // verified, then the payload as annotated hex. Bytes without the magic are shown as V0 hex.
+    public static BinaryDump Dump(ReadOnlySpan<byte> frame, BinarySerializerOptions? options = null);
+
+    // The whole frame with T as the schema: the payload as a tree.
+    public static BinaryDump Dump<T>(ReadOnlySpan<byte> frame, BinarySerializerOptions? options = null);
+    public static BinaryDump Dump<T>(ReadOnlySequence<byte> frame, BinarySerializerOptions? options = null);
+
+    // Writes value with the options, then dumps what was written: "what exactly went on the wire".
+    public static BinaryDump DumpValue<T>(T value, BinarySerializerOptions? options = null);
+
+    // The first node where two frames of T differ, or null when they decode to the same tree.
+    public static BinaryDumpDifference? Compare<T>(
+        ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual, BinarySerializerOptions? options = null);
+}
+
+public sealed class BinaryDump
+{
+    public int FormatVersion { get; }                    // 0 or 1
+    public BinaryHeaderInfo? Header { get; }             // null for V0
+    public int HeaderLength { get; }
+    public int PayloadLength { get; }                    // after decryption and decompression
+    public bool? ChecksumVerified { get; }               // null: no checksum, or not reached
+    public bool? Decrypted { get; }                      // null: not encrypted; false: no key given
+    public BinaryDumpNode? Root { get; }                 // null without T; partial on failure
+    public BinarySerializerException? Failure { get; }   // null when the frame read completely
+    public long? FailureOffset { get; }                  // offset in the payload
+    public string? FailurePath { get; }                  // "Order.Lines[2].Note"
+    public int MaxDepth { get; }                         // measured from the tree
+    public int NodeCount { get; }
+    public override string ToString();                   // the text report below
+    public string ToJson();                              // the same, as JSON
+    public string ToHex();                               // 16 bytes a line, each line labelled with its node
+}
+
+public sealed class BinaryDumpNode
+{
+    public string Name { get; }                          // member name, "[3]", "{key}", "root"
+    public string TypeName { get; }                      // the declared type; the runtime type in a union
+    public BinaryDumpNodeKind Kind { get; }
+    public long Offset { get; }                          // in the payload
+    public int Length { get; }                           // bytes the node occupies on the wire
+    public string? Value { get; }                        // a scalar, rendered invariantly; strings cut at 256 chars
+    public int? Key { get; }                             // keyed field
+    public byte? UnionTag { get; }
+    public int? ReferenceId { get; }                     // with PreserveReferences
+    public string? ReferenceTarget { get; }              // the path a back reference points to
+    public IReadOnlyList<BinaryDumpNode> Children { get; }
+}
+
+public enum BinaryDumpNodeKind
+{
+    Null, Scalar, Sequence, Map, Object, KeyedObject, KeyedField, UnknownKeyedField, Union,
+    BackReference, Composite
+}
+
+public sealed class BinaryDumpDifference
+{
+    public string Path { get; }
+    public BinaryDumpNode? Expected { get; }
+    public BinaryDumpNode? Actual { get; }
+}
+```
+
+**The text report** — `ToString()`, the form a person reads:
+
+```text
+Viper V1 frame · 1 069 bytes · header 41 bytes
+  compression  Brotli         4 096 → 1 000 bytes (×4.1)
+  checksum     XxHash3        9F 2C 71 04 BE 55 03 3A   verified
+  encryption   Aes256Gcm      key id "2026-q3"   decrypted, header authenticated
+payload 4 096 bytes as Order · depth 4 · 38 nodes
+@0000  Order                         object · 5 members
+@0001  ├─ Id          Int64          42
+@0002  ├─ Customer    String         "Alice"                 6 bytes
+@0008  ├─ Lines       List<Line>     3 items
+@0009  │  ├─ [0]      Line           object · 2 members
+…
+@0F3A  └─ Note        String         ✗ BinaryFormatException: invalid UTF-8
+failure at @0F41 (3905) in Order.Lines[2].Note
+```
+
+**How it works.** One internal seam in the engine: `OperationState.Trace`, an internal observer that
+is `null` for every serializer call and set only by the dumper. The codecs of `Engine/` — the entry of
+every value (null flag, reference frame, union tag), the sequence, map, array and composite loops, the
+object codec per member through `MemberReader`, the keyed codec per field — report `Enter` (name,
+declared type, kind, offset), `Value<T>` (a scalar, generic, so nothing is boxed — INV-17) and `Exit`
+(offset). Offsets come from `WireReader.Consumed`, and the bytes of a node reach the observer only as a
+read-only view `WireReader` hands out (INV-2). Formatters and type contracts do not change: the codec
+that owns the loop is the only caller (INV-5). The read itself is the ordinary read, under the
+options' limits and budgets; a failure leaves the observer's stack open, which is where the path and
+the offset of the failure come from, and the exception is kept rather than thrown.
+
+**Rules.**
+
+- The dumper never throws for a malformed or hostile frame: every `BinarySerializerException` is
+  reported in `Failure`. It throws `ArgumentNullException` for a null argument and
+  `NotSupportedException` for a stream that cannot seek, as today (§19 of the contract).
+- It reads under the options' limits (`SerializationLimits.Default` when none are given), so a hostile
+  frame costs the dumper what it would cost a reader. The tree is bounded by the node and element
+  budgets; string values are cut at 256 characters and blobs at 64 bytes in the tree (`ToHex` shows
+  every byte of the payload, bounded by `MaxWireBytes`).
+- Decryption uses the options' keys; without a key the phases stop at the ciphertext, `Decrypted` is
+  `false`, and the report says so. Key material is never rendered. A decrypted dump shows plaintext:
+  the XML documentation says so.
+- Values render with the invariant culture, and times in UTC, so a dump is the same on every machine.
+- `Compare<T>` walks both trees in order and reports the first node whose kind, type, value, key, tag
+  or child count differs.
+
+**Where it lands.** R6, as its last step, after the format and the re-frozen fixtures: the offsets the
+tests pin are then the final ones, and the header it renders is the service-record header. Before the
+step, the read cells of the profile matrix are measured; after it, again — the difference is what the
+switched-off seam costs, and a measurable difference stops the stage for the owner (alternatives: a
+generic struct observer the JIT removes, or the seam only in a separate diagnostic codec set).
+
+**Not in v1.0.** A command-line tool (`dotnet viper dump`), which needs a type loaded from an assembly;
+reading a payload without a type from a schema file; and the path and offset added to the messages of
+ordinary reads, which would need the seam switched on for every call. All three are additive later.
 
 ---
 
@@ -1264,8 +1404,11 @@ four change files.
   numbers, the null fold, the reference frame, `ImmutableArray<T>`.
 - Re-freeze the fixtures once, from the corpus; record the exception in `CLAUDE.md` and restore the
   rule in the same change. Delete the oracle.
+- Last step: diagnostics (§9.7) — the engine's trace seam, `BinaryFormatDumper` over spans and
+  sequences, `Dump`, `Dump<T>`, `DumpValue<T>`, `Compare<T>`, and the `BinaryDump` model with its
+  text, JSON and hex renderings.
 - **Gate:** every rule of contract §22 is pinned by a byte-level test; the new fixtures are committed;
-  sizes (Track A §14) re-measured against R0 and the difference published in `internal/performance/`; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
+  sizes (Track A §14) re-measured against R0 and the difference published in `internal/performance/`; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11); every node kind of `BinaryDumpNodeKind` and every failure class of contract §8 is pinned by a dumper test over the new fixtures; the read cells of the profile matrix before and after the trace seam are within error, or the difference is the owner's decision.
 
 ### R7 — Removed
 

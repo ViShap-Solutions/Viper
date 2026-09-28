@@ -123,7 +123,7 @@ public class ExceptionMappingTests
     public void Deserialize_AChecksumThatDoesNotMatchThePayload_ThrowsIntegrity()
     {
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build());
+            BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build());
 
         byte[] body = Wire.Payload(writer => writer.Write(123));
         byte[] frame = Wire.FrameWith(
@@ -160,7 +160,7 @@ public class ExceptionMappingTests
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), _ => null, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), _ => null, "primary")
                 .Build());
 
         Assert.Throws<BinaryEncryptionKeyException>(() => serializer.Deserialize<int>(payload));
@@ -335,7 +335,7 @@ public class ExceptionMappingTests
         Assert.Throws<ArgumentNullException>(() => builder.WithChecksum(null!));
         Assert.Throws<ArgumentNullException>(() => builder.WithEncryption(null!, NewKey()));
         Assert.Throws<ArgumentNullException>(
-            () => builder.WithEncryption(new Aes256Gcm(), (IKeyProvider)null!));
+            () => builder.WithEncryption(new Aes256GcmEncryption(), (IKeyProvider)null!));
     }
 
     [Fact]
@@ -372,6 +372,6 @@ public class ExceptionMappingTests
 
     private static BinarySerializer Encrypted(byte[] key, string? keyId = null) =>
         new(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), key, keyId)
+            .WithEncryption(new Aes256GcmEncryption(), key, keyId)
             .Build());
 }

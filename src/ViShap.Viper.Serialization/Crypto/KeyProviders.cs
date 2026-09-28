@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace ViShap.Viper.Crypto;
 
 /// <summary>
@@ -85,7 +88,7 @@ public sealed class StaticKeyProvider : IKeyProvider, IDisposable
 /// <example>
 /// <code>
 /// var options = BinarySerializerOptions.Configure()
-///     .WithEncryption(new Aes256Gcm(), id => _keyring.Find(id), keyId: "2026-q3")
+///     .WithEncryption(new Aes256GcmEncryption(), id => _keyring.Find(id), keyId: "2026-q3")
 ///     .Build();
 /// </code>
 /// </example>
@@ -108,5 +111,113 @@ public sealed class DelegateKeyProvider(Func<string?, byte[]?> resolver) : IKeyP
                 $"No decryption key is available for key id '{keyId ?? "(none)"}'.");
 
         return SecretKey.CopyFrom(material);
+    }
+}
+
+/// <summary>
+/// Derives a distinct key for every key id from one root key, with HKDF-SHA-256 (RFC 5869).
+/// </summary>
+/// <remarks>
+/// <para>
+/// The key for an id is <c>HKDF(rootKey, salt, info = the UTF-8 bytes of the id)</c>: the same id
+/// always yields the same key, and different ids yield independent keys. One secret then serves any
+/// number of ids — per tenant, per message type, per period — and rotating to a new id needs no new
+/// secret to be distributed.
+/// </para>
+/// <para>
+/// The root key is copied when the provider is constructed and is never exposed: <see cref="Resolve"/>
+/// hands out only derived keys, each an owned copy that its caller disposes. The array you pass in
+/// stays yours, and disposing the provider clears only its own copy.
+/// </para>
+/// <para>
+/// A key is derived from an id, so a payload that names no id cannot be decrypted with this provider,
+/// and options that write with it must give <c>WithEncryption</c> a key id.
+/// </para>
+/// <example>
+/// <code>
+/// using var keys = new HkdfKeyProvider(rootKey);
+/// var options = BinarySerializerOptions.Configure()
+///     .WithEncryption(new Aes256GcmEncryption(), keys, keyId: $"tenant-{tenantId}")
+///     .Build();
+/// </code>
+/// </example>
+/// </remarks>
+public sealed class HkdfKeyProvider : IKeyProvider, IDisposable
+{
+    private const int MaxDerivedKeyBytes = 255 * 32;
+    private const int StackBytes = 256;
+
+    private readonly SecretKey _rootKey;
+    private readonly byte[] _salt;
+    private readonly int _keySizeInBytes;
+    private bool _disposed;
+
+    /// <summary>Creates a provider that derives keys from a copy of <paramref name="rootKey"/>.</summary>
+    /// <param name="rootKey">The secret every key is derived from. It is copied; the source is not modified.</param>
+    /// <param name="keySizeInBytes">
+    /// The length of each derived key, which must match the encryption algorithm's key size — 32 for
+    /// the built-in algorithms.
+    /// </param>
+    /// <param name="salt">
+    /// An optional non-secret value that separates this deployment's keys from any other derived from
+    /// the same root key. Empty means no salt.
+    /// </param>
+    /// <exception cref="BinaryEncryptionKeyException"><paramref name="rootKey"/> is empty.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="keySizeInBytes"/> is not between 1 and 8160, the most HKDF-SHA-256 can derive.
+    /// </exception>
+    public HkdfKeyProvider(ReadOnlySpan<byte> rootKey, int keySizeInBytes = 32, ReadOnlySpan<byte> salt = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(keySizeInBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(keySizeInBytes, MaxDerivedKeyBytes);
+
+        _rootKey = SecretKey.CopyFrom(rootKey);
+        _salt = salt.ToArray();
+        _keySizeInBytes = keySizeInBytes;
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="BinaryEncryptionKeyException"><paramref name="keyId"/> is null: there is no id to derive a key from.</exception>
+    /// <exception cref="ObjectDisposedException">The provider has been disposed.</exception>
+    public SecretKey Resolve(string? keyId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (keyId is null)
+            throw new BinaryEncryptionKeyException(
+                "A key is derived from a key id, but none was given. Write with a key id so that " +
+                "readers can derive the same key.");
+
+        int infoLength = Encoding.UTF8.GetByteCount(keyId);
+        Span<byte> info = infoLength <= StackBytes ? stackalloc byte[StackBytes] : new byte[infoLength];
+        info = info[..Encoding.UTF8.GetBytes(keyId, info)];
+
+        Span<byte> derived = _keySizeInBytes <= StackBytes
+            ? stackalloc byte[StackBytes]
+            : new byte[_keySizeInBytes];
+        derived = derived[.._keySizeInBytes];
+
+        try
+        {
+            HKDF.DeriveKey(HashAlgorithmName.SHA256, _rootKey.Span, derived, _salt, info);
+            return SecretKey.CopyFrom(derived);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(derived);
+        }
+    }
+
+    /// <summary>
+    /// Clears this provider's copy of the root key. The array originally passed to the constructor is
+    /// not touched.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _rootKey.Dispose();
     }
 }

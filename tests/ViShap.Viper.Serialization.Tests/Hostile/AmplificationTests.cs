@@ -122,7 +122,7 @@ public class AmplificationTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), RandomNumberGenerator.GetBytes(32))
+                .WithEncryption(new Aes256GcmEncryption(), RandomNumberGenerator.GetBytes(32))
                 .Build());
         byte[] frame = Wire.FrameWith(
             new byte[32],
@@ -140,7 +140,7 @@ public class AmplificationTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), RandomNumberGenerator.GetBytes(32))
+                .WithEncryption(new Aes256GcmEncryption(), RandomNumberGenerator.GetBytes(32))
                 .Build());
         byte[] frame = Wire.FrameWith(
             new byte[32],
@@ -159,7 +159,7 @@ public class AmplificationTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
+                .WithCompression(new DeflateCompression())
                 .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 1024 })
                 .Build());
         byte[] frame = Wire.FrameWith(
@@ -178,7 +178,7 @@ public class AmplificationTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
+                .WithCompression(new DeflateCompression())
                 .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 1024 })
                 .Build());
         byte[] frame = Wire.FrameWith(
@@ -196,7 +196,7 @@ public class AmplificationTests
     {
         // The attacker must actually deliver CompressedLength bytes; claiming them is not enough.
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build());
+            BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build());
         byte[] frame = Wire.FrameWith(
             new byte[16],
             compression: Deflate,
@@ -215,7 +215,7 @@ public class AmplificationTests
         // The bound is the declared uncompressed size, not the compression ratio: a legitimate
         // payload that compresses well is unaffected.
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build());
+            BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build());
         string original = new('x', 100_000);
 
         byte[] frame = serializer.Serialize(original);

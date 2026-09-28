@@ -65,7 +65,7 @@ public class HeaderTests
     [Fact]
     public void Deserialize_UndefinedChecksumIdentifier_ThrowsFormatNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Int42, checksumAlgorithm: 2);
+        byte[] frame = Wire.FrameWith(Int42, checksumAlgorithm: 200);
 
         AssertEx.Throws<BinaryFormatNotSupportedException>(
             "checksum", () => Default.Deserialize<int>(frame));
@@ -74,7 +74,7 @@ public class HeaderTests
     [Fact]
     public void Deserialize_UndefinedEncryptionIdentifier_ThrowsFormatNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Int42, encryption: 2);
+        byte[] frame = Wire.FrameWith(Int42, encryption: 200);
 
         AssertEx.Throws<BinaryFormatNotSupportedException>(
             "encryption", () => Default.Deserialize<int>(frame));

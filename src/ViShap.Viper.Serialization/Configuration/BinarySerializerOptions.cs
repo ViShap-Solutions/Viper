@@ -23,8 +23,8 @@
 /// <example>
 /// <code>
 /// var options = BinarySerializerOptions.Configure()
-///     .WithCompression(new Brotli())
-///     .WithChecksum(new Crc32())
+///     .WithCompression(new BrotliCompression())
+///     .WithChecksum(new Crc32Checksum())
 ///     .PreserveReferences()
 ///     .Build();
 ///

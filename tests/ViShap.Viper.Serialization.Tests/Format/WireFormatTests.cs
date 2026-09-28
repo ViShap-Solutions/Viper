@@ -167,7 +167,7 @@ public class WireFormatTests
         // The key id is the only optional string a caller can populate without a custom algorithm.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), new byte[32], keyId: "ab")
+                .WithEncryption(new Aes256GcmEncryption(), new byte[32], keyId: "ab")
                 .Build());
 
         byte[] frame = serializer.Serialize(42);

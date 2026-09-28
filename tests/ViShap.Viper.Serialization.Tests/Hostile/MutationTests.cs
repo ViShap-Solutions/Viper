@@ -249,7 +249,7 @@ public class MutationTests
     public void Deserialize_AMutatedChecksum_ThrowsIntegrity()
     {
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build());
+            BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build());
         byte[] frame = serializer.Serialize(Sample());
 
         // The checksum bytes follow the one-byte length at the end of the header.
@@ -262,7 +262,7 @@ public class MutationTests
     public void Deserialize_AMutatedPayloadUnderAChecksum_ThrowsIntegrity()
     {
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build());
+            BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build());
         byte[] frame = serializer.Serialize(Sample());
 
         byte[] mutated = Mutate.FlipByte(frame, frame.Length - 1);
@@ -277,7 +277,7 @@ public class MutationTests
     {
         byte[] key = NewKey();
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key).Build());
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key).Build());
         byte[] frame = serializer.Serialize(Sample());
 
         byte[] mutated = Mutate.FlipByte(frame, frame.Length - 1);
@@ -290,7 +290,7 @@ public class MutationTests
     {
         byte[] key = NewKey();
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key).Build());
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key).Build());
         byte[] frame = serializer.Serialize(Sample());
 
         // §8.2 and §13.1 both apply here: the frame is short *and* unauthenticated.
@@ -306,8 +306,8 @@ public class MutationTests
         byte[] key = NewKey();
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), key, "ring")
-                .WithChecksum(new Crc32())
+                .WithEncryption(new Aes256GcmEncryption(), key, "ring")
+                .WithChecksum(new Crc32Checksum())
                 .Build());
         byte[] frame = serializer.Serialize(Sample());
 
@@ -329,7 +329,7 @@ public class MutationTests
         byte[] key = NewKey();
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), key, "ring")
+                .WithEncryption(new Aes256GcmEncryption(), key, "ring")
                 .Build());
         byte[] frame = serializer.Serialize(Sample());
         int headerLength = Wire.ReadHeader(frame).HeaderLength;

@@ -20,17 +20,26 @@ public enum ViperProfile
     /// <summary>B-P2 — V1 under a tight limit policy.</summary>
     TightLimits,
 
-    /// <summary>B-P3 — V1 with Deflate.</summary>
+    /// <summary>B-P3 — V1 with <c>DeflateCompression</c>.</summary>
     Deflate,
 
-    /// <summary>B-P3 — V1 with Brotli.</summary>
+    /// <summary>B-P3 — V1 with <c>BrotliCompression</c>.</summary>
     Brotli,
 
-    /// <summary>B-P4 — V1 with CRC-32.</summary>
+    /// <summary>B-P4 — V1 with <c>Crc32Checksum</c>.</summary>
     Crc32,
 
-    /// <summary>B-P5 — V1 with AES-256-GCM.</summary>
+    /// <summary>B-P5 — V1 with <c>Aes256GcmEncryption</c>.</summary>
     Aes256Gcm,
+
+    /// <summary>B-P4x3 — V1 with <c>XxHash3Checksum</c>.</summary>
+    XxHash3,
+
+    /// <summary>B-P4x128 — V1 with <c>XxHash128Checksum</c>.</summary>
+    XxHash128,
+
+    /// <summary>B-P5c — V1 with <c>ChaCha20Poly1305Encryption</c>.</summary>
+    ChaCha20Poly1305,
 
     /// <summary>B-P6 — V1 with Brotli, CRC-32 and AES-256-GCM.</summary>
     ProtectedBrotli,
@@ -84,7 +93,7 @@ public static class ViperProfiles
     /// <summary>
     /// The profiles an entry-point suite runs over: the default frame, reference framing, one
     /// encryption, the full envelope and V0 — every kind of path a frame takes through an entry point.
-    /// What each of the ten profiles costs is the profile matrix's to measure, not an entry point's.
+    /// What each of the thirteen profiles costs is the profile matrix's to measure, not an entry point's.
     /// </summary>
     internal static IReadOnlyList<ViperProfile> Representative { get; } =
     [
@@ -109,6 +118,9 @@ public static class ViperProfiles
         ViperProfile.Brotli => "B-P3b",
         ViperProfile.Crc32 => "B-P4",
         ViperProfile.Aes256Gcm => "B-P5",
+        ViperProfile.XxHash3 => "B-P4x3",
+        ViperProfile.XxHash128 => "B-P4x128",
+        ViperProfile.ChaCha20Poly1305 => "B-P5c",
         ViperProfile.ProtectedBrotli => "B-P6b",
         ViperProfile.ProtectedDeflate => "B-P6d",
         ViperProfile.Headerless => "B-P7",
@@ -127,29 +139,40 @@ public static class ViperProfiles
             BinarySerializerOptions.Configure().WithLimits(Tight).Build(),
 
         ViperProfile.Deflate =>
-            BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build(),
+            BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build(),
 
         ViperProfile.Brotli =>
-            BinarySerializerOptions.Configure().WithCompression(new Brotli()).Build(),
+            BinarySerializerOptions.Configure().WithCompression(new BrotliCompression()).Build(),
 
         ViperProfile.Crc32 =>
-            BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build(),
+            BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build(),
 
         ViperProfile.Aes256Gcm =>
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), Key, "bench").Build(),
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), Key, "bench").Build(),
+
+        ViperProfile.XxHash3 =>
+            BinarySerializerOptions.Configure().WithChecksum(new XxHash3Checksum()).Build(),
+
+        ViperProfile.XxHash128 =>
+            BinarySerializerOptions.Configure().WithChecksum(new XxHash128Checksum()).Build(),
+
+        ViperProfile.ChaCha20Poly1305 =>
+            BinarySerializerOptions.Configure()
+                .WithEncryption(new ChaCha20Poly1305Encryption(), Key, "bench")
+                .Build(),
 
         ViperProfile.ProtectedBrotli =>
             BinarySerializerOptions.Configure()
-                .WithCompression(new Brotli())
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), Key, "bench")
+                .WithCompression(new BrotliCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), Key, "bench")
                 .Build(),
 
         ViperProfile.ProtectedDeflate =>
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), Key, "bench")
+                .WithCompression(new DeflateCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), Key, "bench")
                 .Build(),
 
         ViperProfile.Headerless =>

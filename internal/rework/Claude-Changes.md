@@ -86,7 +86,7 @@ earlier is reported to the owner by the stage that notices it.
   `GraphReader`/`GraphWriter` were removed: the codecs own the traversal and `Graph` is the entry for
   one payload.)*
 
-### R5 — Algorithm contracts
+### R5 — Algorithm contracts — applied
 
 - **Projects** — Core's list: the algorithm interfaces as they now are, and `HkdfKeyProvider` in
   whichever project plan §8 places it.
@@ -100,6 +100,11 @@ earlier is reported to the owner by the stage that notices it.
   associated data is the exact header bytes; the write order restated.
 - **Member layouts** — keyed field framing, the reference frame as one varint with null included, and
   the null fold, as plan §6.3 defines them.
+- **Diagnostics** — a paragraph after the architecture: `ViShap.Viper.Diagnostics` reads a frame
+  for a person — header, phases and, with a type, the payload as a tree with offsets, lengths, values,
+  and the path and offset of a failure; it rides on the engine's trace seam (`OperationState.Trace`,
+  null outside the dumper), which only codecs call. Dumps of the fixtures are the first thing to look
+  at when a compatibility or oracle-style test fails.
 - **Conventions** and **Where the authoritative information lives** — the fixtures are re-frozen once:
   the exception is recorded and the "never regenerated" rule restored in the same change
   (`Rework-Plan.md` §0). The oracle paragraph added in R0 is removed.

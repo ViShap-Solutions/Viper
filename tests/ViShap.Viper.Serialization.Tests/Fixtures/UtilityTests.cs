@@ -531,15 +531,15 @@ public class UtilityTests
     public void IdentityCompression_CountsEveryCallItReceives()
     {
         var compression = new IdentityCompression();
-        byte[] destination = new byte[3];
+        var destination = new System.Buffers.ArrayBufferWriter<byte>();
 
         compression.Compress([1, 2, 3], destination);
-        compression.Decompress([4, 5, 6], destination);
-        compression.Decompress([7, 8, 9], destination);
+        compression.Decompress([4, 5, 6], destination, 3);
+        compression.Decompress([7, 8, 9], destination, 3);
 
         Assert.Equal(1, compression.CompressCalls);
         Assert.Equal(2, compression.DecompressCalls);
-        Assert.Equal<byte[]>([7, 8, 9], destination);
+        Assert.Equal<byte[]>([1, 2, 3, 4, 5, 6, 7, 8, 9], destination.WrittenSpan.ToArray());
     }
 
     [Fact]
@@ -699,7 +699,7 @@ public class UtilityTests
     {
         byte[] key = [.. Enumerable.Range(0, 32).Select(value => (byte)value)];
         var encrypting = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), key).Build());
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key).Build());
         var value = new List<string> { "a value long enough", "to span more than one block of the cipher" };
 
         byte[] first = encrypting.Serialize(value);
