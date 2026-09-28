@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ViShap.Viper.Engine;
 
 /// <summary>
@@ -8,6 +10,8 @@ namespace ViShap.Viper.Engine;
 internal static class Graph
 {
     /// <summary>Writes <paramref name="value"/> as the root of a payload.</summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static void WriteRoot<T>(ref WireWriter writer, T value, bool preserveReferences)
     {
         writer.State.Graph.BeginWrite(preserveReferences);
@@ -25,6 +29,8 @@ internal static class Graph
     /// Reads the root of a payload. A <paramref name="target"/> that is not <see langword="null"/> is
     /// populated instead of a new instance being created; only a member-encoded class can be.
     /// </summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static T? ReadRoot<T>(ref WireReader reader, T? target, bool preserveReferences)
     {
         reader.State.Graph.BeginRead(preserveReferences);

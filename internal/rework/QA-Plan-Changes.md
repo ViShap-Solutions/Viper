@@ -305,13 +305,15 @@ Applied with two transcription fixes: REF-19 was already taken in R4 (a back ref
   `WireReader`, the codecs are its only callers, and the counting boxing double stays at zero with the
   seam on.
 
-## R8 — Generator ground
+## R8 — Generator ground — applied
 
 - **CONF-01…CONF-nn** — the conformance suite: for each object shape — positional, keyed, inherited,
   shadowed, overridden, union, struct — the member order, keys, layout and bytes, written so that a
   generated `TypeContract<T>` can be substituted and run against the same cases.
 - **EXT-07** — a consumer project built with AOT analysis reports the annotated reflection entry
   points and nothing unannotated.
+- **Applied.** IDs assigned: CONF-01…CONF-07, one per shape, in the new §15.1 "Contract conformance";
+  EXT-07 in §31, beside EXT-06 and EXT-08. §2 names the consumer project `tests/ViShap.Viper.AotConsumer`.
 
 ## R9a, R9b — Re-gate
 

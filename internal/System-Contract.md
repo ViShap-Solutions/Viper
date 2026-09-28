@@ -238,6 +238,24 @@ written for that consumer: what the member does, what it takes, what it returns 
 it raises. It does not cite this document, and it does not record how the code came to look the way
 it does.
 
+**The reflection path states its requirements.** In v1.0 the codec of every type, and the type
+contract of every member-encoded one (§14.1), is built by reflection on first use: members,
+constructors and generic definitions are found at run time, and the engine's generic codecs and
+shapes are closed over the types they encode. Every public entry point that encodes or decodes a
+value of the caller's type therefore carries `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]` — the twenty-two generic methods of `BinarySerializer` (§3.1–§3.5) and the
+four of `BinaryFormatDumper` (`Dump<T>` over a span and over a sequence, `DumpValue<T>`,
+`Compare<T>`). An application built with trimming or native AOT analysis is warned at each call, where
+the decision is its own, instead of failing at run time on a member or an instantiation that was not
+kept. No other public member carries either attribute: the options and their builder, the
+algorithms, the keys, `PooledPayload`, `BinaryFormatInspector`, `DumpHeader` and the untyped `Dump`
+never build a codec. Both packages build with `IsAotCompatible`, so the analysis reports nothing
+inside them. The engine is entered only through those entry points, which is what allows the two
+caches it resolves codecs and contracts through to rely on the requirement their caller stated
+rather than repeat it. `Api/AotAnalysisTests` holds the line twice: by reflection over the exported
+surface, and by building `tests/ViShap.Viper.AotConsumer` — a consumer that calls every entry point —
+under native AOT analysis, which must report those calls and nothing else.
+
 ## 3.1 Serializer
 
 The public `BinarySerializer` surface is exactly:
@@ -1457,6 +1475,16 @@ reflection, as `ReflectedContract<T>`, and it is the one description reader and 
 member order is the total order below; a contract built any other way must produce the same plan
 (INV-12).
 
+The type contract is the unit a generated contract replaces, and nothing else is generated. A source
+generator released after v1.0 implements `TypeContract<T>` for a type — the same description and the
+same member calls, in straight-line code instead of compiled accessors — while the engine, its call
+checks, the codecs and the wire stay as they are. What a contract must produce is fixed by the
+conformance suite (`Contracts/ConformanceTests`): for every object shape — positional, keyed,
+inherited, shadowed, overridden, union, struct — the layout, the members in order with their types
+and keys, construction, and the exact bytes the engine writes around the contract's calls and reads
+back through them. The suite reaches the contract through one seam, so it runs unchanged against any
+implementation it is handed.
+
 Eligible members include public fields/properties according to the accessor rules.
 
 Compiler-generated fields and indexers are not members. A **delegate-typed** member is eligible and
@@ -1902,7 +1930,8 @@ A03 object-declared values                   → write-side rejection (§15)
 
 Deferred by design, and **not** claimed by this contract: a public formatter contract,
 streaming (non-buffered) payloads, a V2 codec, constant-time checksum comparison, and source
-generators in place of expression-tree accessors.
+generators in place of expression-tree accessors — the seam a generated contract implements is in
+place (§14.1), and the generator itself is not.
 
 ## 21.4 Array length vs blob length
 

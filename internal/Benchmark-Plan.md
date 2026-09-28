@@ -605,6 +605,12 @@ Diagnostic, never a market comparison. They exist for two readers: the engineer 
 
 Measured directly on the internal type that owns the mechanism, through the grant of §18.3.
 
+MICRO-04 measures the reflected contract, the only one v1.0 has. The conformance suite of the test
+plan (`QA-Plan.md` §15.1, CONF-01…CONF-07) fixes, for every object shape, the description and the
+bytes any `TypeContract<T>` must produce, so a generated contract measured later against MICRO-04 is
+measured doing the same work to the same wire — a like-for-like comparison, not a new workload.
+*(added in R8)*
+
 - [ ] MICRO-01 — `WireWriter`/`WireReader` primitives: varint, fixed-width, string, blob, on both directions, compared cell by cell with the `ValueWriter`/`ValueReader` cells of `Baselines/pre-rework/`; a write cell includes filling the `PayloadBuffer` from empty and returning it, as one serialization does *(Contract §22.1; rewritten in R1)*
 - [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop, on the budget inside the `OperationState` the pipeline creates, reached by reference as the codecs reach it *(Contract §6; rewritten in R4)* — `BudgetBenchmarks`
 - [ ] MICRO-03 — depth scope entry and exit over the state's budget, and the unwind on the exceptional path *(Contract §5.1; rewritten in R4)* — `DepthScopeBenchmarks`

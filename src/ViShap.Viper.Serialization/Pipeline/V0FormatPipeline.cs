@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ViShap.Viper.Pipeline;
 
@@ -27,6 +28,8 @@ internal sealed class V0FormatPipeline : IFormatPipeline
 
     int IFormatPipeline.Version => Version;
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public EncodedFrame Write<T>(T data, ref OperationState state)
     {
         var budget = Budget(ref state);
@@ -58,6 +61,8 @@ internal sealed class V0FormatPipeline : IFormatPipeline
         ref OperationState state) =>
         FrameExtent.Undeclared(Budget(ref state).Maximum);
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public T? Read<T>(
         ReadOnlySpan<byte> source,
         T? target,
@@ -70,6 +75,8 @@ internal sealed class V0FormatPipeline : IFormatPipeline
         return Decode(ref reader, target, out consumed);
     }
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public T? Read<T>(
         ReadOnlySequence<byte> source,
         T? target,
@@ -86,6 +93,8 @@ internal sealed class V0FormatPipeline : IFormatPipeline
     }
 
     /// <summary>No header can record that a payload uses reference framing, so V0 never emits or expects it.</summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private static T? Decode<T>(ref WireReader reader, T? target, out long consumed)
     {
         var result = Graph.ReadRoot(ref reader, target, preserveReferences: false);

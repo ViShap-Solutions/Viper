@@ -65,6 +65,10 @@ tests/ViShap.Viper.Serialization.Tests/
   Hostile/          malformed corpus, truncation, amplification, property tests
   Fixtures/         shared types, frame builders, mutation helpers, stream doubles
   Fixtures/Wire/    committed *.bin compatibility fixtures (already wired in the .csproj)
+
+tests/ViShap.Viper.AotConsumer/
+                    a consumer of the packages, outside the solution, built by Api/AotAnalysisTests
+                    under native AOT analysis (EXT-07); it is compiled, never run
 ```
 
 The `Api/`, `Correctness/` and `Security/` folders that exist today are replaced by this layout during **M0**.
@@ -514,6 +518,22 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] CTR-30 — the plan of a type is the same however many times it is built *(§14.1)* — `Contracts/InheritanceTests`
 - [x] CTR-31 — the engine checks every call of a type contract against its description: a member of the wrong type, the wrong key, keys or members out of order, too few or too many calls, a keyed field under a positional layout or the reverse, a key the description does not have — each `BinaryTypeException` naming the type and the member; a field accepted without its value read, a value read and then disowned, or read twice, likewise; a declined unknown key is skipped *(§2.4)* — `Contracts/ContractCallTests` *(added in R4)*
 - [x] CTR-32 — a struct owner is populated in place through the `ref` setter, and a struct root is read into the instance returned *(§2.4, §14.1)* — `Contracts/ContractCallTests` *(added in R4)*
+
+## 15.1 Contract conformance
+
+The suite a generated contract must pass. Every case reaches the contract through one seam,
+`ContractConformance.ContractOf<T>`, and drives it through the engine's entries for a contract, so a
+class deriving from `ContractConformance` runs the same cases against another `TypeContract<T>`.
+`ReflectedContractConformanceTests` runs them against the reflected contract. The shapes are in
+`Fixtures/Conformance`; each type is partial. *(added in R8)*
+
+- [x] CONF-01 — positional: layout, members in plan order — `[BinaryOrder]` first, then ordinal name — with their types, a public field and a non-public `[BinaryInclude]` field in, an ignored and a get-only member out; the exact member bytes, a nested struct without a null flag; the value read back from them; construction through the parameterless constructor *(§14.1, §22.3)* — `Contracts/ConformanceTests`
+- [x] CONF-02 — keyed: layout, members in ascending key order with a two-byte key and a non-public keyed field; the exact bytes — field count, `varint key · int32 length · payload` — with the count as it is and one higher when it carries null; the value read back from both; an unknown key declined and skipped by its length; an absent key leaving the constructor's default *(§14.2, §22.2, §22.3)* — `Contracts/ConformanceTests`
+- [x] CONF-03 — inherited: a positional derived type interleaves base and derived members by name and keeps a non-public base member; a keyed hierarchy shares one key space; the base contract reads a derived payload, skipping the derived key *(§14.1, §14.2)* — `Contracts/ConformanceTests`
+- [x] CONF-04 — shadowed: a member hidden with `new` is a second member of its own type, the base declaration first, and both round-trip *(§14.1, §22.3)* — `Contracts/ConformanceTests`
+- [x] CONF-05 — overridden: an override is one member, ordered by the attribute written on the override *(§14.1)* — `Contracts/ConformanceTests`
+- [x] CONF-06 — union: the abstract base describes its members and cannot be constructed; each tagged type writes and reads its members through the polymorphic slot's entry and is read back as its runtime type *(§15, §22.3)* — `Contracts/ConformanceTests`
+- [x] CONF-07 — struct: a positional struct is created as `default`, written and read in place; a keyed struct writes its field count as it is; a struct in the polymorphic slot is read into its box *(§14.2, §15, §22.2)* — `Contracts/ConformanceTests`
 
 ---
 
@@ -1424,6 +1444,7 @@ For one logical value under one configuration, all entry points must agree.
 - [x] EXT-04 — every public member carries XML documentation, and it ships beside the assembly *(§3)* — `Api/PublicSurfaceTests` compares the exported surface with the generated XML file. CS1591 stays a warning: see Q15
 - [x] EXT-05 — the compiled public surface contains nothing beyond §3: its types, the members of `BinarySerializer` and of `BinarySerializerOptionsBuilder` signature by signature, and no factory on `BinarySerializerOptions` but `Configure` *(§3, §4.1)* — `Api/PublicSurfaceTests` *(re-evaluated in R3 against the new surface)*
 - [x] EXT-06 — no public algorithm interface declares a default member (reflection over Core) *(§3, §12, §13)* — `Api/PublicSurfaceTests`: every method of `ICompressionAlgorithm`, `IChecksumAlgorithm`, `IEncryptionAlgorithm` and `IKeyProvider` is abstract, and those four are every public interface Core exports
+- [x] EXT-07 — the reflection path states its requirements: every public entry point that encodes or decodes a value of the caller's type — the 22 generic methods of `BinarySerializer` and the 4 of `BinaryFormatDumper` — carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, and no other public member carries either (reflection over both assemblies); `tests/ViShap.Viper.AotConsumer`, which calls every one of them and the rest of the surface, built with native AOT analysis together with both packages compiled afresh, reports IL2026 and IL3050 exactly at the calls marked for them and no trimming or AOT warning anywhere else *(§3)* — `Api/AotAnalysisTests` *(added in R8)*
 - [x] EXT-08 — no public type of the three packages shares its simple name with a public type of the BCL assemblies the packages reference (`System.IO.Hashing`, `System.Security.Cryptography`, `System.IO.Compression`, `System.Buffers`, `System.IO.Pipelines`) — reflection over both *(§3)* — `Api/PublicSurfaceTests`, over the exported and forwarded types of those assemblies, which are asserted to contain `Crc32`, `ChaCha20Poly1305` and `ArrayPool` so the check cannot pass by loading nothing
 
 ---

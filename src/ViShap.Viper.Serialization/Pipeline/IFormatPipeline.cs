@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ViShap.Viper.Pipeline;
 
@@ -14,6 +15,8 @@ internal interface IFormatPipeline
     int Version { get; }
 
     /// <summary>Encodes <paramref name="data"/> as one frame, which the caller copies out and disposes.</summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     EncodedFrame Write<T>(T data, ref OperationState state);
 
     /// <summary>
@@ -35,6 +38,8 @@ internal interface IFormatPipeline
     /// occupies; bytes after it are not read. A <paramref name="target"/> that is not
     /// <see langword="null"/> is populated instead of a new root being created.
     /// </summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     T? Read<T>(
         ReadOnlySpan<byte> source,
         T? target,
@@ -45,6 +50,8 @@ internal interface IFormatPipeline
     /// Reads one value from segmented bytes that start with a frame, and reports how many of them the
     /// frame occupies; bytes after it are not read.
     /// </summary>
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     T? Read<T>(
         ReadOnlySequence<byte> source,
         T? target,

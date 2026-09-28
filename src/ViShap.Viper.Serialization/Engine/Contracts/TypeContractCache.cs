@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace ViShap.Viper.Engine;
@@ -31,7 +32,13 @@ internal static class TypeContractCache
     private static readonly ConcurrentDictionary<Type, TypeContract> Contracts = new();
     private static readonly ConcurrentDictionary<Type, UnionMap?> Unions = new();
 
-    /// <summary>The contract of <paramref name="type"/>, which the polymorphic slot finds by runtime type.</summary>
+    /// <summary>
+    /// The contract of <paramref name="type"/>, which the polymorphic slot finds by runtime type. It is
+    /// reached only from the engine's codecs, and the engine is entered only through
+    /// <see cref="Graph"/>, whose entries carry the requirements of the reflection path.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Reached only from the engine, which is entered only through Graph, which requires unreferenced code.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Reached only from the engine, which is entered only through Graph, which requires dynamic code.")]
     public static TypeContract Get(Type type) => Contracts.GetOrAdd(type, ReflectedContract.Build);
 
     public static TypeContract<T> Get<T>() => (TypeContract<T>)Get(typeof(T));

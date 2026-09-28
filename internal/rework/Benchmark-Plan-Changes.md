@@ -178,7 +178,7 @@ Applied: MICRO-08 and SEC-04 rewritten, SIZE-09, SIZE-10 and MICRO-19 added (`fo
   allocation per node. It gates nothing — diagnostics is not a hot path — but it states what a dump of
   a large frame costs, and it catches an accidental quadratic rendering.
 
-## R8 — Generator ground
+## R8 — Generator ground — applied
 
 - No new measurement. §18 notes that the conformance suite fixes the contracts a later generated path
   must match, so a later generated-versus-reflected comparison is like for like.

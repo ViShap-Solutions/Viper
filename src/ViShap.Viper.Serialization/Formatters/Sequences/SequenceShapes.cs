@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -238,7 +239,9 @@ internal sealed class ReadOnlySequenceShape<T>
 /// Any concrete type implementing <c>ICollection&lt;T&gt;</c> with a public parameterless constructor
 /// and a public <c>Add</c> method, built in place through that method.
 /// </summary>
-internal sealed class CustomCollectionShape<TCollection, T> : SequenceShape<TCollection, T, TCollection, IEnumerator<T>>
+internal sealed class CustomCollectionShape<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicMethods)] TCollection,
+    T> : SequenceShape<TCollection, T, TCollection, IEnumerator<T>>
     where TCollection : ICollection<T>
 {
     private readonly Func<TCollection> _create =
