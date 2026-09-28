@@ -65,7 +65,9 @@ internal sealed class V1FormatPipeline(
     /// <summary>
     /// Runs checksum, compression and encryption over the payload, which is made contiguous once
     /// because each phase works on a single span. Each phase's input is released as soon as its
-    /// output exists; the last output is the body of the frame.
+    /// output exists; the last output is the body of the frame. Encryption is prepared rather than
+    /// run: its exact length sizes the frame and its key is resolved here, and the ciphertext is
+    /// written straight into the destination.
     /// </summary>
     private EncodedFrame WritePhases(PayloadBuffer payload, ref OperationState state)
     {
@@ -90,7 +92,11 @@ internal sealed class V1FormatPipeline(
             var header = Header(ref state, rawLength, body.Length, onDiskLength: 0, checksumBytes);
 
             if (encryption.Kind != EncryptionAlgorithm.None)
-                body = Replace(body, Encrypt(header, body.Span, ref state));
+            {
+                var sealedBody = Seal(header, body, ref state);
+                body = default;
+                return Frame(header with { OnDiskLength = sealedBody.Length }, sealedBody, ref state);
+            }
 
             state.Phases.CheckEncrypted(body.Length, "On-disk payload length");
 
@@ -112,30 +118,56 @@ internal sealed class V1FormatPipeline(
         }
     }
 
-    private RentedBytes Encrypt(
-        in BinaryFormatHeaderV1 header,
-        ReadOnlySpan<byte> plaintext,
-        ref OperationState state)
+    /// <summary>
+    /// Prepares the encryption of <paramref name="plaintext"/>: its exact ciphertext length, checked
+    /// against the phase limit, the associated data of <paramref name="header"/>, and the key. The
+    /// returned body owns <paramref name="plaintext"/>; when this throws, it still belongs to the caller.
+    /// </summary>
+    private SealedBody Seal(in BinaryFormatHeaderV1 header, RentedBytes plaintext, ref OperationState state)
     {
-        int length = header.AssociatedDataLength;
-        byte[]? rented = null;
-        Span<byte> associatedData = length <= StackAssociatedDataBytes
-            ? stackalloc byte[StackAssociatedDataBytes]
-            : rented = RentedBytes.RentArray(length);
-
+        var associatedData = default(RentedBytes);
         try
         {
-            associatedData = associatedData[..length];
-            header.WriteAssociatedData(associatedData);
+            var service = new EncryptionService(encryption, keyId);
 
-            return new EncryptionService(encryption, keyId).Encrypt(
-                plaintext, associatedData, state.Keys, state.Limits.MaxEncryptedBytes);
+            int ciphertextLength = service.CiphertextLength(plaintext.Length);
+            state.Phases.CheckEncrypted(ciphertextLength, "On-disk payload length");
+
+            int length = header.AssociatedDataLength;
+            byte[] rented = RentedBytes.RentArray(length);
+            associatedData = RentedBytes.Adopt(rented, length);
+            header.WriteAssociatedData(rented.AsSpan(0, length));
+
+            var key = service.ResolveKey(state.Keys);
+            return new SealedBody(encryption, plaintext, associatedData, key, ciphertextLength);
         }
-        finally
+        catch
         {
-            associatedData.Clear();
-            if (rented is not null)
-                RentedBytes.ReturnArray(rented);
+            associatedData.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>A frame of <paramref name="header"/> and an encrypted body, which it owns once returned.</summary>
+    private static EncodedFrame Frame(in BinaryFormatHeaderV1 header, SealedBody body, ref OperationState state)
+    {
+        try
+        {
+            var headerBytes = WriteHeader(header, ref state);
+            try
+            {
+                return EncodedFrame.Of(headerBytes, body, state.Limits.MaxWireBytes);
+            }
+            catch
+            {
+                headerBytes.Dispose();
+                throw;
+            }
+        }
+        catch
+        {
+            body.Dispose();
+            throw;
         }
     }
 

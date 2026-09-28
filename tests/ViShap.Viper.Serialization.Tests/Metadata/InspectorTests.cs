@@ -212,7 +212,7 @@ public class InspectorTests
     public void Peek_EncryptedPayload_ReportsNoKeyMaterial()
     {
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), Key, keyId: "primary")
+            .WithEncryption(new Aes256GcmEncryption(), Key, keyId: "primary")
             .Build();
 
         using var stream = new MemoryStream(new BinarySerializer(options).Serialize(123));
@@ -228,9 +228,9 @@ public class InspectorTests
     public void Peek_SpanAndSequence_ReportWhatTheStreamPeekReports()
     {
         byte[] frame = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key, keyId: "primary")
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key, keyId: "primary")
             .Build()).Serialize(123);
 
         var fromStream = BinaryFormatInspector.Peek(new MemoryStream(frame, writable: false));

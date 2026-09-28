@@ -209,7 +209,7 @@ Also owed now:
   for a test). The ALC checkpoints state each target as what the engine adds to the frame around it,
   exactly; the absolute figures of plan §11 are Benchmark-Plan ALLOC-10…ALLOC-21.
 
-## R5 — Algorithm contracts
+## R5 — Algorithm contracts — applied
 
 - §23–§26 rewritten for plan §8: one method per direction.
 - **Carried from R2 — STR-29 extended to the built-ins.** STR-29 covers the payload path up to the
@@ -236,6 +236,14 @@ Also owed now:
 - **EXT-08** — no public type of the three packages shares its simple name with a public type of the
   BCL assemblies the packages reference (`System.IO.Hashing`, `System.Security.Cryptography`,
   `System.IO.Compression`, `System.Buffers`, `System.IO.Pipelines`) — reflection over both.
+- *Applied in R5.* Besides the IDs above: **ENC-29** was added for the contract's §13 entry — the
+  encrypted frame written straight into the destination — which no ID here covered; CHK-09 widened to
+  refuse a zero size (the 1…255 rule of plan §8.1); ENC-02 narrowed to the key a provider resolves,
+  the fixed key being ENC-24's; the profile checkpoints P3-01…P6-02 and CMP-02, CMP-03, CHK-02,
+  ENC-01 renamed to the family-suffixed built-ins; the release-gate line now cites STR-01…STR-29 and
+  ENC-01…ENC-29. ENC-28 is held by ENC-18, ENC-23 and EXT-06 rather than by a test of its own, since
+  the three together are the rule. The §30 finding NX-01 keeps its wording: it records the fix as
+  it was made.
 
 ## R6 — The final format
 
@@ -259,6 +267,41 @@ Also owed now:
 - **§30.4** rewritten — the fixtures re-frozen once from the corpus; **CMPT** checkpoints re-pointed
   at them.
 - **Retired:** ORC-01, ORC-02 (the oracle is deleted).
+- **§27 diagnostics, for plan §9.7** — `Diagnostics/`. DMP-01 and DMP-02 re-pointed at the span and
+  stream overloads (the `byte[]` overload is gone); DMP-03…DMP-05 kept. New:
+  - **DMP-06** — `DumpHeader` over a span and over a multi-segment sequence renders the same text as
+    over the stream, for every fixture.
+  - **DMP-07** — `Dump<T>` renders every `BinaryDumpNodeKind`: a scalar, `null`, a sequence, a map, a
+    positional object, a keyed object with its keys, an unknown keyed field shown as skipped with its
+    bytes, a union with its tag and runtime type, a back reference with its id and target path, a
+    composite (tuple, `KeyValuePair`, multi-dimensional array).
+  - **DMP-08** — every node's offset and length are the bytes it occupies: for each fixture, the
+    lengths of a node's children and its own framing add up to its length, and the root's length is
+    the payload length.
+  - **DMP-09** — a failing frame yields the tree up to the failure, `Failure` of the type a read raises,
+    and the `FailureOffset` and `FailurePath` of the failing member — one case per failure class of
+    contract §8 (format, limit, not supported, integrity, key).
+  - **DMP-10** — `Dump` without a type: an encrypted and compressed frame with the key is decrypted,
+    decompressed and its checksum verified; without the key `Decrypted` is `false` and nothing throws;
+    V0 bytes are shown as hex.
+  - **DMP-11** — the dump reads under the options' limits: a hostile frame from `Hostile/` is refused
+    with `BinaryLimitException` in `Failure`, allocating no more than the same read (`AssertEx`
+    allocation bound).
+  - **DMP-12** — no rendering of a dump contains key material, for every key provider.
+  - **DMP-13** — `DumpValue<T>` equals `Dump<T>` over `Serialize<T>` of the same value and options.
+  - **DMP-14** — `Compare<T>` returns null for two frames of the same value (encrypted frames with
+    different nonces included), and the path, offsets and both nodes of the first difference otherwise.
+  - **DMP-15** — `ToString()`, `ToJson()` and `ToHex()` are identical under every culture and time zone
+    of `Fixtures/Cultures`; `ToJson()` parses with `System.Text.Json`; `ToHex()` covers every payload
+    byte exactly once.
+  - **DMP-16** — the trace seam is null outside the dumper: a source test finds `Trace` assigned only in
+    `Diagnostics/`, and a counting observer sees no call during an ordinary read.
+  - **DMP-17** — golden text: the `ToString()` of three fixtures (a keyed record, a reference graph, a
+    protected frame) is compared with committed expected text, so a change to the report is a visible
+    diff.
+- INV-2, INV-5 and INV-17 structural tests extended to the trace seam: the observer receives no
+  `WireReader`, the codecs are its only callers, and the counting boxing double stays at zero with the
+  seam on.
 
 ## R8 — Generator ground
 

@@ -1,3 +1,5 @@
+using System.IO.Hashing;
+
 namespace ViShap.Viper.Checksum;
 
 /// <summary>
@@ -8,7 +10,14 @@ namespace ViShap.Viper.Checksum;
 /// message authentication code: anyone who can modify the payload can recompute it. Use authenticated
 /// encryption when the threat is deliberate modification.
 /// </remarks>
-public sealed class Crc32 : IChecksumAlgorithm
+/// <example>
+/// <code>
+/// var options = BinarySerializerOptions.Configure()
+///     .WithChecksum(new Crc32Checksum())
+///     .Build();
+/// </code>
+/// </example>
+public sealed class Crc32Checksum : IChecksumAlgorithm
 {
     /// <inheritdoc />
     public ChecksumAlgorithm Kind => ChecksumAlgorithm.Crc32;
@@ -21,5 +30,5 @@ public sealed class Crc32 : IChecksumAlgorithm
 
     /// <inheritdoc />
     public void Compute(ReadOnlySpan<byte> source, Span<byte> destination) =>
-        System.IO.Hashing.Crc32.Hash(source, destination);
+        Crc32.Hash(source, destination);
 }

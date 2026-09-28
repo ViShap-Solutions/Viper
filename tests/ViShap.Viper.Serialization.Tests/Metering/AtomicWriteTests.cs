@@ -21,6 +21,9 @@ public class AtomicWriteTests
     [
         "ViShap.Viper.Serialization/BinarySerializer.cs",
         "ViShap.Viper.Serialization/Algorithms/",
+        "ViShap.Viper.Serialization/Checksum/",
+        "ViShap.Viper.Serialization/Compression/",
+        "ViShap.Viper.Serialization/Crypto/",
         "ViShap.Viper.Serialization/Engine/",
         "ViShap.Viper.Serialization/Formatters/",
         "ViShap.Viper.Serialization/Io/",
@@ -35,9 +38,9 @@ public class AtomicWriteTests
 
     private static BinarySerializer Protected() =>
         new(BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), new byte[32])
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), new byte[32])
             .Build());
 
     /// <summary>
@@ -79,6 +82,8 @@ public class AtomicWriteTests
             .ToArray();
 
         Assert.Contains(files, file => file.Key.StartsWith("ViShap.Viper.Serialization/Pipeline/", StringComparison.Ordinal));
+        Assert.Contains(files, file => file.Key.EndsWith("/DeflateCompression.cs", StringComparison.Ordinal));
+        Assert.Contains(files, file => file.Key.EndsWith("/BrotliCompression.cs", StringComparison.Ordinal));
 
         var offenders = files
             .Where(file => file.Value.Contains("MemoryStream", StringComparison.Ordinal))

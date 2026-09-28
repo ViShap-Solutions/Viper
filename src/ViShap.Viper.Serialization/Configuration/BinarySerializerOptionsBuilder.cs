@@ -12,8 +12,8 @@
 /// <example>
 /// <code>
 /// var options = BinarySerializerOptions.Configure()
-///     .WithCompression(new Brotli())
-///     .WithEncryption(new Aes256Gcm(), key, keyId: "2026-q3")
+///     .WithCompression(new BrotliCompression())
+///     .WithEncryption(new Aes256GcmEncryption(), key, keyId: "2026-q3")
 ///     .RequireEncryption()
 ///     .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 4 * 1024 * 1024 })
 ///     .Build();
@@ -31,6 +31,7 @@ public sealed class BinarySerializerOptionsBuilder
     private IEncryptionAlgorithm? _encryption;
     private IKeyProvider? _encryptionKeys;
     private IKeyProvider? _readKeys;
+    private int? _staticKeyLength;
     private string? _keyId;
     private int _writeVersion = BinaryFormatConstants.LatestVersion;
     private bool _preserveReferences;
@@ -42,7 +43,7 @@ public sealed class BinarySerializerOptionsBuilder
     internal BinarySerializerOptionsBuilder() { }
 
     /// <summary>Compresses payloads with <paramref name="compression"/>.</summary>
-    /// <param name="compression">The algorithm, for example <see cref="Brotli"/> or <see cref="Deflate"/>.</param>
+    /// <param name="compression">The algorithm, for example <see cref="BrotliCompression"/> or <see cref="DeflateCompression"/>.</param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder WithCompression(ICompressionAlgorithm compression)
     {
@@ -51,7 +52,7 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>Stores a checksum with each payload and verifies it on read.</summary>
-    /// <param name="checksum">The algorithm, for example <see cref="Crc32"/>.</param>
+    /// <param name="checksum">The algorithm, for example <see cref="Crc32Checksum"/> or <see cref="XxHash3Checksum"/>.</param>
     /// <returns>The same builder.</returns>
     public BinarySerializerOptionsBuilder WithChecksum(IChecksumAlgorithm checksum)
     {
@@ -60,8 +61,11 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>Encrypts payloads with a fixed key.</summary>
-    /// <remarks>The key bytes are copied; the array you pass stays yours and is never modified.</remarks>
-    /// <param name="encryption">The algorithm, for example <see cref="Aes256Gcm"/>.</param>
+    /// <remarks>
+    /// The key bytes are copied; the array you pass stays yours and is never modified. <see cref="Build"/>
+    /// checks the key's length against the algorithm's <see cref="IEncryptionAlgorithm.KeySizeInBytes"/>.
+    /// </remarks>
+    /// <param name="encryption">The algorithm, for example <see cref="Aes256GcmEncryption"/>.</param>
     /// <param name="key">Key material to copy.</param>
     /// <param name="keyId">
     /// Recorded in the header so a reader can select this key, and checked when reading. Supply one as
@@ -77,13 +81,14 @@ public sealed class BinarySerializerOptionsBuilder
 
         _encryption = encryption;
         _encryptionKeys = new StaticKeyProvider(key, keyId);
+        _staticKeyLength = key.Length;
         _keyId = keyId;
         return this;
     }
 
     /// <summary>Encrypts payloads with a key looked up by id, which is how key rotation is supported.</summary>
     /// <remarks>Whatever the resolver returns is copied immediately and never modified.</remarks>
-    /// <param name="encryption">The algorithm, for example <see cref="Aes256Gcm"/>.</param>
+    /// <param name="encryption">The algorithm, for example <see cref="Aes256GcmEncryption"/>.</param>
     /// <param name="keyResolver">Returns the key for a given id, or <see langword="null"/> when it has none.</param>
     /// <param name="keyId">The id recorded in payloads this serializer writes.</param>
     /// <returns>The same builder.</returns>
@@ -97,12 +102,13 @@ public sealed class BinarySerializerOptionsBuilder
 
         _encryption = encryption;
         _encryptionKeys = new DelegateKeyProvider(keyResolver);
+        _staticKeyLength = null;
         _keyId = keyId;
         return this;
     }
 
     /// <summary>Encrypts payloads with keys from a provider of your own.</summary>
-    /// <param name="encryption">The algorithm, for example <see cref="Aes256Gcm"/>.</param>
+    /// <param name="encryption">The algorithm, for example <see cref="Aes256GcmEncryption"/>.</param>
     /// <param name="keys">The key source.</param>
     /// <param name="keyId">The id recorded in payloads this serializer writes.</param>
     /// <returns>The same builder.</returns>
@@ -116,6 +122,7 @@ public sealed class BinarySerializerOptionsBuilder
 
         _encryption = encryption;
         _encryptionKeys = keys;
+        _staticKeyLength = null;
         _keyId = keyId;
         return this;
     }
@@ -399,8 +406,13 @@ public sealed class BinarySerializerOptionsBuilder
     /// A limit is not positive; the write version is not a supported wire format; encryption is
     /// required but not configured, or is configured with an algorithm that cannot authenticate
     /// format metadata; a checksum is required but not configured; a protection policy is combined
-    /// with format version 0, which has no header in which to carry protection; or keys are supplied
-    /// both through <c>WithEncryption</c> and through <c>WithKeys</c>.
+    /// with format version 0, which has no header in which to carry protection; keys are supplied
+    /// both through <c>WithEncryption</c> and through <c>WithKeys</c>; or the fixed key given to
+    /// <c>WithEncryption</c> is not the length the algorithm requires.
+    /// </exception>
+    /// <exception cref="BinaryFormatNotSupportedException">
+    /// Payloads are to be encrypted with <see cref="ChaCha20Poly1305Encryption"/> on a platform that does
+    /// not provide it.
     /// </exception>
     public BinarySerializerOptions Build()
     {
@@ -428,6 +440,16 @@ public sealed class BinarySerializerOptionsBuilder
                 "already supplies its keys for reading as well as writing; keep one of the two.");
 
         var keys = _encryptionKeys ?? _readKeys;
+
+        if (encryption.Kind != EncryptionAlgorithm.None
+            && _staticKeyLength is int keyLength
+            && keyLength != encryption.KeySizeInBytes)
+            throw new BinaryConfigurationException(
+                $"'{encryption.GetType().Name}' requires a {encryption.KeySizeInBytes}-byte key, but the " +
+                $"key given to WithEncryption is {keyLength} byte(s).");
+
+        if (encryption is ChaCha20Poly1305Encryption)
+            ChaCha20Poly1305Encryption.EnsureSupported();
 
         if (encryption.Kind != EncryptionAlgorithm.None && keys is null)
             throw new BinaryConfigurationException(

@@ -94,8 +94,8 @@ public class OptionsTests
     public void WithCompressionAndChecksum_AreRecordedInTheOptionsAndTheHeader()
     {
         var options = BinarySerializerOptions.Configure()
-            .WithCompression(new Deflate())
-            .WithChecksum(new Crc32())
+            .WithCompression(new DeflateCompression())
+            .WithChecksum(new Crc32Checksum())
             .Build();
 
         Assert.Equal(CompressionAlgorithm.Deflate, options.Compression.Kind);
@@ -114,7 +114,7 @@ public class OptionsTests
     {
         byte[] caller = NewKey();
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), caller, "primary")
+            .WithEncryption(new Aes256GcmEncryption(), caller, "primary")
             .Build();
 
         Array.Clear(caller);
@@ -129,7 +129,7 @@ public class OptionsTests
         byte[] key = NewKey();
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), _ => key, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), _ => key, "primary")
                 .Build());
 
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
@@ -141,7 +141,7 @@ public class OptionsTests
         using var provider = new StaticKeyProvider(NewKey(), "primary");
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), provider, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), provider, "primary")
                 .Build());
 
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
@@ -170,7 +170,7 @@ public class OptionsTests
         var options = BinarySerializerOptions.Configure()
             .PreserveReferences()
             .RequireChecksum()
-            .WithChecksum(new Crc32())
+            .WithChecksum(new Crc32Checksum())
             .Build();
 
         Assert.True(options.PreserveReferences);
@@ -194,7 +194,7 @@ public class OptionsTests
     {
         var ex = Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey())
+                .WithEncryption(new Aes256GcmEncryption(), NewKey())
                 .RequireEncryption()
                 .WithVersion(0)
                 .Build());
@@ -207,7 +207,7 @@ public class OptionsTests
     {
         var ex = Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey())
+                .WithEncryption(new Aes256GcmEncryption(), NewKey())
                 .RequireEncryption()
                 .AllowV0Fallback()
                 .Build());
@@ -220,11 +220,11 @@ public class OptionsTests
     {
         Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32()).RequireChecksum().WithVersion(0).Build());
+                .WithChecksum(new Crc32Checksum()).RequireChecksum().WithVersion(0).Build());
 
         Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32()).RequireChecksum().AllowV0Fallback().Build());
+                .WithChecksum(new Crc32Checksum()).RequireChecksum().AllowV0Fallback().Build());
     }
 
     [Fact]
@@ -232,8 +232,8 @@ public class OptionsTests
     {
         // An algorithm is a capability, not a demand, so it is not a contradiction on its own.
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), NewKey())
-            .WithChecksum(new Crc32())
+            .WithEncryption(new Aes256GcmEncryption(), NewKey())
+            .WithChecksum(new Crc32Checksum())
             .WithVersion(0)
             .AllowV0Fallback()
             .Build();
@@ -246,8 +246,8 @@ public class OptionsTests
     public void Serialize_ConfiguredAlgorithmsUnderTheHeaderlessFormat_LeaveNoTraceInTheBytes()
     {
         var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), NewKey())
-            .WithChecksum(new Crc32())
+            .WithEncryption(new Aes256GcmEncryption(), NewKey())
+            .WithChecksum(new Crc32Checksum())
             .WithVersion(0)
             .AllowV0Fallback()
             .Build());
@@ -293,8 +293,8 @@ public class OptionsTests
     {
         // A custom name lives in its own space; the built-in identifiers are not addressable by name.
         var options = BinarySerializerOptions.Configure()
-            .WithCompression(new Deflate())
-            .RegisterCustomCompression("Deflate", static () => new Brotli())
+            .WithCompression(new DeflateCompression())
+            .RegisterCustomCompression("Deflate", static () => new BrotliCompression())
             .Build();
 
         using var stream = new MemoryStream(new BinarySerializer(options).Serialize(123));
@@ -310,9 +310,9 @@ public class OptionsTests
     {
         var builder = BinarySerializerOptions.Configure();
 
-        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomChecksum(null!, () => new Crc32()));
+        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomChecksum(null!, () => new Crc32Checksum()));
         Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomChecksum("x", null!));
-        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomCompression(null!, () => new Deflate()));
+        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomCompression(null!, () => new DeflateCompression()));
         Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomEncryption("x", null!));
     }
 
@@ -321,9 +321,9 @@ public class OptionsTests
     private static byte[] Encrypted(byte[] key, string? keyId) =>
         new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Brotli())
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), key, keyId)
+                .WithCompression(new BrotliCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), key, keyId)
                 .Build()).Serialize(123);
 
     [Fact]
@@ -390,16 +390,16 @@ public class OptionsTests
         byte[] key = NewKey();
 
         Assert.Throws<BinaryConfigurationException>(() => BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), key, "primary")
+            .WithEncryption(new Aes256GcmEncryption(), key, "primary")
             .WithKeys(key)
             .Build());
         Assert.Throws<BinaryConfigurationException>(() => BinarySerializerOptions.Configure()
             .WithKeys(_ => key)
-            .WithEncryption(new Aes256Gcm(), _ => key, "primary")
+            .WithEncryption(new Aes256GcmEncryption(), _ => key, "primary")
             .Build());
         Assert.Throws<BinaryConfigurationException>(() => BinarySerializerOptions.Configure()
             .WithKeys(new RecordingKeyProvider(key))
-            .WithEncryption(new Aes256Gcm(), new RecordingKeyProvider(key), "primary")
+            .WithEncryption(new Aes256GcmEncryption(), new RecordingKeyProvider(key), "primary")
             .Build());
     }
 
@@ -418,12 +418,12 @@ public class OptionsTests
         // The same id with different key bytes must not decrypt.
         byte[] payload = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey(), "primary")
+                .WithEncryption(new Aes256GcmEncryption(), NewKey(), "primary")
                 .Build()).Serialize(123);
 
         var other = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey(), "primary")
+                .WithEncryption(new Aes256GcmEncryption(), NewKey(), "primary")
                 .Build());
 
         Assert.Throws<BinaryIntegrityException>(() => other.Deserialize<int>(payload));

@@ -130,23 +130,23 @@ SerializationLimits.Default with
 
 ## P3 — compression
 
-- [x] P3-01 — `Deflate` *(§12)* — `Algorithms/CompressionTests`
-- [x] P3-02 — `Brotli` *(§12)* — `Algorithms/CompressionTests`
+- [x] P3-01 — `DeflateCompression` *(§12)* — `Algorithms/CompressionTests`
+- [x] P3-02 — `BrotliCompression` *(§12)* — `Algorithms/CompressionTests`
 
 ## P4 — checksum
 
-- [x] P4-01 — `Crc32` *(§11, §22.6)* — `Algorithms/ChecksumTests`
+- [x] P4-01 — `Crc32Checksum` *(§11, §22.6)* — `Algorithms/ChecksumTests`
 
 ## P5 — encryption
 
-- [x] P5-01 — `Aes256Gcm` with a fixed 32-byte key *(§13)* — `Algorithms/EncryptionTests`
-- [x] P5-02 — `Aes256Gcm` with a key resolver and a `KeyId` *(§13.2)* — `Algorithms/EncryptionTests`
+- [x] P5-01 — `Aes256GcmEncryption` with a fixed 32-byte key *(§13)* — `Algorithms/EncryptionTests`
+- [x] P5-02 — `Aes256GcmEncryption` with a key resolver and a `KeyId` *(§13.2)* — `Algorithms/EncryptionTests`
 - [x] P5-03 — `RequireEncryption` + `RequireChecksum` *(§21.1)* — `Algorithms/EncryptionTests`; the profile accepts only a payload carrying both, and refuses one missing either
 
 ## P6 — full V1
 
-- [x] P6-01 — Brotli + Crc32 + Aes256Gcm *(§22.6)* — `RoundTrip/ProtectedCorpusTests`, over the whole §19 corpus
-- [x] P6-02 — Deflate + Crc32 + Aes256Gcm *(§22.6)* — `RoundTrip/DeflateProtectedCorpusTests`, over the whole §19 corpus
+- [x] P6-01 — `BrotliCompression` + `Crc32Checksum` + `Aes256GcmEncryption` *(§22.6)* — `RoundTrip/ProtectedCorpusTests`, over the whole §19 corpus
+- [x] P6-02 — `DeflateCompression` + `Crc32Checksum` + `Aes256GcmEncryption` *(§22.6)* — `RoundTrip/DeflateProtectedCorpusTests`, over the whole §19 corpus
 
 ## P7 — V0
 
@@ -822,7 +822,7 @@ frame, which replace the three stream decorators; none is dropped.*
 
 ## 21.5 The payload path and atomic writes
 
-- [x] STR-29 — no `MemoryStream` on the payload path: `BinarySerializer`, `Pipeline/`, `Io/`, `Engine/`, `Formatters/`, `Security/`, the algorithm services and the V1 header (source-shape test) *(§2, §2.5)* — `Metering/AtomicWriteTests`
+- [x] STR-29 — no `MemoryStream` on the payload path: `BinarySerializer`, `Pipeline/`, `Io/`, `Engine/`, `Formatters/`, `Security/`, the algorithm services, the built-in algorithms (`Compression/`, `Checksum/`, `Crypto/`, since R5) and the V1 header (source-shape test) *(§2, §2.5)* — `Metering/AtomicWriteTests`, which also asserts that both built-in codecs are among the files it scanned
 - [x] STR-30 — INV-15: an exception in the middle of a graph, or a frame over the wire budget, leaves an `IBufferWriter<byte>`, a `PipeWriter` and a `Stream` destination — seekable or not — with zero bytes written, under V1, V0 and every phase; a successful write reaches each of them with the same bytes *(§2.6)* — `Metering/AtomicWriteTests`
 
 ---
@@ -888,8 +888,8 @@ frame, which replace the three stream decorators; none is dropped.*
 # 23. Compression — `Algorithms/`
 
 - [x] CMP-01 — `NoCompression` round-trips and still honors phase limits *(§12)* — `Algorithms/CompressionTests`
-- [x] CMP-02 — `Deflate` round-trips *(§12)* — `Algorithms/CompressionTests`
-- [x] CMP-03 — `Brotli` round-trips *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-02 — `DeflateCompression` round-trips *(§12)* — `Algorithms/CompressionTests`
+- [x] CMP-03 — `BrotliCompression` round-trips *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-04 — malformed Deflate input → `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-05 — malformed Brotli input → `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-06 — raw input above `MaxPayloadBytes` → `BinaryLimitException` *(§12)* — `Algorithms/CompressionTests`
@@ -898,32 +898,34 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] CMP-09 — an expected decompressed length above `MaxPayloadBytes` → `BinaryLimitException` before allocation *(§12)* — `Algorithms/CompressionTests`
 - [x] CMP-10 — decompression producing **fewer** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
 - [x] CMP-11 — decompression producing **more** bytes than declared → rejected *(§12, S09)* — `Algorithms/CompressionTests`
-- [x] CMP-12 — `ICompressionAlgorithm` receives no limits and is invoked inside the phase barrier *(§2.5, §12)* — `Algorithms/CompressionTests`; the algorithm primitives live in an assembly that does not reference the one holding `SerializationLimits`, and a frame refused by a phase limit never reaches the codec
+- [x] CMP-12 — `ICompressionAlgorithm` receives no limits and is invoked inside the phase barrier *(§2.5, §12)* — `Algorithms/CompressionTests`; the algorithm primitives live in an assembly that does not reference the one holding `SerializationLimits`, and a frame refused by a phase limit never reaches the codec. Since R5 the writer an algorithm fills is what refuses space past the ceiling — the algorithm still sees no number
 - [x] CMP-13 — a custom compression algorithm round-trips and its name is recorded in the header *(§4.1, §11)* — `Algorithms/CompressionTests`
 - [x] CMP-14 — the ratio is the reader's policy: the same bytes pass one reader and fail a stricter one *(§5.10)* — `Algorithms/CompressionTests`
-- [x] CMP-15 — both built-in algorithms decompress incrementally *(§12)* — `Algorithms/CompressionTests`
-- [x] CMP-16 — a Brotli stream that yields the declared length but never terminates is malformed *(§12)* — `Algorithms/CompressionTests`. The single-buffer decoder refused such a stream; the incremental path first accepted it until the NX-01 fix restored the refusal, and a later rewrite of the decoder must keep it
+- ~~CMP-15 — both built-in algorithms decompress incrementally *(§12)* — `Algorithms/CompressionTests`~~ *retired in R5 — decompression into a writer that grows with the output is the only mode, for every algorithm; there is no flag left to test*
+- [x] CMP-16 — a Brotli stream that yields the declared length but never terminates is malformed *(§12)* — `Algorithms/CompressionTests`. The single-buffer decoder refused such a stream; the incremental path first accepted it until the NX-01 fix restored the refusal, and a later rewrite of the decoder must keep it. Kept through the R5 port of `BrotliCompression` to the buffer-writer interface
+- [x] CMP-17 — `Decompress` producing fewer or more than `expectedLength` bytes is `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`: each built-in declared one byte longer and one byte shorter than its stream, the exact case beside them, and a custom algorithm that drops a byte or adds one, through a whole read
 
 ---
 
 # 24. Checksum — `Algorithms/`
 
 - [x] CHK-01 — `NoChecksum` writes a zero-length checksum *(§22.6)* — `Format/HeaderTests`
-- [x] CHK-02 — `Crc32` round-trips *(§22.6)* — `Algorithms/ChecksumTests`
+- [x] CHK-02 — `Crc32Checksum` round-trips *(§22.6)* — `Algorithms/ChecksumTests`
 - [x] CHK-03 — a checksum mismatch → `BinaryIntegrityException` *(§8.5)* — `Exceptions/ExceptionMappingTests` for a frame declaring a checksum that never matched, `Algorithms/ChecksumTests` for a written frame whose body changed afterwards
 - [x] CHK-04 — a checksum of unexpected length → the documented failure *(§11)* — `Algorithms/ChecksumTests`; a width the named algorithm never produces is `BinaryFormatException`
 - [x] CHK-05 — the checksum is computed over the **raw** payload, before compression *(§22.6)* — `Format/EnvelopeTests`, from both directions
 - [x] CHK-06 — a custom checksum round-trips under its registered name *(§4.1)* — `Api/OptionsTests`
 - [x] CHK-07 — a payload naming an unregistered custom checksum → `BinaryFormatNotSupportedException` *(§8.4)* — `Exceptions/ExceptionMappingTests`, `Algorithms/AlgorithmCatalogTests`
 - [x] CHK-08 — `RequireChecksum` rejects a payload with `ChecksumAlgorithm.None` → `BinaryIntegrityException` *(§21.1)* — `Algorithms/ChecksumTests`, with the capability-only counterpart beside it
-- [x] CHK-09 — a checksum reporting a size the header cannot record → `BinaryConfigurationException`, on write and on read *(§8.1)* — `Algorithms/ChecksumTests`
+- [x] CHK-09 — a checksum reporting a size outside `1…255` → `BinaryConfigurationException`, on write and on read *(§8.1)* — `Algorithms/ChecksumTests`; a negative size and, since R5, zero — only `NoChecksum` stands for no checksum
+- [x] CHK-10 — `XxHash3Checksum` and `XxHash128Checksum` round-trip through the pipeline and resolve from the catalog *(§3, §22.6)* — `Algorithms/ChecksumTests`, read back by a serializer that configures no checksum, with the width recorded in the header, a changed body refused, and the digest compared with `System.IO.Hashing`; `Algorithms/AlgorithmCatalogTests` for the resolution itself (CAT-10)
 
 ---
 
 # 25. Encryption — `Algorithms/`
 
-- [x] ENC-01 — `Aes256Gcm` with a 32-byte key round-trips *(§13)* — `Algorithms/EncryptionTests`
-- [x] ENC-02 — key material the configured algorithm cannot use → `BinaryEncryptionKeyException` *(§8.7)* — `Algorithms/EncryptionTests`; a wrong-sized key on either direction and an empty one at the builder. Reworded: no public entry point validates a key size, because the size belongs to the algorithm, so the failure is the §8.7 key-usability one rather than the `ArgumentException` of §8.10 this item first cited. §13.2 now says so outright
+- [x] ENC-01 — `Aes256GcmEncryption` with a 32-byte key round-trips *(§13)* — `Algorithms/EncryptionTests`
+- [x] ENC-02 — key material the configured algorithm cannot use → `BinaryEncryptionKeyException` *(§8.7)* — `Algorithms/EncryptionTests`; a wrong-sized key from a provider on either direction and an empty one at the builder. Reworded in R5: a fixed key given to `WithEncryption` is now checked by `Build()` against `KeySizeInBytes` and is ENC-24's; what remains here is the key a provider resolves
 - [x] ENC-03 — a wrong key → `BinaryIntegrityException` at the authentication boundary *(§8.5)* — `Algorithms/EncryptionTests`
 - [x] ENC-04 — tampered ciphertext → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
 - [x] ENC-05 — any altered authenticated header byte → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
@@ -945,6 +947,12 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] ENC-21 — plaintext input ≤ `MaxCompressedBytes`, ciphertext ≤ `MaxEncryptedBytes`, both directions *(§13)* — `Algorithms/EncryptionTests`, with encryption actually applied rather than a hand-built header
 - [x] ENC-22 — a custom encryption algorithm round-trips under its registered name *(§4.1)* — `Algorithms/EncryptionTests`
 - [x] ENC-23 — a payload naming an algorithm that does not authenticate metadata, read under `RequireEncryption` → `BinaryIntegrityException` naming that algorithm *(§13.1, §21.1)* — `Algorithms/EncryptionTests`, with the capability-only counterpart beside it. Q12
+- [x] ENC-24 — `KeySizeInBytes` checked at `Build()` for a static key and at resolution for a provided key *(§4.1, §13.2)* — `Algorithms/EncryptionTests`: a fixed 16-byte key is `BinaryConfigurationException` at `Build()` (and is not checked when the algorithm is `NoEncryption`); a 16-byte key from a resolver is `BinaryEncryptionKeyException` when writing, one from `WithKeys` when reading, and the refused key is disposed at once
+- [x] ENC-25 — the service checks of plan §8.1: a ciphertext length below the plaintext length, a destination not filled exactly, a decrypted length out of range → `BinaryConfigurationException` *(§8.1, §13)* — `Algorithms/EncryptionTests`, through one custom cipher told to break each promise in turn: a stated length below the plaintext, an `Encrypt` reporting one byte fewer or more than it was given, a destination refused with `ArgumentException` (the cause preserved), a `Decrypt` reporting −1 or more than the ciphertext; the same cipher well-behaved round-trips. "Filled exactly" is checked through the value `Encrypt` returns, by the owner's decision of 2026-09-28 (`internal/rework/Owner-Review.md` log 57)
+- [x] ENC-26 — `ChaCha20Poly1305Encryption` round-trips; where unsupported it is `BinaryFormatNotSupportedException` at `Build()` and on read *(§8.4, §13)* — `Algorithms/EncryptionTests`: round trip, header identifier, tampered ciphertext and a hand-built frame naming the algorithm, each asserting the supported or the unsupported outcome as the platform decides. The platform decides which branch runs — `ChaCha20Poly1305.IsSupported` cannot be switched off without a process-wide seam INV-7 forbids — so a run on a platform without it is what exercises the refusal; on the platforms CI and the owner use, the supported branch runs
+- [x] ENC-27 — `HkdfKeyProvider` derives distinct keys per key id, equal keys for equal ids, and never exposes the root key *(§13.2)* — `Algorithms/HkdfKeyProviderTests`: equal and distinct ids, the value against `HKDF.DeriveKey` with the id as info, a derived key never equal to the root, no public member beyond `Resolve` and `Dispose`, owned copies both ways, `Resolve(null)` refused, key sizes and their bounds, and payloads written under two ids read by one provider
+- [x] ENC-28 — `RequireEncryption` refuses an algorithm reporting `AuthenticatesAssociatedData = false` *(§13.1)* — ENC-18 at `Build()` and ENC-23 on read; since R5 every algorithm states the property, because the interface declares no default member (EXT-06)
+- [x] ENC-29 — an encrypted frame is encrypted straight into the destination *(§2.6, §13)* — `Algorithms/EncryptionTests`: a buffer writer is asked once for the whole frame and advanced once; a writer handing out 7-byte spans still receives the whole frame; a cipher that fails leaves the writer empty; `OnDiskLength` is the length the algorithm stated. Added in R5 for the contract's §13 entry, which no ID of the change file covered
 
 ---
 
@@ -959,6 +967,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] CAT-07 — a factory is invoked per resolution as documented *(§4.1)* — `Algorithms/AlgorithmCatalogTests`; writing uses the configured instance, so only a read resolves, once per read
 - [x] CAT-09 — a registered factory that throws, or returns null → `BinaryConfigurationException` naming the registration, the cause preserved *(§4.1, §9)* — `Algorithms/AlgorithmCatalogTests`. Split out of CAT-07, whose second half named no exception the contract defined. Q13
 - [x] CAT-08 — concurrent resolution from one catalog is safe *(L4)* — `Algorithms/AlgorithmCatalogTests`, 256 real parallel reads through one serializer
+- [x] CAT-10 — the catalog resolves every built-in, new ones included *(§4.1)* — `Algorithms/AlgorithmCatalogTests`: every identifier of each enum but `Custom` resolves to an algorithm reporting that identifier (ChaCha20-Poly1305 refused where the platform lacks it), and the enums hold exactly the built-ins, `Custom` at 255
 
 ---
 
@@ -1381,6 +1390,8 @@ For one logical value under one configuration, all entry points must agree.
 - [x] EXT-03 — the public algorithm primitives are constructible and implementable externally *(§3)* — `Fixtures/IdentityCompression`, `Sum8`, `UnauthenticatedCipher` and `RecordingKeyProvider` implement all four from outside `src/`, and `Algorithms/AlgorithmCatalogTests` carries a payload through them
 - [x] EXT-04 — every public member carries XML documentation, and it ships beside the assembly *(§3)* — `Api/PublicSurfaceTests` compares the exported surface with the generated XML file. CS1591 stays a warning: see Q15
 - [x] EXT-05 — the compiled public surface contains nothing beyond §3: its types, the members of `BinarySerializer` and of `BinarySerializerOptionsBuilder` signature by signature, and no factory on `BinarySerializerOptions` but `Configure` *(§3, §4.1)* — `Api/PublicSurfaceTests` *(re-evaluated in R3 against the new surface)*
+- [x] EXT-06 — no public algorithm interface declares a default member (reflection over Core) *(§3, §12, §13)* — `Api/PublicSurfaceTests`: every method of `ICompressionAlgorithm`, `IChecksumAlgorithm`, `IEncryptionAlgorithm` and `IKeyProvider` is abstract, and those four are every public interface Core exports
+- [x] EXT-08 — no public type of the three packages shares its simple name with a public type of the BCL assemblies the packages reference (`System.IO.Hashing`, `System.Security.Cryptography`, `System.IO.Compression`, `System.Buffers`, `System.IO.Pipelines`) — reflection over both *(§3)* — `Api/PublicSurfaceTests`, over the exported and forwarded types of those assemblies, which are asserted to contain `Crc32`, `ChaCha20Poly1305` and `ArrayPool` so the check cannot pass by loading nothing
 
 ---
 
@@ -1416,7 +1427,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
 - [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
 - [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-40)*
-- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-28, ENC-01…ENC-23)*
+- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-29, ENC-01…ENC-29)*
 - [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 
 ## Exceptions

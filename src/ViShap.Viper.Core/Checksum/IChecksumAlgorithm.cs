@@ -26,7 +26,9 @@ public interface IChecksumAlgorithm
 
     /// <summary>
     /// Size of the value <see cref="Compute"/> produces, in bytes. Must be constant for the instance
-    /// and at most 255, the largest the V1 header can record.
+    /// and between 1 and 255, the largest the V1 header can record; any other value is refused with
+    /// <see cref="Exceptions.BinaryConfigurationException"/> when the checksum is computed or verified.
+    /// <see cref="NoChecksum"/>, which stands for the absence of a checksum, reports 0 and is never run.
     /// </summary>
     int HashSizeInBytes { get; }
 

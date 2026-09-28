@@ -133,8 +133,8 @@ public class AssociatedDataTests
         // The resolver hands out the same key for any id, so nothing but the tag can notice.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), _ => Key, keyId: "ring")
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), _ => Key, keyId: "ring")
                 .Build());
 
         byte[] frame = serializer.Serialize("associated");
@@ -155,8 +155,8 @@ public class AssociatedDataTests
         // malformed input, ahead of the integrity check the edit would otherwise have reached.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), _ => Key, keyId: "ring")
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), _ => Key, keyId: "ring")
                 .Build());
 
         byte[] frame = serializer.Serialize("associated");
@@ -186,8 +186,8 @@ public class AssociatedDataTests
     /// </summary>
     private static BinarySerializer Encrypted() =>
         new(BinarySerializerOptions.Configure()
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key)
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key)
             .Build());
 
     /// <summary>Every <paramref name="length"/>-byte window of <paramref name="source"/>.</summary>

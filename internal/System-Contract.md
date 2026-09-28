@@ -153,8 +153,11 @@ holds a budget, a depth scope or a reference table across a suspension.
 ## 2.5 Phase-specific components
 
 `PhaseBudget` inside the pipeline is the single place that checks payload, compressed and encrypted
-sizes. `CompressionService`, `ChecksumService` and `EncryptionService` are internal and receive no
-limits: they are called **inside** the barrier, never instead of it.
+sizes. `CompressionService`, `ChecksumService` and `EncryptionService` are internal and are called
+**inside** the barrier, never instead of it; the one ceiling that reaches a service is the size of the
+writer compression fills, which refuses space past `MaxCompressedBytes`. The services also hold each
+algorithm to what it states — its checksum size, its ciphertext length, its key size, and output of
+exactly the declared length (§12, §13).
 
 Public algorithm contracts (`ICompressionAlgorithm`, `IChecksumAlgorithm`, `IEncryptionAlgorithm`)
 contain no serializer policy, so an external implementation cannot weaken a limit.
@@ -162,6 +165,8 @@ contain no serializer policy, so an external implementation cannot weaken a limi
 Each phase reads one pooled buffer and writes the next; the input of a phase is cleared and returned
 to its pool as soon as its output exists. A V1 payload with no phase goes out as the engine wrote it.
 Under any phase the payload is made contiguous once, because each phase works on a single span.
+Encryption is the last phase and the one exception: its output is not a pooled buffer but the
+destination itself (§13).
 
 ## 2.6 Atomic writes
 
@@ -171,7 +176,10 @@ only then copies it to the destination. A type error, a limit breach or an algor
 therefore raises before the destination is touched, whatever the destination is: a stream, seekable
 or not, or a buffer writer. Only a failure of the destination itself, while the finished bytes are
 being copied, can leave part of a frame behind (§20). Encryption starts only after the whole payload
-is in the serializer's buffer.
+is in the serializer's buffer. An encrypted frame is sized, checked against `MaxWireBytes` and given
+its key before the destination is touched, and its ciphertext is then produced in the destination
+itself; a buffer writer is advanced only once the whole frame is in it, so a cipher that fails leaves
+nothing committed there either (§13).
 
 ---
 
@@ -187,12 +195,21 @@ change that belongs in a release note.
 **`ViShap.Viper.Security`** — `SerializationLimits`.
 
 **`ViShap.Viper.Compression`** — `CompressionAlgorithm`, `ICompressionAlgorithm`, `NoCompression`,
-`Deflate`, `Brotli`.
+`DeflateCompression`, `BrotliCompression`.
 
-**`ViShap.Viper.Checksum`** — `ChecksumAlgorithm`, `IChecksumAlgorithm`, `NoChecksum`, `Crc32`.
+**`ViShap.Viper.Checksum`** — `ChecksumAlgorithm`, `IChecksumAlgorithm`, `NoChecksum`,
+`Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`.
 
 **`ViShap.Viper.Crypto`** — `EncryptionAlgorithm`, `IEncryptionAlgorithm`, `NoEncryption`,
-`Aes256Gcm`, `SecretKey`, `IKeyProvider`, `StaticKeyProvider`, `DelegateKeyProvider`.
+`Aes256GcmEncryption`, `ChaCha20Poly1305Encryption`, `SecretKey`, `IKeyProvider`,
+`StaticKeyProvider`, `DelegateKeyProvider`, `HkdfKeyProvider`.
+
+Every built-in algorithm carries its family as a suffix — `…Compression`, `…Checksum`,
+`…Encryption` — so that no public type shares its simple name with a type of the .NET libraries the
+packages build on (`System.IO.Hashing.Crc32`, `System.Security.Cryptography.ChaCha20Poly1305`, …): a
+consumer who imports both namespaces never meets an ambiguous name. The algorithm interfaces declare
+no default members; a member added after the release comes with a default implementation, which is
+the only additive path.
 
 **`ViShap.Viper.Metadata`** — `BinaryHeaderInfo`, `BinaryFormatInspector`.
 
@@ -479,9 +496,16 @@ Order? order = reader.Deserialize<Order>(stream);   // any V1 frame, encrypted o
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
 - `RequireChecksum` without a checksum algorithm;
 - `RequireEncryption` or `RequireChecksum` together with `WithVersion(0)`;
-- `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`.
+- `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`;
+- a fixed key given to `WithEncryption` whose length is not the algorithm's `KeySizeInBytes` (§13.2).
+  The check applies only to a fixed key: a key from a resolver or a provider exists only once it is
+  resolved, and is checked then.
 
-The last two close both directions of the same contradiction: a headerless payload carries no
+`Build()` also refuses options that encrypt with `ChaCha20Poly1305Encryption` on a platform whose
+cryptography library does not provide it, with `BinaryFormatNotSupportedException` naming the
+algorithm (§13).
+
+The two version rules close both directions of the same contradiction: a headerless payload carries no
 protection, so a policy demanding protection could be satisfied neither when writing one nor when
 reading one (§10.2, §21.1). A configured algorithm without a policy is a capability, not a demand,
 and stays legal under version 0 — it simply does not apply to what version 0 writes.
@@ -806,7 +830,12 @@ Examples:
 - invalid `SerializationLimits`;
 - invalid configuration combinations, keys supplied both through `WithEncryption` and `WithKeys`
   among them;
-- unusable configured provider state.
+- a fixed key of a length the configured algorithm does not take (§13.2);
+- unusable configured provider state;
+- an algorithm that breaks its own statement (§12, §13): a ciphertext length below the plaintext
+  length, an encryption that writes other than the length it stated, a decryption reporting a
+  plaintext outside `0…ciphertext.Length`, a destination refused with `ArgumentException`, a checksum
+  size outside `1…255`.
 
 Not for null public arguments.
 
@@ -855,7 +884,9 @@ Examples:
 
 - unsupported format version;
 - unknown built-in algorithm enum;
-- missing custom registration.
+- missing custom registration;
+- `ChaCha20Poly1305Encryption` on a platform that does not provide it — when options that encrypt
+  with it are built, and when a payload that names it is read (§13).
 
 ## 8.5 `BinaryIntegrityException`
 
@@ -882,7 +913,9 @@ Examples:
 - no key;
 - resolver returns no key;
 - configured key identity mismatch;
-- key provider cannot supply usable material.
+- key provider cannot supply usable material, a resolved key of a length the algorithm does not take
+  among it (§13.2);
+- `HkdfKeyProvider` asked for the key of a payload that names no key id.
 
 `KeyId` is a selector; the header never supplies secret key bytes.
 
@@ -1161,6 +1194,25 @@ expected decompressed output ≤ compressed input × MaxDecompressionRatio
 Phase sizes are checked by the pipeline, not by the algorithm: `ICompressionAlgorithm` implementations
 receive no limits and are invoked inside the barrier.
 
+```csharp
+public interface ICompressionAlgorithm
+{
+    CompressionAlgorithm Kind { get; }
+    string? CustomName { get; }
+
+    void Compress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination);
+
+    // Writes exactly expectedLength bytes; more, fewer or an unterminated stream is BinaryFormatException.
+    void Decompress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination, int expectedLength);
+}
+```
+
+One method per direction, and no default members (§3). Both directions write into an
+`IBufferWriter<byte>` the serializer supplies: on the way out it refuses space past
+`MaxCompressedBytes`, which is `BinaryLimitException`; on the way in it refuses space past the
+declared length, which is `BinaryFormatException`. The built-ins are `DeflateCompression` and
+`BrotliCompression`; neither goes through a `MemoryStream`.
+
 Decompression produces **exactly** the declared uncompressed length. Producing fewer bytes and
 producing more are both rejected, so a payload cannot declare a size that hides part of its own
 content.
@@ -1179,21 +1231,19 @@ and both are needed:
   relates `UncompressedLength` to `CompressedLength`, and `CompressedLength` bytes are metered and
   physically present before anything is decompressed. The buffer a payload can ask for is therefore
   proportional to the payload it actually delivered, not to the number it wrote in its header.
-- **The buffer follows the output, not the declaration.** An algorithm that reports
-  `SupportsIncrementalDecompression` is driven through a writer that starts at 64 KiB and grows to
-  the declared length only once that much output exists. A payload that declares a large expansion
-  and then produces nothing therefore costs the probe and nothing more.
+- **The buffer follows the output, not the declaration.** Every algorithm, built-in or custom,
+  decompresses into a writer that starts at 64 KiB and grows to the declared length only once that
+  much output exists. A payload that declares a large expansion and then produces nothing therefore
+  costs the probe and nothing more. There is no other mode.
 
-The first rule alone leaves the ratio as the residual amplification; the second alone leaves an
-algorithm without an incremental path unbounded. Together the allocation is at most
-`min(MaxPayloadBytes, delivered × MaxDecompressionRatio)`, and never more than 64 KiB until the
-payload has genuinely produced that much.
+The first rule bounds the declaration; the second keeps the allocation behind the output. Together
+the allocation is at most `min(MaxPayloadBytes, delivered × MaxDecompressionRatio)`, and never more
+than 64 KiB until the payload has genuinely produced that much.
 
-`ICompressionAlgorithm` exposes the incremental overload with a default implementation and the
-`SupportsIncrementalDecompression` flag beside it, exactly as `IEncryptionAlgorithm` exposes its
-associated-data overloads (§13.1). The serializer calls the incremental overload when, and only when,
-the flag says it exists; an algorithm that offers only the span overload is decompressed into a
-buffer of the declared size, still bounded by the first rule.
+The service holds every algorithm to the declared length whatever the algorithm reports: output that
+stops short is `BinaryFormatException` once the algorithm returns, and output that runs past it is
+refused by the writer before a byte lands. A framework `InvalidDataException` from an algorithm is
+`BinaryFormatException` with the cause preserved.
 
 ---
 
@@ -1211,10 +1261,62 @@ expected plaintext length ≤ MaxCompressedBytes
 The declared plaintext length may never exceed the ciphertext actually delivered, so a short frame
 cannot force a large allocation by claiming one.
 
-The ciphertext is written into a pooled buffer, and the frame — the header, then that buffer — goes
-to the destination in one copy, which for a stream or a new byte array is the write itself. The
-associated data image is built only when the payload is encrypted, in memory the serializer owns,
-and is cleared once the phase is done; so is the plaintext on the way in and on the way out.
+```csharp
+public interface IEncryptionAlgorithm
+{
+    EncryptionAlgorithm Kind { get; }
+    string? CustomName { get; }
+    bool AuthenticatesAssociatedData { get; }
+    int KeySizeInBytes { get; }
+
+    int GetCiphertextLength(int plaintextLength);                        // exact, and ≥ plaintextLength
+
+    // destination.Length == GetCiphertextLength(plaintext.Length); filled completely;
+    // returns the number of bytes written.
+    int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
+
+    // destination.Length == ciphertext.Length; returns the plaintext length.
+    int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
+}
+```
+
+One method per direction, always with associated data, and no default members (§3). The ciphertext
+length is a function of the plaintext length: `Aes256GcmEncryption` and `ChaCha20Poly1305Encryption`
+both state `plaintextLength + 28` (a 12-byte nonce and a 16-byte tag). An algorithm that cannot state
+its ciphertext length before encrypting — one that adds random padding, say — cannot be plugged in.
+
+The service holds an algorithm to what it states, and every breach is a fault of the algorithm, not
+of the data:
+
+```text
+GetCiphertextLength   negative or below the plaintext length   → BinaryConfigurationException
+Encrypt               returns other than destination.Length,
+                      or refuses the destination with ArgumentException → BinaryConfigurationException
+Decrypt               returns outside 0…ciphertext.Length,
+                      or refuses the destination with ArgumentException → BinaryConfigurationException
+KeySizeInBytes        a fixed key given to WithEncryption      → BinaryConfigurationException at Build()
+                      a key obtained from a provider           → BinaryEncryptionKeyException when resolved
+```
+
+A `CryptographicException` is `BinaryEncryptionException` on the way out and
+`BinaryIntegrityException` on the way in, the cause preserved.
+
+Because the length is exact, an encrypted frame is sized before anything is encrypted: the ciphertext
+length is checked against `MaxEncryptedBytes`, the key is resolved and checked, the header is written
+with its final `OnDiskLength`, and the whole frame is checked against `MaxWireBytes` — all before the
+destination is touched. The algorithm then encrypts straight into the destination: into the span an
+`IBufferWriter<byte>` hands out for the whole frame, which is advanced once the frame is complete; into
+the new array for `Serialize` and `SerializePooled`; into one pooled buffer written to a stream in one
+call. A writer that hands out less than the whole frame receives it through a pooled buffer instead.
+A cipher that fails therefore leaves nothing committed in any destination (§2.6). The associated data
+image is built only when the payload is encrypted, in memory the serializer owns, and is cleared once
+the frame is written or dropped; so is the plaintext on the way in and on the way out.
+
+`ChaCha20Poly1305Encryption` comes from the platform's cryptography library, and not every platform
+provides it. Where it is missing, `Build()` refuses options that encrypt with it, and a payload that
+names it is refused when read, both with `BinaryFormatNotSupportedException` naming the algorithm.
 
 ## 13.1 Authenticated metadata
 
@@ -1222,18 +1324,17 @@ The V1 header is bound to authenticated encryption as associated data. The canon
 format version, the algorithm kinds and custom names, the key id, `PreserveReferences`,
 `UncompressedLength`, `CompressedLength` and the checksum bytes.
 
-`OnDiskLength` is excluded because it is only known after encryption; it is self-verifying, since a
-wrong value either truncates the read or fails the authentication tag.
+`OnDiskLength` is not part of the image; it is self-verifying, since a wrong value either truncates
+the read or fails the authentication tag.
 
 Altering any authenticated header byte fails with `BinaryIntegrityException`.
 
-`IEncryptionAlgorithm` exposes AAD-aware overloads with default implementations that ignore the
-associated data, together with `AuthenticatesAssociatedData`. The pipeline always builds the image
-and always hands it to the AAD-aware overload, whatever the flag says, so the flag is a declaration
-about the algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's
-undertaking that the associated data takes part in the authentication tag; the engine cannot verify
-it. An algorithm that reports `false` — including one that simply does not implement the AAD-aware
-overloads — leaves the V1 header as unauthenticated metadata.
+`IEncryptionAlgorithm` has no method without associated data and no default for
+`AuthenticatesAssociatedData`: every algorithm states it. The pipeline always builds the image and
+always hands it over, whatever the property says, so the property is a declaration about the
+algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's undertaking
+that the associated data takes part in the authentication tag; the engine cannot verify it. An
+algorithm that reports `false` leaves the V1 header as unauthenticated metadata.
 
 `RequireEncryption` refuses such an algorithm from both sides, and the two sides are different
 failures:
@@ -1264,9 +1365,17 @@ which hands out owned copies.
 - Disposing a provider clears only its own copy; the caller's array is untouched.
 - Using a disposed provider throws `ObjectDisposedException`.
 - Temporary cryptographic buffers owned by the serializer are cleared when their lifetime ends.
-- Key material the configured algorithm cannot use — a wrong length, or none at all — is
-  `BinaryEncryptionKeyException` (§8.7), raised where the algorithm is used rather than where the key
-  was supplied: a key size belongs to the algorithm, so no entry point validates it on the way in.
+- Every algorithm states `KeySizeInBytes`. A fixed key given to `WithEncryption` is checked against
+  it by `Build()`, with `BinaryConfigurationException`; a key a provider resolves — for writing, or
+  for reading a payload whose algorithm the reader learns only from the header — is checked when it
+  is resolved, with `BinaryEncryptionKeyException` (§8.7), and a refused key is disposed at once. A
+  missing key is `BinaryEncryptionKeyException` too.
+- `HkdfKeyProvider` derives the key for an id as HKDF-SHA-256 over its root key, with the UTF-8 bytes
+  of the key id as info and an optional salt; the key size is a constructor argument, 32 by default.
+  The same id always yields the same key and different ids independent ones. The root key is copied
+  when the provider is built and is never exposed — the provider's only members are `Resolve` and
+  `Dispose` — and every derived key is an owned `SecretKey`. A payload that names no key id has
+  nothing to derive from: `Resolve(null)` is `BinaryEncryptionKeyException`.
 
 ---
 
@@ -1593,7 +1702,7 @@ Requiring encrypted input is an explicit policy:
 
 ```csharp
 BinarySerializerOptions.Configure()
-    .WithEncryption(new Aes256Gcm(), key)
+    .WithEncryption(new Aes256GcmEncryption(), key)
     .RequireEncryption()
     .Build();
 ```
@@ -1863,8 +1972,8 @@ checksumLength     byte
 checksum           bytes
 ```
 
-`onDiskLength` is excluded: it is only known after encryption, and it is self-verifying, because a
-wrong value either truncates the read or fails the tag.
+`onDiskLength` is not part of the image. It is self-verifying, because a wrong value either
+truncates the read or fails the tag.
 
 ## 22.8 V0 envelope
 

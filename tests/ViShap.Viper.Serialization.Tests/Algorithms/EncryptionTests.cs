@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Crypto;
@@ -7,9 +8,10 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Pins ENC-01…ENC-05, ENC-07, ENC-09…ENC-17 and ENC-19…ENC-22, and CFG-05: authenticated metadata,
-/// key ownership, the phase ceilings encryption answers to, and the difference between being able to
-/// decrypt and requiring it.
+/// Pins ENC-01…ENC-05, ENC-07, ENC-09…ENC-17, ENC-19…ENC-22, ENC-24…ENC-26 and ENC-29, and CFG-05:
+/// authenticated metadata, key ownership and key size, the phase ceilings encryption answers to, what
+/// the service holds an algorithm to, the built-in ciphers, the frame encrypted straight into its
+/// destination, and the difference between being able to decrypt and requiring it.
 /// </summary>
 public class EncryptionTests
 {
@@ -17,7 +19,7 @@ public class EncryptionTests
 
     private static BinarySerializer Encrypted(byte[] key, string? keyId = null) =>
         new(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), key, keyId)
+            .WithEncryption(new Aes256GcmEncryption(), key, keyId)
             .Build());
 
     // --- capability is not policy ---------------------------------------------------------------
@@ -37,7 +39,7 @@ public class EncryptionTests
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey())
+                .WithEncryption(new Aes256GcmEncryption(), NewKey())
                 .RequireEncryption()
                 .Build());
 
@@ -131,7 +133,7 @@ public class EncryptionTests
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), _ => shared)
+                .WithEncryption(new Aes256GcmEncryption(), _ => shared)
                 .Build());
 
         byte[] first = serializer.Serialize(1);
@@ -149,7 +151,7 @@ public class EncryptionTests
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), _ => shared)
+                .WithEncryption(new Aes256GcmEncryption(), _ => shared)
                 .Build());
 
         serializer.Serialize(1);
@@ -209,38 +211,71 @@ public class EncryptionTests
         string? observed = null;
         var reader = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), id => { observed = id; return key; }, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), id => { observed = id; return key; }, "primary")
                 .Build());
 
         Assert.Equal(123, reader.Deserialize<int>(payload));
         Assert.Equal("primary", observed);
     }
 
-    // --- ENC-02: a key the algorithm cannot use -------------------------------------------------
+    // --- ENC-02, ENC-24: a key the algorithm cannot use --------------------------------------------
 
     [Fact]
-    public void Serialize_WithAKeyOfTheWrongSizeForTheAlgorithm_ThrowsKeyException()
+    public void Build_AFixedKeyOfTheWrongSizeForTheAlgorithm_ThrowsConfiguration()
+    {
+        AssertEx.Throws<BinaryConfigurationException>(
+            "32-byte",
+            () => BinarySerializerOptions.Configure()
+                .WithEncryption(new Aes256GcmEncryption(), new byte[16])
+                .Build());
+    }
+
+    [Fact]
+    public void Build_AFixedKeyOfTheWrongSizeWithoutEncryption_IsNotChecked()
+    {
+        var options = BinarySerializerOptions.Configure()
+            .WithEncryption(new NoEncryption(), new byte[16])
+            .Build();
+
+        Assert.Equal(42, new BinarySerializer(options).Deserialize<int>(new BinarySerializer(options).Serialize(42)));
+    }
+
+    [Fact]
+    public void Serialize_AProvidedKeyOfTheWrongSizeForTheAlgorithm_ThrowsKeyException()
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), new byte[16])
+                .WithEncryption(new Aes256GcmEncryption(), static _ => new byte[16])
                 .Build());
 
         AssertEx.Throws<BinaryEncryptionKeyException>("32-byte", () => serializer.Serialize(123));
     }
 
     [Fact]
-    public void Deserialize_WithAKeyOfTheWrongSizeForTheAlgorithm_ThrowsKeyException()
+    public void Deserialize_AProvidedKeyOfTheWrongSizeForTheAlgorithm_ThrowsKeyException()
     {
         byte[] payload = Encrypted(NewKey()).Serialize(123);
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), new byte[16])
+                .WithKeys(new byte[16])
                 .Build());
 
         AssertEx.Throws<BinaryEncryptionKeyException>(
             "32-byte", () => serializer.Deserialize<int>(payload));
+    }
+
+    [Fact]
+    public void Deserialize_AProvidedKeyOfTheWrongSize_IsClearedWhenRefused()
+    {
+        byte[] payload = Encrypted(NewKey()).Serialize(123);
+        var keys = new RecordingKeyProvider(new byte[16]);
+
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(keys).Build());
+
+        Assert.Throws<BinaryEncryptionKeyException>(() => serializer.Deserialize<int>(payload));
+        Assert.NotEmpty(keys.Issued);
+        Assert.All(keys.Issued, key => Assert.Equal(0, key.Length));
     }
 
     [Fact]
@@ -249,7 +284,7 @@ public class EncryptionTests
         AssertEx.Throws<BinaryEncryptionKeyException>(
             "empty",
             () => BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), Array.Empty<byte>()));
+                .WithEncryption(new Aes256GcmEncryption(), Array.Empty<byte>()));
     }
 
     // --- ENC-11: a key is always an owned copy ---------------------------------------------------
@@ -287,7 +322,7 @@ public class EncryptionTests
         var provider = new RecordingKeyProvider(NewKey());
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), provider)
+                .WithEncryption(new Aes256GcmEncryption(), provider)
                 .Build());
 
         serializer.Serialize(123);
@@ -302,7 +337,7 @@ public class EncryptionTests
         var provider = new RecordingKeyProvider(NewKey());
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), provider)
+                .WithEncryption(new Aes256GcmEncryption(), provider)
                 .Build());
 
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
@@ -352,7 +387,7 @@ public class EncryptionTests
 
         var reader = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), id => id == "primary" ? primary : null)
+                .WithEncryption(new Aes256GcmEncryption(), id => id == "primary" ? primary : null)
                 .Build());
 
         Assert.Equal(1, reader.Deserialize<int>(underPrimary));
@@ -382,7 +417,7 @@ public class EncryptionTests
         var serializer = Limited(SerializationLimits.Default with { MaxEncryptedBytes = 16 });
 
         AssertEx.Throws<BinaryLimitException>(
-            "could not fit within the configured maximum", () => serializer.Serialize(new string('x', 64)));
+            nameof(SerializationLimits.MaxEncryptedBytes), () => serializer.Serialize(new string('x', 64)));
     }
 
     [Fact]
@@ -445,7 +480,7 @@ public class EncryptionTests
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), key)
+                .WithEncryption(new Aes256GcmEncryption(), key)
                 .RequireEncryption()
                 .RegisterCustomEncryption(
                     UnauthenticatedCipher.RegisteredName, static () => new UnauthenticatedCipher())
@@ -472,6 +507,260 @@ public class EncryptionTests
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
     }
 
+    // --- ENC-25: the service holds an algorithm to what it states ---------------------------------------
+
+    [Fact]
+    public void Serialize_AnAlgorithmStatingACiphertextShorterThanThePlaintext_ThrowsConfiguration()
+    {
+        var serializer = Misbehaving(new MisbehavingCipher { LengthDelta = -5 });
+
+        AssertEx.Throws<BinaryConfigurationException>("never shorter", () => serializer.Serialize(123));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public void Serialize_AnAlgorithmReportingOtherThanTheLengthItStated_ThrowsConfiguration(int writtenDelta)
+    {
+        var serializer = Misbehaving(new MisbehavingCipher { WrittenDelta = writtenDelta });
+
+        AssertEx.Throws<BinaryConfigurationException>("wrote", () => serializer.Serialize(123));
+    }
+
+    [Fact]
+    public void Serialize_AnAlgorithmRefusingTheDestinationItStated_ThrowsConfiguration()
+    {
+        var serializer = Misbehaving(new MisbehavingCipher { RefuseDestination = true });
+
+        var exception = AssertEx.Throws<BinaryConfigurationException>("refused", () => serializer.Serialize(123));
+        Assert.IsType<ArgumentException>(exception.InnerException);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(int.MaxValue)]
+    public void Deserialize_AnAlgorithmReportingAPlaintextOutsideTheCiphertext_ThrowsConfiguration(int reported)
+    {
+        byte[] frame = Misbehaving(new MisbehavingCipher()).Serialize(123);
+
+        var reader = Misbehaving(new MisbehavingCipher { DecryptedLength = reported });
+
+        AssertEx.Throws<BinaryConfigurationException>("reported", () => reader.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Serialize_AWellBehavedCustomAlgorithm_RoundTripsThroughTheSameChecks()
+    {
+        var serializer = Misbehaving(new MisbehavingCipher());
+
+        Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
+    }
+
+    private static BinarySerializer Misbehaving(MisbehavingCipher cipher) =>
+        new(BinarySerializerOptions.Configure()
+            .WithEncryption(cipher, Shared)
+            .RegisterCustomEncryption(MisbehavingCipher.RegisteredName, () => cipher)
+            .Build());
+
+    /// <summary>
+    /// A pass-through cipher that stores its plaintext behind a four-byte marker and can be told to
+    /// break each promise of the algorithm interface in turn.
+    /// </summary>
+    private sealed class MisbehavingCipher : IEncryptionAlgorithm
+    {
+        public const string RegisteredName = "misbehaving";
+
+        public int LengthDelta { get; init; }
+
+        public int WrittenDelta { get; init; }
+
+        public bool RefuseDestination { get; init; }
+
+        public int? DecryptedLength { get; init; }
+
+        public EncryptionAlgorithm Kind => EncryptionAlgorithm.Custom;
+
+        public string? CustomName => RegisteredName;
+
+        public bool AuthenticatesAssociatedData => true;
+
+        public int KeySizeInBytes => 32;
+
+        public int GetCiphertextLength(int plaintextLength) => plaintextLength + 4 + LengthDelta;
+
+        public int Encrypt(
+            ReadOnlySpan<byte> plaintext,
+            ReadOnlySpan<byte> key,
+            ReadOnlySpan<byte> associatedData,
+            Span<byte> destination)
+        {
+            if (RefuseDestination)
+                throw new ArgumentException("Destination refused.", nameof(destination));
+
+            destination.Clear();
+            plaintext[..Math.Min(plaintext.Length, Math.Max(0, destination.Length - 4))]
+                .CopyTo(destination[Math.Min(4, destination.Length)..]);
+            return destination.Length + WrittenDelta;
+        }
+
+        public int Decrypt(
+            ReadOnlySpan<byte> ciphertext,
+            ReadOnlySpan<byte> key,
+            ReadOnlySpan<byte> associatedData,
+            Span<byte> destination)
+        {
+            ciphertext[4..].CopyTo(destination);
+            return DecryptedLength ?? ciphertext.Length - 4;
+        }
+    }
+
+    // --- ENC-26: ChaCha20-Poly1305, where the platform provides it --------------------------------
+
+    [Fact]
+    public void Deserialize_ChaCha20Poly1305_RoundTripsWhereSupportedAndIsRefusedAtBuildElsewhere()
+    {
+        var configure = () => BinarySerializerOptions.Configure()
+            .WithEncryption(new ChaCha20Poly1305Encryption(), NewKey())
+            .RequireEncryption()
+            .Build();
+
+        if (!ChaCha20Poly1305.IsSupported)
+        {
+            AssertEx.Throws<BinaryFormatNotSupportedException>(nameof(ChaCha20Poly1305Encryption), () => configure());
+            return;
+        }
+
+        var serializer = new BinarySerializer(configure());
+        var source = new Person { Name = "Alice", Age = 30 };
+
+        byte[] frame = serializer.Serialize(source);
+
+        Assert.Equal((byte)EncryptionAlgorithm.ChaCha20Poly1305, Wire.ReadHeader(frame).Encryption);
+        Assert.Equivalent(source, serializer.Deserialize<Person>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_AChaCha20Poly1305FrameWhoseCiphertextChanged_ThrowsIntegrityWhereSupported()
+    {
+        if (!ChaCha20Poly1305.IsSupported)
+            return;
+
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithEncryption(new ChaCha20Poly1305Encryption(), NewKey())
+            .Build());
+        byte[] frame = serializer.Serialize(123);
+
+        Assert.Throws<BinaryIntegrityException>(
+            () => serializer.Deserialize<int>(Mutate.FlipByte(frame, frame.Length - 1)));
+    }
+
+    [Fact]
+    public void Deserialize_AFrameNamingChaCha20Poly1305_IsRefusedWhereUnsupportedAndAuthenticatedElsewhere()
+    {
+        byte[] frame = Wire.FrameWith(
+            new byte[40],
+            encryption: (byte)EncryptionAlgorithm.ChaCha20Poly1305,
+            uncompressedLength: 12,
+            compressedLength: 12,
+            onDiskLength: 40);
+
+        var reader = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(NewKey()).Build());
+
+        if (ChaCha20Poly1305.IsSupported)
+            Assert.Throws<BinaryIntegrityException>(() => reader.Deserialize<int>(frame));
+        else
+            AssertEx.Throws<BinaryFormatNotSupportedException>(
+                nameof(ChaCha20Poly1305Encryption), () => reader.Deserialize<int>(frame));
+    }
+
+    [Fact]
+    public void Encrypt_ChaCha20Poly1305_StatesItsLengthAndKeySize()
+    {
+        var algorithm = new ChaCha20Poly1305Encryption();
+
+        Assert.Equal(128 + 28, algorithm.GetCiphertextLength(128));
+        Assert.Equal(32, algorithm.KeySizeInBytes);
+        Assert.True(algorithm.AuthenticatesAssociatedData);
+    }
+
+    // --- ENC-29: an encrypted frame is encrypted straight into the destination ---------------------
+
+    [Fact]
+    public void Serialize_AnEncryptedFrameToABufferWriter_AsksOnceForTheWholeFrameAndAdvancesOnce()
+    {
+        var serializer = Encrypted(Shared);
+        var destination = new RecordingBufferWriter();
+
+        serializer.Serialize(destination, "a value");
+
+        int frameLength = destination.Written.Length;
+        Assert.Equal([frameLength], destination.SizeHints);
+        Assert.Equal([frameLength], destination.Advances);
+        Assert.Equal("a value", serializer.Deserialize<string>(destination.Written));
+    }
+
+    [Fact]
+    public void Serialize_AnEncryptedFrameToAWriterHandingOutShortSpans_StillWritesTheWholeFrame()
+    {
+        var serializer = Encrypted(Shared);
+        var destination = new StingyBufferWriter(7);
+
+        serializer.Serialize(destination, "a value");
+
+        Assert.Equal("a value", serializer.Deserialize<string>(destination.Written));
+    }
+
+    [Fact]
+    public void Serialize_AnEncryptedFrameWhoseCipherFails_LeavesTheBufferWriterEmpty()
+    {
+        var serializer = Misbehaving(new MisbehavingCipher { WrittenDelta = 1 });
+        var destination = new ArrayBufferWriter<byte>();
+
+        Assert.Throws<BinaryConfigurationException>(() => serializer.Serialize(destination, 123));
+
+        Assert.Equal(0, destination.WrittenCount);
+    }
+
+    [Fact]
+    public void Serialize_AnEncryptedFrame_HasTheLengthTheAlgorithmStated()
+    {
+        byte[] frame = Encrypted(Shared).Serialize(new string('x', 300));
+        var header = Wire.ReadHeader(frame);
+
+        Assert.Equal(new Aes256GcmEncryption().GetCiphertextLength(header.CompressedLength), header.OnDiskLength);
+        Assert.Equal(header.HeaderLength + header.OnDiskLength, frame.Length);
+    }
+
+    /// <summary>Records every span request and every advance, and keeps what was committed.</summary>
+    private sealed class RecordingBufferWriter : IBufferWriter<byte>
+    {
+        private readonly ArrayBufferWriter<byte> _inner = new();
+
+        public List<int> SizeHints { get; } = [];
+
+        public List<int> Advances { get; } = [];
+
+        public byte[] Written => _inner.WrittenSpan.ToArray();
+
+        public void Advance(int count)
+        {
+            Advances.Add(count);
+            _inner.Advance(count);
+        }
+
+        public Memory<byte> GetMemory(int sizeHint = 0)
+        {
+            SizeHints.Add(sizeHint);
+            return _inner.GetMemory(sizeHint);
+        }
+
+        public Span<byte> GetSpan(int sizeHint = 0)
+        {
+            SizeHints.Add(sizeHint);
+            return _inner.GetSpan(sizeHint);
+        }
+    }
+
     // --- P5-03: both protection policies at once ---------------------------------------------------
 
     [Fact]
@@ -479,20 +768,20 @@ public class EncryptionTests
     {
         var protectedSerializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), Shared)
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), Shared)
                 .RequireChecksum()
                 .RequireEncryption()
                 .Build());
 
         byte[] encryptedOnly = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), Shared)
+                .WithEncryption(new Aes256GcmEncryption(), Shared)
                 .Build()).Serialize(123);
 
         byte[] checksummedOnly = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32())
+                .WithChecksum(new Crc32Checksum())
                 .Build()).Serialize(123);
 
         Assert.Equal(123, protectedSerializer.Deserialize<int>(protectedSerializer.Serialize(123)));
@@ -507,7 +796,7 @@ public class EncryptionTests
 
     private static BinarySerializer Limited(SerializationLimits limits) =>
         new(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), Shared)
+            .WithEncryption(new Aes256GcmEncryption(), Shared)
             .WithLimits(limits)
             .Build());
 }

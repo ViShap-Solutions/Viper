@@ -1,12 +1,16 @@
 using System.Reflection;
 using System.Xml.Linq;
+using ViShap.Viper.Checksum;
+using ViShap.Viper.Compression;
+using ViShap.Viper.Crypto;
 
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins EXT-01, EXT-04 and EXT-05: the compiled public surface is exactly the one contract §3 lists —
-/// its types, and the members of the serializer and the builder — and every member of it is
-/// documented. A type that appears here without appearing there is an
+/// Pins EXT-01, EXT-04, EXT-05, EXT-06 and EXT-08: the compiled public surface is exactly the one
+/// contract §3 lists — its types, and the members of the serializer and the builder — every member of
+/// it is documented, the algorithm interfaces declare no default member, and no public name collides
+/// with a type of the libraries the packages build on. A type that appears here without appearing there is an
 /// unannounced API addition; one that disappears is a break. Either way the contract and the assembly
 /// must be changed together.
 /// </summary>
@@ -31,22 +35,26 @@ public class PublicSurfaceTests
         "ViShap.Viper.Compression.CompressionAlgorithm",
         "ViShap.Viper.Compression.ICompressionAlgorithm",
         "ViShap.Viper.Compression.NoCompression",
-        "ViShap.Viper.Compression.Deflate",
-        "ViShap.Viper.Compression.Brotli",
+        "ViShap.Viper.Compression.DeflateCompression",
+        "ViShap.Viper.Compression.BrotliCompression",
 
         "ViShap.Viper.Checksum.ChecksumAlgorithm",
         "ViShap.Viper.Checksum.IChecksumAlgorithm",
         "ViShap.Viper.Checksum.NoChecksum",
-        "ViShap.Viper.Checksum.Crc32",
+        "ViShap.Viper.Checksum.Crc32Checksum",
+        "ViShap.Viper.Checksum.XxHash3Checksum",
+        "ViShap.Viper.Checksum.XxHash128Checksum",
 
         "ViShap.Viper.Crypto.EncryptionAlgorithm",
         "ViShap.Viper.Crypto.IEncryptionAlgorithm",
         "ViShap.Viper.Crypto.NoEncryption",
-        "ViShap.Viper.Crypto.Aes256Gcm",
+        "ViShap.Viper.Crypto.Aes256GcmEncryption",
+        "ViShap.Viper.Crypto.ChaCha20Poly1305Encryption",
         "ViShap.Viper.Crypto.SecretKey",
         "ViShap.Viper.Crypto.IKeyProvider",
         "ViShap.Viper.Crypto.StaticKeyProvider",
         "ViShap.Viper.Crypto.DelegateKeyProvider",
+        "ViShap.Viper.Crypto.HkdfKeyProvider",
 
         "ViShap.Viper.Metadata.BinaryHeaderInfo",
         "ViShap.Viper.Metadata.BinaryFormatInspector",
@@ -91,6 +99,78 @@ public class PublicSurfaceTests
         Assert.True(
             missing.Length == 0,
             $"Types promised by System-Contract.md §3 but not exported: {string.Join(", ", missing)}");
+    }
+
+    // --- EXT-06: the algorithm interfaces declare no default member --------------------------------
+
+    [Fact]
+    public void AlgorithmInterfaces_DeclareNoDefaultMember()
+    {
+        Type[] interfaces =
+        [
+            typeof(ICompressionAlgorithm), typeof(IChecksumAlgorithm), typeof(IEncryptionAlgorithm),
+            typeof(IKeyProvider)
+        ];
+
+        var withBody = interfaces
+            .SelectMany(type => type.GetMethods(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static |
+                BindingFlags.DeclaredOnly))
+            .Where(method => !method.IsAbstract)
+            .Select(method => $"{method.DeclaringType!.Name}.{method.Name}")
+            .ToArray();
+
+        Assert.True(withBody.Length == 0, $"Interface members with a body: {string.Join(", ", withBody)}");
+    }
+
+    [Fact]
+    public void EveryPublicInterfaceInCore_IsCoveredByTheDefaultMemberCheck()
+    {
+        string[] coreInterfaces =
+        [
+            .. typeof(BinarySerializerException).Assembly.GetExportedTypes()
+                .Where(type => type.IsInterface)
+                .Select(type => type.Name)
+                .Order(StringComparer.Ordinal)
+        ];
+
+        Assert.Equal(
+            ["IChecksumAlgorithm", "ICompressionAlgorithm", "IEncryptionAlgorithm", "IKeyProvider"],
+            coreInterfaces);
+    }
+
+    // --- EXT-08: no public name collides with a type of the libraries the packages build on ---------
+
+    [Fact]
+    public void PublicSurface_SharesNoSimpleNameWithTheLibrariesItBuildsOn()
+    {
+        string[] libraries =
+        [
+            "System.IO.Hashing", "System.Security.Cryptography", "System.IO.Compression", "System.Buffers",
+            "System.IO.Pipelines"
+        ];
+
+        var libraryNames = libraries
+            .Select(name => Assembly.Load(new AssemblyName(name)))
+            .SelectMany(assembly => assembly.GetExportedTypes().Concat(assembly.GetForwardedTypes()))
+            .Where(type => type.IsPublic)
+            .Select(type => SimpleName(type.Name))
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("Crc32", libraryNames);
+        Assert.Contains("ChaCha20Poly1305", libraryNames);
+        Assert.Contains("ArrayPool", libraryNames);
+
+        string[] collisions =
+        [
+            .. ActualSurface()
+                .Select(name => SimpleName(name[(name.LastIndexOf('.') + 1)..]))
+                .Where(libraryNames.Contains)
+        ];
+
+        Assert.True(collisions.Length == 0, $"Public names shared with the BCL: {string.Join(", ", collisions)}");
+
+        static string SimpleName(string name) => name.Split('`')[0];
     }
 
     [Fact]

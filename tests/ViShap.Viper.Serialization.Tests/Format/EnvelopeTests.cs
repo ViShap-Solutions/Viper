@@ -25,7 +25,7 @@ public class EnvelopeTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
+                .WithCompression(new DeflateCompression())
                 .WithChecksum(new Sum8())
                 .Build());
 
@@ -48,21 +48,21 @@ public class EnvelopeTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
-                .WithEncryption(new Aes256Gcm(), Key)
+                .WithCompression(new DeflateCompression())
+                .WithEncryption(new Aes256GcmEncryption(), Key)
                 .Build());
 
         var header = Wire.ReadHeader(serializer.Serialize(Compressible));
 
         Assert.True(header.CompressedLength < header.UncompressedLength);
-        Assert.Equal(new Aes256Gcm().GetMaxCiphertextLength(header.CompressedLength), header.OnDiskLength);
+        Assert.Equal(new Aes256GcmEncryption().GetCiphertextLength(header.CompressedLength), header.OnDiskLength);
     }
 
     [Fact]
     public void Serialize_V1Frame_WritesTheHeaderAheadOfTheDeclaredPayload()
     {
         byte[] frame = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), Key).Build())
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), Key).Build())
             .Serialize(Compressible);
 
         var header = Wire.ReadHeader(frame);
@@ -83,7 +83,7 @@ public class EnvelopeTests
 
         byte[] compressed = Compress(rawPayload);
         byte[] wrongChecksum = new byte[4];
-        new Crc32().Compute(compressed, wrongChecksum);
+        new Crc32Checksum().Compute(compressed, wrongChecksum);
 
         byte[] frame = Wire.FrameWith(
             compressed,
@@ -102,8 +102,8 @@ public class EnvelopeTests
     {
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
-                .WithEncryption(new Aes256Gcm(), Key)
+                .WithCompression(new DeflateCompression())
+                .WithEncryption(new Aes256GcmEncryption(), Key)
                 .Build());
 
         byte[] frame = serializer.Serialize(Compressible);
@@ -169,8 +169,8 @@ public class EnvelopeTests
         // uncompressed one, leaving the ciphertext comparison as the only rule that can fire.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
-                .WithEncryption(new Aes256Gcm(), Key)
+                .WithCompression(new DeflateCompression())
+                .WithEncryption(new Aes256GcmEncryption(), Key)
                 .Build());
 
         byte[] frame = serializer.Serialize(Compressible);
@@ -222,9 +222,9 @@ public class EnvelopeTests
 
     private static byte[] Compress(byte[] rawPayload)
     {
-        var algorithm = new Deflate();
-        byte[] buffer = new byte[algorithm.GetMaxCompressedLength(rawPayload.Length)];
-        return buffer.AsSpan(0, algorithm.Compress(rawPayload, buffer)).ToArray();
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        new DeflateCompression().Compress(rawPayload, buffer);
+        return buffer.WrittenSpan.ToArray();
     }
 
     /// <summary>A hand-built Deflate frame whose header tells the truth about every phase.</summary>

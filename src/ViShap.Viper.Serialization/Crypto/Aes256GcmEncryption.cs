@@ -8,8 +8,9 @@ namespace ViShap.Viper.Crypto;
 /// <remarks>
 /// <para>
 /// Requires a 256-bit (32-byte) key. The output is <c>nonce (12 bytes) || ciphertext || tag (16
-/// bytes)</c>; the nonce is generated per message with a cryptographic RNG, so the same key may be
-/// reused across messages without the caller tracking anything.
+/// bytes)</c>, 28 bytes longer than the plaintext; the nonce is generated per message with a
+/// cryptographic RNG, so the same key may be reused across messages without the caller tracking
+/// anything.
 /// </para>
 /// <para>
 /// It authenticates the payload's format metadata as associated data, which makes the header
@@ -24,15 +25,14 @@ namespace ViShap.Viper.Crypto;
 /// <example>
 /// <code>
 /// var options = BinarySerializerOptions.Configure()
-///     .WithEncryption(new Aes256Gcm(), key, keyId: "2026-q3")
+///     .WithEncryption(new Aes256GcmEncryption(), key, keyId: "2026-q3")
 ///     .RequireEncryption()
 ///     .Build();
 /// </code>
 /// </example>
 /// </remarks>
-public sealed class Aes256Gcm : IEncryptionAlgorithm
+public sealed class Aes256GcmEncryption : IEncryptionAlgorithm
 {
-    private const int KeySizeBytes = 32;
     private const int NonceSizeBytes = 12;
     private const int TagSizeBytes = 16;
 
@@ -46,26 +46,26 @@ public sealed class Aes256Gcm : IEncryptionAlgorithm
     public bool AuthenticatesAssociatedData => true;
 
     /// <inheritdoc />
-    public int GetMaxCiphertextLength(int plaintextLength) =>
-        NonceSizeBytes + plaintextLength + TagSizeBytes;
+    /// <remarks>32 bytes.</remarks>
+    public int KeySizeInBytes => 32;
 
     /// <inheritdoc />
-    public int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key, Span<byte> destination) =>
-        Encrypt(plaintext, key, ReadOnlySpan<byte>.Empty, destination);
+    /// <remarks>The plaintext length plus 28: a 12-byte nonce and a 16-byte tag.</remarks>
+    public int GetCiphertextLength(int plaintextLength) =>
+        checked(NonceSizeBytes + plaintextLength + TagSizeBytes);
 
     /// <inheritdoc />
+    /// <exception cref="BinaryEncryptionKeyException"><paramref name="key"/> is not 32 bytes long.</exception>
     public int Encrypt(
         ReadOnlySpan<byte> plaintext,
         ReadOnlySpan<byte> key,
         ReadOnlySpan<byte> associatedData,
         Span<byte> destination)
     {
-        ValidateKey(key);
+        Aead.ValidateKey(key, KeySizeInBytes, nameof(Aes256GcmEncryption));
 
-        int required = GetMaxCiphertextLength(plaintext.Length);
-        if (destination.Length < required)
-            throw new InvalidOperationException(
-                $"Destination buffer too small for AES-GCM output. Need {required}, got {destination.Length}.");
+        int length = GetCiphertextLength(plaintext.Length);
+        Aead.CheckDestination(destination, length);
 
         var nonce = destination[..NonceSizeBytes];
         var ciphertext = destination.Slice(NonceSizeBytes, plaintext.Length);
@@ -76,52 +76,37 @@ public sealed class Aes256Gcm : IEncryptionAlgorithm
         using var aes = new AesGcm(key, TagSizeBytes);
         aes.Encrypt(nonce, plaintext, ciphertext, tag, associatedData);
 
-        return required;
+        return length;
     }
 
     /// <inheritdoc />
-    public int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key, Span<byte> destination) =>
-        Decrypt(ciphertext, key, ReadOnlySpan<byte>.Empty, destination);
-
-    /// <inheritdoc />
+    /// <exception cref="BinaryEncryptionKeyException"><paramref name="key"/> is not 32 bytes long.</exception>
+    /// <exception cref="BinaryFormatException"><paramref name="ciphertext"/> is shorter than a nonce and a tag.</exception>
     public int Decrypt(
         ReadOnlySpan<byte> ciphertext,
         ReadOnlySpan<byte> key,
         ReadOnlySpan<byte> associatedData,
         Span<byte> destination)
     {
-        ValidateKey(key);
+        Aead.ValidateKey(key, KeySizeInBytes, nameof(Aes256GcmEncryption));
 
-        if (ciphertext.Length < NonceSizeBytes + TagSizeBytes)
-            throw new BinaryFormatException("Ciphertext is too short for AES-GCM.");
-
-        int plaintextLength = ciphertext.Length - NonceSizeBytes - TagSizeBytes;
-        if (destination.Length < plaintextLength)
-            throw new BinaryFormatException(
-                $"Destination buffer too small for decrypted output. Need {plaintextLength}, " +
-                $"got {destination.Length}.");
+        int plaintextLength = Aead.PlaintextLength(
+            ciphertext, destination, NonceSizeBytes + TagSizeBytes, "AES-GCM");
 
         var nonce = ciphertext[..NonceSizeBytes];
         var payload = ciphertext.Slice(NonceSizeBytes, plaintextLength);
         var tag = ciphertext.Slice(NonceSizeBytes + plaintextLength, TagSizeBytes);
+        var plaintext = destination[..plaintextLength];
 
         try
         {
             using var aes = new AesGcm(key, TagSizeBytes);
-            aes.Decrypt(nonce, payload, tag, destination[..plaintextLength], associatedData);
-            return plaintextLength;
+            aes.Decrypt(nonce, payload, tag, plaintext, associatedData);
+            return plaintext.Length;
         }
         catch (CryptographicException ex)
         {
-            throw new BinaryIntegrityException(
-                "Decryption failed: wrong key, tampered payload, or tampered format metadata.", ex);
+            throw Aead.AuthenticationFailed(ex);
         }
-    }
-
-    private static void ValidateKey(ReadOnlySpan<byte> key)
-    {
-        if (key.Length != KeySizeBytes)
-            throw new BinaryEncryptionKeyException(
-                $"Aes256Gcm requires a {KeySizeBytes}-byte (256-bit) key, got {key.Length}.");
     }
 }

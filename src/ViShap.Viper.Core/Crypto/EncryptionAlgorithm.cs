@@ -15,6 +15,13 @@ public enum EncryptionAlgorithm : byte
     Aes256Gcm = 1,
 
     /// <summary>
+    /// ChaCha20-Poly1305 (RFC 8439): confidentiality plus authentication, including of the format
+    /// metadata. Fast in software, which makes it a good choice where the processor has no AES
+    /// instructions. Not every platform provides it.
+    /// </summary>
+    ChaCha20Poly1305 = 2,
+
+    /// <summary>
     /// A user-supplied algorithm, identified by name. Register it with
     /// <c>BinarySerializerOptions.Configure().RegisterCustomEncryption(...)</c> before reading a
     /// payload that names it.

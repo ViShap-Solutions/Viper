@@ -246,7 +246,7 @@ Viper appears in every tier, in the configuration that belongs to that tier.
 | **T1** | **Self-describing envelope.** The payload states how it was produced — algorithms, lengths, flags — and a reader the writer never configured can act on it | V1 default (B-P0) | Orleans, System.Text.Json. A format that describes its values but not its production — MessagePack signals its own LZ4 compression and nothing else, MemoryPack signals nothing — is placed by its probe, and the cell names exactly what the payload does and does not carry |
 | **T2** | **Schema evolution.** A field added, removed or reordered on one side is tolerated by the other, and unknown data is skipped rather than fatal | V1 and V0 over keyed models (B-P0, B-P7) | protobuf-net, MessagePack keyed, Nerdbank.MessagePack, Orleans, System.Text.Json |
 | **T3** | **Graph fidelity.** Shared references survive as identity, cycles are representable, polymorphic values restore their runtime type | V1 + `PreserveReferences` + `[BinaryUnion]` (B-P1) | Orleans, Nerdbank.MessagePack, System.Text.Json (`ReferenceHandler.Preserve`), and from §5.3 Newtonsoft.Json, Hyperion, DataContractSerializer |
-| **T4** | **Protected envelope.** Integrity and confidentiality bound to the metadata rather than bolted on beside it | V1 + Crc32 + AES-256-GCM (B-P6) | No library peer. Measured against the **composed baselines** of §17 |
+| **T4** | **Protected envelope.** Integrity and confidentiality bound to the metadata rather than bolted on beside it | V1 + CRC-32 + AES-256-GCM (B-P6) | No library peer. Measured against the **composed baselines** of §17 |
 
 - [ ] TIER-01 — every published comparative table names its tier and contains only serializers whose probes place them in it
 - [ ] TIER-02 — a T0 number is never shown against a T1–T4 number without the tier visible in the same view
@@ -327,10 +327,13 @@ The configurations a consumer can build, each measured as itself. Built with the
 | **B-P0** | `new BinarySerializer()` — V1, no algorithms | T1 | The default a consumer gets |
 | **B-P1** | `Configure().PreserveReferences()` | T3 | The cost of reference framing |
 | **B-P2** | `Configure().WithLimits(tight)` | — | The cost of accounting near a ceiling; not a performance mode |
-| **B-P3** | `Configure().WithCompression(Deflate)` and `Brotli` | — | §15 |
-| **B-P4** | `Configure().WithChecksum(Crc32)` | — | §16 |
-| **B-P5** | `Configure().WithEncryption(Aes256Gcm, key)` | — | §16 |
-| **B-P6** | Brotli + Crc32 + Aes256Gcm, and Deflate + Crc32 + Aes256Gcm | T4 | The full protected envelope |
+| **B-P3** | `Configure().WithCompression(DeflateCompression)` (B-P3d) and `BrotliCompression` (B-P3b) | — | §15 |
+| **B-P4** | `Configure().WithChecksum(Crc32Checksum)` | — | §16 |
+| **B-P4x3** | `Configure().WithChecksum(XxHash3Checksum)` | — | §16 *(added in R5)* |
+| **B-P4x128** | `Configure().WithChecksum(XxHash128Checksum)` | — | §16 *(added in R5)* |
+| **B-P5** | `Configure().WithEncryption(Aes256GcmEncryption, key)` | — | §16 |
+| **B-P5c** | `Configure().WithEncryption(ChaCha20Poly1305Encryption, key)` | — | §16 *(added in R5)* |
+| **B-P6** | `BrotliCompression` + `Crc32Checksum` + `Aes256GcmEncryption` (B-P6b), and the same with `DeflateCompression` (B-P6d) | T4 | The full protected envelope |
 | **B-P7** | `Configure().WithVersion(0).AllowV0Fallback()` | T0 | The compact codec |
 
 - [ ] PROF-01 — every profile is measured on every dataset it supports, buffered and streaming
@@ -341,6 +344,12 @@ The configurations a consumer can build, each measured as itself. Built with the
 - [ ] PROF-06 — `Populate` into an existing instance is measured against `Deserialize` of the same payload, which allocates the root; there is no `ref` form left to measure — a struct is read with the ordinary overload *(Contract §3.3; rewritten in R3)*
 - [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so what the per-type caches and a fresh serializer cost has a number *(Contract §3; rewritten in R3 — the per-call `StreamExtensions` path it once priced is gone)*
 - [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(Contract §15)*
+The built-ins were renamed in R5 to carry their family as a suffix; the plan IDs of the profiles did
+not change, and neither did the members of the harness's `ViperProfile` enum — `Deflate`, `Brotli`,
+`Crc32`, `Aes256Gcm` — which name profiles, not types, and which are what a cell's parameters record.
+A cell therefore keeps its identity across the rename, and BASE-02 still matches it with
+`pre-rework`. The three profiles R5 added have no `pre-rework` cell.
+
 - [x] PROF-09 — the same profile set is measured on the `pre-rework` commit, so the matrices of every rework stage compare with it cell by cell — `Baselines/pre-rework/`, 667 cells, none without a number
 
 ---
@@ -402,7 +411,7 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 | **WL-14** | Serialize the same graph with reference framing on and off | L2 | DATA-10, DATA-11 |
 | **WL-15** | Read a payload whose schema differs from the model | L1 | DATA-13; the skipping side of evolution |
 | **WL-18** | Deserialize from a non-seekable stream | L2 | The V1 profiles of the representative set below: a frame declares its length, so it is read without seeking — the path that did not exist before; V0 is refused there by design — `ProfileFramedReadBenchmarks` *(Contract §20; added in R3)* |
-| **WL-19** | An encrypted frame written to an `IBufferWriter<byte>`, against the same frame to `byte[]` | L2 | WL-21 under B-P5 and B-P6 against WL-01 of the same profile. The frame still reaches a buffer writer through one copy until the exact ciphertext length of the algorithm contract arrives; then the encryption writes straight into the writer's span and the difference is the copy saved *(Contract §13; added in R3)* |
+| **WL-19** | An encrypted frame written to an `IBufferWriter<byte>`, against the same frame to `byte[]` | L2 | WL-21 under B-P5 and B-P6 against WL-01 of the same profile. Since R5 the encryption writes straight into the writer's span, sized from the exact ciphertext length the algorithm states, and the difference is the copy saved *(Contract §13; added in R3, path in place since R5)* |
 | **WL-20** | A long stream of small frames read with `DeserializeAsyncEnumerable` | L2 | 1 000 frames of DATA-01 from a pipe and from a stream, under B-P0 and B-P6b; throughput and allocation per frame, each frame its own operation — `FrameStreamBenchmarks` *(Contract §3.5; added in R3)* |
 | **WL-21** | Serialize to an `IBufferWriter<byte>` | L1, L2 | The buffer family: a reset `ArrayBufferWriter<byte>`, over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.1; added in R3)* |
 | **WL-22** | Deserialize from a `ReadOnlySpan<byte>` and from a `ReadOnlySequence<byte>` of four segments | L1, L2 | The buffer family's read side, over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.1; added in R3)* |
@@ -492,9 +501,9 @@ Allocation is a first-class result here, not a footnote: the engine's structural
   |---|---|---|---|---|
   | ALLOC-10 | write to `IBufferWriter`, V1, a record of primitives and strings | 0 | 272 | open — two `PayloadBuffer` objects (PERF-07); the engine adds 0 (ALC-01) |
   | ALLOC-11 | the same, V0 | 0 | 136 | open — one `PayloadBuffer` (PERF-07) |
-  | ALLOC-12 | the same with Brotli | 0 managed | 296 | open — the buffers and the phase; R5 |
-  | ALLOC-13 | the same with Deflate | one `DeflateStream` | 840 | open — R5 rewrites the phase |
-  | ALLOC-14 | the same with encryption | one `AesGcm` | 432 | open — R5 writes the ciphertext straight to the destination |
+  | ALLOC-12 | the same with Brotli | 0 managed | 352 (R4: 296) | open — the buffers and the `CompressionBuffer` object (PERF-07, PERF-08) |
+  | ALLOC-13 | the same with Deflate | one `DeflateStream` | 552 (R4: 840) | open — the buffers (PERF-07); the phase is the `DeflateStream`, its adapter stream and the `CompressionBuffer` |
+  | ALLOC-14 | the same with encryption | one `AesGcm` | 432 (R4: 432) | open — the ciphertext now goes straight to the destination (a copy saved, not an allocation); the buffers remain (PERF-07) |
   | ALLOC-15 | `Serialize<T>(T)` → `byte[]` | the array | 384 (array alone 112) | open — the buffers (PERF-07); exactly the array beyond them (ALC-02) |
   | ALLOC-16 | `SerializePooled` | one `PooledPayload` | 304 | open — the buffers; exactly one `PooledPayload` beyond them (ALC-03) |
   | ALLOC-17 | read from a span, a record of primitives | the record | 152 (record alone 80) | open — 72 B of algorithm objects per read (PERF-07); exactly the record beyond them (ALC-04) |
@@ -537,27 +546,29 @@ encrypted bytes and the overhead over the plaintext
 
 Layer L2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
 
-- [ ] CMP-01 — `Deflate` compress and decompress: time, ratio, allocation, at every corpus size *(Contract §12)*
-- [ ] CMP-02 — `Brotli` compress and decompress: the same *(Contract §12)*
+- [ ] CMP-01 — `DeflateCompression` compress and decompress: time, ratio, allocation, at every corpus size *(Contract §12)*
+- [ ] CMP-02 — `BrotliCompression` compress and decompress: the same *(Contract §12)*
 - [ ] CMP-03 — the no-compression path is measured on the same datasets, so the phase's cost is a difference rather than an estimate
 - [ ] CMP-04 — the incompressible dataset shows what compression costs when it saves nothing, including the case where output exceeds input *(Contract §12)*
 - [ ] CMP-05 — compression throughput is published in MB/s of input, on both directions
 - [ ] CMP-06 — decompression is measured against its declared uncompressed length, since the exact-length rule is part of the read path *(Contract §12)*
 - [ ] CMP-07 — where a competitor offers built-in compression, it appears in this section and nowhere else *(FAIR-16)*
 - [ ] CMP-08 — a custom registered algorithm is measured once, so the extension path's overhead over a built-in is known *(Contract §4.1)*
-- [ ] CMP-09 — incremental decompression for `Deflate` and `Brotli`: time and allocation against the previous single-buffer path, at every corpus size. NX-01 replaced the path, so its cost on a legitimate payload is unknown, and a 64 KiB probe promoted once is a copy on every payload above 64 KiB
+- [ ] CMP-09 — incremental decompression for `DeflateCompression` and `BrotliCompression`: time and allocation against the previous single-buffer path, at every corpus size. NX-01 replaced the path, so its cost on a legitimate payload is unknown, and a 64 KiB probe promoted once is a copy on every payload above 64 KiB. Since R5 it is the only path, for every algorithm, so the comparison is with `pre-rework`
 - [ ] CMP-10 — the `MaxDecompressionRatio` check, isolated: expected to be negligible, and a number makes it a fact
 
 ---
 
 # 16. Checksum and encryption
 
-- [ ] SEC-01 — `Crc32` over each corpus size: time, throughput, allocation *(§11)*
+- [ ] SEC-01 — `Crc32Checksum` over each corpus size: time, throughput, allocation *(§11)*
 - [ ] SEC-02 — the checksum's share of a full V1 write and read, as a difference against B-P0
-- [ ] SEC-03 — `Aes256Gcm` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(Contract §13)*
+- [ ] SEC-03 — `Aes256GcmEncryption` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(Contract §13)*
 - [ ] SEC-04 — the AAD image build, measured on its own (MICRO-08) and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(Contract §13.1)*
 - [ ] SEC-05 — key resolution through `IKeyProvider` measured against a static key, including the per-operation copy `SecretKey` makes *(Contract §13.2)*
 - [ ] SEC-06 — the full protected envelope B-P6 against B-P0, per dataset, so the price of protection is one number a reader can act on
+- [ ] SEC-09 — `XxHash3Checksum` and `XxHash128Checksum` over each corpus size, beside `Crc32Checksum`: time, throughput, allocation; and B-P4x3, B-P4x128 against B-P0 as SEC-02 does for B-P4 *(Contract §3; added in R5)*
+- [ ] SEC-10 — `ChaCha20Poly1305Encryption` encrypt and decrypt beside `Aes256GcmEncryption`, and B-P5c against B-P5. Which one is faster depends on whether the processor has AES instructions: the manifest records the CPU, and a published result names it together with SEC-08's AES flag *(Contract §13; added in R5)*
 - [ ] SEC-07 — the order of phases is the contract's, and no benchmark measures a reordered pipeline *(Contract §10.1)*
 - [ ] SEC-08 — hardware-accelerated AES is reported as present or absent in the environment manifest, since it moves this section by an order of magnitude
 
@@ -601,7 +612,7 @@ Measured directly on the internal type that owns the mechanism, through the gran
 - [ ] MICRO-07 — reference identity tracking through the pooled reference tables the payload's traversal rents and returns: rent, registration, lookup, scope exit and return, at several sharing densities *(Contract §16; rewritten in R2; re-read in R4, where the tables moved into `GraphState` unchanged)* — `ReferenceIdentityBenchmarks`
 - [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(Contract §11, §13.1)*
 - [ ] MICRO-09 — metering and windowing over buffers against a bare copy: the `PayloadBuffer` budget on write, the `WireReader` budget on read, the `WireReader.Slice` window read and skip, and the copy of a finished buffer to a stream *(Contract §7; rewritten in R2, where the three stream decorators were removed)* — `MeteringBenchmarks`
-- [ ] MICRO-10 — the algorithm primitives over spans, outside the pipeline: `Deflate`, `Brotli`, `Crc32`, `Aes256Gcm` *(Contract §12, §13)*
+- [ ] MICRO-10 — the algorithm primitives outside the pipeline, every built-in: `DeflateCompression` and `BrotliCompression` into a reused buffer writer, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption` and `ChaCha20Poly1305Encryption` *(Contract §12, §13; extended in R5)* — `CompressionPrimitiveBenchmarks`, `ProtectionPrimitiveBenchmarks`
 - [x] MICRO-11 — allocation is recorded for every microbenchmark above, not only time, since the per-component allocation record is what a later version compares against
 - [x] MICRO-12 — every microbenchmark names the end-to-end measurement it explains; one that explains nothing is deleted
 
@@ -851,6 +862,7 @@ The place where an unflattering result is recorded rather than argued with. Each
 | **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
 | **R-02** | B0 verification, DATA-09 under B-P3b and B-P6b | The Track A run for the `pre-rework` baseline stopped at verification: 2 of 270 pairs failed with `BinaryLimitException` — Brotli wrote 20 000 identical strings, 1 440 005 bytes, as 64, and the reader refused an expansion of 22 500 against the default `MaxDecompressionRatio` of 10 000. Deflate wrote the same payload as 8 496 bytes and passed | The ratio check arrived with the NX fixes after the corpus was sized. Brotli compresses this payload to a few dozen bytes at any count — 76 to 77 bytes anywhere from 2 000 to 10 000 strings — so the ratio grows with the count alone, and at 20 000 the dataset required a limit above `SerializationLimits.Default`, which DATA-23 forbids | Harness defect, fixed by the repository owner's decision of 2026-09-26 before the baseline: DATA-09 holds 5 000 strings, 360 005 bytes, an expansion of about 4 700 under Brotli. It stays compression's best case and needs no relaxed limit, as FAIR-18 requires. Raising the limit in the Brotli profiles, varying the strings and recording the refusal as a result were rejected. `--verify` passes 270 of 270 pairs |
 | **R-03** | Rework R4 against `pre-rework`, `Measurements/48c7bf5-20260928T082209Z`, `comparison-pre-rework.md` | Of 220 matched timed cells of `results.csv`, 211 are faster and 8 slower. The slower are six nanosecond-scale component cells — MICRO-02 `validate array count` 1.3 → 1.7 ns, `charge graph node` 0.9 → 1.0 ns, `charge keyed field` ×1.05; MICRO-03 `descend and return` at depth 64 and `descend and unwind` ×1.02–1.03 — one profile cell, WL-01 B-P3b DATA-01 13 381 ± 47 → 14 412 ± 74 ns (×1.08, with allocation 2 336 → 448 B), and one cell within error. All 18 cold-start cells and both generic contract rows are slower | The budget is reached through a `ref` to the state instead of a class field, which the JIT keeps in a register less often; the Brotli cell is the phase, which R5 rewrites; the cold cells are PERF-06 | Micro cells accepted as the cost of one operation state per call (INV-1), a few tenths of a nanosecond per charge. The cold cells are PERF-06, open. The Brotli cell is re-measured in R5 |
+| **R-04** | Rework R5 against `pre-rework`, `Measurements/c215131-20260928T131001Z`, `comparison-pre-rework.md` | All 70 matched `AlgorithmBenchmarks` cells are faster (×0.05–×0.88). Of the MICRO-10 primitives 28 cells are slower: `Crc32Checksum` ×1.05–1.10 and AES-GCM ×1.01–1.15 though their code did not change, Brotli ×1.04–1.22 with 32 B per call, Deflate decompress of 1 MB compressible ×1.57. ALLOC-12 296 → 352 B, ALLOC-13 840 → 552 B, ALLOC-14 432 B unchanged | The unchanged primitives set the run's own drift at up to ~15 %; the soak took 40 minutes of wall time for 10. Brotli moved from the one-shot calls to a stepped encoder and decoder over the buffer writer; Deflate copies its input for the stream it reads through; compression writes into a `CompressionBuffer` object | PERF-08, open: re-measure MICRO-10 on an idle machine first, then the one-shot Brotli path, a Deflate profile and a reused `CompressionBuffer` |
 
 ## 27.4 Proposals — `internal/performance/`
 

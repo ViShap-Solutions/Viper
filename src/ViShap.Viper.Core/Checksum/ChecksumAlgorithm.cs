@@ -17,6 +17,12 @@ public enum ChecksumAlgorithm : byte
     /// <summary>CRC-32 (IEEE 802.3), 4 bytes. Fast, suitable for detecting accidental corruption.</summary>
     Crc32 = 1,
 
+    /// <summary>XXH3, 64-bit, 8 bytes. Very fast on large payloads, with a far lower collision rate than CRC-32.</summary>
+    XxHash3 = 2,
+
+    /// <summary>XXH3, 128-bit, 16 bytes. For very large volumes of data, where 64 bits leave a collision within reach.</summary>
+    XxHash128 = 3,
+
     /// <summary>
     /// A user-supplied algorithm, identified by name. Register it with
     /// <c>BinarySerializerOptions.Configure().RegisterCustomChecksum(...)</c> before reading a

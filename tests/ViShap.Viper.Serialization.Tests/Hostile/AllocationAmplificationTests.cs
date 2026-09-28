@@ -150,7 +150,7 @@ public class AllocationAmplificationTests
     public void Deserialize_AGenuinelyCompressedPayload_IsUnaffected()
     {
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build());
+            BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build());
 
         string value = new('x', 200_000);
 

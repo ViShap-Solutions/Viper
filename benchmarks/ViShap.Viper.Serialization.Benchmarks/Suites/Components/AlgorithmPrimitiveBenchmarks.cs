@@ -1,3 +1,4 @@
+using System.Buffers;
 using BenchmarkDotNet.Attributes;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
@@ -7,26 +8,25 @@ using ViShap.Viper.Serialization.Benchmarks.DataSets;
 namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 
 /// <summary>
-/// MICRO-10 — the compression primitives over spans, outside the pipeline: <see cref="Deflate"/> and
-/// <see cref="Brotli"/>, in both directions, at three sizes and two entropies.
+/// MICRO-10 — the compression primitives outside the pipeline: <see cref="DeflateCompression"/> and
+/// <see cref="BrotliCompression"/>, in both directions, at three sizes and two entropies.
 /// </summary>
 /// <remarks>
-/// Buffers are sized once from <c>GetMaxCompressedLength</c>, which is what the pipeline does inside
-/// the phase barrier, so a cell is the codec and not an allocation. Explains the compression half of
+/// Each direction writes into one buffer writer that is reset between invocations and has already
+/// grown past the largest output, so a cell is the codec and not an allocation. Explains the compression half of
 /// DIFF-02 and every CMP row of §15: a B-P3 write is this cell plus the payload the phase before it
 /// produced.
 /// </remarks>
 [MemoryDiagnoser]
 public class CompressionPrimitiveBenchmarks
 {
-    private readonly Deflate _deflate = new();
-    private readonly Brotli _brotli = new();
+    private readonly DeflateCompression _deflate = new();
+    private readonly BrotliCompression _brotli = new();
+    private readonly ArrayBufferWriter<byte> _output = new();
 
     private byte[] _source = [];
-    private byte[] _compressBuffer = [];
     private byte[] _deflated = [];
     private byte[] _brotlied = [];
-    private byte[] _decompressBuffer = [];
 
     [Params(4_096, 65_536, 1_000_000)]
     public int Bytes { get; set; }
@@ -59,43 +59,64 @@ public class CompressionPrimitiveBenchmarks
             random.NextBytes(_source);
         }
 
-        _compressBuffer = new byte[Math.Max(
-            _deflate.GetMaxCompressedLength(Bytes), _brotli.GetMaxCompressedLength(Bytes))];
-
         _deflated = Compress(_deflate);
         _brotlied = Compress(_brotli);
-        _decompressBuffer = new byte[Bytes];
+
+        _output.GetSpan(Math.Max(Bytes, Math.Max(_deflated.Length, _brotlied.Length)) * 2);
+        _output.ResetWrittenCount();
     }
 
     [Benchmark(Description = "MICRO-10 deflate compress")]
-    public int DeflateCompress() => _deflate.Compress(_source, _compressBuffer);
+    public int DeflateCompress()
+    {
+        _output.ResetWrittenCount();
+        _deflate.Compress(_source, _output);
+        return _output.WrittenCount;
+    }
 
     [Benchmark(Description = "MICRO-10 deflate decompress")]
-    public int DeflateDecompress() => _deflate.Decompress(_deflated, _decompressBuffer);
+    public int DeflateDecompress()
+    {
+        _output.ResetWrittenCount();
+        _deflate.Decompress(_deflated, _output, Bytes);
+        return _output.WrittenCount;
+    }
 
     [Benchmark(Description = "MICRO-10 brotli compress")]
-    public int BrotliCompress() => _brotli.Compress(_source, _compressBuffer);
+    public int BrotliCompress()
+    {
+        _output.ResetWrittenCount();
+        _brotli.Compress(_source, _output);
+        return _output.WrittenCount;
+    }
 
     [Benchmark(Description = "MICRO-10 brotli decompress")]
-    public int BrotliDecompress() => _brotli.Decompress(_brotlied, _decompressBuffer);
+    public int BrotliDecompress()
+    {
+        _output.ResetWrittenCount();
+        _brotli.Decompress(_brotlied, _output, Bytes);
+        return _output.WrittenCount;
+    }
 
     private byte[] Compress(ICompressionAlgorithm algorithm)
     {
-        var buffer = new byte[algorithm.GetMaxCompressedLength(Bytes)];
-        int written = algorithm.Compress(_source, buffer);
-        return buffer.AsSpan(0, written).ToArray();
+        var buffer = new ArrayBufferWriter<byte>();
+        algorithm.Compress(_source, buffer);
+        return buffer.WrittenSpan.ToArray();
     }
 }
 
 /// <summary>
-/// MICRO-10 — the checksum and cipher primitives over spans: <see cref="Crc32"/> and
-/// <see cref="Aes256Gcm"/>, at three sizes.
+/// MICRO-10 — the checksum and cipher primitives over spans: <see cref="Crc32Checksum"/>,
+/// <see cref="XxHash3Checksum"/>, <see cref="XxHash128Checksum"/>, <see cref="Aes256GcmEncryption"/> and
+/// <see cref="ChaCha20Poly1305Encryption"/>, at three sizes.
 /// </summary>
 /// <remarks>
-/// Entropy does not change what either costs, so size is the only parameter. The cipher is measured
-/// with associated data, because that is how the pipeline calls it: the V1 header is bound as AAD, and
-/// a cell taken without it would understate an encrypted write. Explains the checksum and encryption
-/// halves of DIFF-02 and the §16 rows.
+/// Entropy does not change what any of them costs, so size is the only parameter. The ciphers are
+/// measured with associated data, because that is how the pipeline calls them: the V1 header is bound
+/// as AAD, and a cell taken without it would understate an encrypted write. ChaCha20-Poly1305 against
+/// AES-GCM depends on whether the processor has AES instructions, which the manifest's CPU names.
+/// Explains the checksum and encryption halves of DIFF-02 and the §16 rows.
 /// </remarks>
 [MemoryDiagnoser]
 public class ProtectionPrimitiveBenchmarks
@@ -108,13 +129,19 @@ public class ProtectionPrimitiveBenchmarks
         0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01,
     ];
 
-    private readonly Crc32 _crc32 = new();
-    private readonly Aes256Gcm _cipher = new();
+    private readonly Crc32Checksum _crc32 = new();
+    private readonly XxHash3Checksum _xxHash3 = new();
+    private readonly XxHash128Checksum _xxHash128 = new();
+    private readonly Aes256GcmEncryption _cipher = new();
+    private readonly ChaCha20Poly1305Encryption _chaCha = new();
 
     private byte[] _source = [];
-    private byte[] _checksum = [];
+    private byte[] _crc32Digest = [];
+    private byte[] _xxHash3Digest = [];
+    private byte[] _xxHash128Digest = [];
     private byte[] _associatedData = [];
     private byte[] _ciphertext = [];
+    private byte[] _chaChaCiphertext = [];
     private byte[] _cipherBuffer = [];
     private byte[] _plainBuffer = [];
 
@@ -125,20 +152,40 @@ public class ProtectionPrimitiveBenchmarks
     public void Setup()
     {
         _source = new DeterministicRandom(0x0000_1811UL + (ulong)Bytes).NextBytes(Bytes);
-        _checksum = new byte[_crc32.HashSizeInBytes];
+        _crc32Digest = new byte[_crc32.HashSizeInBytes];
+        _xxHash3Digest = new byte[_xxHash3.HashSizeInBytes];
+        _xxHash128Digest = new byte[_xxHash128.HashSizeInBytes];
         _associatedData = new byte[64];
 
-        _cipherBuffer = new byte[_cipher.GetMaxCiphertextLength(Bytes)];
-        int written = _cipher.Encrypt(_source, Key, _associatedData, _cipherBuffer);
-        _ciphertext = _cipherBuffer.AsSpan(0, written).ToArray();
-        _plainBuffer = new byte[Bytes];
+        _cipherBuffer = new byte[_cipher.GetCiphertextLength(Bytes)];
+        _cipher.Encrypt(_source, Key, _associatedData, _cipherBuffer);
+        _ciphertext = [.. _cipherBuffer];
+
+        _chaCha.Encrypt(_source, Key, _associatedData, _cipherBuffer);
+        _chaChaCiphertext = [.. _cipherBuffer];
+
+        _plainBuffer = new byte[_cipherBuffer.Length];
     }
 
     [Benchmark(Description = "MICRO-10 crc32 compute")]
     public byte[] Crc32Compute()
     {
-        _crc32.Compute(_source, _checksum);
-        return _checksum;
+        _crc32.Compute(_source, _crc32Digest);
+        return _crc32Digest;
+    }
+
+    [Benchmark(Description = "MICRO-10 xxhash3 compute")]
+    public byte[] XxHash3Compute()
+    {
+        _xxHash3.Compute(_source, _xxHash3Digest);
+        return _xxHash3Digest;
+    }
+
+    [Benchmark(Description = "MICRO-10 xxhash128 compute")]
+    public byte[] XxHash128Compute()
+    {
+        _xxHash128.Compute(_source, _xxHash128Digest);
+        return _xxHash128Digest;
     }
 
     [Benchmark(Description = "MICRO-10 aes-256-gcm encrypt")]
@@ -146,4 +193,10 @@ public class ProtectionPrimitiveBenchmarks
 
     [Benchmark(Description = "MICRO-10 aes-256-gcm decrypt")]
     public int Decrypt() => _cipher.Decrypt(_ciphertext, Key, _associatedData, _plainBuffer);
+
+    [Benchmark(Description = "MICRO-10 chacha20-poly1305 encrypt")]
+    public int ChaChaEncrypt() => _chaCha.Encrypt(_source, Key, _associatedData, _cipherBuffer);
+
+    [Benchmark(Description = "MICRO-10 chacha20-poly1305 decrypt")]
+    public int ChaChaDecrypt() => _chaCha.Decrypt(_chaChaCiphertext, Key, _associatedData, _plainBuffer);
 }

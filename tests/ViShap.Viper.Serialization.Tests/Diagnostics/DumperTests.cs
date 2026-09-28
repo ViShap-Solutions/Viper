@@ -56,7 +56,7 @@ public class DumperTests
     public void DumpHeader_Bytes_RevealsNoKeyMaterial()
     {
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Crypto.Aes256Gcm(), Key, keyId: "primary")
+            .WithEncryption(new Crypto.Aes256GcmEncryption(), Key, keyId: "primary")
             .Build();
 
         string report = BinaryFormatDumper.DumpHeader(new BinarySerializer(options).Serialize(123));

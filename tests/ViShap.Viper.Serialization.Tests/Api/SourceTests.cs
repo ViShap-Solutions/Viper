@@ -27,9 +27,9 @@ public class SourceTests
     {
         "P0" => new BinarySerializer(),
         "P6" => new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key, keyId: "primary")
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key, keyId: "primary")
             .Build()),
         "P7" => new BinarySerializer(BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()),
         _ => throw new ArgumentOutOfRangeException(nameof(name))
@@ -145,7 +145,7 @@ public class SourceTests
             .RegisterCustomEncryption(UnauthenticatedCipher.RegisteredName, static () => new UnauthenticatedCipher())
             .Build()),
         "long key id" => new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), Key, keyId: new string('k', 200))
+            .WithEncryption(new Aes256GcmEncryption(), Key, keyId: new string('k', 200))
             .Build()),
         _ => throw new ArgumentOutOfRangeException(nameof(name))
     };

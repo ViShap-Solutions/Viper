@@ -4,7 +4,7 @@ namespace ViShap.Viper.Configuration;
 
 /// <summary>
 /// The set of algorithms one serializer may use, resolved from a payload header. Built-in algorithms
-/// are fixed — nothing can substitute the implementation of <c>Aes256Gcm</c> for another serializer
+/// are fixed — nothing can substitute the implementation of <c>Aes256GcmEncryption</c> for another serializer
 /// or for the process — and custom algorithms come from the options that were built, not from global
 /// mutable state.
 /// </summary>
@@ -44,8 +44,8 @@ internal sealed class AlgorithmCatalog
         kind switch
         {
             CompressionAlgorithm.None => new NoCompression(),
-            CompressionAlgorithm.Deflate => new Deflate(),
-            CompressionAlgorithm.Brotli => new Brotli(),
+            CompressionAlgorithm.Deflate => new DeflateCompression(),
+            CompressionAlgorithm.Brotli => new BrotliCompression(),
             CompressionAlgorithm.Custom => ResolveCustom(_compression, customName, "compression"),
             _ => throw new BinaryFormatNotSupportedException(
                 $"No compression algorithm registered for '{kind}'.")
@@ -55,7 +55,9 @@ internal sealed class AlgorithmCatalog
         kind switch
         {
             ChecksumAlgorithm.None => new NoChecksum(),
-            ChecksumAlgorithm.Crc32 => new Crc32(),
+            ChecksumAlgorithm.Crc32 => new Crc32Checksum(),
+            ChecksumAlgorithm.XxHash3 => new XxHash3Checksum(),
+            ChecksumAlgorithm.XxHash128 => new XxHash128Checksum(),
             ChecksumAlgorithm.Custom => ResolveCustom(_checksum, customName, "checksum"),
             _ => throw new BinaryFormatNotSupportedException(
                 $"No checksum algorithm registered for '{kind}'.")
@@ -65,11 +67,18 @@ internal sealed class AlgorithmCatalog
         kind switch
         {
             EncryptionAlgorithm.None => new NoEncryption(),
-            EncryptionAlgorithm.Aes256Gcm => new Aes256Gcm(),
+            EncryptionAlgorithm.Aes256Gcm => new Aes256GcmEncryption(),
+            EncryptionAlgorithm.ChaCha20Poly1305 => SupportedChaCha20Poly1305(),
             EncryptionAlgorithm.Custom => ResolveCustom(_encryption, customName, "encryption"),
             _ => throw new BinaryFormatNotSupportedException(
                 $"No encryption algorithm registered for '{kind}'.")
         };
+
+    private static ChaCha20Poly1305Encryption SupportedChaCha20Poly1305()
+    {
+        ChaCha20Poly1305Encryption.EnsureSupported();
+        return new ChaCha20Poly1305Encryption();
+    }
 
     private static T ResolveCustom<T>(
         FrozenDictionary<string, Func<T>> registrations,
