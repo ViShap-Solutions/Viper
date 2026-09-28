@@ -210,7 +210,7 @@ public class V0FormatTests
     [Fact]
     public void Serialize_V0PayloadAtMaxPayloadBytes_Succeeds()
     {
-        // A null flag, a 7-bit length of 1 and fourteen UTF-8 bytes are exactly sixteen.
+        // The length fifteen plus one, one 7-bit byte, and fifteen UTF-8 bytes are exactly sixteen.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
                 .WithVersion(0)
@@ -218,10 +218,10 @@ public class V0FormatTests
                 .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 16 })
                 .Build());
 
-        byte[] payload = serializer.Serialize(new string('a', 14));
+        byte[] payload = serializer.Serialize(new string('a', 15));
 
         Assert.Equal(16, payload.Length);
-        Assert.Equal(new string('a', 14), serializer.Deserialize<string>(payload));
+        Assert.Equal(new string('a', 15), serializer.Deserialize<string>(payload));
     }
 
     [Theory]

@@ -147,7 +147,7 @@ public class TightProfileTests
     {
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(0)),
-            uncompressedLength: 65, compressedLength: 65, onDiskLength: 65);
+            services: [Wire.CompressionRecord(1, 65)]);
 
         AssertEx.Throws<BinaryLimitException>(
             "UncompressedLength", () => Serializer.Deserialize<int>(frame));
@@ -156,14 +156,14 @@ public class TightProfileTests
     [Fact]
     public void MaxCompressedBytes_IsReached()
     {
-        // The uncompressed length is at its own ceiling, so only the compressed one can break.
+        // The uncompressed length is at its own ceiling, so only the stored compressed bytes can break.
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(0)),
-            compression: 1,
-            uncompressedLength: 64, compressedLength: 65, onDiskLength: 65);
+            services: [Wire.CompressionRecord(1, 64)],
+            onDiskLength: 65);
 
         AssertEx.Throws<BinaryLimitException>(
-            "CompressedLength", () => Serializer.Deserialize<int>(frame));
+            "MaxCompressedBytes", () => Serializer.Deserialize<int>(frame));
     }
 
     [Fact]
@@ -171,8 +171,8 @@ public class TightProfileTests
     {
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(0)),
-            encryption: 1,
-            uncompressedLength: 64, compressedLength: 64, onDiskLength: 129);
+            services: [Wire.EncryptionRecord(1)],
+            onDiskLength: 129);
 
         AssertEx.Throws<BinaryLimitException>(
             "OnDiskLength", () => Serializer.Deserialize<int>(frame));
@@ -185,9 +185,11 @@ public class TightProfileTests
         // budget are the header's own: the outermost bound is the one that catches them.
         byte[] frame = Wire.FrameWith(
             Wire.Payload(writer => writer.Write(0)),
-            compression: 255, customCompressionName: new string('c', 200),
-            checksumAlgorithm: 255, customChecksumName: new string('k', 200),
-            uncompressedLength: 4, compressedLength: 4, onDiskLength: 4);
+            services:
+            [
+                Wire.ChecksumRecord(255, [0], new string('k', 200)),
+                Wire.CompressionRecord(255, 4, new string('c', 200))
+            ]);
 
         Assert.True(frame.Length > Tight.MaxWireBytes);
         Assert.Throws<BinaryLimitException>(() => Serializer.Deserialize<int>(frame));

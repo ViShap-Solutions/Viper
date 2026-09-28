@@ -50,7 +50,7 @@ public class AsynchronyTests
         var serializer = new BinarySerializer();
         byte[] frame = serializer.Serialize(Value);
 
-        foreach (int length in new[] { 1, 7, 8, 20, Wire.PlainHeaderLength - 1 })
+        foreach (int length in new[] { 1, 4, 5, 6, Wire.ReadHeader(frame).HeaderLength - 1 })
             await Assert.ThrowsAsync<BinaryFormatException>(
                 () => serializer.DeserializeAsync<Person>(new ChunkedPipeReader(frame[..length], chunkSize: 3)).AsTask());
     }
@@ -87,7 +87,7 @@ public class AsynchronyTests
     public async Task DeserializeAsync_AMalformedFrame_ConsumesNothing()
     {
         var serializer = new BinarySerializer();
-        byte[] frame = Mutate.SetInt32(serializer.Serialize(Value), Wire.UncompressedLengthOffset, -1);
+        byte[] frame = Wire.FrameWith(Wire.Body(serializer.Serialize(Value)), services: [Wire.Service(0, false, [])]);
         var pipe = new ChunkedPipeReader(frame, chunkSize: 64);
 
         await Assert.ThrowsAsync<BinaryFormatException>(() => serializer.DeserializeAsync<Person>(pipe).AsTask());

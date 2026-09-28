@@ -46,6 +46,8 @@ internal sealed class MultiDimensionalArrayFormatter<TArray, TElement> : ICompos
 
     private static readonly int Rank = typeof(TArray).GetArrayRank();
 
+    public bool BeginsWithShape => true;
+
     public void Write(ref CompositeWriter writer, TArray value)
     {
         var array = (Array)(object)value;

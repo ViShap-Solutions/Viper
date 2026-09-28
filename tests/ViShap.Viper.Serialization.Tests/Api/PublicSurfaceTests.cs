@@ -60,6 +60,10 @@ public class PublicSurfaceTests
         "ViShap.Viper.Metadata.BinaryFormatInspector",
 
         "ViShap.Viper.Diagnostics.BinaryFormatDumper",
+        "ViShap.Viper.Diagnostics.BinaryDump",
+        "ViShap.Viper.Diagnostics.BinaryDumpNode",
+        "ViShap.Viper.Diagnostics.BinaryDumpNodeKind",
+        "ViShap.Viper.Diagnostics.BinaryDumpDifference",
 
         "ViShap.Viper.Exceptions.BinarySerializerException",
         "ViShap.Viper.Exceptions.BinaryConfigurationException",

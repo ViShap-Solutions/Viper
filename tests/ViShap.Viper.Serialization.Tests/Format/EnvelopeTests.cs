@@ -7,9 +7,9 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins ENV-01, ENV-02, ENV-04…ENV-08 and ENV-10: the V1 envelope runs its phases in the order
-/// §22.6 fixes, each phase verifies the size the previous one declared, and the wire meter counts
-/// the bytes of one operation rather than the position of the caller's stream.
+/// Pins ENV-01, ENV-02, ENV-04…ENV-07 and ENV-10: the V1 envelope runs its phases in the order
+/// §22.6 fixes, each phase verifies the size the header declared, and the wire meter counts the
+/// bytes of one operation rather than the position of the caller's stream.
 /// </summary>
 public class EnvelopeTests
 {
@@ -18,7 +18,7 @@ public class EnvelopeTests
 
     private static readonly byte[] Key = new byte[32];
 
-    // --- ENV-01: serialize, checksum the raw payload, compress, build the AAD, encrypt, header ---
+    // --- ENV-01: serialize, checksum the raw payload, compress, header, encrypt under it ---------
 
     [Fact]
     public void Serialize_CompressedFrame_ChecksumsTheRawPayloadRatherThanTheCompressedOne()
@@ -40,7 +40,7 @@ public class EnvelopeTests
 
         Assert.Equal(expected, header.Checksum);
         Assert.Equal(rawPayload.Length, header.UncompressedLength);
-        Assert.True(header.CompressedLength < header.UncompressedLength);
+        Assert.True(header.OnDiskLength < header.UncompressedLength);
     }
 
     [Fact]
@@ -53,9 +53,12 @@ public class EnvelopeTests
                 .Build());
 
         var header = Wire.ReadHeader(serializer.Serialize(Compressible));
+        byte[] rawPayload = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithVersion(0).Build()).Serialize(Compressible);
+        int compressedLength = Compress(rawPayload).Length;
 
-        Assert.True(header.CompressedLength < header.UncompressedLength);
-        Assert.Equal(new Aes256GcmEncryption().GetCiphertextLength(header.CompressedLength), header.OnDiskLength);
+        Assert.True(compressedLength < header.UncompressedLength);
+        Assert.Equal(new Aes256GcmEncryption().GetCiphertextLength(compressedLength), header.OnDiskLength);
     }
 
     [Fact]
@@ -87,12 +90,11 @@ public class EnvelopeTests
 
         byte[] frame = Wire.FrameWith(
             compressed,
-            compression: (byte)CompressionAlgorithm.Deflate,
-            checksumAlgorithm: (byte)ChecksumAlgorithm.Crc32,
-            uncompressedLength: rawPayload.Length,
-            compressedLength: compressed.Length,
-            onDiskLength: compressed.Length,
-            checksum: wrongChecksum);
+            services:
+            [
+                Wire.ChecksumRecord((byte)ChecksumAlgorithm.Crc32, wrongChecksum),
+                Wire.CompressionRecord((byte)CompressionAlgorithm.Deflate, rawPayload.Length)
+            ]);
 
         Assert.Throws<BinaryIntegrityException>(() => new BinarySerializer().Deserialize<string>(frame));
     }
@@ -144,7 +146,7 @@ public class EnvelopeTests
     public void Deserialize_DecompressedPayloadShorterThanDeclared_ThrowsFormat()
     {
         byte[] frame = CompressedFrame(out int rawLength);
-        frame = Mutate.SetInt32(frame, Wire.UncompressedLengthOffset, rawLength + 1);
+        frame = Wire.WithLengths(frame, uncompressedLength: rawLength + 1);
 
         AssertEx.Throws<BinaryFormatException>(
             $"expected {rawLength + 1}",
@@ -155,31 +157,11 @@ public class EnvelopeTests
     public void Deserialize_DecompressedPayloadLongerThanDeclared_ThrowsFormat()
     {
         byte[] frame = CompressedFrame(out int rawLength);
-        frame = Mutate.SetInt32(frame, Wire.UncompressedLengthOffset, rawLength - 1);
+        frame = Wire.WithLengths(frame, uncompressedLength: rawLength - 1);
 
         AssertEx.Throws<BinaryFormatException>(
             "more data than the declared uncompressed length",
             () => new BinarySerializer().Deserialize<string>(frame));
-    }
-
-    [Fact]
-    public void Deserialize_DeclaredPlaintextLongerThanTheCiphertextPresent_ThrowsFormat()
-    {
-        // Compression is on so that the declared plaintext length is free to differ from the
-        // uncompressed one, leaving the ciphertext comparison as the only rule that can fire.
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure()
-                .WithCompression(new DeflateCompression())
-                .WithEncryption(new Aes256GcmEncryption(), Key)
-                .Build());
-
-        byte[] frame = serializer.Serialize(Compressible);
-        var header = Wire.ReadHeader(frame);
-
-        frame = Mutate.SetInt32(frame, Wire.CompressedLengthOffset, header.OnDiskLength + 1);
-
-        AssertEx.Throws<BinaryFormatException>(
-            "ciphertext byte(s) present", () => serializer.Deserialize<string>(frame));
     }
 
     // --- ENV-10: the wire meter counts this operation, not the stream's position -----------------
@@ -238,9 +220,6 @@ public class EnvelopeTests
 
         return Wire.FrameWith(
             compressed,
-            compression: (byte)CompressionAlgorithm.Deflate,
-            uncompressedLength: rawPayload.Length,
-            compressedLength: compressed.Length,
-            onDiskLength: compressed.Length);
+            services: [Wire.CompressionRecord((byte)CompressionAlgorithm.Deflate, rawPayload.Length)]);
     }
 }

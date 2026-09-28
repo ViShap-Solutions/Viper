@@ -85,8 +85,7 @@ public class AmplificationTests
     {
         byte[] lying = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(64);                        // bit count
+            writer.Write7BitEncodedInt(65);          // bit count, plus one
             writer.Write7BitEncodedInt(8_000_000);   // a blob far larger than the frame
         }));
 
@@ -103,7 +102,6 @@ public class AmplificationTests
     {
         byte[] frame = Wire.Frame(
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody(
             [
                 // Key 2 of OldSchema decodes a Node, whose Value claims far more than the window.
@@ -115,41 +113,25 @@ public class AmplificationTests
             AllocationCeiling, () => new BinarySerializer().Deserialize<OldSchema>(frame));
     }
 
-    // --- HST-20: a declared plaintext larger than the ciphertext ---------------------------------
+    // --- HST-20: decryption costs what the ciphertext delivered ---------------------------------
 
     [Fact]
-    public void Deserialize_ADeclaredPlaintextLongerThanTheCiphertext_ThrowsFormat()
+    public void Deserialize_AShortEncryptedFrameDeclaringALargeExpansion_FailsTheTagAndAllocatesNothingProportional()
     {
+        // The plaintext length is not declared, so decryption works in a buffer as long as the 32
+        // bytes delivered. The declared uncompressed length is within the ratio of those 32 bytes, so
+        // only the tag stops the frame — before decompression allocates anything.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
+                .WithCompression(new DeflateCompression())
                 .WithEncryption(new Aes256GcmEncryption(), RandomNumberGenerator.GetBytes(32))
                 .Build());
         byte[] frame = Wire.FrameWith(
             new byte[32],
-            encryption: Aes256Gcm,
-            uncompressedLength: 8 * 1024 * 1024,
-            compressedLength: 8 * 1024 * 1024,
-            onDiskLength: 32);
+            services: [Wire.CompressionRecord(Deflate, 300_000), Wire.EncryptionRecord(Aes256Gcm)]);
 
-        AssertEx.Throws<BinaryFormatException>(
-            "ciphertext byte(s) present", () => serializer.Deserialize<int>(frame));
-    }
-
-    [Fact]
-    public void Deserialize_ADeclaredPlaintextLongerThanTheCiphertext_AllocatesNothingProportional()
-    {
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256GcmEncryption(), RandomNumberGenerator.GetBytes(32))
-                .Build());
-        byte[] frame = Wire.FrameWith(
-            new byte[32],
-            encryption: Aes256Gcm,
-            uncompressedLength: 8 * 1024 * 1024,
-            compressedLength: 8 * 1024 * 1024,
-            onDiskLength: 32);
-
-        AssertEx.AllocatesLessThan(AllocationCeiling, () => serializer.Deserialize<int>(frame));
+        Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(frame));
+        AssertEx.AllocatesLessThan(AllocationCeiling, () => Record.Exception(() => serializer.Deserialize<int>(frame)));
     }
 
     // --- HST-21: a decompression bomb -------------------------------------------------------------
@@ -164,10 +146,7 @@ public class AmplificationTests
                 .Build());
         byte[] frame = Wire.FrameWith(
             new byte[16],
-            compression: Deflate,
-            uncompressedLength: 8 * 1024 * 1024,
-            compressedLength: 16,
-            onDiskLength: 16);
+            services: [Wire.CompressionRecord(Deflate, 8 * 1024 * 1024)]);
 
         AssertEx.Throws<BinaryLimitException>(
             "UncompressedLength", () => serializer.Deserialize<int>(frame));
@@ -183,10 +162,7 @@ public class AmplificationTests
                 .Build());
         byte[] frame = Wire.FrameWith(
             new byte[16],
-            compression: Deflate,
-            uncompressedLength: 8 * 1024 * 1024,
-            compressedLength: 16,
-            onDiskLength: 16);
+            services: [Wire.CompressionRecord(Deflate, 8 * 1024 * 1024)]);
 
         AssertEx.AllocatesLessThan(AllocationCeiling, () => serializer.Deserialize<int>(frame));
     }
@@ -194,14 +170,12 @@ public class AmplificationTests
     [Fact]
     public void Deserialize_ACompressedLengthTheFrameDoesNotCarry_ThrowsFormat()
     {
-        // The attacker must actually deliver CompressedLength bytes; claiming them is not enough.
+        // The attacker must actually deliver the compressed bytes; claiming them is not enough.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build());
         byte[] frame = Wire.FrameWith(
             new byte[16],
-            compression: Deflate,
-            uncompressedLength: 4096,
-            compressedLength: 4096,
+            services: [Wire.CompressionRecord(Deflate, 4096)],
             onDiskLength: 4096);
 
         var ex = Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<int>(frame));
@@ -311,12 +285,10 @@ public class AmplificationTests
         // Skipped fields count too, so a payload of objects a reader knows nothing about is bounded.
         byte[] frame = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);                      // the list is non-null
-            writer.Write(4);                         // four objects
+            writer.Write7BitEncodedInt(5);           // four objects, plus one
             for (int i = 0; i < 4; i++)
             {
-                writer.Write(true);                  // the object is non-null
-                writer.Write7BitEncodedInt(3);       // three fields nobody knows
+                writer.Write7BitEncodedInt(4);       // three fields nobody knows, plus one
                 for (int key = 10; key < 13; key++)
                 {
                     writer.Write7BitEncodedInt(key);

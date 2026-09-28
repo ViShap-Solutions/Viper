@@ -17,11 +17,13 @@ internal sealed class SequenceCodec<TCollection, TElement, TBuilder, TEnumerator
 
     public override CodecShape Shape => CodecShape.Sequence;
 
-    protected override void WriteBody(ref WireWriter writer, TCollection value)
+    protected override bool FoldsNull => true;
+
+    protected override void WriteBody(ref WireWriter writer, TCollection value, bool nullFolded)
     {
         if (!shape.ReverseOnWrite && shape.CountOf(value) is { } known)
         {
-            var count = writer.WriteCount(known, shape.CountKind, shape.CountName);
+            var count = writer.WriteCount(known, shape.CountKind, shape.CountName, nullFolded);
 
             int written = 0;
             var elements = shape.GetEnumerator(value);
@@ -50,7 +52,7 @@ internal sealed class SequenceCodec<TCollection, TElement, TBuilder, TEnumerator
         var gathered = Gather(ref writer, value);
         try
         {
-            writer.WriteCount(gathered.Count, shape.CountKind, shape.CountName);
+            writer.WriteCount(gathered.Count, shape.CountKind, shape.CountName, nullFolded);
 
             var items = gathered.Items;
             if (shape.ReverseOnWrite)
@@ -70,9 +72,11 @@ internal sealed class SequenceCodec<TCollection, TElement, TBuilder, TEnumerator
         }
     }
 
-    protected override TCollection ReadBody(ref WireReader reader, int referenceId)
+    protected override TCollection ReadBody(ref WireReader reader, int referenceId, bool nullFolded)
     {
-        var count = reader.ReadCount(shape.CountKind, shape.CountName);
+        var count = reader.ReadCount(shape.CountKind, shape.CountName, nullFolded);
+        var trace = reader.State.Trace;
+        trace?.Shape(TraceShape.Sequence, count.Value);
 
         var builder = shape.Create(count.CapacityFor(ElementCodec.MinimumWireSize, reader.Remaining));
         if (referenceId >= 0)
@@ -80,6 +84,7 @@ internal sealed class SequenceCodec<TCollection, TElement, TBuilder, TEnumerator
 
         for (int i = 0; i < count.Value; i++)
         {
+            trace?.LabelIndex(i);
             var element = ElementCodec.Read(ref reader);
             try
             {

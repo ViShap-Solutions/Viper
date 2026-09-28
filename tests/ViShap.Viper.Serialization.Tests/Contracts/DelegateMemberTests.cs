@@ -21,7 +21,7 @@ public class DelegateMemberTests
     public void Serialize_DelegateAsAnElement_ThrowsType()
     {
         Assert.Throws<BinaryTypeException>(
-            () => _serializer.SerializeRecorded(new List<Func<int>> { () => 1 }));
+            () => _serializer.Serialize(new List<Func<int>> { () => 1 }));
     }
 
     [Fact]
@@ -29,14 +29,14 @@ public class DelegateMemberTests
     {
         AssertEx.Throws<BinaryTypeException>(
             "Callback",
-            () => _serializer.SerializeRecorded(new WithDelegate { Value = 1, Callback = () => 1 }));
+            () => _serializer.Serialize(new WithDelegate { Value = 1, Callback = () => 1 }));
     }
 
     [Fact]
     public void Serialize_DelegateField_ThrowsTypeNamingTheMember()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "Handler", () => _serializer.SerializeRecorded(new WithDelegateField()));
+            "Handler", () => _serializer.Serialize(new WithDelegateField()));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class DelegateMemberTests
     {
         // The plan is built from the type, so the outcome cannot depend on whether the caller
         // happened to leave the callback unset.
-        Assert.Throws<BinaryTypeException>(() => _serializer.SerializeRecorded(new WithDelegate()));
+        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(new WithDelegate()));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class DelegateMemberTests
     {
         var source = new WithIgnoredDelegate { Value = 42, Callback = () => 1 };
 
-        var result = _serializer.Deserialize<WithIgnoredDelegate>(_serializer.SerializeRecorded(source))!;
+        var result = _serializer.Deserialize<WithIgnoredDelegate>(_serializer.Serialize(source))!;
 
         Assert.Equal(42, result.Value);
         Assert.Null(result.Callback);
@@ -65,14 +65,14 @@ public class DelegateMemberTests
         var source = new WithEvent { Value = 7 };
         source.Changed += (_, _) => { };
 
-        Assert.Equal(7, _serializer.Deserialize<WithEvent>(_serializer.SerializeRecorded(source))!.Value);
+        Assert.Equal(7, _serializer.Deserialize<WithEvent>(_serializer.Serialize(source))!.Value);
     }
 
     [Fact]
     public void Serialize_KeyedDelegateMember_ThrowsTypeNamingTheMember()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "Callback", () => _serializer.SerializeRecorded(new ContractWithKeyedDelegate()));
+            "Callback", () => _serializer.Serialize(new ContractWithKeyedDelegate()));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class DelegateMemberTests
         var source = new ContractWithIgnoredDelegate { Value = 9, Callback = () => 1 };
 
         var result = _serializer.Deserialize<ContractWithIgnoredDelegate>(
-            _serializer.SerializeRecorded(source))!;
+            _serializer.Serialize(source))!;
 
         Assert.Equal(9, result.Value);
         Assert.Null(result.Callback);
@@ -92,6 +92,6 @@ public class DelegateMemberTests
     {
         // The contract rule fires first and already tells the caller what to add.
         AssertEx.Throws<BinaryTypeException>(
-            "exactly one", () => _serializer.SerializeRecorded(new ContractWithUnmarkedDelegate()));
+            "exactly one", () => _serializer.Serialize(new ContractWithUnmarkedDelegate()));
     }
 }

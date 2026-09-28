@@ -193,6 +193,8 @@ internal static class Program
         Directory.CreateDirectory(Environment.Paths.Artifacts);
         var output = Path.Combine(Environment.Paths.Artifacts, "payload-sizes.csv");
         Reporting.SizeReport.Write(rows, output);
+        Reporting.FormatSizeReport.Write(
+            Reporting.FormatSizeReport.Collect(), Path.Combine(Environment.Paths.Artifacts, "format-sizes.csv"));
 
         Console.WriteLine($"{"Profile",-8} {"Dataset",-22} {"Bytes",12} {"Envelope",10} {"Refs",8}  Ratio");
         Console.WriteLine(new string('-', 78));

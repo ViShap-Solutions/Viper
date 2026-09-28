@@ -31,7 +31,7 @@ public class PolymorphismTests
             new UnionDerived { A = 3, Z = 4 }
         };
 
-        var result = _serializer.Deserialize<List<UnionBase>>(_serializer.SerializeRecorded(source))!;
+        var result = _serializer.Deserialize<List<UnionBase>>(_serializer.Serialize(source))!;
 
         Assert.Equal(1, Assert.IsType<UnionDerived>(result[0]).A);
         Assert.Equal(3, Assert.IsType<UnionDerived>(result[1]).A);
@@ -44,7 +44,7 @@ public class PolymorphismTests
         // the members, so an untagged base has no representation.
         var source = new List<TaggedBase> { new() { Z = 1 }, new TaggedDerived { A = 2, Z = 3 } };
 
-        var result = _serializer.Deserialize<List<TaggedBase>>(_serializer.SerializeRecorded(source))!;
+        var result = _serializer.Deserialize<List<TaggedBase>>(_serializer.Serialize(source))!;
 
         Assert.Equal(typeof(TaggedBase), result[0].GetType());
         Assert.Equal(2, Assert.IsType<TaggedDerived>(result[1]).A);
@@ -53,7 +53,7 @@ public class PolymorphismTests
     [Fact]
     public void Serialize_BaseTypeAbsentFromItsOwnUnionMap_ThrowsType()
     {
-        Assert.Throws<BinaryTypeException>(() => _serializer.SerializeRecorded(new UnionBase { Z = 1 }));
+        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(new UnionBase { Z = 1 }));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class PolymorphismTests
         };
 
         var result = _serializer.Deserialize<Dictionary<string, UnionBase>>(
-            _serializer.SerializeRecorded(source))!;
+            _serializer.Serialize(source))!;
 
         Assert.IsType<UnionDerived>(result["derived"]);
     }
@@ -88,14 +88,14 @@ public class PolymorphismTests
     public void Serialize_DerivedValueInsideCollectionWithoutUnion_ThrowsType()
     {
         Assert.Throws<BinaryTypeException>(
-            () => _serializer.SerializeRecorded(new List<Base> { new Derived { A = 1, Z = 2 } }));
+            () => _serializer.Serialize(new List<Base> { new Derived { A = 1, Z = 2 } }));
     }
 
     [Fact]
     public void Serialize_DeclaredTypeMatchingTheRuntimeType_Succeeds()
     {
         // The write-side rejection is about a mismatch, not about inheritance existing.
-        byte[] payload = _serializer.SerializeRecorded(new Base { Z = 5 });
+        byte[] payload = _serializer.Serialize(new Base { Z = 5 });
 
         Assert.Equal(5, _serializer.Deserialize<Base>(payload)!.Z);
     }

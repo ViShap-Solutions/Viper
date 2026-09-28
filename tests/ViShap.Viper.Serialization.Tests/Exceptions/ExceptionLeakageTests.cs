@@ -153,8 +153,7 @@ public class ExceptionLeakageTests
 
         byte[] frame = Wire.FrameWith(
             garbage,
-            compression: (byte)CompressionAlgorithm.Deflate,
-            uncompressedLength: 64);
+            services: [Wire.CompressionRecord((byte)CompressionAlgorithm.Deflate, 64)]);
 
         var error = Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<int>(frame));

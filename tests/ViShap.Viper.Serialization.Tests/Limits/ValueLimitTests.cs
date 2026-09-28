@@ -42,11 +42,11 @@ public class ValueLimitTests
     }
 
     [Fact]
-    public void Deserialize_ArrayWithANegativeCount_ThrowsFormat()
+    public void Deserialize_ArrayWithACountBeyondInt32_ThrowsFormat()
     {
         var serializer = Limited(SerializationLimits.Default with { MaxArrayLength = 3 });
 
-        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<int[]>(Wire.Container(-1, 0)));
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<int[]>(BeyondInt32));
     }
 
     [Fact]
@@ -92,11 +92,11 @@ public class ValueLimitTests
     }
 
     [Fact]
-    public void Deserialize_CollectionWithANegativeCount_ThrowsFormat()
+    public void Deserialize_CollectionWithACountBeyondInt32_ThrowsFormat()
     {
         var serializer = Limited(SerializationLimits.Default with { MaxCollectionLength = 3 });
 
-        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<List<int>>(Wire.Container(-1, 0)));
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<List<int>>(BeyondInt32));
     }
 
     [Fact]
@@ -143,12 +143,12 @@ public class ValueLimitTests
     }
 
     [Fact]
-    public void Deserialize_DictionaryWithANegativeEntryCount_ThrowsFormat()
+    public void Deserialize_DictionaryWithAnEntryCountBeyondInt32_ThrowsFormat()
     {
         var serializer = Limited(SerializationLimits.Default with { MaxDictionaryEntries = 2 });
 
         Assert.Throws<BinaryFormatException>(
-            () => serializer.Deserialize<Dictionary<int, int>>(Wire.Container(-1, 0)));
+            () => serializer.Deserialize<Dictionary<int, int>>(BeyondInt32));
     }
 
     [Fact]
@@ -306,10 +306,10 @@ public class ValueLimitTests
     }
 
     [Fact]
-    public void Deserialize_NegativeBitCount_ThrowsFormat()
+    public void Deserialize_ABitCountBeyondInt32_ThrowsFormat()
     {
         Assert.Throws<BinaryFormatException>(
-            () => new BinarySerializer().Deserialize<BitArray>(Wire.BitArrayValue(-1, 0)));
+            () => new BinarySerializer().Deserialize<BitArray>(BeyondInt32));
     }
 
     [Fact]
@@ -320,14 +320,14 @@ public class ValueLimitTests
         Assert.Throws<BinaryLimitException>(() => serializer.Serialize(new BitArray(17)));
     }
 
-    // --- LIM-07 / LIM-08: the two structurally invalid declarations -----------------------------
+    // --- LIM-07 / LIM-08: the structurally invalid declarations ---------------------------------
 
     [Fact]
-    public void Deserialize_NegativeCount_IsAFormatErrorAndNotALimitError()
+    public void Deserialize_ACountBeyondInt32_IsAFormatErrorAndNotALimitError()
     {
         // BinaryLimitException derives from BinaryFormatException, so the exact type is the assertion.
         var ex = Assert.Throws<BinaryFormatException>(
-            () => new BinarySerializer().Deserialize<List<int>>(Wire.Container(-1, 0)));
+            () => new BinarySerializer().Deserialize<List<int>>(BeyondInt32));
 
         Assert.IsNotType<BinaryLimitException>(ex);
     }
@@ -337,7 +337,6 @@ public class ValueLimitTests
     {
         byte[] frame = Wire.Frame(
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody([new Wire.KeyedField(1, [0, 0, 0, 0], DeclaredLength: -4)])
         ]);
 
@@ -348,29 +347,20 @@ public class ValueLimitTests
     }
 
     [Fact]
-    public void Deserialize_NegativeHeaderPhaseLength_ThrowsFormat()
-    {
-        byte[] frame = Wire.FrameWith([], uncompressedLength: -1, compressedLength: -1, onDiskLength: -1);
-
-        var ex = Assert.Throws<BinaryFormatException>(
-            () => new BinarySerializer().Deserialize<int>(frame));
-
-        Assert.IsNotType<BinaryLimitException>(ex);
-    }
-
-    [Fact]
     public void Deserialize_StringLengthOverflowingInt32_ThrowsFormat()
     {
         // Five bytes carrying a 7-bit value above Int32.MaxValue, which the encoding admits
         // physically but the format does not.
-        byte[] frame = Wire.Frame(Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x0F });
-        }));
+        byte[] frame = Wire.Frame([0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
 
         Assert.Throws<BinaryFormatException>(() => new BinarySerializer().Deserialize<string>(frame));
     }
+
+    /// <summary>
+    /// A frame whose first number — a count, a length, a bit count — is a 7-bit value above
+    /// Int32.MaxValue: counts are unsigned, so this is the one way a count can leave its range.
+    /// </summary>
+    private static byte[] BeyondInt32 => Wire.Frame([0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
 
     // --- LIM-09: a wire zero is an empty value --------------------------------------------------
 

@@ -34,6 +34,19 @@ internal readonly record struct WireBudget(string Resource, long Maximum)
                 "stream.");
 }
 
+/// <summary>What the bytes at hand say about a 7-bit encoded integer.</summary>
+internal enum SevenBitStatus
+{
+    /// <summary>The integer is whole and well formed.</summary>
+    Complete,
+
+    /// <summary>The bytes end before the integer does.</summary>
+    Incomplete,
+
+    /// <summary>The integer is not minimally encoded, or leaves the non-negative Int32 range.</summary>
+    Malformed
+}
+
 /// <summary>
 /// The only way to read bytes of a payload. It reads from memory — one span, or a
 /// <see cref="ReadOnlySequence{T}"/> of segments — so it always knows exactly how many bytes remain.
@@ -56,6 +69,7 @@ internal ref struct WireReader
     private readonly WireBudget? _budget;
     private readonly string? _scope;
     private readonly int _scopeKey;
+    private readonly long _origin;
     private ReadOnlySpan<byte> _span;
     private int _index;
     private long _spanStart;
@@ -96,9 +110,11 @@ internal ref struct WireReader
         ref OperationState state,
         WireBudget? budget,
         string? scope,
-        int scopeKey = -1)
+        int scopeKey = -1,
+        long origin = 0)
     {
         _state = ref state;
+        _origin = origin;
         _sequence = default;
         _length = bytes.Length;
         _budget = budget;
@@ -115,9 +131,11 @@ internal ref struct WireReader
         ref OperationState state,
         WireBudget? budget,
         string? scope,
-        int scopeKey = -1)
+        int scopeKey = -1,
+        long origin = 0)
     {
         _state = ref state;
+        _origin = origin;
         _sequence = bytes;
         _length = bytes.Length;
         _budget = budget;
@@ -134,6 +152,12 @@ internal ref struct WireReader
 
     /// <summary>Bytes read so far.</summary>
     public readonly long Consumed => _spanStart + _index;
+
+    /// <summary>
+    /// Where the reader stands in the whole payload: <see cref="Consumed"/>, plus the offset its
+    /// bytes start at when it is a window over a keyed field.
+    /// </summary>
+    public readonly long Position => _origin + Consumed;
 
     /// <summary>Bytes still available to this reader — exact, because they are in memory.</summary>
     public readonly long Remaining => _length - Consumed;
@@ -217,12 +241,21 @@ internal ref struct WireReader
         return ReadBytes(length, what);
     }
 
-    /// <summary>Reads a UTF-8 string bounded by <c>MaxStringBytes</c>.</summary>
+    /// <summary>
+    /// Reads a UTF-8 string of the payload bounded by <c>MaxStringBytes</c>: its byte length plus one,
+    /// then the bytes. The zero that stands for null has been taken by the engine before the string
+    /// is read, so here it is malformed.
+    /// </summary>
     /// <exception cref="BinaryLimitException">The declared length exceeds the configured maximum.</exception>
     public string ReadString()
     {
-        int length = ReadBoundedLength(
-            _state.Limits.MaxStringBytes, "MaxStringBytes", "String byte length");
+        int length = ReadFolded(nullFolded: true, "String byte length");
+        if (length > _state.Limits.MaxStringBytes)
+            throw new BinaryLimitException(
+                $"String byte length {length} exceeds the configured maximum of " +
+                $"{_state.Limits.MaxStringBytes} (MaxStringBytes).");
+
+        RequireAvailable(length, "String byte length");
         return DecodeString(length, "String");
     }
 
@@ -246,17 +279,42 @@ internal ref struct WireReader
     }
 
     /// <summary>
-    /// Reads an element count, validating it against its limit and charging the element budget.
+    /// Reads a UTF-8 string that may be absent and must fit a ceiling the format itself fixes: zero
+    /// for none, otherwise its byte length plus one, then the bytes.
     /// </summary>
-    public ElementCount ReadCount(CountKind kind, string what) =>
-        ElementCount.Validate(ReadInt32(), kind, ref _state, what);
-
-    /// <summary>Reads a bit count bounded by <c>MaxByteBlobBytes</c> × 8.</summary>
-    public int ReadBitCount(string what)
+    /// <param name="maxBytes">The largest encoded length the format admits here.</param>
+    /// <param name="what">The field being read, used in diagnostics.</param>
+    /// <exception cref="BinaryFormatException">The declared length exceeds <paramref name="maxBytes"/>.</exception>
+    public string? ReadOptionalString(int maxBytes, string what)
     {
-        int bits = ReadInt32();
-        if (bits < 0)
-            throw new BinaryFormatException($"{what} {bits} must be non-negative.");
+        int folded = Read7BitEncodedInt($"{what} byte length");
+        if (folded == 0)
+            return null;
+
+        int length = folded - 1;
+        if (length > maxBytes)
+            throw new BinaryFormatException(
+                $"{what} declares {length} byte(s), but this field admits at most {maxBytes}.");
+
+        RequireAvailable(length, what);
+        return DecodeString(length, what);
+    }
+
+    /// <summary>
+    /// Reads an element count, validating it against its limit and charging the element budget. When
+    /// <paramref name="nullFolded"/>, the count was written one higher, because it is the first number
+    /// of a value whose null is its zero.
+    /// </summary>
+    public ElementCount ReadCount(CountKind kind, string what, bool nullFolded) =>
+        ElementCount.Validate(ReadFolded(nullFolded, what), kind, ref _state, what);
+
+    /// <summary>
+    /// Reads a bit count bounded by <c>MaxByteBlobBytes</c> × 8, written one higher when
+    /// <paramref name="nullFolded"/>.
+    /// </summary>
+    public int ReadBitCount(string what, bool nullFolded)
+    {
+        int bits = ReadFolded(nullFolded, what);
 
         if (bits > (long)_state.Limits.MaxByteBlobBytes * 8L)
             throw new BinaryLimitException(
@@ -264,6 +322,45 @@ internal ref struct WireReader
                 $"{(long)_state.Limits.MaxByteBlobBytes * 8L} (MaxByteBlobBytes, in bits).");
 
         return bits;
+    }
+
+    /// <summary>
+    /// Reads a structural number, written one higher when <paramref name="nullFolded"/>. The zero that
+    /// stands for null is taken by the engine before the number is read, so a zero here is malformed.
+    /// </summary>
+    public int ReadFolded(bool nullFolded, string what)
+    {
+        int value = Read7BitEncodedInt(what);
+        if (!nullFolded)
+            return value;
+
+        if (value == 0)
+            throw new BinaryFormatException($"{what} is null where a value is required.");
+
+        return value - 1;
+    }
+
+    /// <summary>
+    /// Takes the null of a value whose declared type can be null: when the next byte is zero it is
+    /// consumed and the value is null. Any other byte is left for the value's first number, whose
+    /// minimal encoding never begins with a zero byte unless the number is zero.
+    /// </summary>
+    public bool TryReadNull()
+    {
+        if (_index < _span.Length)
+        {
+            if (_span[_index] != 0)
+                return false;
+
+            _index++;
+            return true;
+        }
+
+        if (Remaining == 0)
+            return ReadOneByte("Value") == 0;
+
+        EnsureSpan();
+        return TryReadNull();
     }
 
     /// <summary>
@@ -297,6 +394,46 @@ internal ref struct WireReader
         }
 
         throw new BinaryFormatException($"Malformed {what} 7-bit integer.");
+    }
+
+    /// <summary>
+    /// Decodes a 7-bit encoded integer at the start of <paramref name="bytes"/> without reading it, as
+    /// measuring a header needs: whether the bytes hold all of it, and how many it occupies. The rules
+    /// are those of <see cref="Read7BitEncodedInt"/>, so a number this reports complete is one that
+    /// method reads.
+    /// </summary>
+    /// <param name="bytes">The bytes the integer starts at, as far as they have arrived.</param>
+    /// <param name="value">The integer, when it is complete.</param>
+    /// <param name="length">
+    /// The bytes it occupies when complete; otherwise how many of <paramref name="bytes"/> it has used.
+    /// </param>
+    public static SevenBitStatus TryDecode7BitEncodedInt(ReadOnlySpan<byte> bytes, out int value, out int length)
+    {
+        uint result = 0;
+        value = 0;
+        length = 0;
+
+        for (int shift = 0; shift < 35; shift += 7)
+        {
+            if (length == bytes.Length)
+                return SevenBitStatus.Incomplete;
+
+            byte current = bytes[length++];
+            if (shift == 28 && (current & 0xF0) != 0)
+                return SevenBitStatus.Malformed;
+
+            result |= (uint)(current & 0x7F) << shift;
+            if ((current & 0x80) == 0)
+            {
+                if ((shift > 0 && current == 0) || result > int.MaxValue)
+                    return SevenBitStatus.Malformed;
+
+                value = (int)result;
+                return SevenBitStatus.Complete;
+            }
+        }
+
+        return SevenBitStatus.Malformed;
     }
 
     /// <summary>
@@ -348,8 +485,8 @@ internal ref struct WireReader
     private WireReader TakeSlice(int length, string? scope, int scopeKey)
     {
         WireReader slice = _span.Length - _index >= length
-            ? new WireReader(_span.Slice(_index, length), ref _state, budget: null, scope, scopeKey)
-            : new WireReader(_sequence.Slice(Consumed, length), ref _state, budget: null, scope, scopeKey);
+            ? new WireReader(_span.Slice(_index, length), ref _state, budget: null, scope, scopeKey, Position)
+            : new WireReader(_sequence.Slice(Consumed, length), ref _state, budget: null, scope, scopeKey, Position);
 
         Advance(length);
         return slice;

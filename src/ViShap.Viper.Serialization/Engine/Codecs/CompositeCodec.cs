@@ -16,15 +16,18 @@ internal sealed class CompositeCodec<T>(ICompositeFormatter<T> formatter) : Stru
 {
     public override CodecShape Shape => CodecShape.Composite;
 
-    protected override void WriteBody(ref WireWriter writer, T value) =>
-        CompositeWriter.Encode(formatter, ref writer, value);
+    protected override bool FoldsNull => formatter.BeginsWithShape;
 
-    protected override T ReadBody(ref WireReader reader, int referenceId)
+    protected override void WriteBody(ref WireWriter writer, T value, bool nullFolded) =>
+        CompositeWriter.Encode(formatter, ref writer, value, nullFolded);
+
+    protected override T ReadBody(ref WireReader reader, int referenceId, bool nullFolded)
     {
         if (referenceId >= 0)
             Register(ref reader, referenceId, ReadReferenceTable.Pending);
 
-        var value = CompositeReader.Decode(formatter, ref reader);
+        reader.State.Trace?.Shape(TraceShape.Composite, 0);
+        var value = CompositeReader.Decode(formatter, ref reader, nullFolded);
 
         if (referenceId >= 0)
             Complete(ref reader, referenceId, value!);
@@ -50,20 +53,35 @@ internal sealed class CompositeCodec<T>(ICompositeFormatter<T> formatter) : Stru
 internal ref struct CompositeReader
 {
     private WireReader _values;
+    private bool _nullFolded;
+    private int _items;
 
-    private CompositeReader(WireReader values) => _values = values;
-
-    /// <summary>Reads one composite value through <paramref name="formatter"/>.</summary>
-    public static T Decode<T>(ICompositeFormatter<T> formatter, ref WireReader reader)
+    private CompositeReader(WireReader values, bool nullFolded)
     {
-        var surface = new CompositeReader(reader);
+        _values = values;
+        _nullFolded = nullFolded;
+    }
+
+    /// <summary>
+    /// Reads one composite value through <paramref name="formatter"/>. When
+    /// <paramref name="nullFolded"/>, the array shape it begins with carries the value's null, and its
+    /// rank was written one higher.
+    /// </summary>
+    public static T Decode<T>(ICompositeFormatter<T> formatter, ref WireReader reader, bool nullFolded)
+    {
+        var surface = new CompositeReader(reader, nullFolded);
         var value = formatter.Read(ref surface);
         reader = surface._values;
         return value;
     }
 
     /// <summary>Reads one framed child value of the declared type.</summary>
-    public TValue ReadValue<TValue>() => FormatterCache<TValue>.Instance.Read(ref _values);
+    public TValue ReadValue<TValue>()
+    {
+        _items++;
+        _values.State.Trace?.LabelItem(_items);
+        return FormatterCache<TValue>.Instance.Read(ref _values);
+    }
 
     /// <summary>
     /// Reads an array shape: the rank, which must match the declared type, then one length per
@@ -71,14 +89,16 @@ internal ref struct CompositeReader
     /// </summary>
     public ArrayShape ReadShape(int expectedRank, string what)
     {
-        int rank = _values.ReadInt32();
+        int rank = _values.ReadFolded(_nullFolded, "Array rank");
+        _nullFolded = false;
+
         if (rank != expectedRank)
             throw new BinaryFormatException(
                 $"Array rank {rank} does not match the declared array rank {expectedRank}.");
 
         var lengths = new int[rank];
         for (int dimension = 0; dimension < rank; dimension++)
-            lengths[dimension] = _values.ReadInt32();
+            lengths[dimension] = _values.Read7BitEncodedInt("Array dimension length");
 
         return new ArrayShape(lengths, ElementCount.ValidateShape(lengths, ref _values.State, what));
     }
@@ -92,13 +112,22 @@ internal ref struct CompositeReader
 internal ref struct CompositeWriter
 {
     private WireWriter _values;
+    private bool _nullFolded;
 
-    private CompositeWriter(WireWriter values) => _values = values;
-
-    /// <summary>Writes one composite value through <paramref name="formatter"/>.</summary>
-    public static void Encode<T>(ICompositeFormatter<T> formatter, ref WireWriter writer, T value)
+    private CompositeWriter(WireWriter values, bool nullFolded)
     {
-        var surface = new CompositeWriter(writer);
+        _values = values;
+        _nullFolded = nullFolded;
+    }
+
+    /// <summary>
+    /// Writes one composite value through <paramref name="formatter"/>. When
+    /// <paramref name="nullFolded"/>, the array shape it begins with carries the value's null, and its
+    /// rank is written one higher.
+    /// </summary>
+    public static void Encode<T>(ICompositeFormatter<T> formatter, ref WireWriter writer, T value, bool nullFolded)
+    {
+        var surface = new CompositeWriter(writer, nullFolded);
         formatter.Write(ref surface, value);
         writer = surface._values;
     }
@@ -114,9 +143,11 @@ internal ref struct CompositeWriter
     {
         var total = ElementCount.ValidateShape(lengths, ref _values.State, what);
 
-        _values.WriteInt32(lengths.Length);
+        _values.WriteFolded(lengths.Length, _nullFolded, "Array rank");
+        _nullFolded = false;
+
         foreach (int length in lengths)
-            _values.WriteInt32(length);
+            _values.Write7BitEncodedInt(length);
 
         return total;
     }

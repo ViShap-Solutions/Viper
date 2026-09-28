@@ -265,8 +265,9 @@ internal static class FrameReader
         {
             if (_pipeline is null)
             {
-                if (buffered.Length < FormatRouter.PrefixLength && !sourceEnded)
-                    return FrameExtent.NeedMore(FormatRouter.PrefixLength);
+                int needs = FormatRouter.Needs(buffered);
+                if (buffered.Length < needs && !sourceEnded)
+                    return FrameExtent.NeedMore(needs);
 
                 _pipeline = router.ForReading(buffered);
             }

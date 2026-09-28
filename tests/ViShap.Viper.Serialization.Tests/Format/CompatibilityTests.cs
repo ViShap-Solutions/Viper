@@ -204,7 +204,7 @@ public class CompatibilityTests
         byte[] framed = Wire.Fixture("v1-primitives.bin");
         byte[] bare = Wire.Fixture("v0-primitives.bin");
 
-        Assert.Equal(bare, framed[Wire.PlainHeaderLength..]);
+        Assert.Equal(bare, Wire.Body(framed));
     }
 
     [Fact]

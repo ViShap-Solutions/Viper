@@ -82,7 +82,9 @@ public class AllocationAmplificationTests
     [Fact]
     public void Deserialize_HeaderDeclaringMoreChecksumBytesThanArePresent_ThrowsFormat()
     {
-        byte[] frame = Wire.FrameWithOversizedChecksum(declaredChecksumLength: 200, actualBytes: 2);
+        // The checksum record declares a 200-byte body while three bytes follow it.
+        byte[] frame = Wire.FrameWith(
+            [], services: [Wire.Service(Wire.ChecksumService, critical: true, [1, 0, 0], declaredLength: 200)]);
         var serializer = new BinarySerializer();
 
         Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<int>(frame));
@@ -103,9 +105,7 @@ public class AllocationAmplificationTests
     private static byte[] Compressed(byte[] body, int uncompressedLength) =>
         Wire.FrameWith(
             body,
-            compression: (byte)CompressionAlgorithm.Deflate,
-            uncompressedLength: uncompressedLength,
-            compressedLength: body.Length);
+            services: [Wire.CompressionRecord((byte)CompressionAlgorithm.Deflate, uncompressedLength)]);
 
     [Fact]
     public void Deserialize_TinyFrameDeclaringAHugeUncompressedLength_ThrowsLimit()

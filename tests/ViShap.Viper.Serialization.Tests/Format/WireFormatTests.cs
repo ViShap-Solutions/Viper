@@ -1,293 +1,302 @@
+using System.Collections;
+using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins HDR-01, WF-03, WF-05…WF-20 and V0-01: the byte-level framing of contract §22 — null flags,
-/// reference markers, counts and the four shapes. These tests fail whenever the wire format
-/// changes, which is the point — a change here is a compatibility break.
+/// Pins HDR-01, WF-03, WF-05…WF-12, WF-14…WF-20, WF-31…WF-37 and V0-01: the byte-level framing of
+/// contract §22 — the header, null folded into the first number of a value, the reference frame,
+/// counts and the four shapes. The expected bytes are the examples the format was specified with.
+/// These tests fail whenever the wire format changes, which is the point — a change here is a
+/// compatibility break.
 /// </summary>
 public class WireFormatTests
 {
     private readonly BinarySerializer _serializer = new();
+
+    // --- HDR-01: the header ---------------------------------------------------------------------
 
     [Fact]
     public void Header_HasTheDocumentedLayout()
     {
         byte[] payload = _serializer.Serialize(0x11223344);
 
-        // int32 root: no null flag for a non-nullable value type, four payload bytes.
-        Assert.Equal(Wire.Frame([0x44, 0x33, 0x22, 0x11]), payload);
-    }
-
-    [Fact]
-    public void String_IsSevenBitLengthPrefixedUtf8()
-    {
-        byte[] payload = _serializer.Serialize("héllo");
-
-        // null flag (reference type), then 7-bit length 6, then six UTF-8 bytes.
-        Assert.Equal(Wire.Frame([1, 6, 0x68, 0xC3, 0xA9, 0x6C, 0x6C, 0x6F]), payload);
-    }
-
-    [Fact]
-    public void Sequence_IsInt32CountThenFramedElements()
-    {
-        byte[] payload = _serializer.Serialize(new List<int> { 1, 2 });
-
-        Assert.Equal(
-            Wire.Frame(
-            [
-                1,                      // non-null
-                2, 0, 0, 0,             // count
-                1, 0, 0, 0,             // element 0
-                2, 0, 0, 0              // element 1
-            ]),
+        // magic, version 1, payload mode 0, no service, onDiskLength 4, then the int32 root.
+        Assert.Equal<byte[]>(
+            [0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x00, 0x04, 0x44, 0x33, 0x22, 0x11],
             payload);
     }
 
     [Fact]
-    public void Map_IsEntryCountThenKeyValuePairs()
+    public void Header_SmallestFrame_IsTheEmptyStringAfterEightHeaderBytes()
     {
-        byte[] payload = _serializer.Serialize(new Dictionary<int, int> { [7] = 9 });
-
-        Assert.Equal(
-            Wire.Frame(
-            [
-                1,                      // non-null
-                1, 0, 0, 0,             // entry count
-                7, 0, 0, 0,             // key
-                9, 0, 0, 0              // value
-            ]),
-            payload);
+        Assert.Equal<byte[]>(
+            [0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x00, 0x01, 0x01],
+            _serializer.Serialize(string.Empty));
     }
 
     [Fact]
-    public void PositionalObject_WritesMembersInPlanOrder()
+    public void Header_BrotliAndAesGcmWithAKeyId_HasTheDocumentedServiceRecords()
     {
-        // Person has Name and Age; ordinal name order puts Age first.
-        byte[] payload = _serializer.Serialize(new Person { Name = "A", Age = 2 });
-
-        Assert.Equal(
-            Wire.Frame(
-            [
-                1,                      // non-null root
-                2, 0, 0, 0,             // Age
-                1,                      // Name is non-null
-                1, 0x41                 // length 1, "A"
-            ]),
-            payload);
-    }
-
-    [Fact]
-    public void KeyedContract_WritesKeyLengthAndPayloadPerField()
-    {
-        byte[] payload = _serializer.Serialize(new OldSchema { Kept = new Node { Value = 5 } });
-
-        Assert.Equal(
-            Wire.Frame(
-            [
-                1,                      // non-null root
-                1,                      // 7-bit field count
-                2,                      // 7-bit key
-                5, 0, 0, 0,             // int32 field payload length: null flag + int32
-                1,                      // Node is non-null
-                5, 0, 0, 0              // Node.Value
-            ]),
-            payload);
-    }
-
-    [Fact]
-    public void ReferenceFraming_PrecedesTheShapeWhenPreserveReferencesIsOn()
-    {
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().PreserveReferences().Build());
-
-        byte[] payload = serializer.Serialize(new List<int> { 1 });
-
-        Assert.Equal(
-            Wire.Frame(
-                [
-                    1,                  // non-null
-                    0,                  // reference marker: first occurrence
-                    0, 0, 0, 0,         // object id
-                    1, 0, 0, 0,         // count
-                    1, 0, 0, 0          // element 0
-                ],
-                preserveReferences: true),
-            payload);
-    }
-
-    [Fact]
-    public void Union_WritesTheTagBeforeMembers()
-    {
-        byte[] payload = _serializer.Serialize<UnionBase>(new UnionDerived { A = 3, Z = 4 });
-
-        Assert.Equal(
-            Wire.Frame(
-            [
-                1,                      // non-null root
-                1,                      // union tag
-                3, 0, 0, 0,             // A (ordinal name order: A before Z)
-                4, 0, 0, 0              // Z
-            ]),
-            payload);
-    }
-
-    [Fact]
-    public void V0_WritesThePayloadWithoutAHeader()
-    {
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithVersion(0).Build());
-
-        Assert.Equal([0x44, 0x33, 0x22, 0x11], serializer.Serialize(0x11223344));
-    }
-
-    // --- WF-05, WF-06, WF-07: counts, optional strings and 7-bit integers -----------------------
-
-    [Fact]
-    public void Count_IsARawInt32RatherThanASevenBitInteger()
-    {
-        // 200 needs two bytes as a 7-bit integer and four as an int32.
-        byte[] payload = Payload(new List<byte>(new byte[200]));
-
-        Assert.Equal<byte[]>([1, 0xC8, 0x00, 0x00, 0x00], payload[..5]);
-        Assert.Equal(5 + 200, payload.Length);
-    }
-
-    [Fact]
-    public void Count_OfAnEmptySequence_IsFourZeroBytes()
-    {
-        Assert.Equal<byte[]>([1, 0, 0, 0, 0], Payload(new List<int>()));
-    }
-
-    [Fact]
-    public void OptionalHeaderString_IsAPresentFlagThenTheString()
-    {
-        // The key id is the only optional string a caller can populate without a custom algorithm.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256GcmEncryption(), new byte[32], keyId: "ab")
+                .WithCompression(new BrotliCompression())
+                .WithEncryption(new Aes256GcmEncryption(), new byte[32], keyId: "k7")
                 .Build());
 
-        byte[] frame = serializer.Serialize(42);
+        // 998 bytes: the count 998 + 1 takes two bytes, so the payload is exactly 1 000 bytes.
+        byte[] frame = serializer.Serialize(new byte[998]);
+        var header = Wire.ReadHeader(frame);
 
-        Assert.Equal(0, _serializer.Serialize(42)[KeyIdOffset]);
-        Assert.Equal<byte[]>([1, 2, 0x61, 0x62], frame[KeyIdOffset..(KeyIdOffset + 4)]);
+        Assert.Equal<byte[]>(
+        [
+            0x42, 0x53, 0x45, 0x52,         // magic
+            0x01,                           // version
+            0x00,                           // payload mode
+            0x02,                           // two service records
+            0x05, 0x03, 0x02, 0xE8, 0x07,   // compression: Brotli, uncompressed 1000
+            0x07, 0x04, 0x01, 0x03, 0x6B, 0x37 // encryption: AES-GCM, KeyId "k7"
+        ], frame[..header.OnDiskLengthOffset]);
+
+        Assert.Equal(frame.Length - header.HeaderLength, header.OnDiskLength);
+        Assert.Equal(new byte[998], serializer.Deserialize<byte[]>(frame));
+    }
+
+    [Fact]
+    public void Header_PayloadModeCarriesTheReferencesBit()
+    {
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().PreserveReferences().Build());
+
+        Assert.Equal(0x01, serializer.Serialize(42)[Wire.ModeOffset]);
+        Assert.Equal(0x00, _serializer.Serialize(42)[Wire.ModeOffset]);
+    }
+
+    // --- WF-03, WF-31: strings carry their null in the length ----------------------------------
+
+    [Fact]
+    public void String_IsItsUtf8LengthPlusOneThenTheBytes()
+    {
+        // 6 UTF-8 bytes, so the length is written as 7.
+        Assert.Equal<byte[]>([7, 0x68, 0xC3, 0xA9, 0x6C, 0x6C, 0x6F], Payload("héllo"));
+    }
+
+    [Fact]
+    public void String_NullEmptyAndHello_AreTheDocumentedBytes()
+    {
+        Assert.Equal<byte[]>([0x00], Payload<string?>(null));
+        Assert.Equal<byte[]>([0x01], Payload(string.Empty));
+        Assert.Equal<byte[]>([0x06, 0x68, 0x65, 0x6C, 0x6C, 0x6F], Payload("hello"));
+    }
+
+    // --- WF-14, WF-15, WF-32: sequences and maps ------------------------------------------------
+
+    [Fact]
+    public void Sequence_IsItsCountPlusOneThenFramedElements()
+    {
+        Assert.Equal<byte[]>(
+            [
+                3,                      // count 2, plus one: not null
+                1, 0, 0, 0,             // element 0
+                2, 0, 0, 0              // element 1
+            ],
+            Payload(new List<int> { 1, 2 }));
+    }
+
+    [Fact]
+    public void Map_IsItsEntryCountPlusOneThenKeyValuePairs()
+    {
+        Assert.Equal<byte[]>(
+            [
+                2,                      // one entry, plus one
+                7, 0, 0, 0,             // key
+                9, 0, 0, 0              // value
+            ],
+            Payload(new Dictionary<int, int> { [7] = 9 }));
+    }
+
+    [Fact]
+    public void Sequence_OfThreeWithReferencesOffAndOn_IsTheDocumentedBytes()
+    {
+        var list = new List<int> { 1, 2, 3 };
+
+        Assert.Equal<byte[]>([0x04, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0], Payload(list));
+
+        // With references the frame carries null, so the count is written as it is.
+        Assert.Equal<byte[]>([0x01, 0x03, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0], PreservingPayload(list));
+    }
+
+    [Fact]
+    public void ByteArray_IsAnOrdinarySequence()
+    {
+        Assert.Equal<byte[]>([0x03, 0x0A, 0x0B], Payload(new byte[] { 0x0A, 0x0B }));
+        Assert.Equal<byte[]>([0x01, 0x02, 0x0A, 0x0B], PreservingPayload(new byte[] { 0x0A, 0x0B }));
+        Assert.Equal<byte[]>([0x00], Payload<byte[]?>(null));
+    }
+
+    // --- WF-05, WF-07: structural numbers are minimal 7-bit integers ----------------------------
+
+    [Fact]
+    public void Count_IsASevenBitIntegerCarryingNull()
+    {
+        // 200 elements: the count 201 needs two bytes.
+        byte[] payload = Payload(new List<byte>(new byte[200]));
+
+        Assert.Equal<byte[]>([0xC9, 0x01], payload[..2]);
+        Assert.Equal(2 + 200, payload.Length);
+    }
+
+    [Fact]
+    public void Count_OfAnEmptySequence_IsOne()
+    {
+        Assert.Equal<byte[]>([0x01], Payload(new List<int>()));
     }
 
     [Theory]
-    [InlineData(1, new byte[] { 0x01 })]
-    [InlineData(127, new byte[] { 0x7F })]
-    [InlineData(128, new byte[] { 0x80, 0x01 })]
-    [InlineData(16_383, new byte[] { 0xFF, 0x7F })]
-    [InlineData(16_384, new byte[] { 0x80, 0x80, 0x01 })]
+    [InlineData(0, new byte[] { 0x01 })]
+    [InlineData(126, new byte[] { 0x7F })]
+    [InlineData(127, new byte[] { 0x80, 0x01 })]
+    [InlineData(16_382, new byte[] { 0xFF, 0x7F })]
+    [InlineData(16_383, new byte[] { 0x80, 0x80, 0x01 })]
     public void SevenBitInteger_UsesTheShortestFormAndRoundTrips(int length, byte[] expectedPrefix)
     {
         string value = new('a', length);
 
         byte[] payload = Payload(value);
 
-        Assert.Equal(expectedPrefix, payload[1..(1 + expectedPrefix.Length)]);
-        Assert.Equal(1 + expectedPrefix.Length + length, payload.Length);
+        Assert.Equal(expectedPrefix, payload[..expectedPrefix.Length]);
+        Assert.Equal(expectedPrefix.Length + length, payload.Length);
         Assert.Equal(value, _serializer.Deserialize<string>(_serializer.Serialize(value)));
     }
 
-    // --- WF-08, WF-09: the null flag ------------------------------------------------------------
+    // --- WF-06: the key id of the encryption record ---------------------------------------------
+
+    [Theory]
+    [InlineData("ab", new byte[] { 0x01, 0x03, 0x61, 0x62 })]
+    [InlineData("", new byte[] { 0x01, 0x01 })]
+    [InlineData(null, new byte[] { 0x01, 0x00 })]
+    public void KeyId_IsFoldedWithItsAbsenceAfterTheAlgorithmId(string? keyId, byte[] expectedBody)
+    {
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure()
+                .WithEncryption(new Aes256GcmEncryption(), new byte[32], keyId: keyId)
+                .Build());
+
+        byte[] frame = serializer.Serialize(42);
+        var record = Wire.ReadHeader(frame).Service(Wire.EncryptionService);
+
+        Assert.Equal(expectedBody, frame[record.BodyOffset..(record.BodyOffset + record.BodyLength)]);
+    }
+
+    // --- WF-08, WF-09, WF-33…WF-36: where null lives --------------------------------------------
 
     [Fact]
-    public void NullFlag_IsWrittenForReferenceTypesAndNullables()
+    public void Null_OfEveryDeclaredTypeThatCanBeNull_IsASingleZero()
     {
-        Assert.Equal<byte[]>([1, 1, 0x61], Payload("a"));
-        Assert.Equal<byte[]>([1, 0x2A, 0, 0, 0], Payload<int?>(42));
+        Assert.Equal<byte[]>([0], Payload<string?>(null));
+        Assert.Equal<byte[]>([0], Payload<int?>(null));
+        Assert.Equal<byte[]>([0], Payload<Person?>(null));
+        Assert.Equal<byte[]>([0], Payload<List<int>?>(null));
+        Assert.Equal<byte[]>([0], Payload<Dictionary<int, int>?>(null));
+        Assert.Equal<byte[]>([0], Payload<OldSchema?>(null));
+        Assert.Equal<byte[]>([0], Payload<UnionBase?>(null));
+        Assert.Equal<byte[]>([0], PreservingPayload<Person?>(null));
+        Assert.Equal<byte[]>([0], PreservingPayload<List<int>?>(null));
     }
 
     [Fact]
-    public void NullFlag_IsAbsentForNonNullableValueTypes()
+    public void Nullable_IsAFlagThenTheValue()
+    {
+        Assert.Equal<byte[]>([0x01, 0x05, 0x00, 0x00, 0x00], Payload<int?>(5));
+        Assert.Equal<byte[]>([0x01, 0x05, 0x00, 0x00, 0x00], PreservingPayload<int?>(5));
+    }
+
+    [Fact]
+    public void TypeThatCannotBeNull_CarriesNothingForIt()
     {
         Assert.Equal<byte[]>([0x2A, 0, 0, 0], Payload(42));
         Assert.Equal<byte[]>([1, 0, 0, 0, 2, 0, 0, 0], Payload(new PointStruct { X = 1, Y = 2 }));
     }
 
     [Fact]
-    public void NullFlag_SetToFalse_EndsTheValue()
+    public void PositionalObject_CarriesAFlagAndWritesMembersInPlanOrder()
     {
-        Assert.Equal<byte[]>([0], Payload<string?>(null));
-        Assert.Equal<byte[]>([0], Payload<int?>(null));
-        Assert.Equal<byte[]>([0], Payload<Person?>(null));
-        Assert.Equal<byte[]>([0], Payload<List<int>?>(null));
+        // Person has Name and Age; ordinal name order puts Age first.
+        Assert.Equal<byte[]>(
+            [
+                1,                      // flag: not null
+                2, 0, 0, 0,             // Age
+                2, 0x41                 // Name: length 1 + 1, "A"
+            ],
+            Payload(new Person { Name = "A", Age = 2 }));
     }
 
-    // --- WF-10…WF-13: the reference frame -------------------------------------------------------
-
     [Fact]
-    public void ReferenceFrame_IsAMarkerByteAndAnInt32Id()
+    public void KeyedClass_CarriesItsNullInTheFieldCount()
     {
         Assert.Equal<byte[]>(
             [
-                1,                      // non-null root
-                0,                      // first occurrence
-                0, 0, 0, 0,             // object id
-                0x24, 0, 0, 0,          // Age
-                1,                      // Name is non-null, and is not framed
-                3, 0x41, 0x64, 0x61
+                2,                      // field count 1, plus one: not null
+                2,                      // key 2
+                5, 0, 0, 0,             // int32 field payload length: Node's flag + int32
+                1,                      // Node is not null
+                5, 0, 0, 0              // Node.Value
             ],
-            PreservingPayload(new Person { Name = "Ada", Age = 36 }));
+            Payload(new OldSchema { Kept = new Node { Value = 5 } }));
     }
 
     [Fact]
-    public void ReferenceFrame_IsAbsentWithoutPreserveReferences()
+    public void KeyedStruct_WritesItsFieldCountAsItIs()
     {
-        Assert.Equal<byte[]>(
-            [1, 0x24, 0, 0, 0, 1, 3, 0x41, 0x64, 0x61],
-            Payload(new Person { Name = "Ada", Age = 36 }));
-    }
-
-    [Fact]
-    public void ReferenceFrame_IsNeverWrittenForScalarsOrValueTypes()
-    {
-        Assert.Equal<byte[]>([1, 1, 0x61], PreservingPayload("a"));
-        Assert.Equal<byte[]>([0x2A, 0, 0, 0], PreservingPayload(42));
-        Assert.Equal<byte[]>([1, 0, 0, 0, 2, 0, 0, 0], PreservingPayload(new PointStruct { X = 1, Y = 2 }));
-        Assert.Equal<byte[]>([1, 0x2A, 0, 0, 0], PreservingPayload<int?>(42));
-    }
-
-    [Fact]
-    public void ReferenceFrame_MarkerOneEndsTheValueAfterTheId()
-    {
-        var shared = new List<int> { 7 };
-
         Assert.Equal<byte[]>(
             [
-                1, 0, 0, 0, 0, 0,       // root SharedLists: non-null, first occurrence, id 0
-                1, 0, 1, 0, 0, 0,       // A: non-null, first occurrence, id 1
-                1, 0, 0, 0,             // A count
-                7, 0, 0, 0,             // A[0]
-                1, 1, 1, 0, 0, 0        // B: non-null, back reference to id 1
+                2,                      // two fields; a struct cannot be null
+                1, 4, 0, 0, 0, 3, 0, 0, 0,
+                2, 4, 0, 0, 0, 4, 0, 0, 0
             ],
-            PreservingPayload(new SharedLists { A = shared, B = shared }));
+            Payload(new KeyedPoint { X = 3, Y = 4 }));
     }
 
-    [Theory]
-    [InlineData(2)]
-    [InlineData(255)]
-    public void Deserialize_UnknownReferenceMarker_ThrowsFormat(byte marker)
+    [Fact]
+    public void KeyedClass_UnderReferences_WritesItsFieldCountAsItIsAfterTheFrame()
     {
-        byte[] frame = Wire.Frame(
-            Wire.Payload(writer =>
-            {
-                writer.Write(true);     // non-null
-                writer.Write(marker);
-                writer.Write(0);        // object id
-            }),
-            preserveReferences: true);
-
-        AssertEx.Throws<BinaryFormatException>(
-            $"Unknown reference marker {marker}",
-            () => new BinarySerializer().Deserialize<List<int>>(frame));
+        Assert.Equal<byte[]>(
+            [
+                1,                      // first occurrence of id 0
+                1,                      // field count 1, without the fold
+                2, 5, 0, 0, 0,          // key 2, length
+                3,                      // Node: first occurrence of id 1
+                5, 0, 0, 0
+            ],
+            PreservingPayload(new OldSchema { Kept = new Node { Value = 5 } }));
     }
 
-    // --- WF-18, WF-20: the keyed layout ---------------------------------------------------------
+    [Fact]
+    public void Union_CarriesAFlagThenTheTagBeforeMembers()
+    {
+        Assert.Equal<byte[]>(
+            [
+                1,                      // flag: not null
+                1,                      // union tag
+                3, 0, 0, 0,             // A (ordinal name order: A before Z)
+                4, 0, 0, 0              // Z
+            ],
+            Payload<UnionBase>(new UnionDerived { A = 3, Z = 4 }));
+    }
+
+    [Fact]
+    public void Union_UnderReferences_CarriesTheFrameThenTheTag()
+    {
+        Assert.Equal<byte[]>(
+            [
+                1,                      // first occurrence of id 0
+                1,                      // union tag
+                3, 0, 0, 0,
+                4, 0, 0, 0
+            ],
+            PreservingPayload<UnionBase>(new UnionDerived { A = 3, Z = 4 }));
+    }
 
     [Fact]
     public void KeyedContract_WritesFieldsInAscendingKeyOrder()
@@ -295,8 +304,7 @@ public class WireFormatTests
         // Late is declared before Early but carries the higher key.
         Assert.Equal<byte[]>(
             [
-                1,                      // non-null root
-                2,                      // field count
+                3,                      // field count 2, plus one
                 1,                      // key 1: Early
                 4, 0, 0, 0,
                 0x0B, 0, 0, 0,
@@ -306,6 +314,55 @@ public class WireFormatTests
             ],
             Payload(new UnsortedKeys { Early = 11, Late = 22 }));
     }
+
+    // --- WF-10…WF-12: the reference frame -------------------------------------------------------
+
+    [Fact]
+    public void ReferenceFrame_IsOneSevenBitIntegerBeforeTheShape()
+    {
+        Assert.Equal<byte[]>(
+            [
+                1,                      // first occurrence of id 0
+                0x24, 0, 0, 0,          // Age
+                4, 0x41, 0x64, 0x61     // Name: never framed
+            ],
+            PreservingPayload(new Person { Name = "Ada", Age = 36 }));
+    }
+
+    [Fact]
+    public void ReferenceFrame_IsAbsentWithoutPreserveReferences()
+    {
+        Assert.Equal<byte[]>(
+            [1, 0x24, 0, 0, 0, 4, 0x41, 0x64, 0x61],
+            Payload(new Person { Name = "Ada", Age = 36 }));
+    }
+
+    [Fact]
+    public void ReferenceFrame_IsNeverWrittenForScalarsOrValueTypes()
+    {
+        Assert.Equal<byte[]>([2, 0x61], PreservingPayload("a"));
+        Assert.Equal<byte[]>([0x2A, 0, 0, 0], PreservingPayload(42));
+        Assert.Equal<byte[]>([1, 0, 0, 0, 2, 0, 0, 0], PreservingPayload(new PointStruct { X = 1, Y = 2 }));
+        Assert.Equal<byte[]>([1, 0x2A, 0, 0, 0], PreservingPayload<int?>(42));
+    }
+
+    [Fact]
+    public void ReferenceFrame_BackReferenceEndsTheValue()
+    {
+        var shared = new List<int> { 7 };
+
+        Assert.Equal<byte[]>(
+            [
+                0x01,                   // root SharedLists: first occurrence of id 0
+                0x03,                   // A: first occurrence of id 1
+                0x01,                   // A count, as it is
+                7, 0, 0, 0,             // A[0]
+                0x04                    // B: back reference to id 1
+            ],
+            PreservingPayload(new SharedLists { A = shared, B = shared }));
+    }
+
+    // --- WF-20: the keyed layout ----------------------------------------------------------------
 
     [Fact]
     public void Deserialize_KeyedFieldWithTrailingBytesInsideIt_ThrowsFormat()
@@ -324,15 +381,61 @@ public class WireFormatTests
         Assert.Throws<BinaryFormatException>(() => new BinarySerializer().Deserialize<OldSchema>(frame));
     }
 
-    /// <summary>Byte offset of the key-id present flag in a header with no custom algorithm names.</summary>
-    private const int KeyIdOffset = 14;
+    // --- WF-37: the types the table of §22.2 names by the general rule -------------------------
 
-    /// <summary>The payload bytes of a V1 frame, with the fixed-length header removed.</summary>
-    private byte[] Payload<T>(T value) => _serializer.Serialize(value)[Wire.PlainHeaderLength..];
+    [Fact]
+    public void StringEncodedScalar_FoldsItsNullIntoTheStringLength()
+    {
+        Assert.Equal<byte[]>([0x02, 0x61], Payload(new Uri("a", UriKind.Relative)));
+        Assert.Equal<byte[]>([0x00], Payload<Uri?>(null));
+        Assert.Equal<byte[]>([0x02, 0x61], PreservingPayload(new Uri("a", UriKind.Relative)));
+    }
+
+    [Fact]
+    public void BitArray_FoldsItsNullIntoTheBitCount()
+    {
+        var bits = new BitArray([true, false, true, true, false, false, false, true, true]);
+
+        Assert.Equal<byte[]>([0x0A, 0x02, 0x8D, 0x01], Payload(bits));
+        Assert.Equal<byte[]>([0x00], Payload<BitArray?>(null));
+    }
+
+    [Fact]
+    public void MultiDimensionalArray_FoldsItsNullIntoTheRank()
+    {
+        var grid = new[,] { { 1, 2, 3 }, { 4, 5, 6 } };
+        byte[] elements = [1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0, 0];
+
+        Assert.Equal<byte[]>([0x03, 0x02, 0x03, .. elements], Payload(grid));
+        Assert.Equal<byte[]>([0x01, 0x02, 0x02, 0x03, .. elements], PreservingPayload(grid));
+        Assert.Equal<byte[]>([0x00], Payload<int[,]?>(null));
+    }
+
+    [Fact]
+    public void Tuple_BeginsWithNoNumberAndCarriesAFlag()
+    {
+        Assert.Equal<byte[]>([0x01, 8, 0, 0, 0, 0x06, .. "eight"u8], Payload(Tuple.Create(8, "eight")));
+        Assert.Equal<byte[]>([0x00], Payload<Tuple<int, string>?>(null));
+        Assert.Equal<byte[]>([0x01, 8, 0, 0, 0, 0x06, .. "eight"u8], PreservingPayload(Tuple.Create(8, "eight")));
+    }
+
+    // --- V0-01 ----------------------------------------------------------------------------------
+
+    [Fact]
+    public void V0_WritesThePayloadWithoutAHeader()
+    {
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithVersion(0).Build());
+
+        Assert.Equal([0x44, 0x33, 0x22, 0x11], serializer.Serialize(0x11223344));
+    }
+
+    /// <summary>The payload bytes of a V1 frame, with the header removed.</summary>
+    private byte[] Payload<T>(T value) => Wire.Body(_serializer.Serialize(value));
 
     private static byte[] PreservingPayload<T>(T value) =>
-        new BinarySerializer(BinarySerializerOptions.Configure().PreserveReferences().Build())
-            .Serialize(value)[Wire.PlainHeaderLength..];
+        Wire.Body(new BinarySerializer(BinarySerializerOptions.Configure().PreserveReferences().Build())
+            .Serialize(value));
 
     /// <summary>
     /// An <c>OldSchema</c> payload whose single field declares <paramref name="declaredLength"/>
@@ -341,11 +444,10 @@ public class WireFormatTests
     private static byte[] KeyedNode(int declaredLength, int junkBytes) =>
         Wire.Payload(writer =>
         {
-            writer.Write(true);                 // non-null root
-            writer.Write7BitEncodedInt(1);      // one field
+            writer.Write7BitEncodedInt(2);      // one field, plus one: not null
             writer.Write7BitEncodedInt(2);      // key 2: Kept
             writer.Write(declaredLength);
-            writer.Write(true);                 // Node is non-null
+            writer.Write(true);                 // Node is not null
             writer.Write(5);                    // Node.Value
             writer.Write(new byte[junkBytes]);
         });

@@ -539,6 +539,8 @@ encrypted bytes and the overhead over the plaintext
 - [ ] SIZE-06 — a size comparison against a self-describing text format states that the comparison is between formats of different kinds
 - [ ] SIZE-07 — compressed sizes are only compared with compressed sizes, and the algorithm is named in the cell
 - [ ] SIZE-08 — encrypted sizes name the tag and nonce overhead separately from the ciphertext *(Contract §13)*
+- [ ] SIZE-09 — the V1 header of service records, in bytes, for no service, a checksum, a checksum and compression, and all three with a key id, beside the fixed header it replaced (29 bytes plus its strings and checksum) — `format-sizes.csv` *(Contract §11; added in R6)*
+- [ ] SIZE-10 — the null fold, in bytes, on a wide nullable record of sixteen members all null and all set, and on a list of 1 000 strings and of 1 000 nulls — `format-sizes.csv` *(Contract §22.2; added in R6)*
 
 ---
 
@@ -564,7 +566,7 @@ Layer L2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
 - [ ] SEC-01 — `Crc32Checksum` over each corpus size: time, throughput, allocation *(§11)*
 - [ ] SEC-02 — the checksum's share of a full V1 write and read, as a difference against B-P0
 - [ ] SEC-03 — `Aes256GcmEncryption` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(Contract §13)*
-- [ ] SEC-04 — the AAD image build, measured on its own (MICRO-08) and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(Contract §13.1)*
+- [ ] SEC-04 — the associated data is the header bytes, so its cost is the header's own: measured through MICRO-08 on the narrowest and the widest header, and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(Contract §13.1; rewritten in R6 — there is no separate image to build)*
 - [ ] SEC-05 — key resolution through `IKeyProvider` measured against a static key, including the per-operation copy `SecretKey` makes *(Contract §13.2)*
 - [ ] SEC-06 — the full protected envelope B-P6 against B-P0, per dataset, so the price of protection is one number a reader can act on
 - [ ] SEC-09 — `XxHash3Checksum` and `XxHash128Checksum` over each corpus size, beside `Crc32Checksum`: time, throughput, allocation; and B-P4x3, B-P4x128 against B-P0 as SEC-02 does for B-P4 *(Contract §3; added in R5)*
@@ -610,7 +612,7 @@ Measured directly on the internal type that owns the mechanism, through the gran
 - [ ] MICRO-05 — the codec of a claimed type and of a member-encoded one, read from the static field of `FormatterCache<T>` *(Contract §18; rewritten in R4)* — `FormatterResolutionBenchmarks`
 - [ ] MICRO-06 — one codec per shape family: scalar, sequence, map, composite, the containers through the engine's entry for a payload *(Contract §2.4; rewritten in R4)* — `FormatterShapeBenchmarks`
 - [ ] MICRO-07 — reference identity tracking through the pooled reference tables the payload's traversal rents and returns: rent, registration, lookup, scope exit and return, at several sharing densities *(Contract §16; rewritten in R2; re-read in R4, where the tables moved into `GraphState` unchanged)* — `ReferenceIdentityBenchmarks`
-- [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(Contract §11, §13.1)*
+- [ ] MICRO-08 — V1 header write and parse over service records, for no service and for all three with custom names, a key id and a checksum *(Contract §11, §13.1; rewritten in R6 — the image build is gone)*
 - [ ] MICRO-09 — metering and windowing over buffers against a bare copy: the `PayloadBuffer` budget on write, the `WireReader` budget on read, the `WireReader.Slice` window read and skip, and the copy of a finished buffer to a stream *(Contract §7; rewritten in R2, where the three stream decorators were removed)* — `MeteringBenchmarks`
 - [ ] MICRO-10 — the algorithm primitives outside the pipeline, every built-in: `DeflateCompression` and `BrotliCompression` into a reused buffer writer, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption` and `ChaCha20Poly1305Encryption` *(Contract §12, §13; extended in R5)* — `CompressionPrimitiveBenchmarks`, `ProtectionPrimitiveBenchmarks`
 - [x] MICRO-11 — allocation is recorded for every microbenchmark above, not only time, since the per-component allocation record is what a later version compares against
@@ -638,6 +640,7 @@ The component suites see internals through `src/ViShap.Viper.Serialization/Prope
 - [ ] MICRO-16 — the duplicate check after `Complete`, the count read on every container read that NX-02 put on the read path of every collection
 - [ ] MICRO-17 — a positional record of sixteen booleans, eight bytes and eight 16-bit integers, written and read through the engine: the shape where a call per byte dominates, so the gain of the primitives moving off `Stream` is visible rather than averaged away *(Contract §2.3, §22.1; added in R1)* — `SmallFieldBenchmarks`
 - [ ] MICRO-18 — a primitive array read into an array of its final length against the pooled path a count the bytes do not back takes, at 16, 4 096 and 1 000 000 elements *(Contract §17; added in R4)* — `ArrayMaterializationBenchmarks`
+- [ ] MICRO-19 — the dumper, informational: `Dump<T>` of DATA-01, DATA-04 and DATA-08, time and allocation per node; it gates nothing, but states what a dump of a large frame costs and catches an accidental quadratic rendering *(Contract §19; added in R6)*
 
 ---
 

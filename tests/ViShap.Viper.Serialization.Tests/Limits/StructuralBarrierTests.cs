@@ -448,14 +448,34 @@ public class StructuralBarrierTests
     // --- LIM-51: one operation state per public call -------------------------------------------
 
     [Fact]
+    public void TheTraceObserver_ReceivesNoReaderAndNoBytes()
+    {
+        // INV-2 over the diagnostics seam: the observer learns offsets, names, kinds and values, and
+        // nothing that reaches the payload.
+        var parameters = typeof(IWireTrace)
+            .GetMethods()
+            .SelectMany(method => method.GetParameters())
+            .Select(parameter => Unwrapped(parameter.ParameterType))
+            .ToArray();
+
+        Assert.NotEmpty(parameters);
+        Assert.DoesNotContain(typeof(WireReader), parameters);
+        Assert.DoesNotContain(typeof(WireWriter), parameters);
+        Assert.All(parameters, type => Assert.False(
+            type.IsByRefLike || type == typeof(byte[]) || typeof(Stream).IsAssignableFrom(type),
+            $"The trace observer is handed a {type.Name}."));
+    }
+
+    [Fact]
     public void OperationState_IsCreatedOnlyAtThePublicEdge()
     {
-        // The serializer creates the state of each call once, and the inspector — which reads a
-        // header outside any call — creates its own. Nothing else creates one, and nothing but the
-        // state creates a budget or a phase policy.
+        // The serializer creates the state of each call once; the inspector, which reads a header
+        // outside any call, and the dumper, which reads a frame for a person, create their own.
+        // Nothing else creates one, and nothing but the state creates a budget or a phase policy.
         Assert.Equal(
             [
                 "ViShap.Viper.Serialization/BinarySerializer.cs",
+                "ViShap.Viper.Serialization/Diagnostics/BinaryFormatDumper.cs",
                 "ViShap.Viper.Serialization/Metadata/BinaryFormatInspector.cs"
             ],
             FilesContaining("new OperationState(", "private OperationState BeginOperation() =>"));

@@ -23,23 +23,12 @@ internal sealed class CompressionService(ICompressionAlgorithm algorithm)
     }
 
     /// <summary>
-    /// Checks a payload stored without compression: its length is the declared uncompressed length.
-    /// </summary>
-    public static void RequireStored(ReadOnlySpan<byte> compressedPayload, int uncompressedLength)
-    {
-        if (compressedPayload.Length != uncompressedLength)
-            throw new BinaryFormatException(
-                $"Compressed payload length {compressedPayload.Length} does not match the declared " +
-                $"uncompressed length {uncompressedLength} when compression is None.");
-    }
-
-    /// <summary>
     /// Produces exactly the declared number of bytes. The algorithm writes into a buffer that grows as
     /// output arrives and refuses to grow past the declared length, so the declared length bounds the
     /// result without being allocated up front; the pipeline has already checked it against
     /// <c>MaxPayloadBytes</c> and <c>MaxDecompressionRatio</c>. Output shorter than declared is
     /// refused here, whatever the algorithm reported. Not called for
-    /// <see cref="CompressionAlgorithm.None"/>; see <see cref="RequireStored"/>.
+    /// <see cref="CompressionAlgorithm.None"/>.
     /// </summary>
     public static RentedBytes Decompress(
         ICompressionAlgorithm algorithm,

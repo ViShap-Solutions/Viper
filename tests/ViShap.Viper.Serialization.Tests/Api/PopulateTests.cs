@@ -41,7 +41,7 @@ public class PopulateTests
         byte[] payload = Alice;
         var target = new Person();
 
-        _serializer.Populate(Sequences.Of(payload[..3], payload[3..20], payload[20..]), target);
+        _serializer.Populate(Sequences.Of(payload[..3], payload[3..10], payload[10..]), target);
 
         AssertIsAlice(target);
     }
@@ -114,7 +114,7 @@ public class PopulateTests
     {
         // OuterKeys knows keys 1 and 3; a payload written with a schema that only had key 1 leaves
         // key 3 where the instance already had it.
-        byte[] payload = Wire.Frame([.. Wire.NotNull, .. Wire.KeyedBody([new Wire.KeyedField(1, BitConverter.GetBytes(5))])]);
+        byte[] payload = Wire.Frame([.. Wire.KeyedBody([new Wire.KeyedField(1, BitConverter.GetBytes(5))])]);
         var target = new OuterKeys { First = 1, Last = 99 };
 
         _serializer.Populate(payload, target);
@@ -165,7 +165,7 @@ public class PopulateTests
     [Fact]
     public void Populate_RootThatIsABackReference_ThrowsFormat()
     {
-        byte[] payload = Wire.Frame([.. Wire.NotNull, .. Wire.ReferenceFrame(1, 0)], preserveReferences: true);
+        byte[] payload = Wire.Frame(Wire.ReferenceFrame(0, back: true), preserveReferences: true);
 
         AssertEx.Throws<BinaryFormatException>(
             "back reference", () => WithReferences().Populate(payload, new Person()));
@@ -231,7 +231,7 @@ public class PopulateTests
     {
         byte[] first = Alice;
         byte[] both = [.. first, .. first];
-        var sequence = Sequences.Of(both[..10], both[10..40], both[40..]);
+        var sequence = Sequences.Of(both[..10], both[10..25], both[25..]);
         var target = new Person();
 
         _serializer.Populate(sequence, target, out SequencePosition consumed);

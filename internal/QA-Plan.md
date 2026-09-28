@@ -8,17 +8,13 @@
 
 ---
 
-# 0. Rework oracle — `Format/`
+# 0. Rework oracle — `Format/` — retired in R6
 
-The pre-release rework (`internal/rework/Rework-Plan.md`) moves no byte of the wire until its format stage. Until then the frozen fixtures of §30.4 decode what was written before, and this oracle holds what the writer writes.
+The pre-release rework (`internal/rework/Rework-Plan.md`) moved no byte of the wire until its format stage, R6. Until then `Fixtures/Oracle/oracle.txt` recorded, for every case of the existing corpora, the SHA-256 and the hex of what the writer produced, and `Format/OracleTests` held every stage to those bytes. R6 changed the format once, deleted the oracle, its recorder and its test, and re-froze the fixtures of §30.4 from the corpus; the byte-level tests of §14 and the fixtures now hold the writer.
 
-`Fixtures/Oracle/oracle.txt` records, for every case of the existing corpora, the SHA-256 of what the writer produced and the output in hex: the round-trip corpus of §19 under every profile of `CorpusProfiles` and once more with `PreserveReferences`, the V0 corpus of `Format/V0CorpusTests` (the V0 payload and the V1 frame of each value), the reference graphs of `References/` and the shapes of `Contracts/`. The oracle invents no case: it runs those tests as they are written and records what they wrote through `OracleRecorder`. A frame encrypted with AES-256-GCM is compared as its header followed by its body decrypted in counter mode, because its nonce is drawn fresh for every message; every byte the serializer decides is still covered. One case — `ImmutableDictionary<string, int>` with two entries, in every profile — is enumerated in the order of the runtime's randomized string hash, so the oracle records both of its outputs and accepts only those; ten recordings in separate processes found no other case that varies. Twenty-two writes take their input from the host — the first specific culture it has, a `DateTimeKind.Local` value in its time zone, `TimeZoneInfo.Utc` with the names its operating system localizes — so their bytes differ between machines: the oracle requires them to be produced and does not compare their bytes. Each of those families keeps its encoding pinned under every profile by a case that does not depend on the host, and the list is exactly what a Windows and an Ubuntu host disagreed on.
-
-Rule: every rework stage before the format stage reproduces every value. A mismatch is a change of behaviour, found and fixed in `src/`; the oracle is never re-recorded and the test is never widened. Both are retired in the format stage.
-
-- [x] ORC-01 — every corpus case writes exactly the output the oracle recorded, and every recorded case is produced — `Format/OracleTests`
-- [x] ORC-02 — on a mismatch the report carries the expected and the actual output in hex and the first offset at which they differ — `Format/OracleTests`
-- [x] TYP-01 — every corpus case, written by the typed engine's codecs, reproduces the oracle — `Format/OracleTests` *(added in R4)*
+- ~~ORC-01 — every corpus case writes exactly the output the oracle recorded, and every recorded case is produced — `Format/OracleTests`~~ *retired in R6 — the oracle held the writer to the pre-rework bytes until the format stage; the format changed and the oracle and its test were deleted, the fixtures of §30.4 re-frozen instead*
+- ~~ORC-02 — on a mismatch the report carries the expected and the actual output in hex and the first offset at which they differ — `Format/OracleTests`~~ *retired in R6 — deleted with the oracle*
+- ~~TYP-01 — every corpus case, written by the typed engine's codecs, reproduces the oracle — `Format/OracleTests` *(added in R4)*~~ *retired in R6 — deleted with the oracle; the typed engine is held by the byte-level tests of §14 and the fixtures of §30.4*
 
 ---
 
@@ -336,39 +332,51 @@ stays readable.
 
 Field order, types and invariants per §22.6.
 
-- [x] HDR-01 — a written header has the documented field order and byte layout *(§22.6)* — `Format/WireFormatTests`
+- [x] HDR-01 — a written header has the documented layout — magic, version, payload mode, service count, records, `onDiskLength` — and the smallest frame and the Brotli + AES-GCM frame of §22.6 are their documented bytes *(§22.6)* — `Format/WireFormatTests`
 - [x] HDR-02 — magic mismatch → `BinaryFormatException` *(§22.6)* — `Format/HeaderTests`
 - [x] HDR-03 — an unknown version → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
-- [x] HDR-04 — truncation at every prefix length of the fixed header → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
-- [x] HDR-05 — an undefined compression identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
-- [x] HDR-06 — an undefined checksum identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
-- [x] HDR-07 — an undefined encryption identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Format/HeaderTests`
-- [x] HDR-08 — optional strings: absent, empty, and populated all round-trip *(§22.1)* — `Format/HeaderTests`
+- [x] HDR-04 — truncation at every prefix of the header, inside the fixed prefix and inside a service record → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
+- [x] HDR-05 — an undefined compression identifier in its record → `BinaryFormatNotSupportedException`, one beyond a byte included *(§11)* — `Format/HeaderTests`
+- [x] HDR-06 — an undefined checksum identifier in its record → `BinaryFormatNotSupportedException` *(§11)* — `Format/HeaderTests`
+- [x] HDR-07 — an undefined encryption identifier in its record → `BinaryFormatNotSupportedException` *(§11)* — `Format/HeaderTests`
+- [x] HDR-08 — the key id absent (`00`), empty (`01`) and populated read back as written; custom algorithm names read back; a header with no record reports no algorithm and no name *(§11)* — `Format/HeaderTests`
 - [x] HDR-09 — an optional string declaring a length beyond the stream → `BinaryFormatException` before allocation *(§2.3, §17)* — D1-02
 - [x] HDR-10 — a header string over the 256-byte format ceiling → `BinaryFormatException`, and an unwritable configured value → `BinaryConfigurationException` *(§11, §22.6)* — `Format/HeaderStringTests`
-- [x] HDR-11 — a negative `UncompressedLength` / `CompressedLength` / `OnDiskLength` → `BinaryFormatException` *(§22.6)* — `Format/HeaderTests`
-- [x] HDR-12 — each length above its phase limit → `BinaryLimitException`, before allocation *(§22.6, §17)* — `Format/HeaderTests`
-- [x] HDR-13 — `Compression == None` with `CompressedLength != UncompressedLength` → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
-- [x] HDR-14 — `Encryption == None` with `OnDiskLength != CompressedLength` → `BinaryFormatException` *(§11)* — `Format/HeaderTests`
+- ~~HDR-11 — a negative `UncompressedLength` / `CompressedLength` / `OnDiskLength` → `BinaryFormatException` *(§22.6)* — `Format/HeaderTests`~~ *retired in R6 — every header length is a varint, which cannot express a negative value*
+- [x] HDR-12 — `onDiskLength` above `MaxEncryptedBytes`, above `MaxCompressedBytes` without encryption, above `MaxPayloadBytes` without compression, and `uncompressedLength` above `MaxPayloadBytes` → `BinaryLimitException`, before allocation *(§5.10, §11, §17)* — `Format/HeaderTests`
+- ~~HDR-13 — `Compression == None` with `CompressedLength != UncompressedLength` → `BinaryFormatException` *(§11)* — `Format/HeaderTests`~~ *retired in R6 — there is no compressed length and no `Compression = None`: an absent phase is an absent record*
+- ~~HDR-14 — `Encryption == None` with `OnDiskLength != CompressedLength` → `BinaryFormatException` *(§11)* — `Format/HeaderTests`~~ *retired in R6 — there is no `Encryption = None`: an absent phase is an absent record*
 - [x] HDR-15 — `OnDiskLength` beyond the bytes physically present → `BinaryFormatException` before allocation *(§17)* — D1-01
-- [x] HDR-16 — `checksumLength` round-trips, including `0` and `255` *(§22.6)* — `Format/HeaderTests`
+- [x] HDR-16 — a checksum of 1, 4 and 255 bytes is the remainder of its record and round-trips; no checksum writes no record *(§11)* — `Format/HeaderTests`
 - [x] HDR-17 — a checksum truncated below its declared length → `BinaryFormatException` before allocation *(§11)* — D1-03
 - [x] HDR-18 — a checksum longer than the byte representation allows → `BinaryConfigurationException` on write *(§11)* — `Format/HeaderTests`
-- [x] HDR-19 — `PreserveReferences` in the header, not the local configuration, decides payload interpretation *(§2.2, §16)* — `Format/HeaderTests`
+- [x] HDR-19 — the payload mode in the header, not the local configuration, decides payload interpretation *(§2.2, §16)* — `Format/HeaderTests`
 - [x] HDR-20 — a declared expansion above `MaxDecompressionRatio` is `BinaryLimitException` while the header is read, and only when compression is not `None` *(§5.10, §11)* — `Algorithms/CompressionTests`
+- [x] HDR-21 — service records out of ascending order → `BinaryFormatException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-22 — a service number that appears twice → `BinaryFormatException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-23 — service number 0, critical or not → `BinaryFormatException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-24 — a known service marked skippable → `BinaryFormatException`, for each of the three *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-25 — an unknown service marked critical → `BinaryFormatNotSupportedException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-26 — an unknown service marked skippable is skipped by its length, and the frame reads *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-27 — a service body with bytes after its last field, or one shorter than its fields → `BinaryFormatException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-28 — a header beyond 4 096 bytes → `BinaryFormatException` before the body is read; a header of exactly 4 096 bytes reads *(§5.10, §11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-29 — a set reserved payload-mode bit → `BinaryFormatNotSupportedException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-30 — a record naming the algorithm id `None` → `BinaryFormatException`, for each of the three *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-31 — a custom algorithm with an empty name → `BinaryFormatException` *(§11)* — `Format/HeaderTests` *(added in R6)*
+- [x] HDR-32 — a checksum whose length is not the named algorithm's, or a checksum record with no hash → `BinaryFormatException` *(§11)* — `Format/HeaderTests`, `Algorithms/ChecksumTests` *(added in R6)*
 
 ---
 
 # 12. V1 envelope and canonicity — `Format/`
 
-- [x] ENV-01 — write order is serialize → checksum raw → compress → AAD → encrypt → header *(§22.6)* — `Format/EnvelopeTests`
+- [x] ENV-01 — write order is serialize → checksum raw → compress → header → encrypt with the header as associated data *(§22.6)* — `Format/EnvelopeTests`
 - [x] ENV-02 — read reverses that order *(§22.6)* — `Format/EnvelopeTests`
 - [x] ENV-03 — trailing bytes after the root value → `BinaryFormatException` *(§10.1)* — `Hostile/MalformedPayloadTests`
 - [x] ENV-04 — a payload shorter than the root value demands → `BinaryFormatException` *(§10.1)* — `Format/EnvelopeTests`
 - [x] ENV-05 — extra bytes **after** the declared `OnDiskLength` in the source stream are not consumed and not an error *(§3.1, §20)* — `Format/EnvelopeTests`
 - [x] ENV-06 — a decompressed payload shorter than declared → rejected *(§12)* — `Format/EnvelopeTests`
 - [x] ENV-07 — a decompressed payload longer than declared → rejected *(§12)* — `Format/EnvelopeTests`
-- [x] ENV-08 — the declared plaintext length never exceeds the ciphertext delivered *(§13)* — `Format/EnvelopeTests`
+- ~~ENV-08 — the declared plaintext length never exceeds the ciphertext delivered *(§13)* — `Format/EnvelopeTests`~~ *retired in R6 — the plaintext length is not declared; decryption works in a buffer as long as the delivered ciphertext (HST-20), and the plaintext is checked after it (CMP-18)*
 - [x] ENV-09 — `MaxWireBytes` is charged relative to the operation's start position on write *(§7.2)* — `Metering/WriteMeteringTests`
 - [x] ENV-10 — `MaxWireBytes` is charged from zero on read regardless of the source's absolute position *(§7.1)* — `Format/EnvelopeTests`
 
@@ -397,10 +405,7 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-14 — routing on a non-seekable stream decodes the magic from the bytes it delivered and reads the V1 frame, taking exactly it *(§10.3)* — `Format/RoutingTests` *(inverted in R3)*
 - [x] V0-15 — routing reads nothing twice: the identifying bytes are the frame's first bytes, so a V0 payload at a non-zero offset is read from where the stream stood *(§10.3)* — `Format/RoutingTests` *(rewritten in R3: there is no probe to restore)*
 - [x] V0-16 — an `IOException` while the identifying bytes are read → `BinaryStreamException` *(§10.3, §8.8)* — `Format/RoutingTests`
-- [x] V0-17 — the probe matches the eight header bytes exactly, so a V0 payload that is shorter
-  than the probe window or differs from the magic in any byte is not misrouted; one that literally
-  opens with the magic and version 1 *is* read as V1, which is the documented consequence of a V0
-  payload carrying no identity of its own *(§10.2, §10.3)* — `Format/RoutingTests`
+- [x] V0-17 — only the magic followed by a whole version identifies a frame, so a V0 payload that ends before the version or differs from the magic in any byte is not misrouted; one that literally opens with the magic and version 1 *is* read as V1, which is the documented consequence of a V0 payload carrying no identity of its own *(§10.2, §10.3)* — `Format/RoutingTests`
 - [x] V0-18 — committed fixed-byte V0 and V1 fixtures decode correctly; the fixture is never regenerated by the writer under test *(§10.2)* — `Format/RoutingTests`, `Fixtures/Wire/person-v0.bin`, `Fixtures/Wire/person-v1.bin`
 - [x] V0-19 — a V0 payload is byte-identical to the payload a V1 frame carries for the same value under the same positional or keyed layout *(§22.8)* — `Format/RoutingTests`
 - [x] V0-20 — `[BinaryUnion]` polymorphism round-trips on V0 *(§10.2, §15)* — `Format/V0CorpusTests`
@@ -422,24 +427,24 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 - [x] WF-01 — each fixed-size primitive encoding of §22.1, little-endian, exact width *(§22.1)* — `Format/ScalarWireTests`
 - [x] WF-02 — `decimal` is four `int32` in `GetBits` order *(§22.1)* — `Format/ScalarWireTests`
-- [x] WF-03 — a string is a 7-bit length prefix then UTF-8 bytes *(§22.1)* — `Format/WireFormatTests`
+- [x] WF-03 — a string is its UTF-8 length plus one as a varint, then the bytes *(§22.1)* — `Format/WireFormatTests`
 - [x] WF-04 — a blob is a 7-bit length prefix then bytes *(§22.1)* — `Format/ScalarWireTests`
-- [x] WF-05 — a count is a raw `int32` *(§22.1)* — `Format/WireFormatTests`
-- [x] WF-06 — an optional string is a present flag then the string *(§22.1)* — `Format/WireFormatTests`
-- [x] WF-07 — 7-bit integers use the shortest form on write, and boundary values round-trip *(§22)* — `Format/WireFormatTests`
-- [x] WF-08 — the null flag is present for reference types and `Nullable<T>`, absent for non-nullable value types *(§22.2)* — `Format/WireFormatTests`
-- [x] WF-09 — a `false` null flag ends the value with no further bytes *(§22.2)* — `Format/WireFormatTests`
-- [x] WF-10 — a reference frame is a marker byte plus an `int32` id, present only under `PreserveReferences` and only for structural reference types *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-05 — a count is a varint, plus one when it carries the value's null *(§22.1)* — `Format/WireFormatTests`
+- [x] WF-06 — the key id is folded with its absence: `00` none, otherwise its length plus one and the bytes, after the algorithm id *(§11)* — `Format/WireFormatTests`
+- [x] WF-07 — varints use the shortest form on write, and boundary values round-trip *(§22.1)* — `Format/WireFormatTests`
+- [x] WF-08 — null is written once, in the value's first number, for every declared type that can be null, and a type that cannot be null carries nothing for it *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-09 — a null is the single byte `00` and ends the value *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-10 — a reference frame is one varint, present only under the references payload mode and only for structural reference types *(§22.2)* — `Format/WireFormatTests`
 - [x] WF-11 — scalars, strings included, and all value types are never reference-framed *(§22.2, §16)* — `Format/WireFormatTests`
-- [x] WF-12 — marker `0` precedes the shape payload; marker `1` ends the value *(§22.2)* — `Format/WireFormatTests`
-- [x] WF-13 — any other marker → `BinaryFormatException` *(§22.2)* — `Format/WireFormatTests`
+- [x] WF-12 — a first occurrence is `((id << 1) | 0) + 1` and the shape follows; a back reference is `((id << 1) | 1) + 1` and ends the value *(§22.2)* — `Format/WireFormatTests`
+- ~~WF-13 — any other marker → `BinaryFormatException` *(§22.2)* — `Format/WireFormatTests`~~ *retired in R6 — there is no marker byte: every varint is a frame, and one that names no visible id is REF-12*
 
 ## 14.2 Shapes
 
-- [x] WF-14 — a sequence is a count then framed elements *(§22.3)* — `Format/WireFormatTests`
-- [x] WF-15 — a map is an entry count then framed key/value pairs *(§22.3)* — `Format/WireFormatTests`
+- [x] WF-14 — a sequence is its count, plus one when it carries null, then framed elements *(§22.3)* — `Format/WireFormatTests`
+- [x] WF-15 — a map is its entry count, plus one when it carries null, then framed key/value pairs *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-16 — a positional object writes members in plan order: `[BinaryOrder]` ascending first, then ordinal name order *(§22.3)* — `Format/WireFormatTests`
-- [x] WF-17 — a keyed object is a 7-bit field count then `key, int32 length, payload` per field *(§22.3)* — `Format/WireFormatTests`
+- [x] WF-17 — a keyed object is a varint field count then `key, int32 length, payload` per field *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-18 — keyed fields are written in ascending key order *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-19 — a union writes one tag byte before the member layout *(§22.3)* — `Format/WireFormatTests`
 - [x] WF-20 — a field payload is exactly its declared length; trailing bytes inside a field → `BinaryFormatException` *(§22.3)* — `Format/WireFormatTests`
@@ -449,19 +454,29 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] WF-21 — every row of the §22.4 table is pinned by a byte-level assertion *(§22.4)* — `Format/ScalarWireTests`
 - [x] WF-22 — an enum is encoded as its underlying primitive, for every underlying type in use *(§22.4)* — `Format/ScalarWireTests`
 - [x] WF-23 — `Rune` with an invalid scalar value → `BinaryFormatException` *(§22.4)* — `Format/ScalarWireTests`
-- [x] WF-24 — `BitArray` is an `int32` bit count then `ceil(bits/8)` blob bytes *(§22.4)* — `Format/ScalarWireTests`
+- [x] WF-24 — `BitArray` is its bit count plus one, then `ceil(bits/8)` blob bytes *(§22.4)* — `Format/ScalarWireTests`
 
 ## 14.4 Composites
 
 - [x] WF-25 — `KeyValuePair`, `Tuple`, `ValueTuple`, `Lazy<T>` per §22.5 *(§22.5)* — `Format/CompositeWireTests`
-- [x] WF-26 — `ImmutableArray<T>` writes a present flag; `default` writes `false` and stays distinct from empty *(§22.5)* — `Format/CompositeWireTests`
-- [x] WF-27 — a rank > 1 array writes rank, per-dimension lengths, then row-major elements *(§22.5)* — `Format/CompositeWireTests`
+- [x] WF-26 — `ImmutableArray<T>` is `00` for `default` and its count plus one otherwise, so `default` stays distinct from empty; `Nullable<ImmutableArray<T>>` is the flag then the fold; it is never framed *(§22.5)* — `Format/CompositeWireTests`
+- [x] WF-27 — a rank > 1 array writes its rank plus one, per-dimension lengths as varints, then row-major elements *(§22.5)* — `Format/CompositeWireTests`
 
 ## 14.5 Associated data
 
-- [x] WF-28 — the AAD image covers exactly the §22.7 fields, in order *(§22.7)* — `Format/AssociatedDataTests`
-- [x] WF-29 — `OnDiskLength` is excluded from the AAD *(§22.7)* — `Format/AssociatedDataTests`
-- [x] WF-30 — the AAD is recomputed, never stored on the wire *(§22.7)* — `Format/AssociatedDataTests`
+- [x] WF-28 — the associated data is the exact header bytes, from the magic to `onDiskLength`, on write and on read, with and without a checksum, compression and key id *(§13.1)* — `Format/AssociatedDataTests`
+- ~~WF-29 — `OnDiskLength` is excluded from the AAD *(§22.7)* — `Format/AssociatedDataTests`~~ *retired in R6 — `onDiskLength` is now inside the associated data (WF-28, HST-09)*
+- [x] WF-30 — an encrypted frame carries the header once and no second image of it *(§13.1)* — `Format/AssociatedDataTests`
+
+## 14.6 Null folded into the first number
+
+- [x] WF-31 — a string: null `00`, empty `01`, "hello" `06 68 65 6C 6C 6F` *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-32 — a sequence and a map fold their null into the count with references off, and write the count as it is after a reference frame; `byte[]` is an ordinary sequence *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-33 — a keyed class folds its null into the field count; a keyed struct, a keyed class after a reference frame and a keyed type behind a union tag write the count as it is *(§14.2, §22.2)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-34 — `Nullable<T>` is a flag then `T`, with references off and on *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-35 — a positional object carries a flag; a union a flag then its tag, and under references the frame then its tag *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-36 — a type that cannot be null carries nothing for it *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-37 — the types the rule reaches beyond the table of the format decision: a string-encoded scalar folds its length (`Uri "a"` is `02 61`), `BitArray` its bit count (`0A 02 8D 01`), an array of rank > 1 its rank (`03 02 03 …`), and `Tuple<…>` carries a flag *(§22.2, owner's decision of 2026-09-28)* — `Format/WireFormatTests` *(added in R6)*
 
 ---
 
@@ -532,7 +547,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 
 # 17. Polymorphism — `Contracts/`
 
-- [x] TYP-02 — INV-17: the allocation counter of the thread observes no boxing when a graph of value types — enums, nullables, nested structs, pairs and tuples among them — is written and read at two sizes: the larger costs no more than the array it returns; a struct root is not boxed on its way out; and the same counter sees the box a struct in a polymorphic slot does take *(§2.4, §15)* — `Contracts/BoxingTests` *(added in R4)*
+- [x] TYP-02 — INV-17, the trace seam included (a read with an observer that allocates nothing costs the same): the allocation counter of the thread observes no boxing when a graph of value types — enums, nullables, nested structs, pairs and tuples among them — is written and read at two sizes: the larger costs no more than the array it returns; a struct root is not boxed on its way out; and the same counter sees the box a struct in a polymorphic slot does take *(§2.4, §15)* — `Contracts/BoxingTests` *(added in R4)*
 
 - [x] PM-01 — a registered derived type round-trips with its runtime type intact *(§15)* — `Contracts/PolymorphismTests`
 - [x] PM-02 — several derived types under one base are distinguished by tag *(§15)* — `Contracts/UnionDeclarationTests`
@@ -567,13 +582,14 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] REF-10 — an array, immutable or frozen collection, or tuple is registered **after** completion *(§16.1)* — `References/RegistrationOrderTests`
 - [x] REF-11 — a reference resolving to a still-building object → deterministic `BinaryFormatException`, never a half-built instance *(§16.1)* — `References/RegistrationOrderTests`
 - [x] REF-12 — an unknown reference id → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
-- [x] REF-13 — a negative reference id → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
-- [x] REF-14 — an invalid marker byte → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
+- ~~REF-13 — a negative reference id → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`~~ *retired in R6 — a reference id is a varint and cannot be negative*
+- ~~REF-14 — an invalid marker byte → `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`~~ *retired in R6 — there is no marker byte (WF-13)*
 - [x] REF-15 — ids are visible only along the ancestor chain *(§16.2)* — `References/ReferenceFramingTests`
 - [x] REF-16 — a back reference is never emitted between sibling keyed fields *(§16.2)* — `References/ReferenceFramingTests`
 - [x] REF-17 — a repeated reference does not consume a second graph node *(§5.8)* — `Limits/DepthAndNodeTests`
 - [x] REF-18 — a second first occurrence under a visible id is `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
 - [x] REF-19 — a back reference that resolves to an object the declared type cannot hold is `BinaryFormatException`, never a framework cast failure *(§16, INV-10)* — `References/ReferenceFramingTests` *(added in R4)*
+- [x] REF-20 — the reference frame, byte for byte: null `00`, the first occurrence of id 0 `01`, a back reference to it `02`, the first occurrence of id 5 `0B`, written by the serializer as documented *(§16, §22.2)* — `References/ReferenceFramingTests` *(added in R6)*
 - [x] CYC-01 — a direct self-reference round-trips under `PreserveReferences` *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-02 — a two-object cycle round-trips *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-03 — a cycle through a collection round-trips *(§16.1)* — `References/ReferenceIdentityTests`
@@ -696,13 +712,13 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] LIM-04 `MaxStringBytes` — measured in UTF-8 bytes, not characters *(§5.5)* — `Limits/ValueLimitTests`
 - [x] LIM-05 `MaxByteBlobBytes` — the four cases *(§5.6)* — `Limits/ValueLimitTests`
 - [x] LIM-06 bit counts: 0, 1, 7, 8, 9, exact byte boundary, one above *(§22.4)* — `Limits/ValueLimitTests`
-- [x] LIM-07 — a negative wire count → `BinaryFormatException`, never `BinaryLimitException` *(§5)* — `Limits/ValueLimitTests`
-- [x] LIM-08 — a negative wire length → `BinaryFormatException` *(§5)* — `Limits/ValueLimitTests`
+- [x] LIM-07 — a count beyond the Int32 range a varint admits → `BinaryFormatException`, never `BinaryLimitException`; a negative count cannot be expressed *(§5, §22.1)* — `Limits/ValueLimitTests`
+- [x] LIM-08 — a negative keyed field length, the one fixed-width structural number, and a string length beyond Int32 → `BinaryFormatException` *(§5, §22.3)* — `Limits/ValueLimitTests`
 - [x] LIM-09 — zero succeeds wherever the shape admits an empty value *(§5)* — `Limits/ValueLimitTests`
 
 ## 20.2 Multidimensional arrays
 
-- [x] LIM-10 — a negative dimension → `BinaryFormatException` *(§17)* — `Limits/ArrayShapeTests`
+- [x] LIM-10 — a dimension beyond the Int32 range a varint admits → `BinaryFormatException` *(§17, §22.5)* — `Limits/ArrayShapeTests`
 - [x] LIM-11 — a zero dimension yields the documented empty array without overflowing the product *(§17)* — `Limits/ArrayShapeTests`
 - [x] LIM-12 — a product exactly at `MaxArrayLength` succeeds *(§17)* — `Limits/ArrayShapeTests`
 - [x] LIM-13 — a product one above → `BinaryLimitException` *(§17)* — `Limits/ArrayShapeTests`
@@ -749,13 +765,13 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] LIM-41 — `CountKind` selects the correct limit for array, collection and dictionary counts *(L2, §6)* — `Limits/BudgetAccountingTests`
 - [x] LIM-42 — `ElementCount.CapacityHint` bounds initial capacity; a declared count never allocates its full size up front *(§17)* — `Limits/BudgetAccountingTests`
 - [x] LIM-43 — no type below `Pipeline/` references `SerializationLimits` *(§2, architecture invariant)* — `Exceptions/SourceInvariantTests`
-- [x] LIM-44 — payload bytes are reachable only through `WireReader` / `WireWriter`; neither hands out a stream, and the one reader over part of the payload, `WireReader.Slice`, ends where the declared field ends *(§2.3, §7.3)* — `Limits/StructuralBarrierTests`
+- [x] LIM-44 — payload bytes are reachable only through `WireReader` / `WireWriter`; neither hands out a stream, and the one reader over part of the payload, `WireReader.Slice`, ends where the declared field ends; the trace observer of the diagnostics is handed no reader, no writer, no span and no byte array (INV-2, added in R6) *(§2.3, §7.3)* — `Limits/StructuralBarrierTests`
 - [x] LIM-46 — the documented default table names exactly the limits the type declares *(§5)* — `Exceptions/ConfigurationValidationTests`
 - [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer — only child values, a validated array shape and the elements behind it, read by the engine — and which only the engine's entry can create; a codec or a contract holds no state of an operation *(§18, §24)* — `Limits/StructuralBarrierTests` *(rewritten in R4)*
 - [x] LIM-48 — `WireReader` and `WireWriter` are `ref struct`s, and they are the only types in the engine assembly that declare payload primitives (`Read*`/`Write*` of a boolean, a number, a varint, a string, a blob or a bit count), a `Stream` override excepted *(§2.3, §18)* — `Limits/StructuralBarrierTests`
 - [x] LIM-49 — INV-5: a sequence, map or array shape takes and returns no count, no primitive and no reader or writer; a type contract implements only creation, writing, reading and the response to a key, each handed a `MemberWriter` or `MemberReader` and nothing that reaches bytes; those two expose only member values; outside the readers and writers only the engine's codecs read or write a count; the shapes' sources name no primitive and no count *(§2.3, §2.4)* — `Limits/StructuralBarrierTests` *(added in R4)*
 - [x] LIM-50 — INV-16: no method in the engine or the formatters is asynchronous — none carries an async state machine or returns a task, a value task or an async enumerable — and the check recognizes an awaitable return *(§2.4)* — `Limits/StructuralBarrierTests` *(added in R3)*
-- [x] LIM-51 — INV-1: only the serializer and the inspector create an `OperationState`, only the state creates a budget and a phase policy, and every member below the public edge takes the state by reference, an asynchronous method excepted *(§2.2)* — `Limits/StructuralBarrierTests` *(added in R4)*
+- [x] LIM-51 — INV-1: only the serializer, the inspector and the dumper create an `OperationState`, only the state creates a budget and a phase policy, and every member below the public edge takes the state by reference, an asynchronous method excepted *(§2.2)* — `Limits/StructuralBarrierTests` *(added in R4)*
 
 ## 20.7 Materialization and allocation
 
@@ -834,14 +850,14 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] HST-01 — a mutated magic → `BinaryFormatException` *(§22.6)* — `Hostile/MutationTests`
 - [x] HST-02 — a mutated version → `BinaryFormatNotSupportedException` *(§22.6)* — `Hostile/MutationTests`
 - [x] HST-03 — a mutated algorithm identifier → `BinaryFormatNotSupportedException` *(§22.6)* — `Hostile/MutationTests`
-- [x] HST-04 — a mutated optional-string presence flag, length or content → deterministic documented failure *(§22.1)* — `Hostile/MutationTests`; content that is not valid UTF-8 is `BinaryFormatException` at the string itself (Q14)
+- [x] HST-04 — a mutated header string — a key id declared over nothing, a custom name longer than its field admits or than the frame, content that is not valid UTF-8 → deterministic documented failure *(§11, §22.1)* — `Hostile/MutationTests`
 - [x] HST-04a — a payload string whose bytes are not valid UTF-8 → `BinaryFormatException`, over the continuation, overlong, surrogate, out-of-range and truncated forms, with a valid sequence still accepted *(§22.1)* — `Hostile/MalformedPayloadTests`
 - [x] HST-04b — a header string edited into invalid UTF-8 fails as malformed input ahead of the integrity check, while an edit that keeps it valid UTF-8 still fails on the tag *(§13.1, §22.1)* — `Format/AssociatedDataTests`
-- [x] HST-05 — a mutated `PreserveReferences` flag → deterministic failure or correct alternate interpretation *(§16)* — `Hostile/MutationTests`
-- [x] HST-06 — each mutated length field → the documented exception *(§22.6)* — `Hostile/MutationTests`
+- [x] HST-05 — a mutated payload mode → deterministic failure or correct alternate interpretation *(§16)* — `Hostile/MutationTests`
+- [x] HST-06 — each mutated length — `onDiskLength`, `uncompressedLength`, a service length — → the documented exception *(§11)* — `Hostile/MutationTests`
 - [x] HST-07 — a mutated checksum → `BinaryIntegrityException` *(§8.5)* — `Hostile/MutationTests`
 - [x] HST-08 — mutated ciphertext → `BinaryIntegrityException` *(§13.1)* — `Hostile/MutationTests`
-- [x] HST-09 — **every byte** of an encrypted frame's header flipped in turn always fails *(§13.1)* — `Hostile/MutationTests`
+- [x] HST-09 — **every byte** of an encrypted frame's header, `onDiskLength` included, flipped in turn always fails *(§13.1)* — `Hostile/MutationTests`, `Algorithms/EncryptionTests`
 - [x] HST-35 — a duplicate key in each of the six refusing dictionaries → `BinaryFormatException` preserving the `ArgumentException` *(§8.2, §23)* — `Hostile/DuplicateEntryTests`
 - [x] HST-36 — a duplicate in a collapsing container (`ConcurrentDictionary`, sets, frozen and immutable sets) → `BinaryFormatException` *(§23)* — `Hostile/DuplicateEntryTests`
 - [x] HST-37 — a null dictionary key → `BinaryFormatException` *(§8.2)* — `Hostile/DuplicateEntryTests`
@@ -854,6 +870,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] HST-13 — excessive 7-bit continuation bytes → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-40 — a non-minimal 7-bit integer → `BinaryFormatException`, for a payload string length, the keyed field count and key, and a header string length, where it fails before the tag is checked; the minimal spelling of the same value is accepted *(§22.1)* — `Hostile/TruncationTests`
+- [x] HST-41 — a non-minimal varint → `BinaryFormatException` in every structural position: count, length, reference frame, key, version, payload mode, service kind, service length, `onDiskLength` *(§22.1)* — `Hostile/TruncationTests` *(added in R6)*
 - [x] HST-15 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Hostile/TruncationTests`
 - [x] HST-16 — a failed `ReadExact` retains no partial output *(§2.3)* — `Hostile/TruncationTests`
 
@@ -862,7 +879,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] HST-17 — a declared count at the limit with a truncated element stream allocates nothing proportional to the count *(§17)* — `Hostile/AmplificationTests`
 - [x] HST-18 — a declared string or blob length beyond the bytes physically present → `BinaryFormatException` before allocation, on the wire as well as inside the payload *(§17)* — wire half by D1-02, payload and keyed-window halves by `Hostile/AmplificationTests`
 - [x] HST-19 — a declared phase length above its limit → `BinaryLimitException` before allocation *(§22.6)* — `Hostile/MalformedPayloadTests`
-- [x] HST-20 — a declared plaintext length exceeding the ciphertext delivered → rejected before allocation *(§13)* — `Hostile/AmplificationTests`
+- [x] HST-20 — decryption works in a buffer as long as the delivered ciphertext: a short encrypted frame declaring a large expansion fails the tag and allocates nothing proportional *(§5.10, §13)* — `Hostile/AmplificationTests`
 - [x] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver `CompressedLength` real bytes *(§12)* — `Hostile/AmplificationTests`
 - [x] HST-22 — nested individually-valid containers cannot bypass the cumulative element budget *(§5.7)* — `Hostile/AmplificationTests`
 - [x] HST-23 — many small keyed objects cannot bypass `MaxTotalKeyedFields` *(§5.9a)* — `Hostile/AmplificationTests`
@@ -904,6 +921,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - ~~CMP-15 — both built-in algorithms decompress incrementally *(§12)* — `Algorithms/CompressionTests`~~ *retired in R5 — decompression into a writer that grows with the output is the only mode, for every algorithm; there is no flag left to test*
 - [x] CMP-16 — a Brotli stream that yields the declared length but never terminates is malformed *(§12)* — `Algorithms/CompressionTests`. The single-buffer decoder refused such a stream; the incremental path first accepted it until the NX-01 fix restored the refusal, and a later rewrite of the decoder must keep it. Kept through the R5 port of `BrotliCompression` to the buffer-writer interface
 - [x] CMP-17 — `Decompress` producing fewer or more than `expectedLength` bytes is `BinaryFormatException` *(§12)* — `Algorithms/CompressionTests`: each built-in declared one byte longer and one byte shorter than its stream, the exact case beside them, and a custom algorithm that drops a byte or adds one, through a whole read
+- [x] CMP-18 — under encryption the plaintext is checked after decryption and before decompression allocates: above `MaxCompressedBytes` → `BinaryLimitException`; an expansion the ciphertext admits and the plaintext does not → `BinaryLimitException`; one exactly at the ratio reads *(§5.10)* — `Algorithms/CompressionTests` *(added in R6)*
 
 ---
 
@@ -929,7 +947,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] ENC-03 — a wrong key → `BinaryIntegrityException` at the authentication boundary *(§8.5)* — `Algorithms/EncryptionTests`
 - [x] ENC-04 — tampered ciphertext → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
 - [x] ENC-05 — any altered authenticated header byte → `BinaryIntegrityException` *(§13.1)* — `Algorithms/EncryptionTests`
-- [x] ENC-06 — `OnDiskLength` is not authenticated, and a wrong value still fails by truncation or tag *(§22.7)* — `Format/AssociatedDataTests`
+- [x] ENC-06 — `onDiskLength` is part of the associated data: a shorter value the frame still holds fails the tag *(§13.1)* — `Format/AssociatedDataTests`
 - [x] ENC-07 — no key configured for an encrypted payload → `BinaryEncryptionKeyException` *(§8.7)* — `Algorithms/EncryptionTests`
 - [x] ENC-08 — a resolver returning null → `BinaryEncryptionKeyException` *(§8.7)* — `Exceptions/ExceptionMappingTests`
 - [x] ENC-09 — a `KeyId` mismatch against the provider's configured id → `BinaryEncryptionKeyException` *(§13.2)* — `Algorithms/EncryptionTests`
@@ -982,13 +1000,25 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] INS-07 — limits passed to `Peek` are honored *(§19)* — `Metadata/InspectorTests`: the same frame is accepted and refused on either side of `MaxPayloadBytes`, and `MaxWireBytes` bounds the header read
 - [x] INS-08 — `Peek(stream, null)` → `ArgumentNullException` *(§8.10)* — `Metadata/InspectorTests`
 - [x] INS-09 — an underlying `IOException` during inspection → `BinaryStreamException` *(§19)* — `Metadata/InspectorTests`, both before the magic and inside the header read
-- [x] INS-10 — `BinaryHeaderInfo` reports version, algorithms, custom names and `KeyId` and nothing secret *(§11)* — `Metadata/InspectorTests`
+- [x] INS-10 — `BinaryHeaderInfo` reports the version, the payload mode, each algorithm and custom name, the uncompressed length, the checksum, `KeyId` and the header and on-disk lengths, and nothing secret *(§11, §19)* — `Metadata/InspectorTests`, `Format/HeaderTests`
 - [x] INS-11 — `Peek` over a span and over a multi-segment sequence reports the header a stream `Peek` reports, `null` for a V0 payload and for fewer bytes than the magic, `BinaryFormatException` for a malformed header, and honours its limits *(§19)* — `Metadata/InspectorTests` *(added in R3)*
-- [x] DMP-01 — `DumpHeader(byte[])` renders a valid envelope *(§19)* — `Diagnostics/DumperTests`, custom algorithm names included and no key material
+- [x] DMP-01 — `DumpHeader` over a span renders a valid envelope: version, payload mode, each service, the lengths *(§19)* — `Diagnostics/DumperTests`, custom algorithm names included and no key material *(re-pointed in R6: the `byte[]` overload is gone)*
 - [x] DMP-02 — `DumpHeader(Stream)` renders a valid envelope and does not consume the stream *(§19)* — `Diagnostics/DumperTests`
 - [x] DMP-03 — unrecognized input produces diagnostic text rather than a thrown exception *(§19)* — `Diagnostics/DumperTests`, for unrecognized bytes, a malformed header, an unsupported version and a failing stream
 - [x] DMP-04 — the dumper catches only `BinarySerializerException`; it does not normalize arbitrary exceptions *(§19)* — `Diagnostics/DumperTests`: a non-seekable stream leaves as `NotSupportedException`
 - [x] DMP-05 — no production type outside `Diagnostics/` reports a failure as output *(§19)* — `Diagnostics/DumperTests`, as a source invariant: every Viper exception caught in `src/` is rethrown except the dumper's own, and the check is guarded by asserting it does recognize the dumper's shape
+- [x] DMP-06 — `DumpHeader` over a span and over a multi-segment sequence renders the same text as over the stream, for every fixture *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-07 — `Dump<T>` renders every `BinaryDumpNodeKind`: a scalar, `null`, a sequence, a map, a positional object, a keyed object with its keys, an unknown keyed field shown as skipped with its length, a union with its tag and runtime type, a back reference with its id and target path, a composite *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-08 — every node's offset and length are the bytes it occupies: for each fixture the children lie in order inside their parent, the rest is the parent's own framing, and the root's length is the payload length *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-09 — a failing frame yields the tree up to the failure, `Failure` of the type a read raises, and the `FailureOffset` and `FailurePath` of the failing member — one case per failure class: format, limit, not supported, integrity, key *(§8, §19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-10 — `Dump` without a type: an encrypted and compressed frame with the key is decrypted, decompressed and its checksum verified; without the key `Decrypted` is `false` and nothing throws; V0 bytes are shown as hex *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-11 — the dump reads under the options' limits: a hostile frame is refused with `BinaryLimitException` in `Failure`, allocating no more than the same read *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-12 — no rendering of a dump contains key material, for a static key, a key delegate and `HkdfKeyProvider` *(§13.2, §19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-13 — `DumpValue<T>` equals `Dump<T>` over `Serialize<T>` of the same value and options *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-14 — `Compare<T>` returns null for two frames of the same value, encrypted frames with different nonces included, and the path and both nodes of the first difference otherwise *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-15 — `ToString()`, `ToJson()`, `ToXml()` and `ToHex()` are identical under every culture the host offers, times render in UTC, `ToJson()` parses with `System.Text.Json` and `ToXml()` with `System.Xml.Linq`, each with one entry per node, and `ToHex()` covers every payload byte exactly once *(§19)* — `Diagnostics/DumperTests` *(added in R6; the process time zone cannot be switched in-process, so UTC rendering is what is pinned)*
+- [x] DMP-16 — the trace seam is off outside the dumper: `Trace` is assigned only in `Diagnostics/`, a new operation state carries none, and only the engine and the diagnostics touch it *(§2.4)* — `Diagnostics/DumperTests` *(added in R6)*
+- [x] DMP-17 — golden text: the `ToString()` of the keyed, the reference-graph and the protected fixture equals the committed report in `Fixtures/Dumps/`, so a change to the report is a visible diff *(§19)* — `Diagnostics/DumperTests` *(added in R6)*
 
 ---
 
@@ -1063,7 +1093,7 @@ Helpers a later stage needs — byte-observing stream wrappers, if a suite turns
 added by that stage rather than built ahead of use. The committed `*.bin` fixtures arrived with M3.
 
 - [x] UTIL-01 — assertion helpers behave correctly, including their negative cases — `Fixtures/UtilityTests`
-- [x] UTIL-02 — frame builders produce bytes a real reader accepts — `Fixtures/UtilityTests`
+- [x] UTIL-02 — the frame builders — the header, the service records, `FrameWith`, `WithLengths`, the decoder `ReadHeader` — produce and read bytes a real reader accepts and the documented bytes of §22.6 — `Fixtures/UtilityTests`
 - [x] UTIL-03 — mutation helpers change exactly the targeted bytes — `Fixtures/UtilityTests`
 - [x] UTIL-04 — truncation helpers enumerate every prefix — `Fixtures/UtilityTests`
 - [x] UTIL-05 — `NonSeekableStream` reports `CanSeek == false` and throws on `Position` — `Fixtures/UtilityTests`
@@ -1071,14 +1101,14 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-07 — `FailingStream` raises `IOException` at the configured offset, on read and on write — `Fixtures/UtilityTests`
 - [x] UTIL-08 — the stream doubles a later stage turns out to need — `Fixtures/UtilityTests`. No suite ever needed a byte-observing wrapper; what M8 needed was `FailingContentStream`, a stream that serves real bytes and then fails, so INS-09 can place the failure after the magic instead of before it
 - [x] UTIL-09 — committed `Fixtures/Wire/*.bin` compatibility fixtures load and are never regenerated by the code under test — `Fixtures/UtilityTests`
-- [x] UTIL-10 — the keyed and reference frame builders declare the counts and lengths they were given, not the real ones — `Fixtures/UtilityTests`
+- [x] UTIL-10 — the keyed and reference frame builders declare the counts and lengths they were given, not the real ones, and the reference frame is its documented varint — `Fixtures/UtilityTests`
 - [x] UTIL-11 — `Sequences.Of` chains its segments in order and reports more than one — `Fixtures/UtilityTests`
-- [x] UTIL-12 — the value frame builders declare the counts, lengths and ranks they were given, not the real ones — `Fixtures/UtilityTests`
+- [x] UTIL-12 — the value frame builders declare the counts, lengths and ranks they were given, plus one where they carry null — `Fixtures/UtilityTests`
 - [x] UTIL-13 — `WriteOnlyStream` accepts writes, seeks, and refuses reads — `Fixtures/UtilityTests`
 - [x] UTIL-14 — the algorithm doubles count the calls they receive, and `RecordingKeyProvider` hands out an owned copy per resolution while recording the id it was asked — `Fixtures/UtilityTests`
 - [x] UTIL-15 — `Concurrent.Race` runs its workers at the same time rather than one after another, returns each result under its own index, and rethrows what a worker threw — `Fixtures/UtilityTests`. A helper that quietly serialized would make every L4 checkpoint pass without ever racing anything
 - [x] UTIL-16 — `Cultures.Specific` resolves on the host it runs on, including one with no globalization data — `Fixtures/UtilityTests`. Naming a culture in a test makes it fail wherever that name is absent, which is a property of the machine and not of the format
-- [x] UTIL-17 — the oracle helpers are tested: `Oracle.Compare` reports a changed byte with both outputs in hex and its offset, a change of length, and a missing, an unexpected and a repeated case; `Oracle.Parse` refuses a repeated key, an alternative away from its case and an alternative repeating a recorded output; `Oracle.Compare` accepts any admissible output of a case and reports another against each of them, and accepts any output of a host-dependent case while still requiring it to be produced; `Oracle.Normalize` turns two encryptions of one value into the same bytes, whose body is the unencrypted payload; `OracleRecorder` records a copy of every write inside a collection and nothing outside one — `Fixtures/UtilityTests`
+- ~~UTIL-17 — the oracle helpers are tested: `Oracle.Compare` reports a changed byte with both outputs in hex and its offset, a change of length, and a missing, an unexpected and a repeated case; `Oracle.Parse` refuses a repeated key, an alternative away from its case and an alternative repeating a recorded output; `Oracle.Compare` accepts any admissible output of a case and reports another against each of them, and accepts any output of a host-dependent case while still requiring it to be produced; `Oracle.Normalize` turns two encryptions of one value into the same bytes, whose body is the unencrypted payload; `OracleRecorder` records a copy of every write inside a collection and nothing outside one — `Fixtures/UtilityTests`~~ *retired in R6 — deleted with the oracle*
 - [x] UTIL-18 — `FrameBoundStream` serves its bytes up to the boundary, cannot seek, ends when its content does, and fails a read that asks for any byte past the boundary, synchronously and awaited, without taking a byte — `Fixtures/UtilityTests` *(added in R3)*
 - [x] UTIL-19 — `ChunkedPipeReader` delivers a new chunk only once everything shown was examined, shows what arrived and was not consumed in one segment per chunk, completes when its content has all arrived, counts what was consumed, refuses a second read before advancing, reports a cancelled pending read, and without completion waits until the read is cancelled — `Fixtures/UtilityTests` *(added in R3)*
 - [x] UTIL-20 — `StingyBufferWriter` hands out spans of at most its limit, commits what was advanced in order, and with a limit of zero hands out an empty span — `Fixtures/UtilityTests` *(added in R3)*
@@ -1346,10 +1376,13 @@ evidence and the reasoning; this table keeps what pins each fix.
 
 # 30.4 Frozen v1.0.0 fixtures — `Format/`
 
-The bytes `Fixtures/Wire/v1-*.bin` and `v0-primitives.bin` were written by the v1.0.0 writer and
-committed. They are the only evidence a later version still reads what this one wrote, and they can
-never be regenerated: a rebuilt fixture is whatever the code has become and agrees with itself no
-matter what changed. A failure is a compatibility break, never a fixture to refresh.
+The bytes `Fixtures/Wire/*.bin` — the `v1-*` and `v0-*` families and `person-v0.bin`,
+`person-v1.bin` — were written by the v1.0.0 writer from the values in `Format/CompatibilityTests` and
+committed. They were re-frozen exactly once, in the rework's format stage (R6), when the wire format
+changed before any release; that is the single recorded exception. They are the only evidence a later
+version still reads what this one wrote, and they can never be regenerated again: a rebuilt fixture
+is whatever the code has become and agrees with itself no matter what changed. A failure is a
+compatibility break, never a fixture to refresh.
 
 The shapes they decode into live in `Fixtures/Compatibility.cs` and are frozen with them — renaming,
 reordering, adding or retyping a member invalidates a fixture. Positional members carry an explicit
@@ -1408,8 +1441,8 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Format
 
-- [x] Every row of §22 is pinned at the byte level. *(WF-01…WF-30)*
-- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-20, ENV-01, ENV-02)*
+- [x] Every row of §22 is pinned at the byte level. *(WF-01…WF-37, REF-20, HST-41)*
+- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-32, ENV-01, ENV-02, CMP-18)*
 - [x] V0 is never confused with V1 and is never selected without the caller's opt-in. *(V0-10…V0-17, V0-26)*
 - [x] V0 carries the same type set, unions, keyed contracts, limits and budgets as V1 — only the envelope is absent. *(V0-03, V0-07, V0-08, V0-19…V0-21)*
 - [x] Committed fixed-byte fixtures decode; none is regenerated by the code under test. *(V0-18, UTIL-09, CMPT-01…CMPT-12)*

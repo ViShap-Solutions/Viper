@@ -1,128 +1,98 @@
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
-using ViShap.Viper.Metadata;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins WF-28, WF-29 and WF-30: the associated-data image covers exactly the §22.7 fields in order,
-/// excludes <c>OnDiskLength</c>, and is recomputed by both sides rather than carried on the wire —
-/// which is what makes every field it covers unforgeable.
+/// Pins WF-28 and WF-30: the associated data authenticated encryption binds is the exact bytes of the
+/// header on the wire, from the first byte of the magic to the last byte of <c>onDiskLength</c>, on
+/// the way out and on the way in — so no header byte can change without failing the tag.
 /// </summary>
 public class AssociatedDataTests
 {
     private static readonly byte[] Key = new byte[32];
 
-    private static BinaryFormatHeaderV1 Sample(int onDiskLength = 33) =>
-        new(
-            CompressionAlgorithm.Custom, "zip",
-            ChecksumAlgorithm.Custom, "sum",
-            EncryptionAlgorithm.Custom, "box",
-            KeyId: "ring",
-            PreserveReferences: true,
-            UncompressedLength: 11,
-            CompressedLength: 22,
-            OnDiskLength: onDiskLength,
-            Checksum: [7, 8]);
-
-    [Fact]
-    public void BuildAssociatedData_CoversTheDocumentedFieldsInOrder()
+    [Theory]
+    [InlineData(false, false, null)]
+    [InlineData(true, false, "ring")]
+    [InlineData(true, true, "ring")]
+    public void Serialize_TheAssociatedDataIsTheHeaderBytesExactly(bool checksum, bool compress, string? keyId)
     {
-        byte[] expected = Wire.Payload(writer =>
-        {
-            writer.Write(1);                            // version
-            writer.Write((byte)CompressionAlgorithm.Custom);
-            writer.Write("zip");
-            writer.Write((byte)ChecksumAlgorithm.Custom);
-            writer.Write("sum");
-            writer.Write((byte)EncryptionAlgorithm.Custom);
-            writer.Write("box");
-            writer.Write("ring");                       // key id
-            writer.Write(true);                         // preserve references
-            writer.Write(11);                           // uncompressed length
-            writer.Write(22);                           // compressed length
-            writer.Write((byte)2);                      // checksum length
-            writer.Write(new byte[] { 7, 8 });
-        });
+        var cipher = new RecordingCipher();
+        var builder = BinarySerializerOptions.Configure()
+            .WithEncryption(cipher, Key, keyId)
+            .RegisterCustomEncryption(RecordingCipher.RegisteredName, () => cipher);
 
-        Assert.Equal(expected, Sample().BuildAssociatedData());
+        if (checksum)
+            builder.WithChecksum(new Crc32Checksum());
+
+        if (compress)
+            builder.WithCompression(new DeflateCompression());
+
+        var serializer = new BinarySerializer(builder.Build());
+        byte[] frame = serializer.Serialize("associated");
+        var header = Wire.ReadHeader(frame);
+
+        Assert.Equal(frame[..header.HeaderLength], cipher.SealedWith);
+
+        Assert.Equal("associated", serializer.Deserialize<string>(frame));
+        Assert.Equal(frame[..header.HeaderLength], cipher.OpenedWith);
     }
 
     [Fact]
-    public void BuildAssociatedData_AbsentOptionalStrings_AreCoveredAsEmpty()
+    public void Serialize_TheOnDiskLengthIsInsideTheAssociatedData()
     {
-        var header = new BinaryFormatHeaderV1(
-            CompressionAlgorithm.None, null,
-            ChecksumAlgorithm.None, null,
-            EncryptionAlgorithm.None, null,
-            KeyId: null,
-            PreserveReferences: false,
-            UncompressedLength: 4,
-            CompressedLength: 4,
-            OnDiskLength: 4,
-            Checksum: []);
+        var cipher = new RecordingCipher();
+        var serializer = new BinarySerializer(
+            BinarySerializerOptions.Configure()
+                .WithEncryption(cipher, Key)
+                .RegisterCustomEncryption(RecordingCipher.RegisteredName, () => cipher)
+                .Build());
 
-        byte[] expected = Wire.Payload(writer =>
-        {
-            writer.Write(1);
-            writer.Write((byte)0); writer.Write(string.Empty);
-            writer.Write((byte)0); writer.Write(string.Empty);
-            writer.Write((byte)0); writer.Write(string.Empty);
-            writer.Write(string.Empty);
-            writer.Write(false);
-            writer.Write(4);
-            writer.Write(4);
-            writer.Write((byte)0);
-        });
+        byte[] frame = serializer.Serialize("associated");
+        var header = Wire.ReadHeader(frame);
 
-        Assert.Equal(expected, header.BuildAssociatedData());
+        Assert.Equal(header.HeaderLength, cipher.SealedWith!.Length);
+        Assert.Equal(Wire.Varint(header.OnDiskLength), cipher.SealedWith[header.OnDiskLengthOffset..]);
     }
 
     [Fact]
-    public void BuildAssociatedData_IgnoresOnDiskLength()
+    public void Serialize_EncryptedFrame_CarriesTheHeaderOnceAndNoSecondImage()
     {
-        Assert.Equal(Sample(onDiskLength: 33).BuildAssociatedData(), Sample(onDiskLength: 9999).BuildAssociatedData());
+        byte[] frame = Encrypted().Serialize("associated");
+        var header = Wire.ReadHeader(frame);
+        byte[] headerBytes = frame[..header.HeaderLength];
+
+        Assert.DoesNotContain(headerBytes, Windows(frame[1..], headerBytes.Length));
     }
 
     [Fact]
-    public void Deserialize_AlteredOnDiskLength_StillFailsBecauseItIsSelfVerifying()
+    public void Deserialize_AlteredOnDiskLength_ThrowsIntegrity()
     {
-        // Excluded from the image, but not unchecked: a short read cannot satisfy the tag.
+        // A shorter declared length is still present in the frame, so only the tag can object.
         var serializer = Encrypted();
         byte[] frame = serializer.Serialize("associated");
         var header = Wire.ReadHeader(frame);
 
-        byte[] tampered = Mutate.SetInt32(frame, Wire.OnDiskLengthOffset, header.OnDiskLength - 1);
+        byte[] shorter =
+        [
+            .. frame[..header.OnDiskLengthOffset],
+            .. Wire.Varint(header.OnDiskLength - 1),
+            .. frame[header.HeaderLength..^1]
+        ];
 
-        Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<string>(tampered));
+        Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<string>(shorter));
     }
 
     [Fact]
-    public void Serialize_EncryptedFrame_DoesNotCarryTheAssociatedDataImage()
-    {
-        byte[] frame = Encrypted().Serialize("associated");
-        var parsed = Wire.ReadHeader(frame);
-
-        byte[] image = new BinaryFormatHeaderV1(
-            (CompressionAlgorithm)parsed.Compression, parsed.CustomCompressionName,
-            (ChecksumAlgorithm)parsed.ChecksumAlgorithm, parsed.CustomChecksumName,
-            (EncryptionAlgorithm)parsed.Encryption, parsed.CustomEncryptionName,
-            parsed.KeyId, parsed.PreserveReferences,
-            parsed.UncompressedLength, parsed.CompressedLength, parsed.OnDiskLength,
-            parsed.Checksum).BuildAssociatedData();
-
-        Assert.DoesNotContain(image, Windows(frame, image.Length));
-    }
-
-    [Fact]
-    public void Deserialize_AlteredPreserveReferencesFlag_ThrowsIntegrity()
+    public void Deserialize_AlteredPayloadMode_ThrowsIntegrity()
     {
         var serializer = Encrypted();
         byte[] frame = serializer.Serialize("associated");
 
-        byte[] tampered = Mutate.SetByte(frame, Wire.PreserveReferencesOffset, 1);
+        byte[] tampered = Mutate.SetByte(frame, Wire.ModeOffset, 1);
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<string>(tampered));
     }
@@ -138,11 +108,11 @@ public class AssociatedDataTests
                 .Build());
 
         byte[] frame = serializer.Serialize("associated");
+        var record = Wire.ReadHeader(frame).Service(Wire.EncryptionService);
 
-        // The key id is the only optional string present: its flag sits at offset 14, its 7-bit
-        // length at 15, and its bytes start at 16. The edit keeps the field valid UTF-8, so nothing
-        // but the tag can object: "ring" becomes "sing".
-        byte[] tampered = Mutate.SetByte(frame, 16, (byte)'s');
+        // The body is the algorithm id, the key id's length plus one, then its bytes. The edit keeps
+        // the field valid UTF-8: "ring" becomes "sing".
+        byte[] tampered = Mutate.SetByte(frame, record.BodyOffset + 2, (byte)'s');
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<string>(tampered));
     }
@@ -150,9 +120,8 @@ public class AssociatedDataTests
     [Fact]
     public void Deserialize_KeyIdEditedIntoInvalidUtf8_ThrowsFormatBeforeTheTagIsChecked()
     {
-        // The header is parsed before anything is decrypted, because the tag is computed over its
-        // decoded fields. A field that is not a string in the declared encoding therefore fails as
-        // malformed input, ahead of the integrity check the edit would otherwise have reached.
+        // The header is parsed before anything is decrypted. A field that is not a string in the
+        // declared encoding therefore fails as malformed input, ahead of the integrity check.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
                 .WithChecksum(new Crc32Checksum())
@@ -160,29 +129,30 @@ public class AssociatedDataTests
                 .Build());
 
         byte[] frame = serializer.Serialize("associated");
+        var record = Wire.ReadHeader(frame).Service(Wire.EncryptionService);
 
         // 0x8D is a continuation byte with no lead byte in front of it.
-        byte[] tampered = Mutate.SetByte(frame, 16, 0x8D);
+        byte[] tampered = Mutate.SetByte(frame, record.BodyOffset + 2, 0x8D);
 
         AssertEx.Throws<BinaryFormatException>(
             "UTF-8", () => serializer.Deserialize<string>(tampered));
     }
 
     [Fact]
-    public void Deserialize_AlteredChecksumBytesCoveredByTheImage_ThrowsIntegrity()
+    public void Deserialize_AlteredChecksumBytes_ThrowsIntegrity()
     {
         var serializer = Encrypted();
         byte[] frame = serializer.Serialize("associated");
-        var header = Wire.ReadHeader(frame);
+        var record = Wire.ReadHeader(frame).Service(Wire.ChecksumService);
 
-        byte[] tampered = Mutate.FlipByte(frame, header.HeaderLength - header.Checksum.Length);
+        byte[] tampered = Mutate.FlipByte(frame, record.BodyOffset + record.BodyLength - 1);
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<string>(tampered));
     }
 
     /// <summary>
-    /// AES-GCM with a checksum, so the frame carries every field §22.7 binds and the tag is what
-    /// notices a change to any of them.
+    /// AES-GCM with a checksum, so the frame carries a checksum record and an encryption record and
+    /// the tag is what notices a change to any header byte.
     /// </summary>
     private static BinarySerializer Encrypted() =>
         new(BinarySerializerOptions.Configure()
@@ -195,5 +165,39 @@ public class AssociatedDataTests
     {
         for (int start = 0; start + length <= source.Length; start++)
             yield return source[start..(start + length)];
+    }
+
+    /// <summary>A pass-through cipher that records the associated data it is handed in each direction.</summary>
+    private sealed class RecordingCipher : IEncryptionAlgorithm
+    {
+        public const string RegisteredName = "recording";
+
+        public byte[]? SealedWith { get; private set; }
+
+        public byte[]? OpenedWith { get; private set; }
+
+        public EncryptionAlgorithm Kind => EncryptionAlgorithm.Custom;
+
+        public string? CustomName => RegisteredName;
+
+        public bool AuthenticatesAssociatedData => true;
+
+        public int KeySizeInBytes => 32;
+
+        public int GetCiphertextLength(int plaintextLength) => plaintextLength;
+
+        public int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key, ReadOnlySpan<byte> associatedData, Span<byte> destination)
+        {
+            SealedWith = associatedData.ToArray();
+            plaintext.CopyTo(destination);
+            return plaintext.Length;
+        }
+
+        public int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key, ReadOnlySpan<byte> associatedData, Span<byte> destination)
+        {
+            OpenedWith = associatedData.ToArray();
+            ciphertext.CopyTo(destination);
+            return ciphertext.Length;
+        }
     }
 }

@@ -100,6 +100,8 @@ contract would already be accurate for it.
 
 ### §5 Serialization limits — R2, R6
 
+**R6 applied.**
+
 - `MaxWireBytes`: the most the adapter buffers from a source and the most the writer emits, relative
   to the operation's start. Same default. *(R2)* — **R2 applied** in §5.10.
 - §5.10 phase limits: restate the order of checks of plan §6.1.4 — `MaxEncryptedBytes` against
@@ -131,6 +133,8 @@ contract would already be accurate for it.
 
 ### §8 Exception taxonomy — R3, R5, R6
 
+**R6 applied.**
+
 - §8.10 `NotSupportedException`: seekability removed. Remaining uses: a V0 payload from a non-seekable
   stream without a length; an asynchronous read that meets V0. *(R3)* — **R3 applied**, together with
   the §8.8 pipe failures (an `IOException` from a pipe, as from a stream; nothing else wrapped), the
@@ -158,6 +162,8 @@ contract would already be accurate for it.
 
 ### §10 Version and wire-format contract — R3, R6
 
+**R6 applied.**
+
 - §10.1 V1: the header is a list of services (plan §6.1); a new capability is a new service number;
   an unknown critical service is refused, an unknown non-critical one skipped. The references mode is
   a property of the frame. *(R6)*
@@ -173,6 +179,8 @@ contract would already be accurate for it.
 
 ### §11 V1 header fields — R6
 
+**R6 applied.**
+
 - **Rewritten** from plan §6.1: layout, payload mode, service records, numbers, bodies, the check
   order, the 4 KiB bound. The rules "`Compression = None` → lengths equal" and
   "`Encryption = None` → lengths equal" are deleted.
@@ -185,6 +193,8 @@ contract would already be accurate for it.
 - The interface of plan §8.1.
 
 ### §13 Encryption contract — R5, R6
+
+**R6 applied.**
 
 - §13.1: `AuthenticatesAssociatedData` is required, with no default; the associated data is the exact
   header bytes (plan §6.2). *(R5, R6)*
@@ -211,6 +221,8 @@ contract would already be accurate for it.
 
 ### §14 Contracts and members — R4, R6, R8
 
+**R6 applied.**
+
 - §14.1: rules unchanged; the member plan is `TypeContract<T>`, identical for reflection and any
   generated contract (INV-12). *(R4, R8)* — **R4 applied:** §14.1 opens with the type contract and
   `ReflectedContract<T>`; R8 adds the generated side.
@@ -223,6 +235,8 @@ contract would already be accurate for it.
 - Add: the polymorphic slot is the only place the engine boxes. No change to tags or rules.
 
 ### §16 References and cycles — R2, R6
+
+**R6 applied.**
 
 - §16: the reference frame is one varint carrying null (plan §6.3.4); explicit ids kept, with the
   skip-desync reason for rejecting implicit ids. *(R6)*
@@ -254,6 +268,8 @@ contract would already be accurate for it.
   concurrent first use.
 
 ### §19 Format inspection and diagnostics — R3, R6
+
+**R6 applied.**
 
 - `BinaryFormatInspector.Peek` over a span and a sequence; "requires a seekable stream and restores
   its position" applies only to the stream overload. *(R3)* — **R3 applied.**
@@ -289,6 +305,8 @@ contract would already be accurate for it.
   at `WithKeys` in R3; the checklist is rebuilt in R9a.
 
 ### §22 Wire format — R6
+
+**R6 applied.**
 
 - **Rewritten** from plan §6:
   - §22.1: varint and minimal encoding for structural numbers; data fixed-width; the null fold.

@@ -73,7 +73,7 @@ public class InspectorTests
     public void Peek_RecognizedButMalformedHeader_ThrowsFormat()
     {
         // Null is reserved for "not a supported format"; a broken payload is a format error.
-        using var stream = new MemoryStream(Mutate.Truncate(_serializer.Serialize(123), 12));
+        using var stream = new MemoryStream(Mutate.Truncate(_serializer.Serialize(123), 6));
 
         Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(stream));
     }
@@ -119,7 +119,7 @@ public class InspectorTests
     {
         using var stream = new MemoryStream();
         stream.Write(new byte[16]);
-        stream.Write(Mutate.Truncate(_serializer.Serialize(123), 12));
+        stream.Write(Mutate.Truncate(_serializer.Serialize(123), 6));
         stream.Position = 16;
 
         Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(stream));
@@ -155,7 +155,7 @@ public class InspectorTests
         using var stream = new MemoryStream(DeclaringPayloadBytes(4096));
 
         AssertEx.Throws<BinaryLimitException>(
-            "UncompressedLength",
+            "MaxPayloadBytes",
             () => BinaryFormatInspector.Peek(stream, SerializationLimits.Default with { MaxPayloadBytes = 4095 }));
     }
 
@@ -165,7 +165,7 @@ public class InspectorTests
         using var stream = new MemoryStream(_serializer.Serialize(123));
 
         Assert.Throws<BinaryLimitException>(
-            () => BinaryFormatInspector.Peek(stream, SerializationLimits.Default with { MaxWireBytes = 8 }));
+            () => BinaryFormatInspector.Peek(stream, SerializationLimits.Default with { MaxWireBytes = 7 }));
     }
 
     [Fact]
@@ -181,7 +181,7 @@ public class InspectorTests
     public void Peek_StreamFailsWhileTheHeaderIsRead_ThrowsStream()
     {
         // Past the magic, so the failure happens inside the header read rather than in the probe.
-        using var stream = new FailingContentStream(_serializer.Serialize(123), bytesBeforeFailure: 12);
+        using var stream = new FailingContentStream(_serializer.Serialize(123), bytesBeforeFailure: 6);
 
         AssertEx.Throws<BinaryStreamException>(
             "inspect", () => BinaryFormatInspector.Peek(stream));
@@ -238,8 +238,10 @@ public class InspectorTests
         var fromSequence = BinaryFormatInspector.Peek(Sequences.Of(frame[..3], frame[3..10], frame[10..]));
 
         Assert.NotNull(fromStream);
-        Assert.Equal(fromStream, fromSpan);
-        Assert.Equal(fromStream, fromSequence);
+        Assert.Equal(fromStream.Value with { Checksum = default }, fromSpan!.Value with { Checksum = default });
+        Assert.Equal(fromStream.Value with { Checksum = default }, fromSequence!.Value with { Checksum = default });
+        Assert.Equal(fromStream.Value.Checksum.ToArray(), fromSpan.Value.Checksum.ToArray());
+        Assert.Equal(fromStream.Value.Checksum.ToArray(), fromSequence.Value.Checksum.ToArray());
         Assert.Equal("primary", fromSpan!.Value.KeyId);
     }
 
@@ -258,7 +260,7 @@ public class InspectorTests
     [Fact]
     public void Peek_SpanAndSequence_OverAMalformedHeader_ThrowFormat()
     {
-        byte[] frame = Mutate.SetInt32(_serializer.Serialize(123), Wire.UncompressedLengthOffset, -1);
+        byte[] frame = Wire.FrameWith([123, 0, 0, 0], services: [Wire.Service(0, false, [])]);
 
         Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(frame.AsSpan()));
         Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(Sequences.Of(frame[..5], frame[5..])));

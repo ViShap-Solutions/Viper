@@ -245,7 +245,9 @@ Also owed now:
   the three together are the rule. The §30 finding NX-01 keeps its wording: it records the fix as
   it was made.
 
-## R6 — The final format
+## R6 — The final format — applied
+
+Applied with two transcription fixes: REF-19 was already taken in R4 (a back reference of the wrong type), so the reference-frame checkpoint is REF-20; and the null-fold rows beyond the table of plan §6.3.2 (owner's decision of 2026-09-28) are WF-37. `ToXml()` joined DMP-15 by the owner's decision of 2026-09-28 (`Owner-Review.md` log 62).
 
 - **§11 and §14 rewritten**; §14.5 "Associated data" rewritten: the associated data is the header.
 - **HST-09 extended** — flipping every byte of an encrypted frame's header, `onDiskLength` included,

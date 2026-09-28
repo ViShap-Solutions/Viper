@@ -22,7 +22,7 @@ public class MaterializationTests
         int[] values = [.. Enumerable.Range(0, 1000)];
         byte[] bytes = Wire.Payload(writer =>
         {
-            writer.Write(values.Length);
+            writer.Write7BitEncodedInt(values.Length);
             foreach (int value in values)
                 writer.Write(value);
         });
@@ -56,8 +56,7 @@ public class MaterializationTests
         // A million elements declared, eight bytes delivered.
         byte[] payload = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(1_000_000);
+            writer.Write7BitEncodedInt(1_000_001);
             writer.Write(1);
             writer.Write(2);
         }));
@@ -71,9 +70,8 @@ public class MaterializationTests
     {
         byte[] payload = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(1_000_000);
-            writer.Write(false);
+            writer.Write7BitEncodedInt(1_000_001);
+            writer.Write((byte)0);              // a null string
         }));
 
         Assert.Throws<BinaryFormatException>(() => _serializer.Deserialize<string?[]>(payload));
@@ -96,8 +94,7 @@ public class MaterializationTests
         // created at the growth hint, not at the declared count, and the read fails on truncation.
         byte[] payload = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(3000);
+            writer.Write7BitEncodedInt(3001);
             writer.Write(1);
             writer.Write(2);
             writer.Write(3);
@@ -112,7 +109,7 @@ public class MaterializationTests
     private static T[] ReadArray<T>(OperationBox operation, byte[] payload)
     {
         var reader = new WireReader(payload, ref operation.State);
-        var count = reader.ReadCount(CountKind.Array, "Array length");
+        var count = reader.ReadCount(CountKind.Array, "Array length", nullFolded: false);
         return Elements.ReadArray<T>(ref reader, count);
     }
 

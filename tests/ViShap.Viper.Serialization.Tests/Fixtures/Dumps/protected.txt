@@ -1,0 +1,28 @@
+Viper V1 frame · 196 bytes · header 35 bytes
+  compression  Brotli         160 → 133 bytes (×1.2)
+  checksum     Crc32          71 A1 7A A7   verified
+  encryption   Aes256Gcm      key id "v1-fixture"   decrypted, header authenticated
+payload 160 bytes as FrozenPrimitives · depth 2 · 23 nodes
+@0000  FrozenPrimitives                                object · 22 members
+@0001  ├─ Flag                        Boolean          true
+@0002  ├─ Byte                        Byte             165
+@0003  ├─ SByte                       SByte            -42
+@0004  ├─ Short                       Int16            -12345
+@0006  ├─ UShort                      UInt16           54321
+@0008  ├─ Int                         Int32            -1234567890
+@000C  ├─ UInt                        UInt32           3234567890
+@0010  ├─ Long                        Int64            -1234567890123456789
+@0018  ├─ ULong                       UInt64           12345678901234567890
+@0020  ├─ Float                       Single           3.5
+@0024  ├─ Double                      Double           -2.718281828459045
+@002C  ├─ Decimal                     Decimal          -79228162514264.337593543950335
+@003C  ├─ Char                        Char             "Ж"
+@003E  ├─ Text                        String           "hello — мир 🌍"
+@0054  ├─ Choice                      FrozenChoice     Seventh
+@0058  ├─ Half                        Half             1.5
+@005A  ├─ Int128                      Int128           -170141183460469231731687303715884105721
+@006A  ├─ UInt128                     UInt128          340282366920938463463374607431768211448
+@007A  ├─ NativeInt                   IntPtr           -2147483648
+@0082  ├─ NativeUInt                  UIntPtr          4294967295
+@008A  ├─ Rune                        Rune             😀
+@008E  └─ BigInteger                  BigInteger       1361129467683753853853498429727072845823

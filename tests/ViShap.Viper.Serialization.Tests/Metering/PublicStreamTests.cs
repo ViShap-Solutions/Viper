@@ -206,9 +206,8 @@ public class PublicStreamTests
     [Fact]
     public void Peek_OverAMalformedHeader_RestoresThePosition()
     {
-        byte[] frame = new BinarySerializer().Serialize(Sample());
-        using var source = new MemoryStream(
-            Mutate.SetInt32(frame, Wire.UncompressedLengthOffset, -1), writable: false);
+        byte[] frame = Wire.FrameWith(Wire.Body(new BinarySerializer().Serialize(Sample())), services: [Wire.Service(0, false, [])]);
+        using var source = new MemoryStream(frame, writable: false);
 
         Assert.Throws<BinaryFormatException>(() => BinaryFormatInspector.Peek(source));
 

@@ -87,8 +87,8 @@ public class CompressionTests
         var serializer = With(new DeflateCompression());
         byte[] payload = serializer.Serialize(Compressible());
 
-        int declared = BitConverter.ToInt32(payload, Wire.UncompressedLengthOffset);
-        byte[] tampered = Mutate.SetInt32(payload, Wire.UncompressedLengthOffset, declared + 64);
+        int declared = Wire.ReadHeader(payload).UncompressedLength!.Value;
+        byte[] tampered = Wire.WithLengths(payload, uncompressedLength: declared + 64);
 
         AssertEx.Throws<BinaryFormatException>(
             "expected", () => serializer.Deserialize<Person>(tampered));
@@ -100,7 +100,7 @@ public class CompressionTests
         var serializer = With(new DeflateCompression());
         byte[] payload = serializer.Serialize(Compressible());
 
-        byte[] tampered = Mutate.FlipByte(payload, Wire.PlainHeaderLength + 2);
+        byte[] tampered = Mutate.FlipByte(payload, Wire.ReadHeader(payload).HeaderLength + 2);
 
         Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(tampered));
     }
@@ -111,7 +111,7 @@ public class CompressionTests
         var serializer = With(new BrotliCompression());
         byte[] payload = serializer.Serialize(Compressible());
 
-        byte[] tampered = Mutate.FlipByte(payload, Wire.PlainHeaderLength + 2);
+        byte[] tampered = Mutate.FlipByte(payload, Wire.ReadHeader(payload).HeaderLength + 2);
 
         Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(tampered));
     }
@@ -135,7 +135,7 @@ public class CompressionTests
             new NoCompression(), SerializationLimits.Default with { MaxCompressedBytes = 16 });
 
         AssertEx.Throws<BinaryLimitException>(
-            "CompressedLength", () => serializer.Deserialize<int>(Wire.Frame(new byte[64])));
+            "MaxCompressedBytes", () => serializer.Deserialize<int>(Wire.Frame(new byte[64])));
     }
 
     // --- CMP-06: raw input above MaxPayloadBytes --------------------------------------------------
@@ -261,11 +261,11 @@ public class CompressionTests
     private static byte[] Bomb() =>
         Wire.FrameWith(
             [1, 2, 3, 4],
-            compression: (byte)CompressionAlgorithm.Custom,
-            customCompressionName: IdentityCompression.RegisteredName,
-            uncompressedLength: 60 * 1024 * 1024,
-            compressedLength: 4,
-            onDiskLength: 4);
+            services:
+            [
+                Wire.CompressionRecord(
+                    (byte)CompressionAlgorithm.Custom, 60 * 1024 * 1024, IdentityCompression.RegisteredName)
+            ]);
 
     private static byte[] Compress(ICompressionAlgorithm algorithm, byte[] source)
     {
@@ -408,7 +408,7 @@ public class CompressionTests
         var header = Wire.ReadHeader(payload);
 
         // The smallest ratio under which the declared expansion is still admitted.
-        int exact = (header.UncompressedLength + header.CompressedLength - 1) / header.CompressedLength;
+        int exact = (header.UncompressedLength!.Value + header.OnDiskLength - 1) / header.OnDiskLength;
 
         var atTheRatio = With(new DeflateCompression(), SerializationLimits.Default with { MaxDecompressionRatio = exact });
         var belowIt = With(new DeflateCompression(), SerializationLimits.Default with { MaxDecompressionRatio = exact - 1 });
@@ -422,8 +422,8 @@ public class CompressionTests
     [Fact]
     public void Deserialize_AnUncompressedPayload_IsNotMeasuredAgainstTheRatio()
     {
-        // With no compression the two lengths are already required to be equal, so the ratio has
-        // nothing left to say about them.
+        // With no compression there is no compression record and no uncompressed length, so the ratio
+        // has nothing to measure.
         var serializer = With(
             new NoCompression(), SerializationLimits.Default with { MaxDecompressionRatio = 1 });
 
@@ -455,9 +455,66 @@ public class CompressionTests
 
         byte[] frame = Wire.FrameWith(
             unterminated,
-            compression: (byte)CompressionAlgorithm.Brotli,
-            uncompressedLength: payload.Length);
+            services: [Wire.CompressionRecord((byte)CompressionAlgorithm.Brotli, payload.Length)]);
 
         Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<Person>(frame));
+    }
+    // --- CMP-18: under encryption, the exact checks run after decryption, before decompression ----
+
+    private static readonly byte[] SealKey = new byte[32];
+
+    private static BinarySerializer Sealed(SerializationLimits? limits = null) =>
+        new(BinarySerializerOptions.Configure()
+            .WithCompression(new DeflateCompression())
+            .WithEncryption(new ViShap.Viper.Crypto.Aes256GcmEncryption(), SealKey)
+            .WithLimits(limits ?? SerializationLimits.Default)
+            .Build());
+
+    [Fact]
+    public void Deserialize_EncryptedPlaintextAboveMaxCompressedBytes_ThrowsLimitAfterDecryptionBeforeDecompressing()
+    {
+        string value = new('x', 20_000);
+        byte[] frame = Sealed().Serialize(value);
+        int onDisk = Wire.ReadHeader(frame).OnDiskLength;
+
+        // The stored bytes fit MaxEncryptedBytes; only the plaintext they decrypt to is over the line.
+        var reader = Sealed(SerializationLimits.Default with { MaxCompressedBytes = onDisk - 29 });
+
+        AssertEx.Throws<BinaryLimitException>(
+            "Plaintext length", () => reader.Deserialize<string>(frame));
+        AssertEx.AllocatesLessThan(64 * 1024, () => Record.Exception(() => reader.Deserialize<string>(frame)));
+    }
+
+    [Fact]
+    public void Deserialize_EncryptedExpansionWithinTheCoarseRatioButBeyondTheExactOne_ThrowsLimitBeforeDecompressing()
+    {
+        string value = new('x', 20_000);
+        byte[] frame = Sealed().Serialize(value);
+        var header = Wire.ReadHeader(frame);
+        int uncompressed = header.UncompressedLength!.Value;
+        int plaintext = header.OnDiskLength - new ViShap.Viper.Crypto.Aes256GcmEncryption().GetCiphertextLength(0);
+
+        // Admitted against the ciphertext, which the header can see, and refused against the
+        // plaintext, which only decryption reveals.
+        int ratio = (uncompressed + header.OnDiskLength - 1) / header.OnDiskLength;
+        Assert.True(uncompressed > (long)plaintext * ratio);
+
+        var reader = Sealed(SerializationLimits.Default with { MaxDecompressionRatio = ratio });
+
+        AssertEx.Throws<BinaryLimitException>(
+            nameof(SerializationLimits.MaxDecompressionRatio), () => reader.Deserialize<string>(frame));
+        AssertEx.AllocatesLessThan(64 * 1024, () => Record.Exception(() => reader.Deserialize<string>(frame)));
+    }
+
+    [Fact]
+    public void Deserialize_EncryptedExpansionAtTheExactRatio_IsRead()
+    {
+        string value = new('x', 20_000);
+        byte[] frame = Sealed().Serialize(value);
+        var header = Wire.ReadHeader(frame);
+        int plaintext = header.OnDiskLength - new ViShap.Viper.Crypto.Aes256GcmEncryption().GetCiphertextLength(0);
+        int ratio = (header.UncompressedLength!.Value + plaintext - 1) / plaintext;
+
+        Assert.Equal(value, Sealed(SerializationLimits.Default with { MaxDecompressionRatio = ratio }).Deserialize<string>(frame));
     }
 }

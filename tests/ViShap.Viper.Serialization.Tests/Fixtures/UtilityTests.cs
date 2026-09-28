@@ -229,8 +229,8 @@ public class UtilityTests
     {
         byte[] produced = new BinarySerializer().Serialize(0x11223344);
 
-        Assert.Equal(Wire.PlainHeaderLength, Wire.Header(4).Length);
-        Assert.Equal(Wire.Header(4), produced[..Wire.PlainHeaderLength]);
+        Assert.Equal<byte[]>([0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x00, 0x04], Wire.Header(4));
+        Assert.Equal(Wire.Header(4), produced[..8]);
     }
 
     [Fact]
@@ -242,12 +242,10 @@ public class UtilityTests
     }
 
     [Fact]
-    public void Header_RecordsPreserveReferencesAtTheDocumentedOffset()
+    public void Header_RecordsTheReferencesModeAtTheDocumentedOffset()
     {
-        byte[] header = Wire.Header(0, preserveReferences: true);
-
-        Assert.Equal(1, header[Wire.PreserveReferencesOffset]);
-        Assert.Equal(0, Wire.Header(0)[Wire.PreserveReferencesOffset]);
+        Assert.Equal(1, Wire.Header(0, preserveReferences: true)[Wire.ModeOffset]);
+        Assert.Equal(0, Wire.Header(0)[Wire.ModeOffset]);
     }
 
     [Fact]
@@ -275,15 +273,37 @@ public class UtilityTests
     }
 
     [Fact]
-    public void FrameWith_PlacesTheChecksumBeforeThePayload()
+    public void Varint_IsTheMinimalSevenBitEncoding()
+    {
+        Assert.Equal<byte[]>([0x00], Wire.Varint(0));
+        Assert.Equal<byte[]>([0x7F], Wire.Varint(127));
+        Assert.Equal<byte[]>([0x80, 0x01], Wire.Varint(128));
+        Assert.Equal<byte[]>([0xFF, 0x01], Wire.Varint(255));
+    }
+
+    [Fact]
+    public void ServiceRecords_AreTheDocumentedBytes()
+    {
+        Assert.Equal<byte[]>([0x03, 0x05, 0x01, 0x9A, 0x3B, 0xC1, 0x07], Wire.ChecksumRecord(1, [0x9A, 0x3B, 0xC1, 0x07]));
+        Assert.Equal<byte[]>([0x05, 0x03, 0x02, 0xE8, 0x07], Wire.CompressionRecord(2, 1000));
+        Assert.Equal<byte[]>(
+            [0x05, 0x09, 0xFF, 0x01, 0x04, 0x6C, 0x7A, 0x34, 0x78, 0xE8, 0x07],
+            Wire.CompressionRecord(255, 1000, "lz4x"));
+        Assert.Equal<byte[]>([0x07, 0x04, 0x01, 0x03, 0x6B, 0x37], Wire.EncryptionRecord(1, "k7"));
+        Assert.Equal<byte[]>([0x0A, 0x01, 0xAB], Wire.Service(5, critical: false, [0xAB]));
+    }
+
+    [Fact]
+    public void FrameWith_PlacesTheRecordsBetweenTheCountAndTheLength()
     {
         byte[] body = Wire.Payload(writer => writer.Write(123));
+        byte[] record = Wire.ChecksumRecord(1, [1, 2, 3, 4]);
 
-        byte[] frame = Wire.FrameWith(body, checksumAlgorithm: 1, checksum: [1, 2, 3, 4]);
+        byte[] frame = Wire.FrameWith(body, services: [record]);
 
-        Assert.Equal(Wire.PlainHeaderLength + 4 + body.Length, frame.Length);
-        Assert.Equal<byte[]>([1, 2, 3, 4], frame[Wire.PlainHeaderLength..(Wire.PlainHeaderLength + 4)]);
-        Assert.Equal(body, frame[(Wire.PlainHeaderLength + 4)..]);
+        Assert.Equal<byte[]>(
+            [0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x01, .. record, 0x04, .. body],
+            frame);
     }
 
     [Fact]
@@ -293,29 +313,28 @@ public class UtilityTests
 
         var header = Wire.ReadHeader(Wire.FrameWith(
             body,
-            compression: 255, customCompressionName: "zip",
-            checksumAlgorithm: 255, customChecksumName: "sum",
-            encryption: 255, customEncryptionName: "box",
-            keyId: "ring",
-            preserveReferences: true,
-            uncompressedLength: 11,
-            compressedLength: 22,
-            onDiskLength: 33,
-            checksum: [7, 8]));
+            mode: 1,
+            services:
+            [
+                Wire.ChecksumRecord(255, [7, 8], "sum"),
+                Wire.CompressionRecord(255, 11, "zip"),
+                Wire.EncryptionRecord(255, "ring", "box")
+            ],
+            onDiskLength: 33));
 
         Assert.Equal(1, header.Version);
+        Assert.True(header.PreserveReferences);
         Assert.Equal(255, header.Compression);
         Assert.Equal("zip", header.CustomCompressionName);
+        Assert.Equal(11, header.UncompressedLength);
         Assert.Equal(255, header.ChecksumAlgorithm);
         Assert.Equal("sum", header.CustomChecksumName);
+        Assert.Equal<byte[]>([7, 8], header.Checksum);
         Assert.Equal(255, header.Encryption);
         Assert.Equal("box", header.CustomEncryptionName);
         Assert.Equal("ring", header.KeyId);
-        Assert.True(header.PreserveReferences);
-        Assert.Equal(11, header.UncompressedLength);
-        Assert.Equal(22, header.CompressedLength);
         Assert.Equal(33, header.OnDiskLength);
-        Assert.Equal<byte[]>([7, 8], header.Checksum);
+        Assert.Equal([1, 2, 3], header.Services.Select(service => service.Number));
     }
 
     [Fact]
@@ -325,8 +344,24 @@ public class UtilityTests
 
         var header = Wire.ReadHeader(Wire.Frame(body));
 
-        Assert.Equal(Wire.PlainHeaderLength, header.HeaderLength);
+        Assert.Equal(8, header.HeaderLength);
+        Assert.Equal(7, header.OnDiskLengthOffset);
         Assert.Equal(body.Length, header.OnDiskLength);
+        Assert.Equal(body, Wire.Body(Wire.Frame(body)));
+    }
+
+    [Fact]
+    public void WithLengths_ReEncodesOnlyTheLengthsItIsGiven()
+    {
+        byte[] body = [1, 2, 3, 4];
+        byte[] frame = Wire.FrameWith(body, services: [Wire.ChecksumRecord(1, [9, 9, 9, 9]), Wire.CompressionRecord(1, 4)]);
+
+        var header = Wire.ReadHeader(Wire.WithLengths(frame, uncompressedLength: 300, onDiskLength: 2));
+
+        Assert.Equal(300, header.UncompressedLength);
+        Assert.Equal(2, header.OnDiskLength);
+        Assert.Equal<byte[]>([9, 9, 9, 9], header.Checksum);
+        Assert.Equal(body, Wire.WithLengths(frame, uncompressedLength: 300)[header.HeaderLength..]);
     }
 
     // --- UTIL-10: the keyed and reference frame builders -----------------------------------------
@@ -335,14 +370,11 @@ public class UtilityTests
     public void KeyedBody_IsAcceptedByARealReader()
     {
         byte[] frame = Wire.Frame(
-        [
-            .. Wire.NotNull,
-            .. Wire.KeyedBody(
+            Wire.KeyedBody(
             [
                 new Wire.KeyedField(1, Wire.Payload(writer => writer.Write(11))),
                 new Wire.KeyedField(3, Wire.Payload(writer => writer.Write(33)))
-            ])
-        ]);
+            ]));
 
         var result = new BinarySerializer().Deserialize<OuterKeys>(frame)!;
 
@@ -357,20 +389,19 @@ public class UtilityTests
             [new Wire.KeyedField(2, [1, 2, 3, 4], DeclaredLength: 1024)],
             declaredFieldCount: 9);
 
-        Assert.Equal(9, body[0]);                          // the field count it was told to claim
+        Assert.Equal(10, body[0]);                         // the field count it was told to claim, plus one
         Assert.Equal(2, body[1]);                          // the key
         Assert.Equal(1024, BitConverter.ToInt32(body, 2)); // the length it was told to claim
         Assert.Equal<byte[]>([1, 2, 3, 4], body[6..]);     // the bytes actually present
+        Assert.Equal(9, Wire.KeyedBody([], declaredFieldCount: 9, nullFolded: false)[0]);
     }
 
     [Fact]
-    public void ReferenceFrame_IsTheMarkerThenTheId()
+    public void ReferenceFrame_IsTheIdTwiceWithTheBackBitPlusOne()
     {
-        byte[] frame = Wire.ReferenceFrame(1, 258);
-
-        Assert.Equal(5, frame.Length);
-        Assert.Equal(1, frame[0]);
-        Assert.Equal(258, BitConverter.ToInt32(frame, 1));
+        Assert.Equal<byte[]>([0x01], Wire.ReferenceFrame(0, back: false));
+        Assert.Equal<byte[]>([0x02], Wire.ReferenceFrame(0, back: true));
+        Assert.Equal<byte[]>([0x85, 0x04], Wire.ReferenceFrame(258, back: false));
     }
 
     [Fact]
@@ -405,12 +436,10 @@ public class UtilityTests
     [Fact]
     public void Container_DeclaresTheCountItWasGivenRatherThanTheBodyItHolds()
     {
-        byte[] frame = Wire.Container(declaredCount: 9, int32Values: 2);
-        byte[] body = frame[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.Container(declaredCount: 9, int32Values: 2));
 
-        Assert.Equal(1, body[0]);                       // the container is non-null
-        Assert.Equal(9, BitConverter.ToInt32(body, 1)); // the count it was told to claim
-        Assert.Equal(1 + 4 + (2 * 4), body.Length);     // two four-byte values actually present
+        Assert.Equal(10, body[0]);                      // the count it was told to claim, plus one
+        Assert.Equal(1 + (2 * 4), body.Length);         // two four-byte values actually present
     }
 
     [Fact]
@@ -424,11 +453,10 @@ public class UtilityTests
     [Fact]
     public void StringValue_DeclaresTheLengthItWasGivenRatherThanTheBytesItHolds()
     {
-        byte[] body = Wire.StringValue(200, 0x61, 0x62)[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.StringValue(200, 0x61, 0x62));
 
-        Assert.Equal(1, body[0]);                       // the string is non-null
-        Assert.Equal<byte[]>([0xC8, 0x01], body[1..3]); // 200, 7-bit encoded
-        Assert.Equal<byte[]>([0x61, 0x62], body[3..]);
+        Assert.Equal<byte[]>([0xC9, 0x01], body[..2]);  // 200 plus one, 7-bit encoded
+        Assert.Equal<byte[]>([0x61, 0x62], body[2..]);
     }
 
     [Fact]
@@ -442,12 +470,11 @@ public class UtilityTests
     [Fact]
     public void BitArrayValue_IsTheBitCountThenTheBlob()
     {
-        byte[] body = Wire.BitArrayValue(declaredBits: 12, dataBytes: 2)[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.BitArrayValue(declaredBits: 12, dataBytes: 2));
 
-        Assert.Equal(1, body[0]);                        // the BitArray is non-null
-        Assert.Equal(12, BitConverter.ToInt32(body, 1)); // the bit count
-        Assert.Equal(2, body[5]);                        // the blob length
-        Assert.Equal(1 + 4 + 1 + 2, body.Length);
+        Assert.Equal(13, body[0]);                       // the bit count, plus one
+        Assert.Equal(2, body[1]);                        // the blob length
+        Assert.Equal(1 + 1 + 2, body.Length);
     }
 
     [Fact]
@@ -462,22 +489,18 @@ public class UtilityTests
     [Fact]
     public void MultiDimensionalArray_IsTheRankThenTheDimensionsThenTheElements()
     {
-        byte[] body = Wire.MultiDimensionalArray([2, 3], int32Elements: 6)[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.MultiDimensionalArray([2, 3], int32Elements: 6));
 
-        Assert.Equal(1, body[0]);                       // the array is non-null
-        Assert.Equal(2, BitConverter.ToInt32(body, 1)); // the rank
-        Assert.Equal(2, BitConverter.ToInt32(body, 5));
-        Assert.Equal(3, BitConverter.ToInt32(body, 9));
-        Assert.Equal(1 + 4 + (2 * 4) + (6 * 4), body.Length);
+        Assert.Equal<byte[]>([3, 2, 3], body[..3]);       // the rank plus one, then the dimensions
+        Assert.Equal(3 + (6 * 4), body.Length);
     }
 
     [Fact]
     public void MultiDimensionalArray_DeclaresTheRankItWasGiven()
     {
-        byte[] body = Wire.MultiDimensionalArray([2, 3], int32Elements: 0, declaredRank: 7)
-            [Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.MultiDimensionalArray([2, 3], int32Elements: 0, declaredRank: 7));
 
-        Assert.Equal(7, BitConverter.ToInt32(body, 1));
+        Assert.Equal(8, body[0]);
     }
 
     [Fact]
@@ -489,6 +512,14 @@ public class UtilityTests
         Assert.Equal(2, restored!.GetLength(0));
         Assert.Equal(3, restored.GetLength(1));
         Assert.Equal(5, restored[1, 2]);
+    }
+
+    [Fact]
+    public void NestedCollections_IsAcceptedByARealReader()
+    {
+        var restored = new BinarySerializer().Deserialize<List<List<List<int>>>>(Wire.NestedCollections(2));
+
+        Assert.Empty(restored![0][0]);
     }
 
     // --- UTIL-13: the write-only stream double ----------------------------------------------------
@@ -515,13 +546,13 @@ public class UtilityTests
         // The expected bytes are transcribed from §22 here as they are in the file, so a writer
         // change cannot quietly move both sides at once.
         Assert.Equal<byte[]>(
-            [0x01, 0x24, 0x00, 0x00, 0x00, 0x01, 0x03, 0x41, 0x64, 0x61],
+            [0x01, 0x24, 0x00, 0x00, 0x00, 0x04, 0x41, 0x64, 0x61],
             Wire.Fixture("person-v0.bin"));
 
         byte[] framed = Wire.Fixture("person-v1.bin");
 
-        Assert.Equal(Wire.PlainHeaderLength + 10, framed.Length);
-        Assert.Equal(Wire.Fixture("person-v0.bin"), framed[Wire.PlainHeaderLength..]);
+        Assert.Equal<byte[]>([0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x00, 0x09], framed[..8]);
+        Assert.Equal(Wire.Fixture("person-v0.bin"), framed[8..]);
         Assert.Equal(Wire.Magic, BitConverter.ToInt32(framed));
     }
 
@@ -560,195 +591,6 @@ public class UtilityTests
         // Disposing the first key left the second one and the caller's material untouched.
         Assert.Equal(material, second.Span.ToArray());
         Assert.Equal<byte[]>([1, 2, 3, 4], material);
-    }
-
-    // --- UTIL-17: the byte oracle ------------------------------------------------------------------
-
-    [Fact]
-    public void OracleCompare_ChangedByte_ReportsBothOutputsInHexAndTheOffset()
-    {
-        byte[] recorded = [0x42, 0x10, 0x20, 0x30];
-        byte[] written = [0x42, 0x10, 0x21, 0x30];
-        var oracle = Oracle.Parse([Oracle.Line("Case.Method#0", recorded)]);
-
-        string report = Oracle.Compare(oracle, [("Case.Method#0", written)]);
-
-        Assert.Contains("Case.Method#0: first difference at offset 2", report);
-        Assert.Contains("expected 42102030", report);
-        Assert.Contains("actual   42102130", report);
-    }
-
-    [Fact]
-    public void OracleCompare_DifferentLength_ReportsWhereTheCommonPrefixEnds()
-    {
-        var oracle = Oracle.Parse([Oracle.Line("Case.Method#0", [1, 2, 3])]);
-
-        string report = Oracle.Compare(oracle, [("Case.Method#0", [1, 2, 3, 4])]);
-
-        Assert.Contains("identical for 3 bytes, then expected 3 bytes and actual 4", report);
-    }
-
-    [Fact]
-    public void OracleCompare_IdenticalOutput_ReportsNothing()
-    {
-        var oracle = Oracle.Parse([Oracle.Line("Case.Method#0", [1, 2, 3])]);
-
-        Assert.Equal("", Oracle.Compare(oracle, [("Case.Method#0", [1, 2, 3])]));
-    }
-
-    [Fact]
-    public void OracleCompare_MissingUnexpectedAndRepeatedCases_AreEachReported()
-    {
-        var oracle = Oracle.Parse(
-        [
-            "# a comment",
-            "",
-            Oracle.Line("Case.Recorded#0", [1]),
-            Oracle.Line("Case.Kept#0", [2]),
-        ]);
-
-        string report = Oracle.Compare(
-            oracle, [("Case.Kept#0", [2]), ("Case.Kept#0", [2]), ("Case.New#0", [3])]);
-
-        Assert.Contains("Case.Recorded#0: recorded in the oracle but not produced", report);
-        Assert.Contains("Case.New#0: not in the oracle", report);
-        Assert.Contains("Case.Kept#0: produced twice", report);
-    }
-
-    [Fact]
-    public void OracleCompare_AnyAdmissibleOutput_PassesAndAnyOtherIsReportedAgainstEachOfThem()
-    {
-        var oracle = Oracle.Parse(
-        [
-            Oracle.Line("Case.Unordered#0", [1, 2]),
-            Oracle.Alternative("Case.Unordered#0", [2, 1]),
-        ]);
-
-        Assert.Equal("", Oracle.Compare(oracle, [("Case.Unordered#0", [1, 2])]));
-        Assert.Equal("", Oracle.Compare(oracle, [("Case.Unordered#0", [2, 1])]));
-
-        string report = Oracle.Compare(oracle, [("Case.Unordered#0", [2, 2])]);
-
-        Assert.Contains("expected 0102", report);
-        Assert.Contains("expected 0201", report);
-        Assert.Contains("actual   0202", report);
-    }
-
-    [Fact]
-    public void OracleCompare_AHostDependentCase_AcceptsAnyOutputButMustBeProduced()
-    {
-        var oracle = Oracle.Parse(
-        [
-            Oracle.HostDependent("Case.Culture#1", "the first specific culture of the host"),
-            Oracle.Line("Case.Culture#0", [7]),
-        ]);
-
-        Assert.Equal("the first specific culture of the host", oracle["Case.Culture#1"].HostDependence);
-        Assert.Equal("", Oracle.Compare(oracle, [("Case.Culture#0", [7]), ("Case.Culture#1", [1, 2, 3])]));
-        Assert.Contains(
-            "Case.Culture#1: recorded in the oracle but not produced",
-            Oracle.Compare(oracle, [("Case.Culture#0", [7])]));
-    }
-
-    [Fact]
-    public void OracleParse_AnAlternativeOfAHostDependentCaseOrAHostLineRepeatingACase_Throws()
-    {
-        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
-        [
-            Oracle.HostDependent("Case.Zone#0", "names localized by the operating system"),
-            Oracle.Alternative("Case.Zone#0", [1]),
-        ]));
-
-        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
-        [
-            Oracle.Line("Case.Zone#0", [1]),
-            Oracle.HostDependent("Case.Zone#0", "names localized by the operating system"),
-        ]));
-    }
-
-    [Fact]
-    public void OracleParse_AnAlternativeAwayFromItsCase_Throws()
-    {
-        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
-        [
-            Oracle.Line("Case.First#0", [1]),
-            Oracle.Line("Case.Second#0", [2]),
-            Oracle.Alternative("Case.First#0", [3]),
-        ]));
-    }
-
-    [Fact]
-    public void OracleParse_AnAlternativeRepeatingARecordedOutput_Throws()
-    {
-        Assert.Throws<InvalidOperationException>(() => Oracle.Parse(
-        [
-            Oracle.Line("Case.First#0", [1]),
-            Oracle.Alternative("Case.First#0", [1]),
-        ]));
-    }
-
-    [Fact]
-    public void OracleParse_RepeatedKey_Throws()
-    {
-        Assert.Throws<InvalidOperationException>(
-            () => Oracle.Parse([Oracle.Line("Case.Method#0", [1]), Oracle.Line("Case.Method#0", [2])]));
-    }
-
-    [Fact]
-    public void OracleNormalize_EncryptedFrame_BecomesItsHeaderAndThePayloadItCarries()
-    {
-        byte[] key = [.. Enumerable.Range(0, 32).Select(value => (byte)value)];
-        var encrypting = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), key).Build());
-        var value = new List<string> { "a value long enough", "to span more than one block of the cipher" };
-
-        byte[] first = encrypting.Serialize(value);
-        byte[] second = encrypting.Serialize(value);
-        byte[] payload = new BinarySerializer().Serialize(value)[Wire.PlainHeaderLength..];
-
-        Assert.NotEqual(first, second);
-
-        byte[] normalized = Oracle.Normalize(first, key);
-        int headerLength = Wire.ReadHeader(first).HeaderLength;
-
-        Assert.Equal(normalized, Oracle.Normalize(second, key));
-        Assert.Equal(first[..headerLength], normalized[..headerLength]);
-        Assert.Equal(payload, normalized[headerLength..]);
-    }
-
-    [Fact]
-    public void OracleNormalize_WithoutAKey_ReturnsTheOutputUnchanged()
-    {
-        byte[] output = new BinarySerializer().Serialize(7);
-
-        Assert.Same(output, Oracle.Normalize(output, null));
-    }
-
-    [Fact]
-    public void OracleRecorder_OutsideACollection_WritesWhatSerializeWritesAndRecordsNothing()
-    {
-        var serializer = new BinarySerializer();
-
-        Assert.Equal(serializer.Serialize("text"), serializer.SerializeRecorded("text"));
-    }
-
-    [Fact]
-    public void OracleRecorder_InsideACollection_RecordsACopyOfEveryWriteInOrder()
-    {
-        var serializer = new BinarySerializer();
-        byte[]? handed = null;
-
-        var recorded = OracleRecorder.Collect(() =>
-        {
-            handed = serializer.SerializeRecorded(1);
-            serializer.SerializeRecorded("two");
-            handed[^1] ^= 0xFF;
-        });
-
-        Assert.Equal(2, recorded.Count);
-        Assert.Equal(serializer.Serialize(1), recorded[0]);
-        Assert.Equal(serializer.Serialize("two"), recorded[1]);
-        Assert.Empty(OracleRecorder.Collect(() => { }));
     }
 
     // --- UTIL-18: the stream that ends at a frame boundary ---------------------------------------
@@ -895,9 +737,9 @@ public class UtilityTests
     {
         var operation = new OperationBox();
         var other = new OperationBox();
-        var reader = new ViShap.Viper.Io.WireReader(new byte[] { 3, 0, 0, 0 }, ref operation.State);
+        var reader = new ViShap.Viper.Io.WireReader(new byte[] { 3 }, ref operation.State);
 
-        reader.ReadCount(ViShap.Viper.Io.CountKind.Collection, "Collection count");
+        reader.ReadCount(ViShap.Viper.Io.CountKind.Collection, "Collection count", nullFolded: false);
 
         Assert.Equal(3, operation.State.Budget.TotalElements);
         Assert.Equal(0, other.State.Budget.TotalElements);

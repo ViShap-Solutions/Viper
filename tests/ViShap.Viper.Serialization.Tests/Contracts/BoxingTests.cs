@@ -81,6 +81,71 @@ public class BoxingTests
         Assert.True(difference > 4080 * 16, $"Reading 4 080 more boxed structs cost only {difference:N0} more bytes.");
     }
 
+    [Fact]
+    public void Deserialize_AGraphOfValueTypesWithTheTraceSeamOn_BoxesNothingToReportIt()
+    {
+        // The seam hands every scalar to the observer through a generic call, so an observer that
+        // allocates nothing sees every value of a value-type graph and the read still costs only the
+        // array it returns.
+        byte[] small = Wire.Body(_serializer.Serialize(Probes(16)));
+        byte[] large = Wire.Body(_serializer.Serialize(Probes(4096)));
+        var counter = new CountingTrace();
+
+        long difference = Allocated(() => TracedRead(large, counter)) - Allocated(() => TracedRead(small, counter));
+        long arrays = Allocated(() => _ = new Probe[4096]) - Allocated(() => _ = new Probe[16]);
+
+        Assert.True(counter.Values > 4096, "The observer saw no value.");
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more elements with the seam on cost {difference:N0} more bytes; their array costs {arrays:N0}.");
+    }
+
+    private static Probe[]? TracedRead(byte[] payload, CountingTrace trace)
+    {
+        var operation = new OperationBox();
+        operation.State.Trace = trace;
+        var reader = new ViShap.Viper.Io.WireReader(payload, ref operation.State);
+        return ViShap.Viper.Engine.Graph.ReadRoot<Probe[]>(ref reader, default, preserveReferences: false);
+    }
+
+    /// <summary>An observer that counts what it is told and allocates nothing.</summary>
+    private sealed class CountingTrace : ViShap.Viper.Engine.IWireTrace
+    {
+        public long Values { get; private set; }
+
+        public long Events { get; private set; }
+
+        public void Label(string name) => Events++;
+
+        public void LabelIndex(int index) => Events++;
+
+        public void LabelMapKey(int index) => Events++;
+
+        public void LabelItem(int item) => Events++;
+
+        public void LabelMapValue(int index) => Events++;
+
+        public void Begin(Type declaredType, long offset) => Events++;
+
+        public void Continue() => Events++;
+
+        public void Null() => Events++;
+
+        public void Reference(int id, bool back) => Events++;
+
+        public void Shape(ViShap.Viper.Engine.TraceShape kind, int count) => Events++;
+
+        public void Union(byte tag, Type runtimeType) => Events++;
+
+        public void Value<T>(T value) => Values++;
+
+        public void Field(int key, int length, long offset) => Events++;
+
+        public void EndField(bool known, long offset) => Events++;
+
+        public void End(long offset) => Events++;
+    }
+
     public enum Colour : byte
     {
         Red,

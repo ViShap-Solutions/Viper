@@ -12,7 +12,7 @@ public class InheritanceTests
 {
     private readonly BinarySerializer _serializer = new();
 
-    private byte[] Payload<T>(T value) => _serializer.SerializeRecorded(value)[Wire.PlainHeaderLength..];
+    private byte[] Payload<T>(T value) => Wire.Body(_serializer.Serialize(value));
 
     // --- a hidden member is a second member, and the order of the two is fixed --------------------
 
@@ -34,7 +34,7 @@ public class InheritanceTests
         var value = new ShadowedFieldDerived { Value = 7 };
         ((ShadowedFieldBase)value).Value = 9;
 
-        var restored = _serializer.Deserialize<ShadowedFieldDerived>(_serializer.SerializeRecorded(value));
+        var restored = _serializer.Deserialize<ShadowedFieldDerived>(_serializer.Serialize(value));
 
         Assert.NotNull(restored);
         Assert.Equal(7, restored.Value);
@@ -58,7 +58,7 @@ public class InheritanceTests
         var value = new ShadowedPropertyDerived { Value = 7 };
         ((ShadowedPropertyBase)value).Value = 9;
 
-        var restored = _serializer.Deserialize<ShadowedPropertyDerived>(_serializer.SerializeRecorded(value));
+        var restored = _serializer.Deserialize<ShadowedPropertyDerived>(_serializer.Serialize(value));
 
         Assert.NotNull(restored);
         Assert.Equal(7, restored.Value);
@@ -72,7 +72,7 @@ public class InheritanceTests
         // type built again must produce the same bytes.
         var value = new ShadowedFieldDerived { Value = 7 };
 
-        Assert.Equal(_serializer.SerializeRecorded(value), new BinarySerializer().SerializeRecorded(value));
+        Assert.Equal(_serializer.Serialize(value), new BinarySerializer().Serialize(value));
     }
 
     // --- an overridden member is one member ------------------------------------------------------
@@ -114,7 +114,7 @@ public class InheritanceTests
         var value = new IncludedDerived { Added = 2 };
         value.SetHidden(5);
 
-        var restored = _serializer.Deserialize<IncludedDerived>(_serializer.SerializeRecorded(value));
+        var restored = _serializer.Deserialize<IncludedDerived>(_serializer.Serialize(value));
 
         Assert.NotNull(restored);
         Assert.Equal(5, restored.Hidden);
@@ -137,7 +137,7 @@ public class InheritanceTests
     {
         var value = new KeyedContractDerived { Base = 1, Added = "x" };
 
-        var restored = _serializer.Deserialize<KeyedContractDerived>(_serializer.SerializeRecorded(value));
+        var restored = _serializer.Deserialize<KeyedContractDerived>(_serializer.Serialize(value));
 
         Assert.NotNull(restored);
         Assert.Equal(1, restored.Base);
@@ -149,7 +149,7 @@ public class InheritanceTests
     {
         // The key space is shared across the hierarchy, which is what lets a reader holding only the
         // base skip a member it does not know.
-        byte[] payload = _serializer.SerializeRecorded(new KeyedContractDerived { Base = 1, Added = "x" });
+        byte[] payload = _serializer.Serialize(new KeyedContractDerived { Base = 1, Added = "x" });
 
         var restored = _serializer.Deserialize<KeyedContractBase>(payload);
 
@@ -161,13 +161,13 @@ public class InheritanceTests
     public void Serialize_ADerivedContractMemberWithoutAKey_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "Unmarked", () => _serializer.SerializeRecorded(new KeyedContractUnmarked()));
+            "Unmarked", () => _serializer.Serialize(new KeyedContractUnmarked()));
     }
 
     [Fact]
     public void Serialize_ADerivedContractKeyTheBaseAlreadyClaims_ThrowsType()
     {
         AssertEx.Throws<BinaryTypeException>(
-            "duplicate [BinaryKey]", () => _serializer.SerializeRecorded(new KeyedContractColliding()));
+            "duplicate [BinaryKey]", () => _serializer.Serialize(new KeyedContractColliding()));
     }
 }

@@ -18,14 +18,14 @@ public class KeyedEvolutionTests
         new(BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build());
 
     private static byte[] KeyedFrame(params Wire.KeyedField[] fields) =>
-        Wire.Frame([.. Wire.NotNull, .. Wire.KeyedBody(fields)]);
+        Wire.Frame(Wire.KeyedBody(fields));
 
     private static byte[] Int32Field(int value) => Wire.Payload(writer => writer.Write(value));
 
     [Fact]
     public void Deserialize_UnknownKeyBetweenTwoKnownOnes_LeavesBothUndisturbed()
     {
-        byte[] payload = _serializer.SerializeRecorded(
+        byte[] payload = _serializer.Serialize(
             new ThreeKeys { First = 11, Middle = "retired", Last = 33 });
 
         var result = _serializer.Deserialize<OuterKeys>(payload)!;
@@ -37,7 +37,7 @@ public class KeyedEvolutionTests
     [Fact]
     public void Deserialize_UnknownFieldHoldingANestedGraph_IsSkippedWhole()
     {
-        byte[] payload = _serializer.SerializeRecorded(new NestedMiddle
+        byte[] payload = _serializer.Serialize(new NestedMiddle
         {
             First = 11,
             Middle = new Dictionary<string, List<Node>>
@@ -62,7 +62,7 @@ public class KeyedEvolutionTests
         const int fieldLength = 4 * 1024 * 1024;
 
         byte[] payload =
-            [.. Wire.NotNull, .. Wire.KeyedBody([new Wire.KeyedField(2, new byte[fieldLength])])];
+            [.. Wire.KeyedBody([new Wire.KeyedField(2, new byte[fieldLength])])];
         var serializer = Compact();
 
         AssertEx.AllocatesLessThan(64 * 1024, () => serializer.Deserialize<OuterKeys>(payload));
@@ -76,8 +76,7 @@ public class KeyedEvolutionTests
         // that vanished with the field.
         byte[] hostileField = Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(int.MaxValue);
+            writer.Write7BitEncodedInt(int.MaxValue);   // the count, plus one
         });
 
         byte[] payload = KeyedFrame(
@@ -155,8 +154,7 @@ public class KeyedEvolutionTests
         // Five continuation bytes: the encoding never admits a sixth.
         byte[] payload = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write7BitEncodedInt(1);
+            writer.Write7BitEncodedInt(2);          // one field, plus one
             writer.Write(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF });
         }));
 
@@ -169,7 +167,7 @@ public class KeyedEvolutionTests
     {
         var source = new KeyBoundaries { Zero = 1, OneByte = 2, TwoBytes = 3, Largest = 4 };
 
-        var result = _serializer.Deserialize<KeyBoundaries>(_serializer.SerializeRecorded(source))!;
+        var result = _serializer.Deserialize<KeyBoundaries>(_serializer.Serialize(source))!;
 
         Assert.Equal(1, result.Zero);
         Assert.Equal(2, result.OneByte);
@@ -185,8 +183,7 @@ public class KeyedEvolutionTests
 
         byte[] expected = Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write7BitEncodedInt(4);
+            writer.Write7BitEncodedInt(5);          // four fields, plus one
             writer.Write7BitEncodedInt(0); writer.Write(4); writer.Write(1);
             writer.Write7BitEncodedInt(127); writer.Write(4); writer.Write(2);
             writer.Write7BitEncodedInt(128); writer.Write(4); writer.Write(3);
@@ -195,7 +192,7 @@ public class KeyedEvolutionTests
 
         Assert.Equal(
             expected,
-            serializer.SerializeRecorded(
+            serializer.Serialize(
                 new KeyBoundaries { Zero = 1, OneByte = 2, TwoBytes = 3, Largest = 4 }));
     }
 
@@ -238,8 +235,7 @@ public class KeyedEvolutionTests
 
         static byte[] ListOfThree() => Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(3);
+            writer.Write7BitEncodedInt(4);          // three elements, plus one
             writer.Write(1); writer.Write(2); writer.Write(3);
         });
     }
@@ -252,7 +248,7 @@ public class KeyedEvolutionTests
         var source = new KeyedCycle { Name = "root" };
         source.Self = source;
 
-        var result = serializer.Deserialize<KeyedCycle>(serializer.SerializeRecorded(source))!;
+        var result = serializer.Deserialize<KeyedCycle>(serializer.Serialize(source))!;
 
         Assert.Equal("root", result.Name);
         Assert.Same(result, result.Self);
@@ -263,7 +259,7 @@ public class KeyedEvolutionTests
     {
         var source = new KeyedUnion { Shape = new UnionDerived { A = 1, Z = 2 }, Marker = 7 };
 
-        var result = _serializer.Deserialize<KeyedUnion>(_serializer.SerializeRecorded(source))!;
+        var result = _serializer.Deserialize<KeyedUnion>(_serializer.Serialize(source))!;
 
         Assert.Equal(1, Assert.IsType<UnionDerived>(result.Shape).A);
         Assert.Equal(7, result.Marker);
@@ -279,7 +275,7 @@ public class KeyedEvolutionTests
         var shared = new Node { Value = 9 };
 
         var result = serializer.Deserialize<TwoNodes>(
-            serializer.SerializeRecorded(new TwoNodes { A = shared, B = shared }))!;
+            serializer.Serialize(new TwoNodes { A = shared, B = shared }))!;
 
         Assert.NotSame(result.A, result.B);
         Assert.Equal(9, result.A!.Value);

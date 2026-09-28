@@ -1,0 +1,8 @@
+Viper V1 frame · 16 bytes · header 8 bytes
+  references   preserved
+payload 8 bytes as FrozenGraph · depth 3 · 5 nodes
+@0000  FrozenGraph                                     object · 2 members · #0
+@0001  ├─ Left                        FrozenNode       object · 2 members · #1
+@0002  │  ├─ Value                    Int32            1
+@0006  │  └─ Next                     FrozenNode       → #1 FrozenGraph.Left
+@0007  └─ Right                       FrozenNode       → #1 FrozenGraph.Left

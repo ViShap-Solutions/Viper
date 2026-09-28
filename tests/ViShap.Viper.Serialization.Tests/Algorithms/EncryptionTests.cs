@@ -72,7 +72,7 @@ public class EncryptionTests
         var serializer = Encrypted(NewKey());
         byte[] payload = serializer.Serialize(123);
 
-        byte[] tampered = Mutate.SetByte(payload, Wire.PreserveReferencesOffset, 1);
+        byte[] tampered = Mutate.SetByte(payload, Wire.ModeOffset, 1);
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(tampered));
     }
@@ -86,7 +86,7 @@ public class EncryptionTests
         var serializer = Encrypted(NewKey());
         byte[] original = serializer.Serialize(new Person { Name = "Alice", Age = 30 });
 
-        for (int index = 8; index < Wire.PlainHeaderLength; index++)
+        for (int index = 4; index < Wire.ReadHeader(original).HeaderLength; index++)
         {
             byte[] tampered = Mutate.FlipByte(original, index);
 
@@ -432,12 +432,12 @@ public class EncryptionTests
     }
 
     [Fact]
-    public void Deserialize_ADeclaredPlaintextAboveMaxCompressedBytes_ThrowsLimit()
+    public void Deserialize_APlaintextAboveMaxCompressedBytes_ThrowsLimitAfterDecryption()
     {
         byte[] frame = Encrypted(Shared).Serialize(new string('x', 200));
 
         AssertEx.Throws<BinaryLimitException>(
-            "CompressedLength",
+            "Plaintext length",
             () => Limited(SerializationLimits.Default with { MaxCompressedBytes = 64 })
                 .Deserialize<string>(frame));
     }
@@ -659,10 +659,7 @@ public class EncryptionTests
     {
         byte[] frame = Wire.FrameWith(
             new byte[40],
-            encryption: (byte)EncryptionAlgorithm.ChaCha20Poly1305,
-            uncompressedLength: 12,
-            compressedLength: 12,
-            onDiskLength: 40);
+            services: [Wire.EncryptionRecord((byte)EncryptionAlgorithm.ChaCha20Poly1305)]);
 
         var reader = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(NewKey()).Build());
 
@@ -724,10 +721,12 @@ public class EncryptionTests
     [Fact]
     public void Serialize_AnEncryptedFrame_HasTheLengthTheAlgorithmStated()
     {
-        byte[] frame = Encrypted(Shared).Serialize(new string('x', 300));
+        string value = new('x', 300);
+        byte[] frame = Encrypted(Shared).Serialize(value);
         var header = Wire.ReadHeader(frame);
+        int plaintextLength = Wire.Body(new BinarySerializer().Serialize(value)).Length;
 
-        Assert.Equal(new Aes256GcmEncryption().GetCiphertextLength(header.CompressedLength), header.OnDiskLength);
+        Assert.Equal(new Aes256GcmEncryption().GetCiphertextLength(plaintextLength), header.OnDiskLength);
         Assert.Equal(header.HeaderLength + header.OnDiskLength, frame.Length);
     }
 
