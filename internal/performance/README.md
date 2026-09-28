@@ -74,3 +74,5 @@ Filled in by the repository owner.
 | [PERF-03](PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream it replaced | Open |
 | [PERF-04](PERF-04-pooled-phase-buffers.md) | The pooled write path of R2 is slower on a large unphased blob and on some compressed cells | Open |
 | [PERF-05](PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth, and eats most of R2's gain at depth 500 | Open |
+| [PERF-06](PERF-06-typed-engine-first-use.md) | The typed engine's first operation in a process is ×1.34–1.69 slower (+20–35 ms); steady state is about twice as fast | Open |
+| [PERF-07](PERF-07-frame-fixed-allocations.md) | The frame still allocates 136–272 B per write and 72 B per read, outside the engine | Open |

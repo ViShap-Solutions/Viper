@@ -118,7 +118,7 @@ left naming something that no longer exists. A retired checkpoint stays in the p
   `ProfileMatrixBenchmarks` and `ProfileStreamBenchmarks` — with the soak taken on its own; the new
   suites get their first numbers in the next full `--track A`.
 
-## R4 — Typed engine
+## R4 — Typed engine — applied
 
 - **ALLOC-10 … ALLOC-21** — one checkpoint per line of plan §11's target table, each stating its
   target and its measured value. A target not met stays open with its number and is never rounded to a
@@ -133,6 +133,11 @@ left naming something that no longer exists. A retired checkpoint stays in the p
 - **MICRO-02**, **MICRO-03**, **MICRO-07** rewritten again for what moved into the codecs.
 - **BASE-02** — the comparison tool is built before this stage closes, and the COLD and ALLOC
   comparisons above are taken through it. It is a gate line of R4 [D9.25].
+- *Applied in R4.* ALLOC-10…ALLOC-21 are one table in §13 with target, value and state; MICRO-02…
+  MICRO-07 rewritten; MICRO-15 rewritten as well, because it named `CollectionCountCache`, which R4
+  deleted; MICRO-18 is `ArrayMaterializationBenchmarks`; BASE-02 is `--compare` and is ticked. The
+  cold comparison is a regression, written up as PERF-06; the fixed allocations outside the engine are
+  PERF-07; the slower cells are R-03 of §27.3. Measurement: `Measurements/48c7bf5-20260928T082209Z`.
 
 ## R5 — Algorithm contracts
 

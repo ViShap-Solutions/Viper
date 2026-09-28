@@ -14,7 +14,7 @@ internal interface IFormatPipeline
     int Version { get; }
 
     /// <summary>Encodes <paramref name="data"/> as one frame, which the caller copies out and disposes.</summary>
-    EncodedFrame Write<T>(T data, SerializationOperation operation);
+    EncodedFrame Write<T>(T data, ref OperationState state);
 
     /// <summary>
     /// How far the frame at the start of <paramref name="buffered"/> extends, as far as these bytes
@@ -27,29 +27,28 @@ internal interface IFormatPipeline
     /// The bytes the source can still deliver from the frame's start, or <see cref="long.MaxValue"/>
     /// when the source cannot tell.
     /// </param>
-    /// <param name="operation">The operation reading the frame.</param>
-    FrameExtent Measure(ReadOnlySpan<byte> buffered, bool sourceEnded, long available, SerializationOperation operation);
+    /// <param name="state">The operation reading the frame.</param>
+    FrameExtent Measure(ReadOnlySpan<byte> buffered, bool sourceEnded, long available, ref OperationState state);
 
     /// <summary>
     /// Reads one value from bytes that start with a frame, and reports how many of them the frame
-    /// occupies; bytes after it are not read.
+    /// occupies; bytes after it are not read. A <paramref name="target"/> that is not
+    /// <see langword="null"/> is populated instead of a new root being created.
     /// </summary>
-    object? Read(
+    T? Read<T>(
         ReadOnlySpan<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation,
+        T? target,
+        ref OperationState state,
         out long consumed);
 
     /// <summary>
     /// Reads one value from segmented bytes that start with a frame, and reports how many of them the
     /// frame occupies; bytes after it are not read.
     /// </summary>
-    object? Read(
+    T? Read<T>(
         ReadOnlySequence<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation,
+        T? target,
+        ref OperationState state,
         out long consumed);
 }
 

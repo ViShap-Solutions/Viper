@@ -32,10 +32,26 @@ internal readonly struct ElementCount
 
     public static implicit operator int(ElementCount count) => count.Value;
 
+    /// <summary>
+    /// Whether the bytes that remain could hold this many elements of
+    /// <paramref name="bytesPerElement"/> bytes each. A count they could not hold is still read, but
+    /// memory for it is then taken as elements actually arrive rather than all at once.
+    /// </summary>
+    public bool IsBackedBy(long bytesPerElement, long remaining) =>
+        Value * Math.Max(bytesPerElement, 1) <= remaining;
+
+    /// <summary>
+    /// The capacity a collection of this many elements starts with: the whole count when the bytes
+    /// that remain could hold that many elements of at least <paramref name="minimumWireSize"/> bytes
+    /// each, and otherwise <see cref="CapacityHint"/>, from which it grows as elements arrive.
+    /// </summary>
+    public int CapacityFor(int minimumWireSize, long remaining) =>
+        IsBackedBy(minimumWireSize, remaining) ? Value : CapacityHint;
+
     internal static ElementCount Validate(
         int raw,
         CountKind kind,
-        SerializationOperation operation,
+        ref OperationState state,
         string what)
     {
         if (raw < 0)
@@ -43,9 +59,9 @@ internal readonly struct ElementCount
 
         (long maximum, string limit) = kind switch
         {
-            CountKind.Array => (operation.Limits.MaxArrayLength, "MaxArrayLength"),
-            CountKind.Collection => (operation.Limits.MaxCollectionLength, "MaxCollectionLength"),
-            CountKind.Dictionary => (operation.Limits.MaxDictionaryEntries, "MaxDictionaryEntries"),
+            CountKind.Array => (state.Limits.MaxArrayLength, "MaxArrayLength"),
+            CountKind.Collection => (state.Limits.MaxCollectionLength, "MaxCollectionLength"),
+            CountKind.Dictionary => (state.Limits.MaxDictionaryEntries, "MaxDictionaryEntries"),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 
@@ -53,7 +69,7 @@ internal readonly struct ElementCount
             throw new BinaryLimitException(
                 $"{what} {raw} exceeds the configured maximum of {maximum} ({limit}).");
 
-        operation.Budget.ConsumeElements(raw);
+        state.Budget.ConsumeElements(raw);
         return new ElementCount(raw);
     }
 
@@ -65,12 +81,12 @@ internal readonly struct ElementCount
     /// </summary>
     internal static ElementCount ValidateShape(
         int[] lengths,
-        SerializationOperation operation,
+        ref OperationState state,
         string what)
     {
         ArgumentNullException.ThrowIfNull(lengths);
 
-        long maximum = operation.Limits.MaxArrayLength;
+        long maximum = state.Limits.MaxArrayLength;
         const string limit = "MaxArrayLength";
         long total = 1;
 
@@ -104,7 +120,7 @@ internal readonly struct ElementCount
                 $"{what}: total element count {total} exceeds the configured maximum of " +
                 $"{maximum} ({limit}).");
 
-        operation.Budget.ConsumeElements(total);
+        state.Budget.ConsumeElements(total);
         return new ElementCount((int)total);
     }
 }

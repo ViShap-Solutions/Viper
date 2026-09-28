@@ -3,7 +3,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.References;
 
 /// <summary>
-/// Pins REF-05…REF-08 and REF-12…REF-16: which values carry a reference frame at all, what the
+/// Pins REF-05…REF-08, REF-12…REF-16 and REF-19: which values carry a reference frame at all, what the
 /// payload does when the frame is nonsense, and how far an id is visible. The payload, not the local
 /// configuration, decides whether frames are there to be read.
 /// </summary>
@@ -255,5 +255,42 @@ public class ReferenceFramingTests
         }));
 
         Assert.NotNull(_framed.Deserialize<Cyclic>(frame)?.Next);
+    }
+
+    // --- REF-19: a back reference resolves only to a value of the declared type ------------------
+
+    [Fact]
+    public void Deserialize_ABackReferenceToAnObjectOfAnotherType_ThrowsFormat()
+    {
+        // Id 1 is a Person; the list member then points back at it. The payload names an object the
+        // member cannot hold, which is malformed input, not a cast for the caller to catch.
+        byte[] body = Wire.Payload(writer =>
+        {
+            writer.Write(true);
+            writer.Write((byte)0);
+            writer.Write(0);
+
+            writer.Write(true);
+            writer.Write((byte)0);
+            writer.Write(1);
+            writer.Write(30);
+            writer.Write(true);
+            writer.Write("Alice");
+
+            writer.Write(true);
+            writer.Write((byte)1);
+            writer.Write(1);
+        });
+
+        AssertEx.Throws<BinaryFormatException>(
+            "resolves to", () => _plain.Deserialize<PersonThenList>(FramedFrame(body)));
+    }
+
+    /// <summary>A person, then a list: two members of unrelated reference types.</summary>
+    public sealed class PersonThenList
+    {
+        public Person? A { get; set; }
+
+        public List<int>? B { get; set; }
     }
 }

@@ -27,18 +27,17 @@ internal sealed class V0FormatPipeline : IFormatPipeline
 
     int IFormatPipeline.Version => Version;
 
-    public EncodedFrame Write<T>(T data, SerializationOperation operation)
+    public EncodedFrame Write<T>(T data, ref OperationState state)
     {
-        var budget = Budget(operation);
+        var budget = Budget(ref state);
         var payload = new PayloadBuffer(budget.Maximum, budget.Resource);
         try
         {
-            var writer = new WireWriter(payload, operation);
-            using (var engine = new GraphWriter(WithoutReferences(operation)))
-                engine.WriteRoot(ref writer, data);
+            var writer = new WireWriter(payload, ref state);
+            Graph.WriteRoot(ref writer, data, preserveReferences: false);
 
             writer.Flush();
-            return EncodedFrame.Of(header: null, payload, operation.Limits.MaxWireBytes);
+            return EncodedFrame.Of(header: null, payload, state.Limits.MaxWireBytes);
         }
         catch
         {
@@ -56,55 +55,40 @@ internal sealed class V0FormatPipeline : IFormatPipeline
         ReadOnlySpan<byte> buffered,
         bool sourceEnded,
         long available,
-        SerializationOperation operation) =>
-        FrameExtent.Undeclared(Budget(operation).Maximum);
+        ref OperationState state) =>
+        FrameExtent.Undeclared(Budget(ref state).Maximum);
 
-    public object? Read(
+    public T? Read<T>(
         ReadOnlySpan<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation,
+        T? target,
+        ref OperationState state,
         out long consumed)
     {
-        var budget = Budget(operation);
-        var payloadOperation = WithoutReferences(operation);
-        var reader = new WireReader(
-            source[..(int)Math.Min(source.Length, budget.Maximum)], payloadOperation, budget);
+        var budget = Budget(ref state);
+        var reader = new WireReader(source[..(int)Math.Min(source.Length, budget.Maximum)], ref state, budget);
 
-        return Decode(ref reader, declaredType, existingInstance, payloadOperation, out consumed);
+        return Decode(ref reader, target, out consumed);
     }
 
-    public object? Read(
+    public T? Read<T>(
         ReadOnlySequence<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation,
+        T? target,
+        ref OperationState state,
         out long consumed)
     {
         if (source.IsSingleSegment)
-            return Read(source.FirstSpan, declaredType, existingInstance, operation, out consumed);
+            return Read(source.FirstSpan, target, ref state, out consumed);
 
-        var budget = Budget(operation);
-        var payloadOperation = WithoutReferences(operation);
-        var reader = new WireReader(
-            source.Slice(0, Math.Min(source.Length, budget.Maximum)), payloadOperation, budget);
+        var budget = Budget(ref state);
+        var reader = new WireReader(source.Slice(0, Math.Min(source.Length, budget.Maximum)), ref state, budget);
 
-        return Decode(ref reader, declaredType, existingInstance, payloadOperation, out consumed);
+        return Decode(ref reader, target, out consumed);
     }
 
-    private static object? Decode(
-        ref WireReader reader,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation payloadOperation,
-        out long consumed)
+    /// <summary>No header can record that a payload uses reference framing, so V0 never emits or expects it.</summary>
+    private static T? Decode<T>(ref WireReader reader, T? target, out long consumed)
     {
-        using var engine = new GraphReader(payloadOperation);
-
-        object? result = existingInstance is null
-            ? engine.ReadValue(ref reader, declaredType)
-            : engine.ReadInto(ref reader, existingInstance, declaredType);
-
+        var result = Graph.ReadRoot(ref reader, target, preserveReferences: false);
         consumed = reader.Consumed;
         return result;
     }
@@ -113,12 +97,8 @@ internal sealed class V0FormatPipeline : IFormatPipeline
     /// Without a header the payload is everything that reaches the wire, so the payload and wire
     /// budgets bound the same bytes and the tighter of the two applies, in both directions.
     /// </summary>
-    private static WireBudget Budget(SerializationOperation operation) =>
-        operation.Limits.MaxWireBytes < operation.Limits.MaxPayloadBytes
-            ? new WireBudget("wire", operation.Limits.MaxWireBytes)
-            : new WireBudget("payload", operation.Limits.MaxPayloadBytes);
-
-    // No header can record that a payload uses reference framing, so V0 never emits or expects it.
-    private static SerializationOperation WithoutReferences(SerializationOperation operation) =>
-        operation.WithPreserveReferences(false);
+    private static WireBudget Budget(ref OperationState state) =>
+        state.Limits.MaxWireBytes < state.Limits.MaxPayloadBytes
+            ? new WireBudget("wire", state.Limits.MaxWireBytes)
+            : new WireBudget("payload", state.Limits.MaxPayloadBytes);
 }

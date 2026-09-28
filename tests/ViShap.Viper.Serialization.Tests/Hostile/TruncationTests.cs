@@ -17,9 +17,7 @@ public class TruncationTests
 {
     private static Person Sample() => new() { Name = "Alice", Age = 30 };
 
-    private static SerializationOperation Operation() =>
-        new(SerializationLimits.Default, keys: null, preserveReferences: false,
-            requireEncryption: false, requireChecksum: false);
+    private static OperationBox Operation() => new();
 
     // --- HST-10: every prefix of a valid frame ----------------------------------------------------
 
@@ -264,7 +262,7 @@ public class TruncationTests
     {
         Assert.Throws<BinaryFormatException>(() =>
         {
-            var reader = new WireReader(new byte[] { 1, 2 }, Operation());
+            var reader = new WireReader(new byte[] { 1, 2 }, ref Operation().State);
             reader.ReadInt32();
         });
     }
@@ -274,7 +272,7 @@ public class TruncationTests
     {
         AssertEx.AllocatesLessThan(1024 * 1024, () =>
         {
-            var reader = new WireReader(new byte[4], Operation());
+            var reader = new WireReader(new byte[4], ref Operation().State);
             reader.ReadBytes(8 * 1024 * 1024, "Blob");
         });
     }

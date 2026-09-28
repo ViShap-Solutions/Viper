@@ -172,7 +172,7 @@ Also owed now:
   is read — is SRC-05. The second carried point is applied: API-13's null cases are written with
   typed nulls.
 
-## R4 — Typed engine
+## R4 — Typed engine — applied
 
 - **TYP-01** — every §19 corpus case through the typed engine reproduces the R0 oracle.
 - **TYP-02** — INV-17: a counting test double observes no boxing when writing and reading a graph
@@ -195,6 +195,19 @@ Also owed now:
   the shape-factory cache), CN-14, CN-15, CN-16.
 - **CN-20** — no type remains under `src/ViShap.Viper.Serialization/Cache/`, and no `ConcurrentDictionary`
   keyed by `Type` exists outside the contract, union and shape-factory caches (source-shape test).
+- *Applied in R4.* TYP-01 is pinned by `Format/OracleTests`, whose cases now run through the typed
+  codecs; TYP-02 counts boxing with the thread's allocation counter — a box is a heap object — and
+  proves the counter by a positive control, a struct in a polymorphic slot. The shapes of the generic
+  definitions are a fixed table, not a cache, so CN-20 finds a `ConcurrentDictionary` keyed by `Type`
+  only for contracts and unions. IDs assigned: TYP-01…TYP-03, LIM-49, CTR-31, CTR-32, **ALC-01…ALC-09**
+  (ALC-09: every asynchronous method returning a value task pools its state machine, the mechanism of
+  plan §11), CN-20; CTR-24 and LIM-47 rewritten; CN-03, CN-05, CN-14, CN-15, CN-16 re-pointed;
+  CN-06…CN-13 and CN-19 retired. Outside this list, because the stage's code needed them: **LIM-51**
+  (INV-1 over `OperationState`: who creates it, and that it travels by reference), **REF-19** (a back
+  reference to an object of another type is `BinaryFormatException`, where the object-typed setter
+  used to raise `InvalidCastException`) and **UTIL-21** (`OperationBox`, the helper that holds a state
+  for a test). The ALC checkpoints state each target as what the engine adds to the frame around it,
+  exactly; the absolute figures of plan §11 are Benchmark-Plan ALLOC-10…ALLOC-21.
 
 ## R5 — Algorithm contracts
 

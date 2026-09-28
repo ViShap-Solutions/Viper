@@ -26,7 +26,7 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 [MemoryDiagnoser]
 public class CycleDetectionBenchmarks
 {
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private DeepNode _root = new();
     private object[] _path = [];
 
@@ -56,13 +56,8 @@ public class CycleDetectionBenchmarks
     public long EngineWrite()
     {
         using var buffer = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
-        var writer = new WireWriter(buffer, _operation);
-
-        using (var engine = new GraphWriter(_operation))
-        {
-            engine.WriteRoot(ref writer, _root);
-        }
-
+        var writer = new WireWriter(buffer, ref _operation);
+        Graph.WriteRoot(ref writer, _root, preserveReferences: false);
         writer.Flush();
         return buffer.Length;
     }

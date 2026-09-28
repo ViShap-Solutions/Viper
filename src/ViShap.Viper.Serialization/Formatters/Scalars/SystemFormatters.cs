@@ -4,20 +4,20 @@ using System.Text;
 
 namespace ViShap.Viper.Formatters;
 
-internal sealed class GuidFormatter : IScalarFormatter
+internal sealed class GuidFormatter : IScalarFormatter<Guid>
 {
     private const int Size = 16;
 
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Guid);
+    public int MinimumWireSize => Size;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, Guid value)
     {
         Span<byte> buffer = stackalloc byte[Size];
-        ((Guid)value).TryWriteBytes(buffer);
+        value.TryWriteBytes(buffer);
         writer.Write(buffer);
     }
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public Guid Read(ref WireReader reader)
     {
         Span<byte> buffer = stackalloc byte[Size];
         reader.ReadExact(buffer, "Guid");
@@ -25,14 +25,13 @@ internal sealed class GuidFormatter : IScalarFormatter
     }
 }
 
-internal sealed class UriFormatter : IScalarFormatter
+internal sealed class UriFormatter : IScalarFormatter<Uri>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Uri);
+    public int MinimumWireSize => 1;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteString(((Uri)value).OriginalString);
+    public void Write(ref WireWriter writer, Uri value) => writer.WriteString(value.OriginalString);
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public Uri Read(ref WireReader reader)
     {
         string text = reader.ReadString();
         if (!Uri.TryCreate(text, UriKind.RelativeOrAbsolute, out var uri))
@@ -42,14 +41,13 @@ internal sealed class UriFormatter : IScalarFormatter
     }
 }
 
-internal sealed class VersionFormatter : IScalarFormatter
+internal sealed class VersionFormatter : IScalarFormatter<Version>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(Version);
+    public int MinimumWireSize => 1;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteString(((Version)value).ToString());
+    public void Write(ref WireWriter writer, Version value) => writer.WriteString(value.ToString());
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public Version Read(ref WireReader reader)
     {
         string text = reader.ReadString();
         if (!Version.TryParse(text, out var version))
@@ -59,25 +57,22 @@ internal sealed class VersionFormatter : IScalarFormatter
     }
 }
 
-internal sealed class StringBuilderFormatter : IScalarFormatter
+internal sealed class StringBuilderFormatter : IScalarFormatter<StringBuilder>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(StringBuilder);
+    public int MinimumWireSize => 1;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteString(value.ToString()!);
+    public void Write(ref WireWriter writer, StringBuilder value) => writer.WriteString(value.ToString());
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        new StringBuilder(reader.ReadString());
+    public StringBuilder Read(ref WireReader reader) => new(reader.ReadString());
 }
 
-internal sealed class CultureInfoFormatter : IScalarFormatter
+internal sealed class CultureInfoFormatter : IScalarFormatter<CultureInfo>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(CultureInfo);
+    public int MinimumWireSize => 1;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteString(((CultureInfo)value).Name);
+    public void Write(ref WireWriter writer, CultureInfo value) => writer.WriteString(value.Name);
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public CultureInfo Read(ref WireReader reader)
     {
         string name = reader.ReadString();
 
@@ -87,27 +82,25 @@ internal sealed class CultureInfoFormatter : IScalarFormatter
         }
         catch (CultureNotFoundException ex)
         {
-            throw new BinaryFormatException(
-                $"Culture name '{name}' is not a known culture.", ex);
+            throw new BinaryFormatException($"Culture name '{name}' is not a known culture.", ex);
         }
     }
 }
 
-internal sealed class BitArrayFormatter : IScalarFormatter
+internal sealed class BitArrayFormatter : IScalarFormatter<BitArray>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(BitArray);
+    public int MinimumWireSize => sizeof(int) + 1;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, BitArray value)
     {
-        var bits = (BitArray)value;
-        writer.WriteBitCount(bits.Length, "BitArray length");
+        writer.WriteBitCount(value.Length, "BitArray length");
 
-        byte[] bytes = new byte[(bits.Length + 7) / 8];
-        bits.CopyTo(bytes, 0);
+        byte[] bytes = new byte[(value.Length + 7) / 8];
+        value.CopyTo(bytes, 0);
         writer.WriteBlob(bytes, "BitArray data");
     }
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public BitArray Read(ref WireReader reader)
     {
         int length = reader.ReadBitCount("BitArray length");
         byte[] bytes = reader.ReadBlob("BitArray data");
@@ -120,17 +113,4 @@ internal sealed class BitArrayFormatter : IScalarFormatter
 
         return new BitArray(bytes) { Length = length };
     }
-}
-
-internal sealed class DelegateFormatter : IScalarFormatter
-{
-    public bool CanHandle(Type declaredType) => typeof(Delegate).IsAssignableFrom(declaredType);
-
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        throw new BinaryTypeException(
-            $"Delegate types cannot be serialized ('{declaredType}') — as a root value, a member, " +
-            "or a collection element. Exclude the containing member with [BinaryIgnore] instead.");
-
-    public object Read(ref WireReader reader, Type declaredType) =>
-        throw new BinaryTypeException($"Delegate types cannot be deserialized ('{declaredType}').");
 }

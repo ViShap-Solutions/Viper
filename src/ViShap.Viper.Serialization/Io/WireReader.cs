@@ -50,18 +50,20 @@ internal readonly record struct WireBudget(string Resource, long Maximum)
 /// </summary>
 internal ref struct WireReader
 {
+    private readonly ref OperationState _state;
     private readonly ReadOnlySequence<byte> _sequence;
     private readonly long _length;
     private readonly WireBudget? _budget;
-    private readonly string _scope;
+    private readonly string? _scope;
+    private readonly int _scopeKey;
     private ReadOnlySpan<byte> _span;
     private int _index;
     private long _spanStart;
     private SequencePosition _nextSegment;
 
     /// <summary>A reader over <paramref name="bytes"/>; running out of them is a malformed payload.</summary>
-    public WireReader(ReadOnlySpan<byte> bytes, SerializationOperation operation)
-        : this(bytes, operation, budget: null, scope: "the payload")
+    public WireReader(ReadOnlySpan<byte> bytes, ref OperationState state)
+        : this(bytes, ref state, budget: null, scope: "the payload")
     {
     }
 
@@ -69,14 +71,14 @@ internal ref struct WireReader
     /// A reader over bytes cut to <paramref name="budget"/>: a read past them is a limit violation when
     /// it would exceed the budget, and a malformed payload otherwise.
     /// </summary>
-    public WireReader(ReadOnlySpan<byte> bytes, SerializationOperation operation, WireBudget budget)
-        : this(bytes, operation, (WireBudget?)budget, scope: "the payload")
+    public WireReader(ReadOnlySpan<byte> bytes, ref OperationState state, WireBudget budget)
+        : this(bytes, ref state, (WireBudget?)budget, scope: "the payload")
     {
     }
 
     /// <summary>A reader over <paramref name="bytes"/>, which may span several segments.</summary>
-    public WireReader(ReadOnlySequence<byte> bytes, SerializationOperation operation)
-        : this(bytes, operation, budget: null, scope: "the payload")
+    public WireReader(ReadOnlySequence<byte> bytes, ref OperationState state)
+        : this(bytes, ref state, budget: null, scope: "the payload")
     {
     }
 
@@ -84,22 +86,24 @@ internal ref struct WireReader
     /// A reader over segmented bytes cut to <paramref name="budget"/>: a read past them is a limit
     /// violation when it would exceed the budget, and a malformed payload otherwise.
     /// </summary>
-    public WireReader(ReadOnlySequence<byte> bytes, SerializationOperation operation, WireBudget budget)
-        : this(bytes, operation, (WireBudget?)budget, scope: "the payload")
+    public WireReader(ReadOnlySequence<byte> bytes, ref OperationState state, WireBudget budget)
+        : this(bytes, ref state, (WireBudget?)budget, scope: "the payload")
     {
     }
 
     private WireReader(
         ReadOnlySpan<byte> bytes,
-        SerializationOperation operation,
+        ref OperationState state,
         WireBudget? budget,
-        string scope)
+        string? scope,
+        int scopeKey = -1)
     {
-        Operation = operation;
+        _state = ref state;
         _sequence = default;
         _length = bytes.Length;
         _budget = budget;
         _scope = scope;
+        _scopeKey = scopeKey;
         _span = bytes;
         _index = 0;
         _spanStart = 0;
@@ -108,22 +112,25 @@ internal ref struct WireReader
 
     private WireReader(
         ReadOnlySequence<byte> bytes,
-        SerializationOperation operation,
+        ref OperationState state,
         WireBudget? budget,
-        string scope)
+        string? scope,
+        int scopeKey = -1)
     {
-        Operation = operation;
+        _state = ref state;
         _sequence = bytes;
         _length = bytes.Length;
         _budget = budget;
         _scope = scope;
+        _scopeKey = scopeKey;
         _nextSegment = bytes.Start;
         _span = bytes.TryGet(ref _nextSegment, out var first) ? first.Span : default;
         _index = 0;
         _spanStart = 0;
     }
 
-    internal SerializationOperation Operation { get; }
+    /// <summary>The state of the operation these bytes belong to.</summary>
+    internal readonly ref OperationState State => ref _state;
 
     /// <summary>Bytes read so far.</summary>
     public readonly long Consumed => _spanStart + _index;
@@ -206,7 +213,7 @@ internal ref struct WireReader
     /// <summary>Reads a length-prefixed byte blob bounded by <c>MaxByteBlobBytes</c>.</summary>
     public byte[] ReadBlob(string what)
     {
-        int length = ReadBoundedLength(Operation.Limits.MaxByteBlobBytes, "MaxByteBlobBytes", $"{what} byte length");
+        int length = ReadBoundedLength(_state.Limits.MaxByteBlobBytes, "MaxByteBlobBytes", $"{what} byte length");
         return ReadBytes(length, what);
     }
 
@@ -215,7 +222,7 @@ internal ref struct WireReader
     public string ReadString()
     {
         int length = ReadBoundedLength(
-            Operation.Limits.MaxStringBytes, "MaxStringBytes", "String byte length");
+            _state.Limits.MaxStringBytes, "MaxStringBytes", "String byte length");
         return DecodeString(length, "String");
     }
 
@@ -242,7 +249,7 @@ internal ref struct WireReader
     /// Reads an element count, validating it against its limit and charging the element budget.
     /// </summary>
     public ElementCount ReadCount(CountKind kind, string what) =>
-        ElementCount.Validate(ReadInt32(), kind, Operation, what);
+        ElementCount.Validate(ReadInt32(), kind, ref _state, what);
 
     /// <summary>Reads a bit count bounded by <c>MaxByteBlobBytes</c> × 8.</summary>
     public int ReadBitCount(string what)
@@ -251,10 +258,10 @@ internal ref struct WireReader
         if (bits < 0)
             throw new BinaryFormatException($"{what} {bits} must be non-negative.");
 
-        if (bits > (long)Operation.Limits.MaxByteBlobBytes * 8L)
+        if (bits > (long)_state.Limits.MaxByteBlobBytes * 8L)
             throw new BinaryLimitException(
                 $"{what} {bits} exceeds the configured maximum of " +
-                $"{(long)Operation.Limits.MaxByteBlobBytes * 8L} (MaxByteBlobBytes, in bits).");
+                $"{(long)_state.Limits.MaxByteBlobBytes * 8L} (MaxByteBlobBytes, in bits).");
 
         return bits;
     }
@@ -322,14 +329,34 @@ internal ref struct WireReader
     public WireReader Slice(int length, string what)
     {
         RequireAvailable(length, what);
+        return TakeSlice(length, what, scopeKey: -1);
+    }
 
+    /// <summary>
+    /// Takes the next <paramref name="length"/> bytes as the window over the keyed field
+    /// <paramref name="key"/>, as <see cref="Slice"/> does. The field is named only when a read
+    /// fails, so taking a window allocates nothing.
+    /// </summary>
+    public WireReader SliceField(int key, int length)
+    {
+        if (length < 0 || length > Remaining)
+            RequireAvailable(length, FieldScope(key));
+
+        return TakeSlice(length, scope: null, key);
+    }
+
+    private WireReader TakeSlice(int length, string? scope, int scopeKey)
+    {
         WireReader slice = _span.Length - _index >= length
-            ? new WireReader(_span.Slice(_index, length), Operation, budget: null, scope: what)
-            : new WireReader(_sequence.Slice(Consumed, length), Operation, budget: null, scope: what);
+            ? new WireReader(_span.Slice(_index, length), ref _state, budget: null, scope, scopeKey)
+            : new WireReader(_sequence.Slice(Consumed, length), ref _state, budget: null, scope, scopeKey);
 
         Advance(length);
         return slice;
     }
+
+    /// <summary>How a keyed field is named in a diagnostic: <c>Key 3 payload</c>.</summary>
+    internal static string FieldScope(int key) => $"Key {key} payload";
 
     internal byte[] ReadBytes(int length, string what)
     {
@@ -468,5 +495,5 @@ internal ref struct WireReader
         _budget is { } budget
             ? budget.Exceeded(requested, Consumed, Remaining, what)
             : new BinaryFormatException(
-                $"{what} declares {requested} byte(s) but only {Remaining} remain in {_scope}.");
+                $"{what} declares {requested} byte(s) but only {Remaining} remain in {_scope ?? FieldScope(_scopeKey)}.");
 }

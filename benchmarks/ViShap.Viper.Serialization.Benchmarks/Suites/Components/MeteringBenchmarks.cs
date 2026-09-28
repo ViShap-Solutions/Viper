@@ -35,7 +35,7 @@ public class MeteringBenchmarks
 
     private readonly byte[] _buffer = new byte[Chunk];
 
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private byte[] _payload = [];
     private byte[] _bareDestination = [];
     private PayloadBuffer _filled = null!;
@@ -107,7 +107,7 @@ public class MeteringBenchmarks
     [Benchmark(Description = "MICRO-09 metered read", OperationsPerInvoke = Chunks)]
     public long MeteredRead()
     {
-        var reader = new WireReader(_payload, _operation, new WireBudget("wire", long.MaxValue));
+        var reader = new WireReader(_payload, ref _operation, new WireBudget("wire", long.MaxValue));
 
         for (var chunk = 0; chunk < Chunks; chunk++)
         {
@@ -120,7 +120,7 @@ public class MeteringBenchmarks
     [Benchmark(Description = "MICRO-09 window read", OperationsPerInvoke = Chunks)]
     public long WindowRead()
     {
-        var reader = new WireReader(_payload, _operation);
+        var reader = new WireReader(_payload, ref _operation);
         var window = reader.Slice(Total, "MICRO-09");
 
         for (var chunk = 0; chunk < Chunks; chunk++)
@@ -134,7 +134,7 @@ public class MeteringBenchmarks
     [Benchmark(Description = "MICRO-09 window skip", OperationsPerInvoke = Chunks)]
     public long WindowSkip()
     {
-        var reader = new WireReader(_payload, _operation);
+        var reader = new WireReader(_payload, ref _operation);
         var window = reader.Slice(Total, "MICRO-09");
 
         for (var chunk = 0; chunk < Chunks; chunk++)

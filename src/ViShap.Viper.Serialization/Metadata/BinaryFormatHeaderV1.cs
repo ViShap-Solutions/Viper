@@ -1,4 +1,5 @@
 ﻿using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace ViShap.Viper.Metadata;
@@ -208,7 +209,7 @@ internal readonly record struct BinaryFormatHeaderV1(
         int compressedLength = reader.ReadInt32();
         int onDiskLength = reader.ReadInt32();
 
-        var limits = reader.Operation.Limits;
+        var limits = reader.State.Limits;
         CheckLength(uncompressedLength, limits.MaxPayloadBytes, nameof(UncompressedLength));
         CheckLength(compressedLength, limits.MaxCompressedBytes, nameof(CompressedLength));
         CheckLength(onDiskLength, limits.MaxEncryptedBytes, nameof(OnDiskLength));
@@ -348,10 +349,11 @@ internal readonly record struct BinaryFormatHeaderV1(
                 $"{what} {value} exceeds the configured maximum of {maximum}.");
     }
 
-    private static TEnum ReadEnum<TEnum>(ref WireReader reader, string what) where TEnum : struct, Enum
+    /// <summary>Reads an algorithm enum, whose underlying type is a byte, without boxing it.</summary>
+    private static TEnum ReadEnum<TEnum>(ref WireReader reader, string what) where TEnum : unmanaged, Enum
     {
         byte raw = reader.ReadByte();
-        var value = (TEnum)Enum.ToObject(typeof(TEnum), raw);
+        var value = Unsafe.As<byte, TEnum>(ref raw);
         if (!Enum.IsDefined(value))
             throw new BinaryFormatNotSupportedException($"Unknown {what} algorithm: {raw}.");
 

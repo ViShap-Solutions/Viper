@@ -18,6 +18,7 @@ Rule: every rework stage before the format stage reproduces every value. A misma
 
 - [x] ORC-01 — every corpus case writes exactly the output the oracle recorded, and every recorded case is produced — `Format/OracleTests`
 - [x] ORC-02 — on a mismatch the report carries the expected and the actual output in hex and the first offset at which they differ — `Format/OracleTests`
+- [x] TYP-01 — every corpus case, written by the typed engine's codecs, reproduces the oracle — `Format/OracleTests` *(added in R4)*
 
 ---
 
@@ -489,13 +490,15 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] CTR-21 — an interface or abstract class without a union map → `BinaryTypeException` on read *(§23, D3)* — `Contracts/AttributeContractTests`
 - [x] CTR-22 — a delegate as root, member or element → `BinaryTypeException` *(§14.1, §23)* — `Contracts/DelegateMemberTests`
 - [x] CTR-23 — an unsupported type is `BinaryTypeException` at first use, never silently member-encoded into nothing *(§23)* — `Contracts/TypeSupportTests`
-- [x] CTR-24 — `FormatterRegistry.Resolve` returning `null` means member encoding; no catch-all shadows a specific formatter *(L2, §2.4)* — `Contracts/TypeSupportTests`
+- [x] CTR-24 — the codec `FormatterCache<T>` holds is the object codec only when no rule claims the type, and a specific shape is never shadowed by the general one; `Nullable<T>` takes its underlying type's shape, and a delegate is claimed first *(L2, §2.4)* — `Contracts/TypeSupportTests` *(rewritten in R4: `FormatterRegistry.Resolve` returning `null` is gone)*
 - [x] CTR-25 — a struct containing a reference member round-trips *(§23)* — `Contracts/MemberPlanTests`
 - [x] CTR-26 — nested member-encoded graphs of three or more formatter families round-trip *(§23)* — `Contracts/MemberPlanTests`
 - [x] CTR-27 — a non-public base member under `[BinaryInclude]` is in the derived type's plan and round-trips *(§14.1)* — `Contracts/InheritanceTests`
 - [x] CTR-28 — a member hidden by `new` is a second member; both travel, the base declaration first *(§14.1, §22.3)* — `Contracts/InheritanceTests`
 - [x] CTR-29 — an override is one member, and its own attributes apply *(§14.1)* — `Contracts/InheritanceTests`
 - [x] CTR-30 — the plan of a type is the same however many times it is built *(§14.1)* — `Contracts/InheritanceTests`
+- [x] CTR-31 — the engine checks every call of a type contract against its description: a member of the wrong type, the wrong key, keys or members out of order, too few or too many calls, a keyed field under a positional layout or the reverse, a key the description does not have — each `BinaryTypeException` naming the type and the member; a field accepted without its value read, a value read and then disowned, or read twice, likewise; a declined unknown key is skipped *(§2.4)* — `Contracts/ContractCallTests` *(added in R4)*
+- [x] CTR-32 — a struct owner is populated in place through the `ref` setter, and a struct root is read into the instance returned *(§2.4, §14.1)* — `Contracts/ContractCallTests` *(added in R4)*
 
 ---
 
@@ -528,6 +531,8 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 ---
 
 # 17. Polymorphism — `Contracts/`
+
+- [x] TYP-02 — INV-17: the allocation counter of the thread observes no boxing when a graph of value types — enums, nullables, nested structs, pairs and tuples among them — is written and read at two sizes: the larger costs no more than the array it returns; a struct root is not boxed on its way out; and the same counter sees the box a struct in a polymorphic slot does take *(§2.4, §15)* — `Contracts/BoxingTests` *(added in R4)*
 
 - [x] PM-01 — a registered derived type round-trips with its runtime type intact *(§15)* — `Contracts/PolymorphismTests`
 - [x] PM-02 — several derived types under one base are distinguished by tag *(§15)* — `Contracts/UnionDeclarationTests`
@@ -568,6 +573,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] REF-16 — a back reference is never emitted between sibling keyed fields *(§16.2)* — `References/ReferenceFramingTests`
 - [x] REF-17 — a repeated reference does not consume a second graph node *(§5.8)* — `Limits/DepthAndNodeTests`
 - [x] REF-18 — a second first occurrence under a visible id is `BinaryFormatException` *(§16)* — `References/ReferenceFramingTests`
+- [x] REF-19 — a back reference that resolves to an object the declared type cannot hold is `BinaryFormatException`, never a framework cast failure *(§16, INV-10)* — `References/ReferenceFramingTests` *(added in R4)*
 - [x] CYC-01 — a direct self-reference round-trips under `PreserveReferences` *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-02 — a two-object cycle round-trips *(§16)* — `References/ReferenceIdentityTests`
 - [x] CYC-03 — a cycle through a collection round-trips *(§16.1)* — `References/ReferenceIdentityTests`
@@ -745,9 +751,27 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] LIM-43 — no type below `Pipeline/` references `SerializationLimits` *(§2, architecture invariant)* — `Exceptions/SourceInvariantTests`
 - [x] LIM-44 — payload bytes are reachable only through `WireReader` / `WireWriter`; neither hands out a stream, and the one reader over part of the payload, `WireReader.Slice`, ends where the declared field ends *(§2.3, §7.3)* — `Limits/StructuralBarrierTests`
 - [x] LIM-46 — the documented default table names exactly the limits the type declares *(§5)* — `Exceptions/ConfigurationValidationTests`
-- [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer and which only the engine's entry can create; the engine exposes no payload primitives and holds no reader or writer *(§18, §24)* — `Limits/StructuralBarrierTests`
+- [x] LIM-47 — a composite formatter is handed `CompositeReader`/`CompositeWriter`, which expose no raw integer — only child values, a validated array shape and the elements behind it, read by the engine — and which only the engine's entry can create; a codec or a contract holds no state of an operation *(§18, §24)* — `Limits/StructuralBarrierTests` *(rewritten in R4)*
 - [x] LIM-48 — `WireReader` and `WireWriter` are `ref struct`s, and they are the only types in the engine assembly that declare payload primitives (`Read*`/`Write*` of a boolean, a number, a varint, a string, a blob or a bit count), a `Stream` override excepted *(§2.3, §18)* — `Limits/StructuralBarrierTests`
+- [x] LIM-49 — INV-5: a sequence, map or array shape takes and returns no count, no primitive and no reader or writer; a type contract implements only creation, writing, reading and the response to a key, each handed a `MemberWriter` or `MemberReader` and nothing that reaches bytes; those two expose only member values; outside the readers and writers only the engine's codecs read or write a count; the shapes' sources name no primitive and no count *(§2.3, §2.4)* — `Limits/StructuralBarrierTests` *(added in R4)*
 - [x] LIM-50 — INV-16: no method in the engine or the formatters is asynchronous — none carries an async state machine or returns a task, a value task or an async enumerable — and the check recognizes an awaitable return *(§2.4)* — `Limits/StructuralBarrierTests` *(added in R3)*
+- [x] LIM-51 — INV-1: only the serializer and the inspector create an `OperationState`, only the state creates a budget and a phase policy, and every member below the public edge takes the state by reference, an asynchronous method excepted *(§2.2)* — `Limits/StructuralBarrierTests` *(added in R4)*
+
+## 20.7 Materialization and allocation
+
+- [x] TYP-03 — an array whose count is backed by bytes is read into an array of its final length and allocates nothing else; one whose count is not is read through the pooled path to the same value; a count not backed by bytes still fails on truncation without an allocation in proportion to it; a collection whose count is backed starts at exactly that capacity *(§6, §17)* — `Limits/MaterializationTests` *(added in R4)*
+
+Each allocation target of `Rework-Plan.md` §11 that the typed engine reaches is stated as what the engine adds to the frame around it — against the same frame holding a null root, or the same call through another entry point — and must be exactly the objects the caller receives. The absolute figures are measured in `Benchmark-Plan.md` ALLOC-10…ALLOC-21. Counted on the thread, as the least of several warm calls.
+
+- [x] ALC-01 — a record of primitives and strings written into a buffer writer, V1 and V0, allocates nothing beyond the frame *(§2.4)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-02 — `Serialize<T>(T)` allocates exactly the returned array beyond the buffer-writer path *(§3.1)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-03 — `SerializePooled` allocates exactly one `PooledPayload` beyond the buffer-writer path *(§3.2)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-04 — a record of primitives read from a span allocates exactly the record beyond the frame *(§2.4)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-05 — a graph whose counts are backed by bytes is read with no intermediate copy and no reallocation: exactly the graph beyond the frame *(§17)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-06 — with `PreserveReferences` a graph costs what it costs without, in both directions *(§16)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-07 — `SerializeAsync` adds nothing per value over the synchronous write *(§3.5)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-08 — `DeserializeAsync` from a stream and from a pipe adds nothing per value over the synchronous read *(§3.5)* — `Limits/AllocationTests` *(added in R4)*
+- [x] ALC-09 — every asynchronous method returning a value task pools its state machine *(§3.5)* — `Limits/AllocationTests` *(added in R4)*
 
 ---
 
@@ -963,23 +987,24 @@ frame, which replace the three stream decorators; none is dropped.*
 
 - [x] CN-01 — one shared `BinarySerializer` used from many threads produces correct results *(§2.2)* — `Concurrency/ParallelOperationTests`
 - [x] CN-02 — per-operation state is isolated; no budget is shared between calls *(§2.2)* — `Concurrency/ParallelOperationTests`, concurrently and in sequence
-- [x] CN-03 — `TypeContractCache` first touch under contention yields one consistent contract *(L4)* — `Concurrency/CacheTests`
+- [x] CN-03 — `TypeContractCache` first touch under contention yields one consistent contract *(L4)* — `Concurrency/CacheTests` *(re-pointed in R4: the contract cache by type, which the polymorphic slot uses)*
 - [x] CN-04 — the union-map cache first touch is safe *(L4, §15)* — `Concurrency/CacheTests`
-- [x] CN-05 — `FormatterRegistry` resolution under contention is safe and stable *(L4)* — `Concurrency/CacheTests`
-- [x] CN-06 — `ActivatorCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-07 — `DictionaryAccessorCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-08 — `FrozenFactoryCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-09 — `ImmutableFactoryCache`, including `ImmutableCollectionsMarshal.AsArray` resolution *(§17)* — `Concurrency/CacheTests`
-- [x] CN-10 — `LazyAccessorCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-11 — `MethodInvokerCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-12 — `ReadOnlySequenceAccessorCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-13 — `TupleAccessorCache` *(L4)* — `Concurrency/CacheTests`
-- [x] CN-14 — a cached accessor is functionally identical on first and subsequent use *(L2)* — `Concurrency/CacheTests`
-- [x] CN-15 — cache construction never depends on request-local budget state *(§2.2)* — `Concurrency/CacheTests`: a source invariant over `Cache/`, and a contract first built while an operation was failing on a limit
-- [x] CN-16 — an invalid type or member fails deterministically on every attempt, not only the first *(L2)* — `Concurrency/CacheTests`, in sequence and under contention
+- [x] CN-05 — the codec of `FormatterCache<T>` is one instance under contention, and each closed type of one generic definition has its own *(L4, §18)* — `Concurrency/CacheTests` *(re-pointed in R4: `FormatterRegistry.Resolve` and its dictionary cache are gone)*
+- CN-06 — `ActivatorCache` *(L4)* — *retired in R4: the cache is deleted; a shape calls `new`*
+- CN-07 — `DictionaryAccessorCache` *(L4)* — *retired in R4: a map shape enumerates `KeyValuePair<K,V>` directly*
+- CN-08 — `FrozenFactoryCache` *(L4)* — *retired in R4: the frozen shapes call `ToFrozenSet`/`ToFrozenDictionary` directly*
+- CN-09 — `ImmutableFactoryCache`, including `ImmutableCollectionsMarshal.AsArray` resolution *(§17)* — *retired in R4: the immutable shapes and the `ImmutableArray<T>` codec call their factories directly*
+- CN-10 — `LazyAccessorCache` *(L4)* — *retired in R4: the typed `Lazy<T>` composite*
+- CN-11 — `MethodInvokerCache` *(L4)* — *retired in R4: every shape calls the collection's own member*
+- CN-12 — `ReadOnlySequenceAccessorCache` *(L4)* — *retired in R4: the typed `ReadOnlySequence<T>` shape*
+- CN-13 — `TupleAccessorCache` *(L4)* — *retired in R4: one typed composite per tuple arity*
+- [x] CN-14 — a cached codec is the same object and writes the same bytes on first and subsequent use *(L2)* — `Concurrency/CacheTests` *(re-pointed in R4)*
+- [x] CN-15 — cache construction never depends on request-local budget state *(§2.2)* — `Concurrency/CacheTests`: a source invariant over the files that build a cache entry — the codec cache, the registry, the contract cache and the reflected contract — and a contract first built while an operation was failing on a limit *(re-pointed in R4)*
+- [x] CN-16 — an invalid type, member or union fails deterministically on every attempt, not only the first *(L2)* — `Concurrency/CacheTests`, in sequence and under contention *(re-pointed in R4)*
 - [x] CN-17 — concurrent encryption and decryption with distinct key ids stay correct *(§13.2)* — `Concurrency/ParallelOperationTests`
 - [x] CN-18 — concurrent inspection of separate streams stays correct *(§19)* — `Concurrency/ParallelOperationTests`
-- [x] CN-19 — `ImmutableArray<T>` obtains its backing array through `ImmutableCollectionsMarshal.AsArray<T>`, never a reflective instance `ToArray` *(§17)* — `Concurrency/CacheTests`, by array identity
+- CN-19 — `ImmutableArray<T>` obtains its backing array through `ImmutableCollectionsMarshal.AsArray<T>`, never a reflective instance `ToArray` *(§17)* — *retired in R4: the typed codec writes from the value's own span and reads through `ImmutableCollectionsMarshal.AsImmutableArray<T>`, with no factory to resolve*
+- [x] CN-20 — no type remains under `src/ViShap.Viper.Serialization/Cache/`, and no `ConcurrentDictionary` keyed by `Type` exists outside the contract and union caches *(§18)* — `Concurrency/CacheTests` *(added in R4)*
 
 ---
 
@@ -1048,6 +1073,7 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-18 — `FrameBoundStream` serves its bytes up to the boundary, cannot seek, ends when its content does, and fails a read that asks for any byte past the boundary, synchronously and awaited, without taking a byte — `Fixtures/UtilityTests` *(added in R3)*
 - [x] UTIL-19 — `ChunkedPipeReader` delivers a new chunk only once everything shown was examined, shows what arrived and was not consumed in one segment per chunk, completes when its content has all arrived, counts what was consumed, refuses a second read before advancing, reports a cancelled pending read, and without completion waits until the read is cancelled — `Fixtures/UtilityTests` *(added in R3)*
 - [x] UTIL-20 — `StingyBufferWriter` hands out spans of at most its limit, commits what was advanced in order, and with a limit of zero hands out an empty span — `Fixtures/UtilityTests` *(added in R3)*
+- [x] UTIL-21 — `OperationBox` holds a fresh state under the limits it is given, and is the state a reader handed it charges, one per box — `Fixtures/UtilityTests` *(added in R4)*
 
 ---
 
@@ -1379,10 +1405,10 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Contracts
 
-- [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-30)*
+- [x] Every attribute rule and every contradiction is covered. *(CTR-01…CTR-32)*
 - [x] Keyed evolution — skip, add, remove, unknown, duplicate, truncated — is covered. *(KEY-01…KEY-23)*
 - [x] Polymorphism is covered on both read and write, including write-side rejection. *(PM-01…PM-16)*
-- [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-18, CYC-01…CYC-10)*
+- [x] Reference scopes and cycle behavior are covered. *(REF-01…REF-19, CYC-01…CYC-10)*
 
 ## Security
 

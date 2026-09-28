@@ -34,16 +34,22 @@ contract would already be accurate for it.
   (`TypeContract<T>`). *(R1, R2, R4)* — **R1 applied:** `WireReader / WireWriter` as ref structs over
   memory; the pipeline row names the read-ahead, `PayloadBuffer` and `MeteredWriteStream`, the one
   stream decorator still in use. **R2 applied:** the pipeline row loses `MeteredWriteStream` and says
-  the phases are transforms over pooled buffers and the frame is built whole.
+  the phases are transforms over pooled buffers and the frame is built whole. **R4 applied:** the
+  operation row is `OperationState`, the engine row reads "typed codecs", and a row is added for type
+  contracts.
 - §2.2: `SerializationOperation` → `OperationState`, a struct passed by `ref`; "created exactly once
-  per public call" is unchanged (INV-1). *(R4)*
+  per public call" is unchanged (INV-1). *(R4)* — **R4 applied**, with the `Graph` traversal the
+  state carries and the rule that an asynchronous method takes the one copy it owns.
 - §2.3 byte boundary: restated over buffers — the reader knows its exact remaining length; there is no
   stream under the engine; a type contract receives only `MemberWriter` / `MemberReader` (INV-2).
-  *(R1, R4)* — **R1 applied**, all but the type-contract clause.
+  *(R1, R4)* — **R1 applied**, all but the type-contract clause. **R4 applied:** the type-contract
+  clause.
 - §2.4 traversal boundary: shapes and engine-owned codecs (plan §10.1); the division of labour
   between a type contract and the engine and the engine's call checks (plan §10.2); boxing only in a
   polymorphic slot (INV-17); the engine never awaits (INV-16). *(R4, R3)* — **R3 applied:** §2.4
-  states INV-16; the rest is R4's.
+  states INV-16; the rest is R4's. **R4 applied:** §2.4 names the codecs as the traversal owner, the
+  shapes (INV-5), the type contract with the engine's call checks, and boxing only in the polymorphic
+  slot (INV-17).
 - State INV-15 (a data or graph error leaves no byte in the destination). *(R2)* — **R2 applied** as
   §2.6 "Atomic writes"; §2.5 states the phases over pooled buffers.
 
@@ -98,7 +104,7 @@ contract would already be accurate for it.
 - Add the fixed 4 096-byte header bound — a format bound, `BinaryFormatException`, not a policy
   limit. *(R6)*
 
-### §6 Resource accounting — R4
+### §6 Resource accounting — R4 — applied
 
 - The budget lives in `OperationState`. `EnterDepth()` returning a `ref struct` scope stays.
 - Collection capacity and direct array allocation follow the bytes-backed rule (plan §10.1, INV-3).
@@ -189,12 +195,13 @@ contract would already be accurate for it.
 ### §14 Contracts and members — R4, R6, R8
 
 - §14.1: rules unchanged; the member plan is `TypeContract<T>`, identical for reflection and any
-  generated contract (INV-12). *(R4, R8)*
+  generated contract (INV-12). *(R4, R8)* — **R4 applied:** §14.1 opens with the type contract and
+  `ReflectedContract<T>`; R8 adds the generated side.
 - §14.2: keyed framing is `varint key · int32 length`, with the reason for the fixed length (plan
   §6.3.1); the field count carries the null fold (plan §6.3.2). *(R6)*
 - Add: the type contract is the unit a generated contract replaces; nothing else is generated. *(R8)*
 
-### §15 Polymorphism — R4
+### §15 Polymorphism — R4 — applied
 
 - Add: the polymorphic slot is the only place the engine boxes. No change to tags or rules.
 
@@ -204,8 +211,12 @@ contract would already be accurate for it.
   skip-desync reason for rejecting implicit ids. *(R6)*
 - Cycle detection without references is an ancestor-stack search; the diagnostic is unchanged. *(R2)*
   — **R2 applied**, with the pooled reference tables.
+- *Added in R4, outside this list, because the typed engine had to decide it:* a back reference that
+  resolves to an object the declared type cannot hold is `BinaryFormatException`. Before R4 the
+  object-typed setter raised `InvalidCastException` on such a payload, a framework name on a payload
+  path (INV-10); the typed codec checks the resolved object's type. Pinned by REF-19.
 
-### §17 Arrays and safe materialisation — R4
+### §17 Arrays and safe materialisation — R4 — applied
 
 - Restate: an array whose count is backed by bytes is allocated at its final length and read into;
   otherwise elements accumulate in a pooled buffer and one final array is created. Collection
@@ -220,7 +231,10 @@ contract would already be accurate for it.
   `Cache/`; state which caches remain (plan §12, R4) and that each is built once per type and safe
   under concurrent first use. — **R1 applied:** `WireReader`, `WireWriter` and `PayloadBuffer` named;
   `ValueReader` and `ValueWriter` removed. **R2 applied:** the three stream decorators were never named in §18; `EncodedFrame`
-  and `RentedBytes`, the pipeline's pooled frame and phase output, are named.
+  and `RentedBytes`, the pipeline's pooled frame and phase output, are named. **R4 applied:** the
+  typed names; `GraphReader`/`GraphWriter`, `SerializationOperation` and the non-generic formatter
+  interfaces removed; "What is cached" states the three caches that remain and how they behave under
+  concurrent first use.
 
 ### §19 Format inspection and diagnostics — R3, R6
 
@@ -255,10 +269,13 @@ contract would already be accurate for it.
   - **§22.7 associated data deleted** — it is the header (plan §6.2).
   - §22.8 V0: the boundary rules; the byte-identity property (INV-18).
 
-### §23 Supported types — R4
+### §23 Supported types — R4 — applied
 
 - No type is added or removed. Re-verify every note against the typed engine, especially memory-like
-  values, `ImmutableArray<T>` and `Lazy<T>`.
+  values, `ImmutableArray<T>` and `Lazy<T>`. *(Applied in R4: every note holds as written — a
+  memory-like read wraps a fresh array exactly as long as the value, a default `ImmutableArray<T>`
+  stays distinct from empty, and a read `Lazy<T>` holds its value without having created it; the
+  round-trip corpus and the fixtures pass unchanged. The text needed no edit.)*
 
 ### Invariants — R1, R9a
 

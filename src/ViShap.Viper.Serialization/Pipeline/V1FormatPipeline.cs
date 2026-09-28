@@ -25,30 +25,29 @@ internal sealed class V1FormatPipeline(
         || checksum.Kind != ChecksumAlgorithm.None
         || encryption.Kind != EncryptionAlgorithm.None;
 
-    public EncodedFrame Write<T>(T data, SerializationOperation operation)
+    public EncodedFrame Write<T>(T data, ref OperationState state)
     {
-        var payload = new PayloadBuffer(operation.Limits.MaxPayloadBytes, "payload");
+        var payload = new PayloadBuffer(state.Limits.MaxPayloadBytes, "payload");
         try
         {
-            var writer = new WireWriter(payload, operation);
-            using (var engine = new GraphWriter(operation))
-                engine.WriteRoot(ref writer, data);
+            var writer = new WireWriter(payload, ref state);
+            Graph.WriteRoot(ref writer, data, state.PreserveReferences);
 
             writer.Flush();
-            operation.Phases.CheckPayload(payload.Length, "Payload length");
+            state.Phases.CheckPayload(payload.Length, "Payload length");
 
             if (HasPhases)
-                return WritePhases(payload, operation);
+                return WritePhases(payload, ref state);
 
             int length = (int)payload.Length;
-            operation.Phases.CheckCompressed(length, "Compressed payload length");
-            operation.Phases.CheckEncrypted(length, "On-disk payload length");
+            state.Phases.CheckCompressed(length, "Compressed payload length");
+            state.Phases.CheckEncrypted(length, "On-disk payload length");
 
-            var header = Header(operation, length, length, onDiskLength: length, checksumBytes: []);
-            var headerBytes = WriteHeader(header, operation);
+            var header = Header(ref state, length, length, onDiskLength: length, checksumBytes: []);
+            var headerBytes = WriteHeader(header, ref state);
             try
             {
-                return EncodedFrame.Of(headerBytes, payload, operation.Limits.MaxWireBytes);
+                return EncodedFrame.Of(headerBytes, payload, state.Limits.MaxWireBytes);
             }
             catch
             {
@@ -68,7 +67,7 @@ internal sealed class V1FormatPipeline(
     /// because each phase works on a single span. Each phase's input is released as soon as its
     /// output exists; the last output is the body of the frame.
     /// </summary>
-    private EncodedFrame WritePhases(PayloadBuffer payload, SerializationOperation operation)
+    private EncodedFrame WritePhases(PayloadBuffer payload, ref OperationState state)
     {
         int rawLength = (int)payload.Length;
         byte[] linear = RentedBytes.RentArray(rawLength);
@@ -84,21 +83,21 @@ internal sealed class V1FormatPipeline(
 
             if (compression.Kind != CompressionAlgorithm.None)
                 body = Replace(body, new CompressionService(compression)
-                    .Compress(body.Span, operation.Limits.MaxCompressedBytes));
+                    .Compress(body.Span, state.Limits.MaxCompressedBytes));
 
-            operation.Phases.CheckCompressed(body.Length, "Compressed payload length");
+            state.Phases.CheckCompressed(body.Length, "Compressed payload length");
 
-            var header = Header(operation, rawLength, body.Length, onDiskLength: 0, checksumBytes);
+            var header = Header(ref state, rawLength, body.Length, onDiskLength: 0, checksumBytes);
 
             if (encryption.Kind != EncryptionAlgorithm.None)
-                body = Replace(body, Encrypt(header, body.Span, operation));
+                body = Replace(body, Encrypt(header, body.Span, ref state));
 
-            operation.Phases.CheckEncrypted(body.Length, "On-disk payload length");
+            state.Phases.CheckEncrypted(body.Length, "On-disk payload length");
 
-            var headerBytes = WriteHeader(header with { OnDiskLength = body.Length }, operation);
+            var headerBytes = WriteHeader(header with { OnDiskLength = body.Length }, ref state);
             try
             {
-                return EncodedFrame.Of(headerBytes, body, operation.Limits.MaxWireBytes);
+                return EncodedFrame.Of(headerBytes, body, state.Limits.MaxWireBytes);
             }
             catch
             {
@@ -116,7 +115,7 @@ internal sealed class V1FormatPipeline(
     private RentedBytes Encrypt(
         in BinaryFormatHeaderV1 header,
         ReadOnlySpan<byte> plaintext,
-        SerializationOperation operation)
+        ref OperationState state)
     {
         int length = header.AssociatedDataLength;
         byte[]? rented = null;
@@ -130,7 +129,7 @@ internal sealed class V1FormatPipeline(
             header.WriteAssociatedData(associatedData);
 
             return new EncryptionService(encryption, keyId).Encrypt(
-                plaintext, associatedData, operation.Keys, operation.Limits.MaxEncryptedBytes);
+                plaintext, associatedData, state.Keys, state.Limits.MaxEncryptedBytes);
         }
         finally
         {
@@ -148,7 +147,7 @@ internal sealed class V1FormatPipeline(
     }
 
     private BinaryFormatHeaderV1 Header(
-        SerializationOperation operation,
+        ref OperationState state,
         int uncompressedLength,
         int compressedLength,
         int onDiskLength,
@@ -157,16 +156,16 @@ internal sealed class V1FormatPipeline(
             checksum.Kind, checksum.CustomName,
             encryption.Kind, encryption.CustomName,
             keyId,
-            operation.PreserveReferences,
+            state.PreserveReferences,
             uncompressedLength, compressedLength, onDiskLength,
             checksumBytes);
 
-    private static PayloadBuffer WriteHeader(in BinaryFormatHeaderV1 header, SerializationOperation operation)
+    private static PayloadBuffer WriteHeader(in BinaryFormatHeaderV1 header, ref OperationState state)
     {
-        var headerBytes = new PayloadBuffer(operation.Limits.MaxWireBytes, "wire");
+        var headerBytes = new PayloadBuffer(state.Limits.MaxWireBytes, "wire");
         try
         {
-            var writer = new WireWriter(headerBytes, operation);
+            var writer = new WireWriter(headerBytes, ref state);
             header.WriteTo(ref writer);
             writer.Flush();
             return headerBytes;
@@ -182,9 +181,9 @@ internal sealed class V1FormatPipeline(
         ReadOnlySpan<byte> buffered,
         bool sourceEnded,
         long available,
-        SerializationOperation operation)
+        ref OperationState state)
     {
-        var budget = WireBudget(operation);
+        var budget = WireBudget(ref state);
 
         if (!BinaryFormatHeaderV1.TryMeasure(buffered, out int required))
         {
@@ -193,7 +192,7 @@ internal sealed class V1FormatPipeline(
                 return FrameExtent.NeedMore(target);
         }
 
-        var headerReader = new WireReader(HeaderPrefix(buffered, budget), operation, budget);
+        var headerReader = new WireReader(HeaderPrefix(buffered, budget), ref state, budget);
         var header = BinaryFormatHeaderV1.ReadFrom(ref headerReader);
         int headerLength = (int)headerReader.Consumed;
 
@@ -201,16 +200,15 @@ internal sealed class V1FormatPipeline(
         return FrameExtent.Known(headerLength + (long)header.OnDiskLength);
     }
 
-    public object? Read(
+    public T? Read<T>(
         ReadOnlySpan<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation,
+        T? target,
+        ref OperationState state,
         out long consumed)
     {
-        var budget = WireBudget(operation);
+        var budget = WireBudget(ref state);
         var header = ReadHeader(
-            HeaderPrefix(source, budget), source.Length, budget, operation,
+            HeaderPrefix(source, budget), source.Length, budget, ref state,
             out int headerLength, out var payloadEncryption);
 
         consumed = headerLength + (long)header.OnDiskLength;
@@ -219,43 +217,40 @@ internal sealed class V1FormatPipeline(
             header,
             payloadEncryption,
             source.Slice(headerLength, header.OnDiskLength),
-            declaredType,
-            existingInstance,
-            operation);
+            target,
+            ref state);
     }
 
-    public object? Read(
+    public T? Read<T>(
         ReadOnlySequence<byte> source,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation,
+        T? target,
+        ref OperationState state,
         out long consumed)
     {
         if (source.IsSingleSegment)
-            return Read(source.FirstSpan, declaredType, existingInstance, operation, out consumed);
+            return Read(source.FirstSpan, target, ref state, out consumed);
 
-        var budget = WireBudget(operation);
+        var budget = WireBudget(ref state);
 
         Span<byte> prefix = stackalloc byte[BinaryFormatHeaderV1.MaxLength];
         prefix = prefix[..(int)Math.Min(prefix.Length, Math.Min(source.Length, budget.Maximum))];
         source.Slice(0, prefix.Length).CopyTo(prefix);
 
         var header = ReadHeader(
-            prefix, source.Length, budget, operation, out int headerLength, out var payloadEncryption);
+            prefix, source.Length, budget, ref state, out int headerLength, out var payloadEncryption);
 
         consumed = headerLength + (long)header.OnDiskLength;
         var onDisk = source.Slice(headerLength, header.OnDiskLength);
 
         if (onDisk.IsSingleSegment)
-            return Decode(header, payloadEncryption, onDisk.FirstSpan, declaredType, existingInstance, operation);
+            return Decode(header, payloadEncryption, onDisk.FirstSpan, target, ref state);
 
         if (header.Encryption == EncryptionAlgorithm.None
             && header.Compression == CompressionAlgorithm.None
             && header.ChecksumAlgorithm == ChecksumAlgorithm.None)
         {
-            var payloadOperation = PayloadOperation(header, operation);
-            var reader = new WireReader(onDisk, payloadOperation);
-            return DecodePayload(ref reader, declaredType, existingInstance, payloadOperation);
+            var reader = new WireReader(onDisk, ref state);
+            return DecodePayload(ref reader, target, header.PreserveReferences);
         }
 
         // Every phase works on one contiguous span, so a segmented body is made contiguous once.
@@ -264,7 +259,7 @@ internal sealed class V1FormatPipeline(
         {
             var body = linear.AsSpan(0, header.OnDiskLength);
             onDisk.CopyTo(body);
-            return Decode(header, payloadEncryption, body, declaredType, existingInstance, operation);
+            return Decode(header, payloadEncryption, body, target, ref state);
         }
         finally
         {
@@ -272,8 +267,8 @@ internal sealed class V1FormatPipeline(
         }
     }
 
-    private static WireBudget WireBudget(SerializationOperation operation) =>
-        new("wire", operation.Limits.MaxWireBytes);
+    private static WireBudget WireBudget(ref OperationState state) =>
+        new("wire", state.Limits.MaxWireBytes);
 
     /// <summary>The bytes a header can occupy at the start of <paramref name="source"/>, within the budget.</summary>
     private static ReadOnlySpan<byte> HeaderPrefix(ReadOnlySpan<byte> source, WireBudget budget) =>
@@ -288,25 +283,25 @@ internal sealed class V1FormatPipeline(
         ReadOnlySpan<byte> prefix,
         long available,
         WireBudget budget,
-        SerializationOperation operation,
+        ref OperationState state,
         out int headerLength,
         out IEncryptionAlgorithm payloadEncryption)
     {
-        var headerReader = new WireReader(prefix, operation, budget);
+        var headerReader = new WireReader(prefix, ref state, budget);
         var header = BinaryFormatHeaderV1.ReadFrom(ref headerReader);
         headerLength = (int)headerReader.Consumed;
 
-        if (operation.RequireEncryption && header.Encryption == EncryptionAlgorithm.None)
+        if (state.RequireEncryption && header.Encryption == EncryptionAlgorithm.None)
             throw new BinaryIntegrityException(
                 "The payload is not encrypted, but this serializer requires encrypted input.");
 
-        if (operation.RequireChecksum && header.ChecksumAlgorithm == ChecksumAlgorithm.None)
+        if (state.RequireChecksum && header.ChecksumAlgorithm == ChecksumAlgorithm.None)
             throw new BinaryIntegrityException(
                 "The payload carries no checksum, but this serializer requires one.");
 
         payloadEncryption = catalog.ResolveEncryption(header.Encryption, header.CustomEncryptionName);
 
-        if (operation.RequireEncryption && !payloadEncryption.AuthenticatesAssociatedData)
+        if (state.RequireEncryption && !payloadEncryption.AuthenticatesAssociatedData)
             throw new BinaryIntegrityException(
                 "The payload is encrypted with " +
                 $"'{header.CustomEncryptionName ?? header.Encryption.ToString()}', which does not " +
@@ -336,13 +331,12 @@ internal sealed class V1FormatPipeline(
     /// cleared when the value has been read, then decodes the payload, which must be consumed
     /// exactly.
     /// </summary>
-    private object? Decode(
+    private T? Decode<T>(
         in BinaryFormatHeaderV1 header,
         IEncryptionAlgorithm payloadEncryption,
         ReadOnlySpan<byte> onDisk,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation operation)
+        T? target,
+        ref OperationState state)
     {
         var decrypted = default(RentedBytes);
         var decompressed = default(RentedBytes);
@@ -355,7 +349,7 @@ internal sealed class V1FormatPipeline(
             }
             else
             {
-                decrypted = Decrypt(header, payloadEncryption, onDisk, operation);
+                decrypted = Decrypt(header, payloadEncryption, onDisk, ref state);
                 compressed = decrypted.Span;
             }
 
@@ -378,9 +372,8 @@ internal sealed class V1FormatPipeline(
                 rawPayload,
                 header.Checksum);
 
-            var payloadOperation = PayloadOperation(header, operation);
-            var reader = new WireReader(rawPayload, payloadOperation);
-            return DecodePayload(ref reader, declaredType, existingInstance, payloadOperation);
+            var reader = new WireReader(rawPayload, ref state);
+            return DecodePayload(ref reader, target, header.PreserveReferences);
         }
         finally
         {
@@ -390,26 +383,13 @@ internal sealed class V1FormatPipeline(
     }
 
     /// <summary>
-    /// The header decides whether the payload uses reference framing, so the engine follows the
-    /// payload rather than the local configuration.
+    /// Reads the root value, which must consume the payload exactly. The header decides whether the
+    /// payload uses reference framing, so the engine follows the payload rather than the local
+    /// configuration.
     /// </summary>
-    private static SerializationOperation PayloadOperation(
-        in BinaryFormatHeaderV1 header,
-        SerializationOperation operation) =>
-        operation.WithPreserveReferences(header.PreserveReferences);
-
-    /// <summary>Reads the root value, which must consume the payload exactly.</summary>
-    private static object? DecodePayload(
-        ref WireReader reader,
-        Type declaredType,
-        object? existingInstance,
-        SerializationOperation payloadOperation)
+    private static T? DecodePayload<T>(ref WireReader reader, T? target, bool preserveReferences)
     {
-        using var engine = new GraphReader(payloadOperation);
-
-        object? result = existingInstance is null
-            ? engine.ReadValue(ref reader, declaredType)
-            : engine.ReadInto(ref reader, existingInstance, declaredType);
+        var result = Graph.ReadRoot(ref reader, target, preserveReferences);
 
         if (reader.Remaining != 0)
             throw new BinaryFormatException(
@@ -422,7 +402,7 @@ internal sealed class V1FormatPipeline(
         in BinaryFormatHeaderV1 header,
         IEncryptionAlgorithm payloadEncryption,
         ReadOnlySpan<byte> ciphertext,
-        SerializationOperation operation)
+        ref OperationState state)
     {
         int length = header.AssociatedDataLength;
         byte[]? rented = null;
@@ -439,7 +419,7 @@ internal sealed class V1FormatPipeline(
                 payloadEncryption,
                 ciphertext,
                 associatedData,
-                operation.Keys,
+                state.Keys,
                 header.KeyId,
                 header.CompressedLength);
         }

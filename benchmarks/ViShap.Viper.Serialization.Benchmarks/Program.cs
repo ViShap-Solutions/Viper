@@ -44,6 +44,11 @@ internal static class Program
             return Report(args);
         }
 
+        if (args is ["--compare", var baseline, var run, ..])
+        {
+            return BaselineComparison.Run(baseline, run, Argument(args, "--out"));
+        }
+
         if (args.Contains("--cold", StringComparer.Ordinal))
         {
             return ColdStartRunner.Drive();

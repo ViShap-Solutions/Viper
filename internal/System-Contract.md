@@ -33,16 +33,18 @@ Public API            BinarySerializer · PooledPayload · attributes · excepti
                       SerializationLimits · I*Algorithm · IKeyProvider · SecretKey
                       write: IBufferWriter<byte> · byte[] · PooledPayload · Stream · PipeWriter
                       read:  ReadOnlySpan<byte> · ReadOnlySequence<byte> · Stream · PipeReader
-      │ creates exactly one operation per public call
-SerializationOperation    Limits snapshot · Budget · PhaseBudget · Keys · policies
+      │ creates exactly one OperationState per public call, passed by reference
+OperationState            Limits snapshot · Budget · PhaseBudget · Keys · policies · the graph traversal
       │
 FormatPipeline (V0|V1)    framing · phase order · header + AAD · phase sizes
       │  a stream or pipe buffered exactly as far as the frame extends · phases as transforms
       │  over pooled buffers · the whole frame built in PayloadBuffer, then copied out once
-PayloadEngine             traversal · depth · graph nodes · references · TypeContract
+Engine                    typed codecs, one per declared type: null · references · depth · graph nodes ·
+      │                   cycles · keyed framing · every loop over wire data
       │  WireReader / WireWriter — ref structs over memory, the only access to payload bytes
-Formatters                type encoding only
-      │
+Formatters                IScalarFormatter<T> · sequence, map and array shapes · typed composites
+Type contracts            TypeContract<T> — member order, access, construction; ReflectedContract<T>
+      │                   in v1.0, reached only through MemberWriter / MemberReader
 Algorithms                pure mechanics over spans
 ```
 
@@ -66,9 +68,12 @@ validates once. Invalid configuration fails with `BinaryConfigurationException`.
 
 ## 2.2 Operation boundary
 
-`SerializationOperation` is internal state created **exactly once per public call** by
-`BinarySerializer` and passed down. No layer below constructs limits, a budget or a key provider of
-its own.
+`OperationState` is internal state created **exactly once per public call** by
+`BinarySerializer` and passed down **by reference** (INV-1). It is a `struct`: a copy would account for
+the call twice, so every member below the public edge takes it by `ref`, and an asynchronous method,
+which cannot take a reference, takes the one copy it then owns. `WireReader` and `WireWriter` hold a
+reference to it, so every count, depth scope and node charged through them lands in the one budget of
+the call. No layer below constructs limits, a budget or a key provider of its own.
 
 It carries:
 
@@ -76,11 +81,14 @@ It carries:
 - `Budget` — cumulative `TotalElements`, `ObjectGraphNodes`, `KeyedFields` and current `Depth`;
 - `Phases` — payload/compressed/encrypted size policy;
 - `Keys` — the key provider, if any;
-- policies — `PreserveReferences`, `RequireEncryption`, `RequireChecksum`.
+- policies — `PreserveReferences`, `RequireEncryption`, `RequireChecksum`;
+- `Graph` — the traversal of the payload being read or written: its reference framing, its pooled
+  reference table and the ancestor stack. The pipeline opens it for one payload and closes it after,
+  returning every pooled part cleared.
 
 A budget is never shared between independent public calls. When a V1 header declares a different
-reference mode than the local configuration, the engine continues with the same budget object, so
-accounting stays cumulative for the whole call.
+reference mode than the local configuration, the pipeline opens the payload's traversal with the
+header's mode on the same state, so accounting stays cumulative for the whole call.
 
 `SerializationLimits` answers **"what is allowed?"**.
 `SerializationBudget` answers **"what has this operation already consumed?"**.
@@ -95,23 +103,46 @@ framework exception, length-prefixed strings and blobs bounded by their limits, 
 compared with the bytes that remain before it drives an allocation, and counts that can only be
 obtained as a validated `ElementCount`.
 
-There is no raw escape hatch and no stream under the engine. A formatter is handed a
+There is no raw escape hatch and no stream under the engine. A scalar formatter is handed a
 `WireReader`/`WireWriter` by reference and nothing else, so "read a length and allocate it" is not
-expressible, and a reader or writer cannot outlive the call it was handed to.
+expressible, and a reader or writer cannot outlive the call it was handed to. A type contract is
+handed less: a `MemberWriter` or a `MemberReader`, which expose no bytes, no counts and no position —
+only one member's value per call (INV-2).
 
 ## 2.4 The traversal boundary
 
-`GraphReader`/`GraphWriter` are the only recursion over an object graph. They own:
+The engine's **codecs** are the only recursion over an object graph. There is one per declared type,
+built once and found through `FormatterCache<T>` — a static field read — and together they own:
 
+- the null flag and the reference frame;
 - depth accounting and unwinding;
 - object-graph node accounting;
 - reference identity and its scopes;
 - cycle detection;
-- the keyed-contract layout;
-- element loops for every sequence and map.
+- the union tag;
+- the keyed-contract layout: the field count, keys and field lengths, the field window, the loop over
+  the fields on the wire, skipping unknown keys and requiring a field to be read exactly;
+- the element loop of every sequence, map and array.
 
-A formatter describes a **shape** — scalar, sequence, map or composite — and supplies a builder. It
-never owns a loop over attacker-controlled data, so it cannot omit an accounting step.
+A formatter describes a **shape** (INV-5). A scalar formatter encodes one value through the checked
+primitives. A sequence, map or array shape counts, enumerates, builds and completes; it receives no
+count read from the wire and no primitive. A composite formatter reads and writes its fixed children
+through a surface that offers no raw integer, and the elements behind an array shape are read by the
+engine's loop. No formatter owns a loop over attacker-controlled data, so none can omit an
+accounting step.
+
+A member-encoded type is described by its **type contract**, `TypeContract<T>`: member order, member
+access, instance creation and the response to a known key, and nothing else. The engine checks every
+call a contract makes against the contract's own description — the member each call names, its type,
+its key, and the number of calls; under a keyed layout, that an accepted field was read exactly once
+and a declined one not at all. A mismatch is `BinaryTypeException` naming the type and the member,
+never a distorted wire. The engine creates an instance and registers its identity **before** its
+members are read, so a cycle back to it resolves; populate-in-place supplies the instance instead.
+
+**Boxing happens only in a polymorphic slot** (INV-17): a value whose runtime type differs from its
+declared one — a `[BinaryUnion]` arm, an interface, `object` — is written and read through the
+contract of its runtime type, and that is the one place a value type is boxed. Every other value
+travels as its own type from the caller to the wire and back, enums included.
 
 **The engine never awaits** (INV-16). Waiting for bytes happens only at the frame edge, in the
 pipeline's source readers: an asynchronous read awaits a whole frame and then decodes it
@@ -653,7 +684,8 @@ than this from the source (§7.1). On write, a finished frame longer than this i
 
 # 6. Resource accounting rules
 
-`SerializationBudget` is cumulative within one operation and monotonic.
+`SerializationBudget` lives in the operation's `OperationState` and is cumulative within one
+operation and monotonic.
 
 `ConsumeElements(n)`:
 
@@ -674,6 +706,11 @@ the only way to obtain an `ElementCount`. Validation and charging therefore cann
 using a count.
 
 A charge is per element, never per byte, and the element type does not change it (§5.7).
+
+A declared count decides how memory is taken for it (INV-3): a collection whose count the bytes that
+remain could hold — at the element's fewest bytes on the wire — is created at that capacity, and one
+whose count they could not hold starts at a capacity of at most 1 024 and grows as elements arrive.
+Arrays follow the same rule (§17).
 
 ---
 
@@ -1237,6 +1274,11 @@ which hands out owned copies.
 
 ## 14.1 Positional/default mode
 
+The member plan of a type is its type contract, `TypeContract<T>` (§2.4): in v1.0 it is built by
+reflection, as `ReflectedContract<T>`, and it is the one description reader and writer share. Its
+member order is the total order below; a contract built any other way must produce the same plan
+(INV-12).
+
 Eligible members include public fields/properties according to the accessor rules.
 
 Compiler-generated fields and indexers are not members. A **delegate-typed** member is eligible and
@@ -1338,6 +1380,11 @@ degenerate case is a value written through `object`.
 Only registered tags appear on the wire. Type names never do, so a payload cannot name a type to
 construct.
 
+The polymorphic slot is the only place the engine boxes (INV-17): a value whose runtime type is not
+its declared type is written and read through the contract of its runtime type, found by that type.
+A value type in such a slot is boxed once, and on read its identity is registered and its members
+are read into that same box.
+
 ---
 
 # 16. References and cycles
@@ -1356,6 +1403,8 @@ Rules:
   `BinaryFormatException`, not an overwrite. Allowing it would give one graph a second spelling on
   the wire and would silently move the object that earlier references resolve to;
 - unknown reference IDs are rejected deterministically;
+- a back reference that resolves to an object the declared type cannot hold is
+  `BinaryFormatException`;
 - cycles without permitted reference preservation are rejected as graph/type errors;
 - the reader and writer use reference identity, not overridden `Equals`.
 
@@ -1408,7 +1457,11 @@ used to allocate — the read source reports its remaining bytes, and a source t
 declaration is rejected first. Exceeding a configured ceiling is `BinaryLimitException`; exceeding
 what the payload physically contains is `BinaryFormatException`.
 
-For deserialization, variable-size arrays are built incrementally through a bounded-capacity growth path so a declared count alone does not force immediate maximum-size array allocation.
+For deserialization, an array whose count is backed by bytes — the array itself, at its size in
+memory, fits in the bytes that remain — is allocated at its final length and read into. Otherwise its
+elements are gathered in a pooled buffer as they arrive and one array of the final length is created
+at the end, so a declared count alone never forces an allocation in proportion to it. A collection's
+initial capacity follows the same rule, at the element's fewest bytes on the wire (§6).
 
 On the write path, a sequence with no O(1) count is materialized lazily and abandoned as soon as it
 crosses its limit, so an oversized or infinite `IEnumerable<T>` is rejected instead of enumerated.
@@ -1422,7 +1475,9 @@ Multidimensional arrays require:
 - product within `MaxArrayLength`;
 - zero-dimension behavior explicitly covered.
 
-`ImmutableArray<T>` serialization must obtain its backing array through `ImmutableCollectionsMarshal.AsArray<T>` rather than reflective invocation of an unavailable instance `ToArray` member.
+`ImmutableArray<T>` is written from its backing array in place and read into an array that becomes
+its backing array through `ImmutableCollectionsMarshal.AsImmutableArray<T>`; neither direction copies
+it or reaches it by reflection.
 
 The final writer path validates the resulting element count before encoding it.
 
@@ -1434,7 +1489,7 @@ The final writer path validates the resulting element count before encoding it.
 SerializationLimits      = immutable configuration
 SerializationBudget      = per-operation mutable accounting
 PhaseBudget              = per-phase size policy
-SerializationOperation   = everything one public call may consume
+OperationState           = everything one public call may consume: a struct passed by reference
 
 WireReader               = read-side checked primitives over memory   (the only byte access)
 WireWriter               = write-side checked primitives into PayloadBuffer (the only byte access)
@@ -1444,16 +1499,41 @@ EncodedFrame             = one finished frame in pooled buffers, checked against
 RentedBytes              = the pooled output of one pipeline phase, cleared when it is released
 ElementCount             = a count that has been validated and charged
 
-GraphReader / GraphWriter = graph traversal, depth, nodes, identity, keyed layout
-CompositeReader / Writer  = what a composite formatter may do: child values, a flag, a validated
-                            ElementCount, a validated ArrayShape — and no raw integer
-TypeContract              = members, keys, layout mode for one concrete type
-UnionMap                  = tag ↔ type map for one declared type
+Codec<T>                 = the engine's codec for one declared type: framing, traversal, the loop
+FormatterCache<T>        = the codec of T, resolved once by FormatterRegistry and held in a static field
+GraphState               = the traversal of one payload: reference framing, tables, ancestor stack
+IScalarFormatter<T>      = the encoding of one self-contained value
+ISequenceShape<,,,>      = count, enumerate, build and complete a sequence; no count, no primitive
+IMapShape<,,,,>          = the same for key/value entries
+IArrayShape<,>           = a sequence whose elements lie in one array: exposed as a span, wrapped back
+ICompositeFormatter<T>   = a fixed child layout, through CompositeReader / CompositeWriter
+TypeContract<T>          = member order, access, construction, the response to a known key
+ReflectedContract<T>     = the type contract built by reflection, the one v1.0 ships
+MemberWriter / Reader    = what a type contract writes and reads its members through
+CompositeReader / Writer = what a composite formatter may do: child values, a validated ArrayShape
+                           and the elements behind it, read by the engine — and no raw integer
+TypeContract             = the description of a TypeContract<T>: members, keys, layout mode,
+                           constructibility; what the engine checks every contract call against
+UnionMap                 = tag ↔ type map for one declared type
 ```
 
 There is exactly one read-side and one write-side primitive surface, and exactly one traversal
-owner. A formatter never has to decide which validation helper applies: the primitive it is given
-has already applied it.
+owner, the engine's codecs. A formatter never has to decide which validation helper applies: the
+primitive it is given has already applied it.
+
+**What is cached.** Three things, each built once, on first use, for the life of the process, and
+each safe when several threads use a type for the first time at once:
+
+- the codec of each declared type, in the static field of `FormatterCache<T>`. The shapes of the
+  generic definitions it is built from are a fixed table, closed once per type;
+- the type contract of each member-encoded type, found by type, which is what the polymorphic slot
+  needs;
+- the union map of each declared type.
+
+Nothing request-local takes part in building an entry, and an entry that fails to build — a delegate
+member, a duplicate key, a duplicate tag — is not kept, so every later use reports the same failure.
+There is no cache of reflective accessors: a shape calls a collection's own members, and a contract's
+accessors are compiled once per member.
 
 `Serialization*` names refer to the operation as a whole and are used for both directions;
 direction-specific types say `Read` or `Write` in the name.

@@ -1,28 +1,25 @@
 namespace ViShap.Viper.Formatters;
 
-internal sealed class DateTimeFormatter : IScalarFormatter
+internal sealed class DateTimeFormatter : IScalarFormatter<DateTime>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(DateTime);
+    public int MinimumWireSize => sizeof(long);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteInt64(((DateTime)value).ToBinary());
+    public void Write(ref WireWriter writer, DateTime value) => writer.WriteInt64(value.ToBinary());
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        DateTime.FromBinary(reader.ReadInt64());
+    public DateTime Read(ref WireReader reader) => DateTime.FromBinary(reader.ReadInt64());
 }
 
-internal sealed class DateTimeOffsetFormatter : IScalarFormatter
+internal sealed class DateTimeOffsetFormatter : IScalarFormatter<DateTimeOffset>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(DateTimeOffset);
+    public int MinimumWireSize => 2 * sizeof(long);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType)
+    public void Write(ref WireWriter writer, DateTimeOffset value)
     {
-        var value2 = (DateTimeOffset)value;
-        writer.WriteInt64(value2.Ticks);
-        writer.WriteInt64(value2.Offset.Ticks);
+        writer.WriteInt64(value.Ticks);
+        writer.WriteInt64(value.Offset.Ticks);
     }
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public DateTimeOffset Read(ref WireReader reader)
     {
         long ticks = reader.ReadInt64();
         long offsetTicks = reader.ReadInt64();
@@ -39,25 +36,22 @@ internal sealed class DateTimeOffsetFormatter : IScalarFormatter
     }
 }
 
-internal sealed class TimeSpanFormatter : IScalarFormatter
+internal sealed class TimeSpanFormatter : IScalarFormatter<TimeSpan>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(TimeSpan);
+    public int MinimumWireSize => sizeof(long);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteInt64(((TimeSpan)value).Ticks);
+    public void Write(ref WireWriter writer, TimeSpan value) => writer.WriteInt64(value.Ticks);
 
-    public object Read(ref WireReader reader, Type declaredType) =>
-        TimeSpan.FromTicks(reader.ReadInt64());
+    public TimeSpan Read(ref WireReader reader) => TimeSpan.FromTicks(reader.ReadInt64());
 }
 
-internal sealed class DateOnlyFormatter : IScalarFormatter
+internal sealed class DateOnlyFormatter : IScalarFormatter<DateOnly>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(DateOnly);
+    public int MinimumWireSize => sizeof(int);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteInt32(((DateOnly)value).DayNumber);
+    public void Write(ref WireWriter writer, DateOnly value) => writer.WriteInt32(value.DayNumber);
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public DateOnly Read(ref WireReader reader)
     {
         int dayNumber = reader.ReadInt32();
 
@@ -73,14 +67,13 @@ internal sealed class DateOnlyFormatter : IScalarFormatter
     }
 }
 
-internal sealed class TimeOnlyFormatter : IScalarFormatter
+internal sealed class TimeOnlyFormatter : IScalarFormatter<TimeOnly>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(TimeOnly);
+    public int MinimumWireSize => sizeof(long);
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteInt64(((TimeOnly)value).Ticks);
+    public void Write(ref WireWriter writer, TimeOnly value) => writer.WriteInt64(value.Ticks);
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public TimeOnly Read(ref WireReader reader)
     {
         long ticks = reader.ReadInt64();
 
@@ -90,20 +83,19 @@ internal sealed class TimeOnlyFormatter : IScalarFormatter
         }
         catch (ArgumentOutOfRangeException ex)
         {
-            throw new BinaryFormatException(
-                $"TimeOnly ticks {ticks} is outside the supported range.", ex);
+            throw new BinaryFormatException($"TimeOnly ticks {ticks} is outside the supported range.", ex);
         }
     }
 }
 
-internal sealed class TimeZoneInfoFormatter : IScalarFormatter
+internal sealed class TimeZoneInfoFormatter : IScalarFormatter<TimeZoneInfo>
 {
-    public bool CanHandle(Type declaredType) => declaredType == typeof(TimeZoneInfo);
+    public int MinimumWireSize => 1;
 
-    public void Write(ref WireWriter writer, object value, Type declaredType) =>
-        writer.WriteString(((TimeZoneInfo)value).ToSerializedString());
+    public void Write(ref WireWriter writer, TimeZoneInfo value) =>
+        writer.WriteString(value.ToSerializedString());
 
-    public object Read(ref WireReader reader, Type declaredType)
+    public TimeZoneInfo Read(ref WireReader reader)
     {
         string serialized = reader.ReadString();
 
@@ -114,8 +106,7 @@ internal sealed class TimeZoneInfoFormatter : IScalarFormatter
         catch (Exception ex) when (ex is ArgumentException or InvalidTimeZoneException
                                       or System.Runtime.Serialization.SerializationException)
         {
-            throw new BinaryFormatException(
-                "TimeZoneInfo payload is not a valid serialized time zone.", ex);
+            throw new BinaryFormatException("TimeZoneInfo payload is not a valid serialized time zone.", ex);
         }
     }
 }

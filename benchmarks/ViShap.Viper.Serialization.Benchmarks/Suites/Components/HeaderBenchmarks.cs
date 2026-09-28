@@ -21,7 +21,7 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 [MemoryDiagnoser]
 public class HeaderBenchmarks
 {
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private BinaryFormatHeaderV1 _header;
     private PayloadBuffer _destination = null!;
     private byte[] _encoded = [];
@@ -55,7 +55,7 @@ public class HeaderBenchmarks
                 Checksum: []);
 
         _destination = new PayloadBuffer(_operation.Limits.MaxWireBytes, "wire");
-        _encoded = ComponentFixtures.Encode(_operation, _header.WriteTo);
+        _encoded = ComponentFixtures.Encode(ref _operation, _header.WriteTo);
     }
 
     [GlobalCleanup]
@@ -64,7 +64,7 @@ public class HeaderBenchmarks
     [Benchmark(Description = "MICRO-08 write header")]
     public long Write()
     {
-        var writer = new WireWriter(_destination, _operation);
+        var writer = new WireWriter(_destination, ref _operation);
         _header.WriteTo(ref writer);
         writer.Flush();
 
@@ -76,7 +76,7 @@ public class HeaderBenchmarks
     [Benchmark(Description = "MICRO-08 parse header")]
     public int Parse()
     {
-        var reader = new WireReader(_encoded, _operation);
+        var reader = new WireReader(_encoded, ref _operation);
         return BinaryFormatHeaderV1.ReadFrom(ref reader).UncompressedLength;
     }
 

@@ -19,10 +19,8 @@ namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 [MemoryDiagnoser]
 public class SmallFieldBenchmarks
 {
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private PayloadBuffer _destination = null!;
-    private GraphWriter _graphWriter = null!;
-    private GraphReader _graphReader = null!;
     private SmallFieldRecord _record = null!;
     private byte[] _payload = [];
 
@@ -31,13 +29,11 @@ public class SmallFieldBenchmarks
     {
         _operation = ComponentFixtures.UnboundedTotals();
         _destination = new PayloadBuffer(_operation.Limits.MaxPayloadBytes, "payload");
-        _graphWriter = new GraphWriter(_operation);
-        _graphReader = new GraphReader(_operation);
         _record = SmallFieldRecord.Sample();
 
         _payload = ComponentFixtures.Encode(
-            _operation,
-            (ref WireWriter writer) => _graphWriter.WriteValue(ref writer, _record, typeof(SmallFieldRecord)));
+            ref _operation,
+            (ref WireWriter writer) => Graph.WriteRoot(ref writer, _record, preserveReferences: false));
     }
 
     [GlobalCleanup]
@@ -46,8 +42,8 @@ public class SmallFieldBenchmarks
     [Benchmark(Description = "MICRO-17 write small-field record")]
     public long Write()
     {
-        var writer = new WireWriter(_destination, _operation);
-        _graphWriter.WriteValue(ref writer, _record, typeof(SmallFieldRecord));
+        var writer = new WireWriter(_destination, ref _operation);
+        Graph.WriteRoot(ref writer, _record, preserveReferences: false);
         writer.Flush();
 
         long written = _destination.Length;
@@ -56,15 +52,15 @@ public class SmallFieldBenchmarks
     }
 
     [Benchmark(Description = "MICRO-17 read small-field record")]
-    public object? Read()
+    public SmallFieldRecord? Read()
     {
-        var reader = new WireReader(_payload, _operation);
-        return _graphReader.ReadValue(ref reader, typeof(SmallFieldRecord));
+        var reader = new WireReader(_payload, ref _operation);
+        return Graph.ReadRoot<SmallFieldRecord>(ref reader, target: null, preserveReferences: false);
     }
 }
 
 /// <summary>MICRO-17 — sixteen flags, eight bytes and eight 16-bit integers, all positional.</summary>
-internal sealed class SmallFieldRecord
+public sealed class SmallFieldRecord
 {
     public bool F00 { get; set; }
     public bool F01 { get; set; }

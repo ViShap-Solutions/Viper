@@ -1,4 +1,5 @@
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 
 namespace ViShap.Viper.Pipeline;
 
@@ -63,6 +64,7 @@ internal static class StreamSource
     }
 
     /// <summary>Reads at most <paramref name="destination"/>'s length and returns how many bytes arrived.</summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public static async ValueTask<int> ReadAsync(
         Stream source,
         Memory<byte> destination,
@@ -79,6 +81,7 @@ internal static class StreamSource
     }
 
     /// <summary>Waits for the pipe to hold more than it held when last examined.</summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public static async ValueTask<ReadResult> ReadAsync(PipeReader source, CancellationToken cancellationToken)
     {
         try
