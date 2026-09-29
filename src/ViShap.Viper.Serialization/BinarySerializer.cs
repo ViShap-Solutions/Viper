@@ -12,7 +12,7 @@ namespace ViShap.Viper;
 /// <para>
 /// An instance is immutable once constructed and safe to share across threads; each call gets its own
 /// resource accounting. Create one per configuration and reuse it — the type caches per-type metadata,
-/// so a long-lived instance is faster than a fresh one per call.
+/// so a long-lived instance reuses what a fresh one per call would rebuild.
 /// </para>
 /// <para>
 /// Every write builds the whole frame in the serializer's own pooled buffers before the first byte
@@ -384,7 +384,7 @@ public sealed class BinarySerializer
     ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
     ///
     ///     // the protocol: a 4-byte little-endian length, then the V0 payload
-    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     while (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
     ///     {
     ///         Order? message = compact.Deserialize&lt;Order&gt;(frame);   // synchronous: the frame is in memory
     ///         Handle(message);
@@ -464,7 +464,7 @@ public sealed class BinarySerializer
     ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
     ///
     ///     // the protocol: a 4-byte little-endian length, then the V0 payload
-    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     while (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
     ///     {
     ///         Order? message = compact.Deserialize&lt;Order&gt;(frame);   // synchronous: the frame is in memory
     ///         Handle(message);
@@ -778,7 +778,7 @@ public sealed class BinarySerializer
     ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
     ///
     ///     // the protocol: a 4-byte little-endian length, then the V0 payload
-    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     while (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
     ///     {
     ///         compact.Populate(frame, order);   // synchronous: the frame is in memory
     ///         Handle(order);
@@ -868,7 +868,7 @@ public sealed class BinarySerializer
     ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
     ///
     ///     // the protocol: a 4-byte little-endian length, then the V0 payload
-    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     while (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
     ///     {
     ///         compact.Populate(frame, order);   // synchronous: the frame is in memory
     ///         Handle(order);

@@ -317,7 +317,7 @@ Applied with two transcription fixes: REF-19 was already taken in R4 (a back ref
 - **Applied.** IDs assigned: CONF-01…CONF-07, one per shape, in the new §15.1 "Contract conformance";
   EXT-07 in §31, beside EXT-06 and EXT-08. §2 names the consumer project `tests/ViShap.Viper.AotConsumer`.
 
-## R9a, R9b — Re-gate
+## R9a, R9b — Re-gate — applied
 
 - **§32** rebuilt; test count in Debug and Release.
 - New §32 box: `dotnet pack` succeeds for all three packages with non-empty READMEs.

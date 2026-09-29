@@ -343,7 +343,7 @@ contract would already be accurate for it.
   release the plan is a historical record, so an invariant written only there would no longer bind
   anything [D9.28].
 
-### §24 Release checklist — R9a applied, R9b open (the `dotnet pack` box)
+### §24 Release checklist — applied (R9a; the `dotnet pack` box closed by R9b)
 
 - Rebuilt. New boxes: every entry point reads non-seekable sources; no `MemoryStream` on the payload
   path; the allocation targets of plan §11 met or recorded as open; INV-14…INV-18 pinned; the

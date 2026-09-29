@@ -7,9 +7,9 @@ namespace ViShap.Viper.Compression;
 /// Brotli compression (RFC 7932).
 /// </summary>
 /// <remarks>
-/// Compresses better than <see cref="DeflateCompression"/>, usually at a higher CPU cost. A good
-/// default when payloads travel over a network or are stored for a long time; prefer
-/// <see cref="DeflateCompression"/> when throughput matters more than size.
+/// Reaches a higher compression ratio than <see cref="DeflateCompression"/>. Choose it when the size
+/// of payloads that travel over a network or are stored for a long time matters more than the CPU time
+/// spent producing them.
 /// </remarks>
 /// <example>
 /// <code>
