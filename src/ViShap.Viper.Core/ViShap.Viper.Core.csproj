@@ -24,13 +24,13 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
         <PackageIcon>icon.png</PackageIcon>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReadmeFile>CORE-README.md</PackageReadmeFile>
         <Title>Viper.Core</Title>
     </PropertyGroup>
 
     <ItemGroup>
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
-        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="CORE-README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
     
 </Project>

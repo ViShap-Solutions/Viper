@@ -11,9 +11,10 @@ dotnet restore Viper.sln
 dotnet build Viper.sln --configuration Release
 dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj
 
-# Single test / class / trait
-dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~Serialize_Deserialize_ByteArray_ReferenceType"
-dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~HostileInputTests"
+# Single test / class / folder
+dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~Serialize_ByteArrayAndStream_ProduceIdenticalBytes"
+dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~MalformedPayloadTests"
+dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj --filter "FullyQualifiedName~.Hostile."
 
 # Benchmarks (BenchmarkDotNet; must run Release)
 dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release
@@ -21,7 +22,7 @@ dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configur
 
 CI (`.github/workflows/ci.yml`) runs restore → build → the serialization test project on every PR and push to `main`, `release/**` and `support/**`. CD (`cd.yml`) fires on `v*` tags: a stable `vX.Y.Z` must point exactly at `origin/main` HEAD; a pre-release `vX.Y.Z-alpha.N`, `-beta.N` or `-rc.N` must point at a commit on a `release/*` branch of origin, and is refused once `vX.Y.Z` exists. It packs all three packages with `-p:Version=<tag minus v>` and pushes them to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
 
-Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_refactorer`); follow it for anything about how work moves through the repository.
+Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_conformance_auditor`, `viper_refactorer`); follow it for anything about how work moves through the repository.
 
 ## Where the authoritative information lives
 
@@ -29,53 +30,69 @@ Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark 
 currently empty pending that content. Everything below is engineering material — for the contributor
 and for Claude Code — and lives under `internal/`.
 
-- `internal/System-Contract.md` — **the normative contract and the source of truth.** Public API surface
-  (§3), limits and budgets (§5–6), metering and windowing (§7), exception taxonomy (§8), versions and
-  header (§10–11), compression and encryption (§12–13), member layouts (§14), polymorphism (§15),
-  references (§16), the byte-level wire format (§22), the supported types with their encodings (§23),
-  and the release checklist (§24). Read the relevant section before changing behavior; update it in
-  the same commit when behavior changes.
-- `internal/Architecture-Audit.md` — why the architecture looks like this: the audit that produced it,
-  the alternatives that were rejected and why, the invariants, and the implementation status.
-- `internal/QA-Plan.md` — the release-gate test plan, realigned with the contract. Checkpoint list only,
-  staged M0–M8; §30 records confirmed defects and the resolved contract questions. The method for
-  working it lives in the `viper_tester` skill, not in the plan.
-- `internal/Benchmark-Plan.md` — the post-release performance plan, realigned with the contract, measured
-  against the `v1.0.0` tag and re-run per v1.x. It gates no release: correctness ships a version,
-  and an open item here blocks only a performance *claim* (§28, and the quality gate of §24). Checkpoint
-  list only, staged B0–B9: the competitor roster and why each library is in or out, the capability
-  tiers that keep a comparison like-for-like, the data corpus, the workloads, the fairness rules and
-  §27 for findings. The method for working it lives in the `viper_bencher` skill, not in the plan.
-  Benchmark work is read-only over the library: it touches `benchmarks/`, the plan itself and
-  `internal/performance/`, and nothing else. Its §18 component suites measure internals directly and
-  granted an `InternalsVisibleTo`.
-- `internal/performance/` — where a measurement becomes a suggestion and stops: one `PERF-nn-*.md` per
-  proposed optimization or extension point, cited to the cells that motivate it, for the owner to
-  decide on. Nothing here has been applied.
-- `internal/rework/` — the second rework, approved by the owner and executed before `v1.0.0`:
-  `Rework-Plan.md` (what is built, invariants INV-1…INV-18, the final wire format, stages R0–R9) and
-  one change file per governing document (`Contract-Changes.md`, `QA-Plan-Changes.md`,
-  `Benchmark-Plan-Changes.md`, and `Claude-Changes.md` for this file), applied to their documents
-  stage by stage, together with the code, never ahead of it. `Decisions.md` (Russian) is the owner's
-  decision record with the byte diagrams the plan was written from; where the plan and it disagree,
-  it is right. `Owner-Review.md` (Russian) is the review of the earlier draft and the owner's
-  decision log. The Progress table at the top of `Rework-Plan.md` records which stage is open.
-- `internal/Development-Workflow.md` — how work moves through the repository (Russian): branch
-  kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how tags
-  are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how benchmark
-  baselines are taken, hotfixes, and what an agent may and may not do.
+Every file under `internal/` carries its class at its head, and `internal/README.md` states the
+classes: **normative** (the contract), **plan** (a checklist of work to do or repeat), **operational**
+(instructions that describe the system and its development as they are now) and **historical** (a
+record of work already done, whose rules no longer apply and which is never a reason to change the
+system). Where a historical document and the contract disagree, the contract is right.
+
+- `internal/System-Contract.md` — *normative.* **The contract and the source of truth.** Public API
+  surface (§3), limits and budgets (§5–6), metering and windowing (§7), exception taxonomy (§8),
+  versions and header (§10–11), compression and encryption (§12–13), member layouts (§14),
+  polymorphism (§15), references (§16), the byte-level wire format (§22), the supported types with
+  their encodings (§23), the release checklist (§24) and the eighteen invariants (§25). Read the
+  relevant section before changing behavior; update it in the same commit when behavior changes.
+- `internal/QA-Plan.md` — *plan.* The release-gate test plan, realigned with the contract. Checkpoint
+  list only, staged M0–M8; §30 records confirmed defects and the resolved contract questions. The
+  method for working it lives in the `viper_tester` skill, not in the plan.
+- `internal/Benchmark-Plan.md` — *plan.* The post-release performance plan, realigned with the
+  contract, measured against the `v1.0.0` tag and re-run per v1.x. It gates no release: correctness
+  ships a version, and an open item here blocks only a performance *claim* (§28, and the quality gate
+  of §24). Checkpoint list only, staged B0–B9: the competitor roster and why each library is in or
+  out, the capability tiers that keep a comparison like-for-like, the data corpus, the workloads, the
+  fairness rules and §27 for findings. The method for working it lives in the `viper_bencher` skill,
+  not in the plan. Benchmark work is read-only over the library: it touches `benchmarks/`, the plan
+  itself and `internal/performance/`, and nothing else. Its §18 component suites measure internals
+  directly and are granted an `InternalsVisibleTo`.
+- `internal/performance/` — *plan.* Where a measurement becomes a suggestion and stops: one
+  `PERF-nn-*.md` per proposed optimization or extension point, cited to the cells that motivate it,
+  for the owner to decide on. Nothing here has been applied.
+- `internal/Benchmark-Graceful-Stop.md` — *plan.* A decided backlog item for the benchmark harness,
+  not started.
+- `internal/Development-Workflow.md` — *operational.* How work moves through the repository (Russian):
+  branch kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how
+  tags are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how
+  benchmark baselines are taken, hotfixes, and what an agent may and may not do.
   It is the general guide to developing Viper, independent of any current rework or plan, and it is
   kept clean: it holds no notes, rules or history for a particular agent, skill, rework or stage.
   Those belong to the plan or the skill they concern — for the rework, `internal/rework/`. An agent
   changes this file only when the owner asks for a change to the general workflow itself.
-- `internal/audit/` — the historical record of the audit that led to the rework: the original probes
-  (`Problems.cs`, superseded, do not compile), the first remediation design and its review. Kept for
-  provenance; `Problems.cs` maps each finding to the test that now pins it.
+- `internal/Architecture-Audit.md`, `Audit-Refactor.md`, `Audit-Closure.md`, `Audit-Future.md` —
+  *historical* (Russian). The audit that produced the architecture with the alternatives it rejected,
+  the independent audit after the first refactor, the closure of its findings, and the directions it
+  named.
+- `internal/audit/` — *historical.* The hostile-input audit that led to the rework: the original probes
+  (`Problems.cs`, superseded, does not compile), the first remediation design and its review. Kept for
+  provenance; `Problems.cs` maps each finding to the QA checkpoint that now pins it.
+- `internal/rework/` — *historical.* The second rework, approved by the owner and executed before
+  `v1.0.0`: `Rework-Plan.md` (what was built, invariants INV-1…INV-18, the final wire format, stages
+  R0–R9), one change file per governing document (`Contract-Changes.md`, `QA-Plan-Changes.md`,
+  `Benchmark-Plan-Changes.md`, and `Claude-Changes.md` for this file), `Retired.md` (everything the
+  rework removed or renamed, with the strings to search for) and `Conformance-Audit-Brief.md` (what
+  the release conformance audit checks). `Decisions.md` (Russian) is the owner's decision record with
+  the byte diagrams the plan was written from; where the plan and it disagree, it is right.
+  `Owner-Review.md` (Russian) is the review of the earlier draft and the owner's decision log. Its
+  rules stop applying when `v1.0.0` is released; until then it is the evidence the last reconciliation
+  and the conformance audit check the system against, and the Progress table at the top of
+  `Rework-Plan.md` records which stage is open.
+- Operational besides the workflow: this file, `internal/README.md`, the skills under
+  `.claude/skills/`, the package READMEs and `docs/`.
 
-Current state: the architecture rework described in the audit is complete and `src/` matches the
-contract. The public API is fully XML-documented and `GenerateDocumentationFile` is on, so the docs
-ship beside the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` is what holds the line,
-by comparing the exported surface with the generated XML file.
+Current state: `src/` matches the contract, and the architecture rework is complete but for its last
+reconciliation, the consumer documentation and the release audit. The public API is fully
+XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
+stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
+with the generated XML file. The suite is 1 978 tests, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and

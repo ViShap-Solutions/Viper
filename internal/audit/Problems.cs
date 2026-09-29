@@ -2,12 +2,13 @@
 //
 // These 19 probes were written against the pre-rework architecture and assert the DEFECTS as they
 // existed then. The architecture audit (internal/Architecture-Audit.md) replaced that
-// architecture, and every finding here is now pinned by a test that asserts the CORRECT behavior:
+// architecture, and every finding here is now pinned by a test that asserts the CORRECT behavior.
+// System-Contract.md §21.3 maps each finding to its QA checkpoint in internal/QA-Plan.md:
 //
-//   S01, S02, S07, S08, S09  → tests/ViShap.Viper.Serialization.Tests/Security/CryptoContractTests.cs
-//   S03, S04, S05, S06, S10, S11, S12, C06, C07
-//                            → tests/ViShap.Viper.Serialization.Tests/Security/HostileInputTests.cs
-//   C01–C05, A01–A03         → tests/ViShap.Viper.Serialization.Tests/Correctness/TypeContractTests.cs
+//   S01 ENC-20   S02 ENC-05, ENC-06   S03 LIM-32   S04 LIM-18   S05 V0-07   S06 LIM-38
+//   S07 ENC-12   S08 ENC-14   S09 CMP-10, CMP-11   S10 ENV-03, API-22   S11 HST-26   S12 LIM-21
+//   C01 CTR-32   C02 REF-04   C03 KEY-17   C04 PM-08   C05 CTR-18   C06 STR-09   C07 HST-11
+//   A01 API-24   A02 CTR-32   A03 PM-09
 //
 // The APIs these probes use (Encryptor, ICompressor, the global algorithm registries) no longer
 // exist: enforcement of resource limits is no longer reachable from the public surface.

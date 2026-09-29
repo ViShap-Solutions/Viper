@@ -1,5 +1,7 @@
 # CLAUDE.md — changes required by the rework
 
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
 **Applies to:** `CLAUDE.md` as of 2026-09-27.
 **Rule:** `CLAUDE.md` is what every agent and every skill reads before touching the repository, so it
 may not describe a system that no longer exists, not even between two stages. Each stage rewrites the
@@ -114,7 +116,7 @@ earlier is reported to the owner by the stage that notices it.
 - **Architecture** — the reflection path's public entry points carry `[RequiresDynamicCode]` /
   `[RequiresUnreferencedCode]`; the conformance suite `CONF-*` is named beside the contract seam.
 
-### R9a — Reconciliation
+### R9a — Reconciliation — applied
 
 - **Where the authoritative information lives** — `Architecture-Audit.md` becomes the historical
   record of the first rework; `internal/rework/` is described as completed; `docs/` as it then is.

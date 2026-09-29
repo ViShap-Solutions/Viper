@@ -1,5 +1,7 @@
 # ViShap.Viper — QA Plan
 
+**Class: plan.** The release-gate test checklist. It lists checkpoints and the contract rule each one proves; it never defines behavior.
+
 **Target release:** v1.0.0
 **Status:** Complete — M0 through M8 closed, §32 evaluated
 **Framework:** xUnit 2.9.3 · `net10.0`
@@ -158,7 +160,7 @@ P1–P6, not as a degraded mode.
 BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()
 ```
 
-- [x] P7-01 — V0 write and V0 read *(§10.2, §22.8)* — `RoundTrip/HeaderlessCorpusTests`, over the whole §19 corpus
+- [x] P7-01 — V0 write and V0 read *(§10.2, §22.7)* — `RoundTrip/HeaderlessCorpusTests`, over the whole §19 corpus
 - [x] P7-02 — V0 write and V0 read of a `[BinaryContract]` type, against the same type under P1 *(§14.2)* — `Format/V0FormatTests`: the two profiles restore the same value, and the payloads differ exactly in the envelope and the reference framing
 
 ---
@@ -225,7 +227,7 @@ one frame.
 - [x] SRC-05 — a non-seekable `Stream`, V1 only; V0 there is V0-27 *(§3.1, §20)* — `Api/SourceTests`
 - [x] SRC-06 — a `PipeReader`, awaited, V1 only, and a frame written into a real `Pipe` and read from it *(§3.5)* — `Api/SourceTests`
 - [x] SRC-07 — a `Stream`, awaited, V1 only *(§3.5)* — `Api/SourceTests`
-- [x] SRC-08 — a non-seekable double that fails on any read past the frame proves exactly one V1 frame is taken, synchronously and awaited, and a pipe consumes exactly one, for headers with no optional string, with a key id of 200 bytes, with custom algorithm names and with a checksum, and for payloads from 0 to 70 000 bytes *(§20)* — `Api/SourceTests`
+- [x] SRC-08 — a non-seekable double that fails on any read past the frame proves exactly one V1 frame is taken, synchronously and awaited, and a pipe consumes exactly one, for headers with no service record, with a key id of 200 bytes, with custom algorithm names and with a checksum, and for payloads from 0 to 70 000 bytes *(§20)* — `Api/SourceTests`
 - [x] SRC-09 — a frame arriving one byte at a time, from a stream and from a pipe *(§20)* — `Api/SourceTests`
 - [x] SRC-10 — INV-3 for a source that cannot tell its length: a declared length is buffered as bytes arrive, the first read offering at most 512 bytes and each growth at most doubling, while a length the source is known to hold is offered at once; a frame declaring 32 MiB on a stream that ends is `BinaryFormatException` *(§20)* — `Api/SourceTests`
 
@@ -344,7 +346,7 @@ Field order, types and invariants per §22.6.
 - [x] HDR-06 — an undefined checksum identifier in its record → `BinaryFormatNotSupportedException` *(§11)* — `Format/HeaderTests`
 - [x] HDR-07 — an undefined encryption identifier in its record → `BinaryFormatNotSupportedException` *(§11)* — `Format/HeaderTests`
 - [x] HDR-08 — the key id absent (`00`), empty (`01`) and populated read back as written; custom algorithm names read back; a header with no record reports no algorithm and no name *(§11)* — `Format/HeaderTests`
-- [x] HDR-09 — an optional string declaring a length beyond the stream → `BinaryFormatException` before allocation *(§2.3, §17)* — D1-02
+- [x] HDR-09 — a header string (a custom algorithm name or a key id) declaring a length beyond the bytes present → `BinaryFormatException` before allocation *(§2.3, §17)* — D1-02
 - [x] HDR-10 — a header string over the 256-byte format ceiling → `BinaryFormatException`, and an unwritable configured value → `BinaryConfigurationException` *(§11, §22.6)* — `Format/HeaderStringTests`
 - ~~HDR-11 — a negative `UncompressedLength` / `CompressedLength` / `OnDiskLength` → `BinaryFormatException` *(§22.6)* — `Format/HeaderTests`~~ *retired in R6 — every header length is a varint, which cannot express a negative value*
 - [x] HDR-12 — `onDiskLength` above `MaxEncryptedBytes`, above `MaxCompressedBytes` without encryption, above `MaxPayloadBytes` without compression, and `uncompressedLength` above `MaxPayloadBytes` → `BinaryLimitException`, before allocation *(§5.10, §11, §17)* — `Format/HeaderTests`
@@ -393,12 +395,12 @@ things about it: that it encodes the same graphs V1 does minus what only a heade
 — reference framing and the algorithm phases — and that it is never selected by inference, an
 unidentified stream being V0 only because the caller said so.
 
-- [x] V0-01 — V0 writes a headerless payload with no magic *(§22.8)* — `Format/WireFormatTests`
+- [x] V0-01 — V0 writes a headerless payload with no magic *(§22.7)* — `Format/WireFormatTests`
 - [x] V0-02 — V0 round-trips positional data *(§10.2)* — `Format/V0FormatTests`
 - [x] V0-03 — a `[BinaryContract]` type round-trips on V0 *(§10.2, §14.2)* — `Format/V0FormatTests`
 - [x] V0-04 — a keyed payload written on V0 is read by a V0 reader whose schema has moved on; the unknown key is length-skipped *(§10.2, §14.2)* — `Format/V0FormatTests`
 - [x] V0-05 — V0 ignores `PreserveReferences`; a cycle is a `BinaryTypeException`, not a reference frame *(§10.2, §16)* — `Format/V0FormatTests`
-- [x] V0-06 — V0 may be embedded in a stream: bytes after the payload are neither required nor rejected *(§22.8)* — `Format/V0FormatTests`
+- [x] V0-06 — V0 may be embedded in a seekable stream: bytes after the payload are neither required nor rejected, and the stream is left where the root ends *(§20, §22.7)* — `Format/V0FormatTests`
 - [x] V0-07 — `MaxPayloadBytes` applies to V0 on read *(§7.1, S05)* — `Limits/BudgetTests`
 - [x] V0-08 — `MaxPayloadBytes` applies to V0 on write *(§7.2)* — `Format/V0FormatTests`
 - [x] V0-09 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Format/V0FormatTests`
@@ -411,12 +413,12 @@ unidentified stream being V0 only because the caller said so.
 - [x] V0-16 — an `IOException` while the identifying bytes are read → `BinaryStreamException` *(§10.3, §8.8)* — `Format/RoutingTests`
 - [x] V0-17 — only the magic followed by a whole version identifies a frame, so a V0 payload that ends before the version or differs from the magic in any byte is not misrouted; one that literally opens with the magic and version 1 *is* read as V1, which is the documented consequence of a V0 payload carrying no identity of its own *(§10.2, §10.3)* — `Format/RoutingTests`
 - [x] V0-18 — committed fixed-byte V0 and V1 fixtures decode correctly; the fixture is never regenerated by the writer under test *(§10.2)* — `Format/RoutingTests`, `Fixtures/Wire/person-v0.bin`, `Fixtures/Wire/person-v1.bin`
-- [x] V0-19 — a V0 payload is byte-identical to the payload a V1 frame carries for the same value under the same positional or keyed layout *(§22.8)* — `Format/RoutingTests`
+- [x] V0-19 — a V0 payload is byte-identical to the payload a V1 frame carries for the same value under the same positional or keyed layout *(§22.7)* — `Format/RoutingTests`
 - [x] V0-20 — `[BinaryUnion]` polymorphism round-trips on V0 *(§10.2, §15)* — `Format/V0CorpusTests`
 - [x] V0-21 — every §23 family V0 supports round-trips through it, and each one produces the same payload bytes as V1; RT-C08 extends this to the whole corpus *(§10.2)* — `Format/V0CorpusTests`
 - [x] V0-22 — `RequireEncryption` or `RequireChecksum` together with V0 is rejected when the options are built, on the write side and on the read side alike *(§4.1, §10.2, §21.1, D2)* — `Api/OptionsTests`
 - [x] V0-23 — a keyed contract nested inside a keyed contract round-trips on V0, so field windowing works over the V0 payload read within its budget and not only over V1's decoded one *(§7.3, §10.2)* — `Format/V0FormatTests`
-- [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.8)* — `Format/V0FormatTests`
+- [x] V0-24 — a keyed V0 payload embedded in a larger stream stops at the root value and is not confused by the trailing bytes *(§22.7)* — `Format/V0FormatTests`
 - [x] V0-25 — a keyed write on V0 to a destination that cannot seek succeeds and is byte-identical to the write to a seekable one, and a positional write to the same destination succeeds *(§10.2, §14.2)* — `Format/V0FormatTests`, `Metering/PublicStreamTests` *(inverted in R1: the field length is patched in the serializer's buffer)*
 - [x] V0-26 — a byte-reversed magic is not recognised; `Peek` reports no header *(§22)* — `Format/RoutingTests`
 - [x] V0-27 — the V0 read boundary: a span and a sequence are exactly one payload by default, bytes after the root being `BinaryFormatException`; a seekable stream is left at the end of the root, for a positional and a nested keyed payload; a non-seekable stream is `NotSupportedException` naming the rule *(§10.2)* — `Format/V0BoundaryTests`
@@ -469,7 +471,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 ## 14.5 Associated data
 
 - [x] WF-28 — the associated data is the exact header bytes, from the magic to `onDiskLength`, on write and on read, with and without a checksum, compression and key id *(§13.1)* — `Format/AssociatedDataTests`
-- ~~WF-29 — `OnDiskLength` is excluded from the AAD *(§22.7)* — `Format/AssociatedDataTests`~~ *retired in R6 — `onDiskLength` is now inside the associated data (WF-28, HST-09)*
+- ~~WF-29 — `OnDiskLength` is excluded from the AAD *(former §22.7)* — `Format/AssociatedDataTests`~~ *retired in R6 — `onDiskLength` is now inside the associated data (WF-28, HST-09)*
 - [x] WF-30 — an encrypted frame carries the header once and no second image of it *(§13.1)* — `Format/AssociatedDataTests`
 
 ## 14.6 Null folded into the first number
@@ -556,7 +558,7 @@ class deriving from `ContractConformance` runs the same cases against another `T
 - [x] KEY-15 — a cycle that crosses a keyed field boundary resolves through the ancestor chain *(§16.2)* — `Contracts/KeyedEvolutionTests`
 - [x] KEY-16 — an object shared between two sibling keyed fields is written twice and read as two instances *(§16.2)* — `Contracts/KeyedEvolutionTests`
 - [x] KEY-17 — skipping an unknown field can never produce a dangling reference *(§16.2, C03)* — `Contracts/KeyedContractTests`
-- [x] KEY-18 — the keyed encoding belongs to the payload, not to a wire format version: a contract encodes byte-identically under V0 and V1 *(§10.2, §14.2, §22.8)* — `Contracts/KeyedContractTests`
+- [x] KEY-18 — the keyed encoding belongs to the payload, not to a wire format version: a contract encodes byte-identically under V0 and V1 *(§10.2, §14.2, §22.7)* — `Contracts/KeyedContractTests`
 - [x] KEY-19 — `[BinaryContract]` is inherited; a derived contract round-trips *(§14.2)* — `Contracts/InheritanceTests`
 - [x] KEY-20 — a base reads a derived payload, skipping the derived key *(§14.2)* — `Contracts/InheritanceTests`
 - [x] KEY-21 — a derived member with neither key nor ignore is `BinaryTypeException` naming it *(§14.2)* — `Contracts/InheritanceTests`
@@ -900,7 +902,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] HST-18 — a declared string or blob length beyond the bytes physically present → `BinaryFormatException` before allocation, on the wire as well as inside the payload *(§17)* — wire half by D1-02, payload and keyed-window halves by `Hostile/AmplificationTests`
 - [x] HST-19 — a declared phase length above its limit → `BinaryLimitException` before allocation *(§22.6)* — `Hostile/MalformedPayloadTests`
 - [x] HST-20 — decryption works in a buffer as long as the delivered ciphertext: a short encrypted frame declaring a large expansion fails the tag and allocates nothing proportional *(§5.10, §13)* — `Hostile/AmplificationTests`
-- [x] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver `CompressedLength` real bytes *(§12)* — `Hostile/AmplificationTests`
+- [x] HST-21 — a decompression bomb is bounded by `MaxPayloadBytes`; the attacker must deliver the compressed bytes the header declares *(§12)* — `Hostile/AmplificationTests`
 - [x] HST-22 — nested individually-valid containers cannot bypass the cumulative element budget *(§5.7)* — `Hostile/AmplificationTests`
 - [x] HST-23 — many small keyed objects cannot bypass `MaxTotalKeyedFields` *(§5.9a)* — `Hostile/AmplificationTests`
 - [x] HST-24 — an unknown keyed field is skipped incrementally *(§7.3)* — `Metering/FieldWindowTests`
@@ -1079,11 +1081,11 @@ AssertEx.SameContents<T>()
 AssertEx.PopsInOrder<T>() · DequeuesInOrder<T>() · DequeuesInPriorityOrder<TElement,TPriority>()
 
 Wire.Payload · Wire.Header · Wire.Frame · Wire.FrameWith · Wire.NestedCollections · Wire.KeyedFields
-Wire.FrameWithOversizedCustomName · Wire.FrameWithOversizedChecksum
+Wire.FrameWithOversizedCustomName
 Wire.NotNull · Wire.ReferenceFrame · Wire.KeyedField · Wire.KeyedBody              (added by M4)
 Wire.ReadHeader (an independent header decoder) · Wire.Fixture (committed *.bin)
-Wire.PlainHeaderLength · PreserveReferencesOffset · UncompressedLengthOffset
-CompressedLengthOffset · OnDiskLengthOffset · ChecksumLengthOffset
+Wire.Varint · Service · Algorithm · ChecksumRecord · CompressionRecord · EncryptionRecord   (a header built record by record)
+Wire.Body · WithLengths · ParsedHeader (every record's offsets and the OnDiskLengthOffset)
 
 Mutate.FlipByte · SetByte · SetInt32 · Truncate · Prefixes · SevenBitEncoded
 
@@ -1100,7 +1102,7 @@ IdentityCompression.CompressCalls · DecompressCalls · RecordingKeyProvider    
 FailingContentStream (real content, then an IOException at a chosen offset)            (added by M8)
 Concurrent.Race (a body on several threads released together) · the Raced* types       (added by M8)
 Cultures.Specific (a culture the host actually has) · the Frozen* compatibility shapes  (added by M8)
-Oracle.Parse · Line · Compare · Normalize · OracleRecorder.SerializeRecorded · Collect (added by R0)
+~~Oracle.Parse · Line · Compare · Normalize · OracleRecorder.SerializeRecorded · Collect (added by R0)~~ *retired in R6 with the oracle*
 FrameBoundStream (a non-seekable stream that fails on any read past a boundary)       (added by R3)
 ChunkedPipeReader (a PipeReader whose content arrives a chunk at a time)              (added by R3)
 StingyBufferWriter (an IBufferWriter<byte> that hands out at most N bytes per span)     (added by R3)
@@ -1137,6 +1139,8 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 ---
 
 # 30. Findings
+
+This section is a record. Each entry is written under the names the code carried when the defect was found; a type, member or option named here may since have been renamed or removed, and the entries are not rewritten. The retired names are listed in `rework/Retired.md`.
 
 ## 30.1 Confirmed defects
 
@@ -1362,7 +1366,7 @@ behavior is what it is.
 | **Q6** | Header strings borrowed `MaxStringBytes`, a 4 MB payload policy, inside a security boundary | A fixed 256 UTF-8 byte ceiling belongs to the format. Above it on read is `BinaryFormatException`; a configured value too large to write is `BinaryConfigurationException` | §11, §22.6 |
 | **Q7** | `Lazy<T>` write semantics were unspecified | Writing materializes the value and a factory exception is the caller's own, propagating unwrapped; reading yields a `Lazy<T>` that already holds the value, with `IsValueCreated` false until asked | §23 |
 | **Q8** | §23 rejected a delegate member while `CLAUDE.md` and `TypeContract` skipped it silently | Reject, when the contract is built, naming the member. A delegate is eligible under the positional inclusion rules, so dropping it would lose state those rules said was included; `[BinaryIgnore]` states the intent. Decided at plan-build time, never per value, because a null callback must not serialize where a set one fails. Events are unaffected: their backing field is private | §14.1, §23 |
-| **Q9** | V0 refused `[BinaryContract]` as if keyed encoding were a format capability, although the keyed layout is payload-level and needs no header | Keyed contracts belong to the type and apply under both wire formats; the pipeline flag that could refuse them is removed, since it could no longer be `false`. The one format-visible consequence is the seekable-payload requirement: a field's length is patched after the field is written, which V1 hides by buffering the payload and V0 passes to the caller's destination as `NotSupportedException`. Reference preservation stays V1-only for the opposite reason — it is an options-level switch that silently changes the bytes, and a headerless format cannot announce it, so a reader configured differently would decode wrong data with no diagnostic | §10.2, §14.2, §22.8 |
+| **Q9** | V0 refused `[BinaryContract]` as if keyed encoding were a format capability, although the keyed layout is payload-level and needs no header | Keyed contracts belong to the type and apply under both wire formats; the pipeline flag that could refuse them is removed, since it could no longer be `false`. The one format-visible consequence is the seekable-payload requirement: a field's length is patched after the field is written, which V1 hides by buffering the payload and V0 passes to the caller's destination as `NotSupportedException`. Reference preservation stays V1-only for the opposite reason — it is an options-level switch that silently changes the bytes, and a headerless format cannot announce it, so a reader configured differently would decode wrong data with no diagnostic | §10.2, §14.2, §22.7 |
 | **Q10** | §4.1 listed "an encryption algorithm without key material" among the rejections `Build()` performs, but every `WithEncryption` overload assigns the key source together with the algorithm and refuses a null one, so no caller could reach the guard | Contract narrowed: the bullet is removed and §4.1 states that missing key material is not a configuration contradiction. The guard stays as an invariant over the constructed options. A reader whose options name an algorithm it has no key for — `FromHeader`/`FromStream` with no keys, a resolver that yields nothing, a mismatched `keyId` — fails at the operation as `BinaryEncryptionKeyException`. CFG-07 is rewritten to assert the overloads leave no gap | §4.1, §8.7 |
 | **Q11** | §23 listed the memory-like types and §22.3 encoded them as a bare count and elements, so a segment's offset into a larger array and a sequence's segment boundaries could not survive a round trip — derivable, but never stated, and invisible to anyone reading §23 alone | Contract states it: a memory-like value travels as its elements alone, so the backing storage is not part of the value. A read builds a fresh array and wraps the whole of it — an `ArraySegment<T>` comes back at offset zero over an array exactly as long as the segment, a multi-segment `ReadOnlySequence<T>` comes back as one segment, and a default `ArraySegment<T>`, which has no backing array, is written as empty. That last clause is the rule D4 was fixed against, now said outright rather than inferred from the `ImmutableArray<T>` note. RT-50 and RT-52 assert the offset and the segment count, not only the elements | §23 |
 | **Q12** | §13.1 rejected an algorithm reporting `AuthenticatesAssociatedData == false` "when `RequireEncryption` is configured" and §4.1 placed that rejection at `Build()`, but a payload can name such an algorithm and the read-side refusal named no exception. It was `BinaryConfigurationException`, while the sibling downgrade — a payload carrying `Encryption = None` — is `BinaryIntegrityException` | The read side is `BinaryIntegrityException`: the message failed the policy, the reader's configuration did not, and substituting a cipher that cannot authenticate the header is the same downgrade as substituting no cipher. The diagnostic names the algorithm the payload named, custom name included. The check stays on the read rather than moving to registration, because the instance that decrypts a payload is the one the factory produces at that resolution. §13.1 also states what the flag is: a declaration the engine cannot verify, and an undertaking on whoever returns `true` | §13.1, §21.1 |
@@ -1413,7 +1417,7 @@ bits so a fixture decodes on a 32-bit runtime as well.
 
 - [x] CMPT-01 — every fixture is present and not empty *(§22)* — `Format/CompatibilityTests`
 - [x] CMPT-02 — the §23 primitive family decodes to its frozen value under V1 *(§22.4)* — `Format/CompatibilityTests`
-- [x] CMPT-03 — the same value decodes from the V0 fixture, and V0 is the V1 payload with the envelope removed *(§10.2, §22.8)* — `Format/CompatibilityTests`
+- [x] CMPT-03 — the same value decodes from the V0 fixture, and V0 is the V1 payload with the envelope removed *(§10.2, §22.7)* — `Format/CompatibilityTests`
 - [x] CMPT-04 — the time and system families decode, kind and offset included *(§22.4)* — `Format/CompatibilityTests`
 - [x] CMPT-05 — the numerics family decodes *(§22.4)* — `Format/CompatibilityTests`
 - [x] CMPT-06 — the container families decode, with stack and queue asserted by draining them *(§23)* — `Format/CompatibilityTests`
@@ -1458,6 +1462,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every formatter family in `FormatterRegistry` has mapped coverage. *(RT-01…RT-88, RT-C10; the delegate rejection in CTR-22)*
 - [x] Every §23 family round-trips, including nullability and empty containers. *(RT-01…RT-88, RT-B06, RT-C01, RT-C10)*
 - [x] Interface resolution and ordering guarantees are asserted, not assumed. *(RT-C02…RT-C05)*
+- [x] Every entry point reads a non-seekable source it can read; the refusals are only `Peek(Stream)`, a V0 payload from a stream that cannot seek, and an asynchronous V0 read. *(API-17, API-18, API-26, SRC-05, SRC-08, V0-14, V0-27, STR-16, STR-24)*
 - [x] Every public entry point is covered and mutually consistent. *(API-01…API-05, API-13…API-28, SRC-01…SRC-10, XEP-01, XEP-02, XEP-04…XEP-08 under P0, P6 and P7; API-06…API-12, SX-01…SX-11 and XEP-03 retired in R3)*
 
 ## Format
@@ -1491,6 +1496,14 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] No raw framework exception escapes a declared truncation. *(EXC-14…EXC-20, HST-10…HST-19)*
 - [x] Inner exceptions are preserved where §9 requires it. *(EXC-18…EXC-20, EXC-23 and CAT-09 for an algorithm factory that throws)*
 
+## Architecture
+
+- [x] The eighteen invariants of contract §25 are each held by a structural test. *(LIM-51, LIM-44, LIM-47, LIM-49, TYP-03, SRC-10, LIM-42, LIM-40, CMP-12, CAT-06, PM-14, CFG-09, OPT-08, ENC-05, ENC-06, STR-30, LIM-50, TYP-02, V0-19; INV-9, INV-10, INV-11 by the checkpoints of the Format, Exceptions and Security groups)*
+- [x] No type below `Pipeline/` references `SerializationLimits`, and no `MemoryStream` lies on the payload path. *(LIM-43, STR-29)*
+- [x] The contract seam a generated contract implements is pinned: the conformance suite passes on the reflected contract. *(CONF-01…CONF-07)*
+- [x] The reflection path states its requirements and no public algorithm interface declares a default member. *(EXT-06, EXT-07)*
+- [x] The allocation targets that a test can pin hold. *(ALC-01…ALC-09)*
+
 ## Process
 
 - [x] Every checkpoint in this document is `[x]`, `BLOCKED (Qn)` or struck through as retired with the stage that retired it. Nothing is blocked and no question is open.
@@ -1498,4 +1511,5 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every bug found during testing was fixed in `src/`, not accommodated by a test. *(D1…D6, NX-01…NX-11)*
 - [x] Every defect in §30.1 and §30.3 is fixed and pinned by its checkpoint. *(D1-01…D6-02, NX-01…NX-11)*
 - [x] No test relies on undocumented project history.
-- [x] `dotnet test` is green with no skipped tests. *(1807 passed, 0 skipped, Debug and Release)*
+- [x] `dotnet test` is green with no skipped tests. *(1978 passed, 0 skipped, Debug and Release)*
+- [ ] `dotnet pack` succeeds for all three packages, each with its own non-empty README. *(closed by the consumer documentation, which writes the READMEs)*

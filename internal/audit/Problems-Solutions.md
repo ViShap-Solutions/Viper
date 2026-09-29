@@ -1,5 +1,7 @@
 # ViShap.Viper — Audit remediation design
 
+**Class: historical.** A record of work already done, kept for provenance. Its rules and instructions no longer apply; the system is described by `System-Contract.md` and the documents that `README.md` classes as normative or operational.
+
 **Input:** `internal/audit/Problems.cs` (19 probes, all CONFIRMED by the user's run)
 **Tracked as:** `System-Contract.md` §21.3 "Deferred hostile-audit hardening"
 **Repo status:** pre-`v1.0.0`, no git tags, no golden wire files under `Fixtures/Wire/`

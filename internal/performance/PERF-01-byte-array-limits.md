@@ -19,7 +19,7 @@ BinaryLimitException: Array length 15000000 exceeds the configured maximum of 10
 
 Reading `src/` explains it, and the contract already says so:
 
-- `MaxByteBlobBytes` (§5.6) bounds **blob-encoded values** — `ValueWriter.WriteBlob` is reached only
+- `MaxByteBlobBytes` (§5.6) bounds **blob-encoded values** — `WireWriter.WriteBlob` is reached only
   from the `BigInteger` payload and the `BitArray` data (§22.4).
 - A `byte[]` is an ordinary array. It is bounded by `MaxArrayLength` (§5.2), which defaults to
   1,000,000, and each element is charged against `MaxTotalElements` (§6).

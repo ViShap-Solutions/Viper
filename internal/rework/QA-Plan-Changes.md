@@ -1,5 +1,7 @@
 # QA-Plan.md — changes required
 
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
 **Applies to:** `internal/QA-Plan.md` as of 2026-09-26 (after `HST-40` and `KEY-23`).
 **Two parts.** §1 is owed to the plan now, for the format as it exists. §2 is owed to the rework,
 stage by stage (`Rework-Plan.md` §12), and is applied in the stage together with its code.

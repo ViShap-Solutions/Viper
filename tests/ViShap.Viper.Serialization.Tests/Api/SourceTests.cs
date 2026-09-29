@@ -127,7 +127,7 @@ public class SourceTests
     // --- SRC-08: exactly one version 1 frame is taken, and nothing after it ------------------------
 
     /// <summary>
-    /// Frames whose headers exercise every variable part: no optional string, a key id, custom
+    /// Frames whose headers exercise every variable part: no service record, a key id, custom
     /// algorithm names, and a checksum.
     /// </summary>
     public static TheoryData<string> Headers => ["plain", "protected", "custom names", "long key id"];

@@ -43,7 +43,7 @@ an estimate.
 
 ## What it would cost
 
-(1) adds a second structure to `GraphWriter` and one branch per push; it must be returned to its pool
+(1) adds a second structure to `GraphState` and one branch per push; it must be returned to its pool
 cleared, like the stack, so no object of one operation outlives it. (2) costs nothing now and leaves a
 known curve in SCALE-03.
 
