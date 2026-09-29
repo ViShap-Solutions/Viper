@@ -1009,6 +1009,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] ENC-28 — `RequireEncryption` refuses an algorithm reporting `AuthenticatesAssociatedData = false` *(§13.1)* — ENC-18 at `Build()` and ENC-23 on read; since R5 every algorithm states the property, because the interface declares no default member (EXT-06)
 - [x] ENC-29 — an encrypted frame is encrypted straight into the destination *(§2.6, §13)* — `Algorithms/EncryptionTests`: a buffer writer is asked once for the whole frame and advanced once; a writer handing out 7-byte spans still receives the whole frame; a cipher that fails leaves the writer empty; `OnDiskLength` is the length the algorithm stated. Added in R5 for the contract's §13 entry, which no ID of the change file covered
 - [x] ENC-30 — a cipher raising `CryptographicException` on the way out → `BinaryEncryptionException` with it as the inner exception, and nothing in the destination *(§8.6, §13)* — `Algorithms/EncryptionTests`
+- [x] ENC-31 — a key id holding a lone surrogate: `HkdfKeyProvider.Resolve` → `BinaryEncryptionKeyException`; configured for writing → `BinaryConfigurationException` and nothing in the destination *(§8.1, §8.7, §13.2)* — `Algorithms/HkdfKeyProviderTests`
 
 ---
 
@@ -1502,7 +1503,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
 - [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
 - [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-40, HST-42…HST-45)*
-- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-29, ENC-01…ENC-30)*
+- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-29, ENC-01…ENC-31)*
 - [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 
 ## Exceptions

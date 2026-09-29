@@ -7,7 +7,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Pins ENC-27: <see cref="HkdfKeyProvider"/> derives one key per key id from a root key it never
+/// Pins ENC-27 and ENC-31: <see cref="HkdfKeyProvider"/> derives one key per key id from a root key it never
 /// exposes, each an owned copy, and refuses a payload that names no id.
 /// </summary>
 public class HkdfKeyProviderTests
@@ -195,4 +195,27 @@ public class HkdfKeyProviderTests
         new(BinarySerializerOptions.Configure()
             .WithEncryption(new Aes256GcmEncryption(), keys, keyId)
             .Build());
+
+    // --- ENC-31: a key id UTF-8 cannot encode derives nothing ----------------------------------------
+
+    [Fact]
+    public void Resolve_AnIdWithALoneSurrogate_ThrowsKeyInsteadOfSharingAKey()
+    {
+        using var provider = new HkdfKeyProvider(RootKey);
+
+        AssertEx.Throws<BinaryEncryptionKeyException>("surrogate", () => provider.Resolve("k" + (char)0xD800));
+        AssertEx.Throws<BinaryEncryptionKeyException>("surrogate", () => provider.Resolve("k" + (char)0xDC00));
+    }
+
+    [Fact]
+    public void Serialize_AKeyIdWithALoneSurrogate_ThrowsConfigurationAndWritesNothing()
+    {
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithEncryption(new Aes256GcmEncryption(), RootKey, "k" + (char)0xD800)
+            .Build());
+        var destination = new System.Buffers.ArrayBufferWriter<byte>();
+
+        AssertEx.Throws<BinaryConfigurationException>("surrogate", () => serializer.Serialize(destination, 1));
+        Assert.Equal(0, destination.WrittenCount);
+    }
 }

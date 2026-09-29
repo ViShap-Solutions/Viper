@@ -98,7 +98,7 @@ documentation and the release conformance audit are done; the audit's findings a
 `bugfix/v1-audit-*` branches, and the closure check (R9e) comes before `v1.0.0-rc.1`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 012 tests, green in Debug and Release.
+with the generated XML file. The suite is 2 014 tests, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
