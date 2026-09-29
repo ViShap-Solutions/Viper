@@ -1,5 +1,7 @@
 # ViShap.Viper — Benchmark Plan
 
+**Class: plan.** The post-release measurement checklist. It gates no release and defines no behavior.
+
 **Baseline target:** the `v1.0.0` tag, measured after the release, then re-run per v1.x
 **Status:** Realigned with the reworked architecture — B0 open, nothing measured yet
 **Framework:** BenchmarkDotNet 0.15.8 · `net10.0`

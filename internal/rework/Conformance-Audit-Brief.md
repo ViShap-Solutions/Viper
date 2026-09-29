@@ -1,5 +1,7 @@
 # The conformance audit of R9 — brief for the skill `viper_conformance_auditor`
 
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
 **What this is.** R9 begins by writing the skill `viper_conformance_auditor`, which the owner approves
 before it runs [D9.29]. This brief is what the skill is written from, so that R9 does not have to guess
 what the audit rests on, what it asks and what it delivers.

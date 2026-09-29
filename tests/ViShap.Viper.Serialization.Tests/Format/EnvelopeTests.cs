@@ -31,7 +31,7 @@ public class EnvelopeTests
 
         var header = Wire.ReadHeader(serializer.Serialize(Compressible));
 
-        // §22.8: the V0 payload is the same bytes the V1 frame carries before compression.
+        // §22.7: the V0 payload is the same bytes the V1 frame carries before compression.
         byte[] rawPayload = new BinarySerializer(
             BinarySerializerOptions.Configure().WithVersion(0).Build()).Serialize(Compressible);
 

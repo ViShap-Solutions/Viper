@@ -1,5 +1,7 @@
 # Benchmark harness — graceful stop (backlog)
 
+**Class: plan.** A decided backlog item, not started; it gates nothing.
+
 **Status:** decided by the owner on 2026-09-27, variant C; not started. Outside the rework and outside
 every current plan: it gates nothing and is worked on its own branch.
 **Branch:** `benchmark/graceful-stop`, cut from `release/v1.0.0` after the R3 branch is merged, and

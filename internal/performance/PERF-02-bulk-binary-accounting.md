@@ -69,7 +69,7 @@ consistent. The question is:
 ## What is not known
 
 - The cost of per-element accounting on bulk `byte[]`, in time and allocation. It is exactly what a
-  `ValueWriter`/`ValueReader` microbenchmark (MICRO-01) plus DATA-14 timings would answer, and
+  `WireWriter`/`WireReader` microbenchmark (MICRO-01) plus DATA-14 timings would answer, and
   neither has been run on the recorded machine.
 - Whether a real consumer payload is bulk-binary-dominated often enough to matter, or whether raising
   two limits in configuration is a complete answer in practice.

@@ -13,7 +13,7 @@ namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
 /// Pins V0-20 and V0-21: every family of §23 that V0 supports round-trips through it, and the bytes
-/// it produces are the ones a V1 frame carries for the same value (§22.8). V0 is the same engine
+/// it produces are the ones a V1 frame carries for the same value (§22.7). V0 is the same engine
 /// without a header, so a family that encodes differently under the two formats is a defect.
 /// </summary>
 public class V0CorpusTests

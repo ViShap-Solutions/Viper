@@ -30,7 +30,7 @@ Two sources, both measured by allocation sampling during R4:
   V0 builds one, V1 two — the payload and the header — which is 136 and 272 B exactly. The segments
   themselves come from the pool.
 - **Read, 72 B.** `AlgorithmCatalog.ResolveCompression/ResolveChecksum/ResolveEncryption` return
-  `new NoCompression()`, `new NoChecksum()`, `new NoEncryption()` (or `new Deflate()`, …) on every
+  `new NoCompression()`, `new NoChecksum()`, `new NoEncryption()` (or `new DeflateCompression()`, …) on every
   read: three objects of 24 B. ALLOC-17: 80 B record + 72 B = 152 B, exactly.
 
 ## What is proposed

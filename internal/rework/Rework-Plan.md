@@ -1,6 +1,8 @@
 # ViShap.Viper — Pre-release Rework Plan
 
-**Status:** Approved by the owner on 2026-09-26. Stage R0 has not started. Two findings raised while
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
+**Status:** Approved by the owner on 2026-09-26. Stages R0–R8 are closed; the Progress table below records the open one. Two findings raised while
 preparing the plan are already applied to `src/`, the contract and the QA plan (§1).
 **Target:** the first public release, `v1.0.0`. The rework happens before it, while no published
 format, package or consumer exists.
@@ -87,8 +89,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | closed | `76b9aa5` |
 | R6 — The final format | `rework/r6-final-format` | no tag: `v1.0.0-beta.1` deliberately not set (owner, 2026-09-29, `Owner-Review.md` log 64) | closed | `4a7d820` |
 | R7 — Removed | — | — | — | — |
-| R8 — Generator ground | `rework/r8-generator-ground` | — | gate holds — awaiting commit | |
-| R9a — Reconciliation | `rework/r9a-reconcile` | — | not started | |
+| R8 — Generator ground | `rework/r8-generator-ground` | — | closed | `a41f64a` |
+| R9a — Reconciliation | `rework/r9a-reconcile` | — | gate holds — awaiting commit; `viper_refactorer` stays as it is until `v1.0.0` (owner's decision) and is replaced after it; the `dotnet pack` boxes of contract §24 and QA §32 stay for R9b | |
 | R9b — Consumer documentation | `docs/v1-consumer-docs` | — | not started | |
 | R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | not started | |
 | R9d — Audit fixes | `bugfix/v1-audit-<topic>`, one per group; skipped if nothing was found | — | not started | |

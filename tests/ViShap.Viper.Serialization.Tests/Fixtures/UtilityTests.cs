@@ -6,7 +6,7 @@ using Xunit.Sdk;
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-15 and UTIL-17…UTIL-21. A helper with a bug passes every suite that uses it, so the
+/// Pins UTIL-01…UTIL-15 and UTIL-18…UTIL-21. A helper with a bug passes every suite that uses it, so the
 /// helpers are tested before anything is allowed to rely on them.
 /// </summary>
 /// <remarks>

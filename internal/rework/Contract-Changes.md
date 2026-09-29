@@ -1,5 +1,7 @@
 # System-Contract.md — changes required by the rework
 
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
 **Applies to:** `internal/System-Contract.md` as of 2026-09-26 (after `HST-40` and `KEY-23`).
 **Rule:** each change is made in the stage named beside it, together with the code, and never ahead
 of it (`Rework-Plan.md` §0). Until then the contract keeps describing the code that exists.
@@ -23,7 +25,7 @@ contract would already be accurate for it.
 
 # 2. Section by section
 
-### §1 Purpose — R9a
+### §1 Purpose — R9a — applied
 
 - No change of intent. Re-read once the rewrite is complete: "exhaustive" must still hold.
 
@@ -303,7 +305,7 @@ contract would already be accurate for it.
 - **R1 applied:** a successful read leaves the stream where the decoded bytes end; a failed one may
   leave it anywhere up to the furthest byte read ahead.
 
-### §21 Semantic clarifications — R3, R9a
+### §21 Semantic clarifications — R3, R9a — applied
 
 - §21.3 deferred list: remove "streaming (non-buffered) payloads" and "an async API"; add "an
   asynchronous engine" (rejected, INV-16); keep "a public formatter contract" and "source generators"
@@ -332,7 +334,7 @@ contract would already be accurate for it.
   stays distinct from empty, and a read `Lazy<T>` holds its value without having created it; the
   round-trip corpus and the fixtures pass unchanged. The text needed no edit.)*
 
-### Invariants — R1, R9a
+### Invariants — R1, R9a — applied
 
 - **R1 applied:** the architecture checklist names `WireReader`/`WireWriter` as the only access to
   payload bytes.
@@ -341,7 +343,7 @@ contract would already be accurate for it.
   release the plan is a historical record, so an invariant written only there would no longer bind
   anything [D9.28].
 
-### §24 Release checklist — R9a, R9b
+### §24 Release checklist — R9a applied, R9b open (the `dotnet pack` box)
 
 - Rebuilt. New boxes: every entry point reads non-seekable sources; no `MemoryStream` on the payload
   path; the allocation targets of plan §11 met or recorded as open; INV-14…INV-18 pinned; the

@@ -1,5 +1,7 @@
 # ViShap.Viper — System Contract
 
+**Class: normative.** The source of truth for what the library does. Where it and the code disagree, one of them is defective; behavior changes update it in the same change.
+
 **Target release:** v1.0.0  
 **Status:** Normative product contract  
 **Scope:** `src/` production behavior only  
@@ -613,10 +615,14 @@ A binary value of zero is not inherently invalid. For example, an empty collecti
 The distinction is:
 
 ```text
-configuration value <= 0 → BinaryConfigurationException
-wire count/length < 0    → BinaryFormatException
-wire count/length > max  → BinaryLimitException
+configuration value <= 0                    → BinaryConfigurationException
+wire count/length not a non-negative Int32 → BinaryFormatException
+wire count/length > max                    → BinaryLimitException
 ```
+
+A count, a length, a reference id and a dimension are varints (§22.1), which cannot express a negative
+number, so "not a non-negative `Int32`" means a varint beyond `Int32.MaxValue`; the one fixed-width
+number, a keyed field's length, is negative when its sign bit is set.
 
 ## 5.1 `MaxDepth`
 
@@ -855,6 +861,9 @@ through it while sharing the parent operation's budget and reference state.
 
 Unknown keyed fields are skipped by moving past their declared length, never copied into an
 attacker-sized byte array.
+
+---
+
 # 8. Exception taxonomy
 
 The exception hierarchy is part of the public API contract:
@@ -1126,7 +1135,7 @@ What V0 does not have:
 What V0 keeps is everything that lives below the envelope: the whole type system of §23,
 `[BinaryUnion]` polymorphism, keyed contracts, the limits and budgets of §5–6, and metering on both
 directions (§7.1). V0 is not a reduced engine — it is the same engine without a header, and for one
-value under one layout the payload bytes are identical in both formats (§22.8).
+value under one layout the payload bytes are identical in both formats (§22.7).
 
 Keyed contracts are a property of the type, not of the format, so a `[BinaryContract]` type encodes
 identically under both. A keyed field's length is written ahead of the field and patched once the
@@ -1181,8 +1190,8 @@ the caller's own length prefix and read synchronously.
 
 Format routing identifies the version from the first bytes the source has delivered: the magic
 number and the version are decoded from the buffered frame, so nothing is read twice and no source is
-asked to rewind. Only an exact match of the eight bytes identifies a versioned frame; fewer bytes
-identify nothing.
+asked to rewind. A versioned frame is identified by the magic followed by a complete varint version —
+five bytes for version 1, at most nine for any — and fewer bytes identify nothing.
 
 If V1 magic/version is recognized, V1 is selected.
 
@@ -1337,14 +1346,15 @@ refused by the writer before a byte lands. A framework `InvalidDataException` fr
 The encryption layer enforces:
 
 ```text
-plaintext input ≤ MaxCompressedBytes
-ciphertext output ≤ MaxEncryptedBytes
-ciphertext input ≤ MaxEncryptedBytes
-expected plaintext length ≤ MaxCompressedBytes
+plaintext input ≤ MaxCompressedBytes          on write
+ciphertext output ≤ MaxEncryptedBytes         on write, from the exact ciphertext length, before encrypting
+ciphertext input ≤ MaxEncryptedBytes          on read, from onDiskLength, before the buffer exists
+plaintext output ≤ MaxCompressedBytes         on read, after decryption (§5.10)
 ```
 
-The declared plaintext length may never exceed the ciphertext actually delivered, so a short frame
-cannot force a large allocation by claiming one.
+An encrypted frame does not declare its plaintext length. Decryption works in a buffer no longer than
+the ciphertext actually delivered, so a short frame cannot force a large allocation by claiming one;
+the plaintext is measured against its limits only after it exists (§5.10).
 
 ```csharp
 public interface IEncryptionAlgorithm
@@ -1899,39 +1909,42 @@ are schema metadata, element counts are data. The cumulative metadata ceiling is
 
 ## 21.3 Audit findings
 
-The hostile-audit campaign recorded in `audit/Problems.cs` and the architecture audit in
-`Architecture-Audit.md` are closed by the layered design described in §2. Each finding is pinned by a
-test in `tests/.../Security` and `tests/.../Correctness`:
+The hostile-input audit that preceded the release, and the architecture audit in
+`Architecture-Audit.md`, are closed by the layered design described in §2. Each finding is pinned by
+the QA checkpoint named beside it, in `QA-Plan.md`:
 
 ```text
-S01 encryption capability vs policy          → RequireEncryption / RequireChecksum (§21.1)
-S02 authenticated V1 header metadata         → header AAD (§13.1)
-S03 graph-wide depth coverage                → engine-owned traversal (§2.4, §5.1)
-S04 graph-wide container-node accounting     → engine-owned traversal (§5.8)
-S05 V0 payload read boundary                 → metered payload on both directions (§7.1)
-S06 allocation ordering vs wire budget       → remaining-byte check before allocation (§17)
-S07 key-resolver buffer ownership            → SecretKey / IKeyProvider (§13.2)
-S08 disposal and ownership                   → SecretKey / IKeyProvider (§13.2)
-S09 exact decompression output               → exact-output contract (§12)
-S10 trailing typed-payload bytes             → root canonicity (§10.1)
-S11 eager IEnumerable materialization        → bounded materialization (§17)
-S12 cumulative keyed-field budget            → MaxTotalKeyedFields (§5.9a)
-C01 ref-struct value restoration             → ref overload reads the root (§3)
-C02 collection reference identity            → identity covers containers (§16)
-C03 unknown keyed fields + reference table   → ancestor-visible scopes (§16.2)
-C04 implicit positional polymorphism         → write-side rejection (§15)
-C05 BinaryKey/BinaryIgnore contradiction     → contract validation (§14.2)
-C06 operation-relative write budget          → PayloadBuffer budget and frame check (§7.2)
-C07 primitive truncation exceptions          → checked fixed-size reads (§2.3)
-A01 populate-in-place on non-member types    → explicit rejection (§3)
-A02 ref-struct framing under references      → ref overload reads the root (§3)
-A03 object-declared values                   → write-side rejection (§15)
+S01 encryption capability vs policy          → RequireEncryption / RequireChecksum (§21.1)          ENC-20
+S02 authenticated V1 header metadata         → the header is the associated data (§13.1, §22.6)     ENC-05, ENC-06
+S03 graph-wide depth coverage                → engine-owned traversal (§2.4, §5.1)                  LIM-32
+S04 graph-wide container-node accounting     → engine-owned traversal (§5.8)                        LIM-18
+S05 V0 payload read boundary                 → metering on read (§7.1)                              V0-07
+S06 allocation ordering vs wire budget       → remaining-byte check before allocation (§17)         LIM-38
+S07 key-resolver buffer ownership            → SecretKey / IKeyProvider (§13.2)                     ENC-12
+S08 disposal and ownership                   → SecretKey / IKeyProvider (§13.2)                     ENC-14
+S09 exact decompression output               → exact-output contract (§12)                          CMP-10, CMP-11
+S10 trailing typed-payload bytes             → a frame or a root is consumed exactly (§3.4, §10.1)  ENV-03, API-22
+S11 eager IEnumerable materialization        → bounded materialization (§17)                        HST-26
+S12 cumulative keyed-field budget            → MaxTotalKeyedFields (§5.9a)                          LIM-21
+C01 ref-struct value restoration             → no ref overload exists; a struct is read with
+                                               Deserialize<T> and a struct owner is populated
+                                               in place by its contract (§3.3, §14.1)               CTR-32
+C02 collection reference identity            → identity covers containers (§16)                     REF-04
+C03 unknown keyed fields + reference table   → ancestor-visible scopes (§16.2)                      KEY-17
+C04 implicit positional polymorphism         → write-side rejection (§15)                           PM-08
+C05 BinaryKey/BinaryIgnore contradiction     → contract validation (§14.2)                          CTR-18
+C06 operation-relative write budget          → PayloadBuffer budget and frame check (§7.2)          STR-09
+C07 primitive truncation exceptions          → checked fixed-size reads (§2.3)                      HST-11
+A01 populate-in-place on non-member types    → explicit rejection (§3.3)                            API-24
+A02 ref-struct framing under references      → no ref overload exists (§3.3)                        CTR-32
+A03 object-declared values                   → write-side rejection (§15)                           PM-09
 ```
 
-Deferred by design, and **not** claimed by this contract: a public formatter contract,
-streaming (non-buffered) payloads, a V2 codec, constant-time checksum comparison, and source
-generators in place of expression-tree accessors — the seam a generated contract implements is in
-place (§14.1), and the generator itself is not.
+Deferred by design, and **not** claimed by this contract: a public formatter contract, an
+asynchronous engine (the engine never awaits, §2.4; asynchrony lives at the frame edge, §3.5), a V2
+codec, constant-time checksum comparison, and source generators in place of the reflected contract —
+the seam a generated contract implements is in place (`TypeContract<T>`, §14.1), and the generator
+itself is not.
 
 ## 21.4 Array length vs blob length
 
@@ -1952,6 +1965,8 @@ than a table of exceptions. Its consequence is that the default ceiling on a `by
 `MaxArrayLength`, not the larger number `MaxByteBlobBytes` names: an application carrying files,
 images or compressed blobs raises `MaxArrayLength` and `MaxTotalElements` deliberately, as a policy
 decision about untrusted input.
+
+---
 
 # 22. Wire format
 
@@ -2166,7 +2181,7 @@ payload is consumed exactly: trailing bytes after the root value are `BinaryForm
 The associated data of an encrypted frame is the header: the exact bytes from the first byte of the
 magic to the last byte of `onDiskLength` (§13.1). No other image exists.
 
-## 22.8 V0 envelope
+## 22.7 V0 envelope
 
 No envelope at all: the payload of §22.1–22.5 is written as-is, with no magic number and no leading
 or trailing bytes of any kind. V0 differs from V1 only in what needs metadata — the service records and
@@ -2255,33 +2270,38 @@ Notes that belong to the contract:
   `DateTimeOffset`, or `DateTimeKind.Utc`, when the value must compare equal on both ends.
 - **`ImmutableArray<T>`** distinguishes default from empty; every other container does not.
 
+---
+
 # 24. Release checklist
 
-A box is checked only when source and a test prove it.
+A box is checked only when source and a test prove it. The checkpoints that prove each group are in
+`QA-Plan.md` §32, which mirrors this list.
 
 ## Contract and API
 
 - [x] Public `BinarySerializer` overloads match this contract.
 - [x] Default/options construction paths are stable; `Configure()...Build()` is the only path.
 - [x] Stream ownership behavior is verified.
-- [x] Keys for reading are supplied with `WithKeys`, in one place with `WithEncryption`; every entry point reads a non-seekable source it can read (§3.1, §4.1, §20).
+- [x] Keys for reading are supplied with `WithKeys`, in one place with `WithEncryption`.
+- [x] Every entry point reads a non-seekable source it can read (§3.1, §20); the two refusals — a V0 payload from a stream that cannot seek, and any asynchronous V0 read — are `NotSupportedException` (§8.10).
 - [x] Populate-in-place rejects non-member-encoded types.
 - [x] No hidden required API exists outside this document (§3 lists the whole surface).
 - [x] Every public member carries XML documentation, and it ships with the package.
+- [x] The reflection path states its requirements: every public entry point that encodes or decodes a caller's type carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, no other public member does, and a consumer built under native AOT analysis is told about exactly those calls (§3).
+- [x] No public algorithm interface declares a default member (§3, §12, §13).
 
 ## Exceptions
 
 - [x] Exception hierarchy matches exactly.
 - [x] Limit violations are `BinaryLimitException`.
-- [x] Negative wire counts/lengths are `BinaryFormatException`.
+- [x] A count, length or id beyond `Int32` is `BinaryFormatException`.
 - [x] Configuration errors are `BinaryConfigurationException`.
 - [x] Unsupported recognized versions/algorithms are `BinaryFormatNotSupportedException`.
 - [x] Integrity failures are `BinaryIntegrityException`.
 - [x] Key-selection failures are `BinaryEncryptionKeyException`.
-- [x] Underlying stream I/O is `BinaryStreamException`.
+- [x] Underlying stream and pipe I/O is `BinaryStreamException`.
 - [x] CLR/contract/reference semantics use `BinaryTypeException`.
-- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`) do not escape, and neither
-  does an exception raised by a registered algorithm factory that a payload selected.
+- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`, `InvalidCastException`) do not escape, and neither does an exception raised by a registered algorithm factory that a payload selected.
 - [x] No generic exception normalization exists in production.
 
 ## Limits and resources
@@ -2296,18 +2316,21 @@ A box is checked only when source and a test prove it.
 - [x] Wire/payload/compressed/encrypted boundaries are enforced in both directions.
 - [x] A declared decompression expansion is bounded against the compressed bytes delivered.
 - [x] The write budget is relative to the operation's starting position.
+- [x] A declared count that the remaining bytes back is materialized at once, and one they do not back grows as elements arrive (§17).
+- [x] The allocation targets that a test can pin hold: a buffer-writer write of a record adds nothing beyond the frame, `Serialize<T>` allocates the returned array, `SerializePooled` one `PooledPayload`, a span read the record, a graph read exactly the graph, `PreserveReferences` costs nothing extra, and the asynchronous methods add nothing per value. The targets that concern a phase — an allocation-free Brotli write, one `DeflateStream`, one cipher instance per operation, the first use of a type — are open: they are measured by `Benchmark-Plan.md` ALLOC-02 and ALLOC-03 after the release, and no claim is made until they are.
 
 ## Formats
 
 - [x] V0 positional contract remains stable.
-- [x] V0 carries the same payload encoding as V1, keyed contracts included.
-- [x] V1 header validation is deterministic.
+- [x] V0 carries the same payload encoding as V1, keyed contracts included, byte for byte (§22.7).
+- [x] V1 header validation is deterministic and ordered.
 - [x] Header lengths are validated before phase allocation.
-- [x] V0/V1 routing is deterministic.
-- [x] Inspection preserves stream position.
+- [x] V0/V1 routing is deterministic and never selects V0 without the caller's opt-in.
+- [x] Inspecting a header from a seekable stream restores its position.
 - [x] A V1 payload is consumed exactly; trailing bytes are rejected.
 - [x] Decompression output matches the declared length exactly.
 - [x] The member plan is a total order and covers the whole inheritance chain.
+- [x] The v1.0.0 wire fixtures decode and none is regenerated by the code under test.
 
 ## Security
 
@@ -2319,35 +2342,68 @@ A box is checked only when source and a test prove it.
 - [x] Reference frames are validated, declared once, and ancestor-scoped.
 - [x] A duplicate key or element is malformed input, decided by the engine rather than by whichever
   container happens to receive it.
-- [x] The V1 header is authenticated when an AEAD algorithm is used.
-- [x] Every field the tag covers has one encoding only: a boolean admits two bytes and a string
-  admits valid UTF-8, so no field can be rewritten into a second spelling of itself.
+- [x] The whole V1 header is authenticated when an AEAD algorithm is used: the associated data is its exact bytes.
+- [x] Every wire field has one encoding only, so no field can be rewritten into a second spelling of itself (INV-9).
 - [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades, and are refused at
   configuration time against a format that cannot carry protection.
-- [x] Temporary crypto buffers are cleared.
+- [x] Temporary crypto buffers and pooled buffers that held payload bytes are cleared.
 - [x] Caller-owned key buffers are never destroyed by serializer-owned cleanup.
 - [x] Disposed crypto components cannot continue using invalid internal state.
 - [x] No global mutable state can substitute a built-in algorithm.
 - [x] A hostile deeply nested payload fails as a limit violation, not a stack overflow.
+- [x] A data or graph error leaves no byte in any destination (§2.6).
 
 ## Architecture invariants
 
+- [x] Every invariant of §25 is held by the structural test it names.
 - [x] No type below the pipeline references `SerializationLimits`.
 - [x] Payload bytes are reachable only through `WireReader`/`WireWriter`, `ref struct`s over memory.
 - [x] A loop bound over wire data exists only as a validated `ElementCount`.
 - [x] Recursion, depth, node and identity accounting live only in the payload engine.
 - [x] No public contract participates in enforcing a limit.
+- [x] No `MemoryStream` lies on the payload path.
+- [x] A contract built any other way than by reflection must pass the conformance suite; the suite passes on the reflected contract.
 
 ## Quality gate
 
-- [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test.
+- [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test (§21.3).
 - [x] Round-trip corpus covers every supported type family in V0 and V1.
 - [x] The byte-level wire format of §22 is pinned by tests.
-- [x] `QA-Plan.md` mandatory cases pass — M0 through M8 are closed and every checkpoint in the plan is proven.
+- [x] `QA-Plan.md` mandatory cases pass — every checkpoint in the plan is proven, blocked with a named question, or struck through as retired.
 - [x] Performance is deliberately outside this gate. `Benchmark-Plan.md` is a post-release baseline,
   captured against the `v1.0.0` tag rather than before it, and re-run per v1.x release; until its
   cells exist, the project states nothing about its own performance.
-- [x] Release artifact includes reproducible environment/version metadata — both packages that
-  carry code build deterministically, publish a `.snupkg` of their symbols, and record the
-  repository and the exact commit through Source Link, so a published package can be traced
+- [x] Release artifact includes reproducible environment/version metadata — the packages
+  build deterministically, publish a `.snupkg` of their symbols, and record
+  the repository and the exact commit through Source Link, so a published package can be traced
   back to the source it was built from and stepped into.
+- [ ] `dotnet pack` succeeds for all three packages, each with its own non-empty README.
+
+---
+
+# 25. Invariants
+
+Eighteen rules hold at every point of the system, each by construction and each pinned by a structural
+test that inspects the code rather than a behaviour. A change that would break one is a change to this
+contract first.
+
+| # | The rule | Where it is stated | Held by |
+|---|---|---|---|
+| INV-1 | One `OperationState`, a struct passed by reference, is created per public call; nothing below the pipeline builds limits, a budget or keys. | §2.2 | LIM-51 |
+| INV-2 | `WireReader` and `WireWriter` are the only access to payload bytes; a type contract receives only `MemberWriter` / `MemberReader`, which expose no bytes, no counts and no position. | §2.3 | LIM-44, LIM-47, LIM-49 |
+| INV-3 | A declared length or count is compared with the bytes that can still arrive before it drives an allocation; the same rule decides whether an array is allocated at its final length and what capacity a collection receives. | §6, §17 | TYP-03, SRC-10, LIM-42 |
+| INV-4 | A loop bound over wire data exists only as a validated `ElementCount`. | §6, §17 | LIM-40 |
+| INV-5 | One traversal owner: a formatter describes a shape and the engine's codec owns the loop; a type contract, reflected or generated, supplies only member order, member access, construction and the response to a known key. | §2.4, §14.1 | LIM-49 |
+| INV-6 | Algorithms are pure mechanics, called inside the phase barrier, and never see a limit. | §2.5, §12, §13 | CMP-12 |
+| INV-7 | No process-wide mutable registry can change what an algorithm is. | §4.1 | CAT-06 |
+| INV-8 | Only tags travel, never type names. | §15 | PM-14 |
+| INV-9 | Every wire field has exactly one encoding: a bool is 0 or 1, UTF-8 is strict, varints are minimal, keyed field keys are strictly ascending, header service records are in ascending number, each number at most once and number 0 invalid, a known service's critical bit matches the contract, null is written once in the first number of the value, no service record carries id `None`, reserved payload-mode bits are zero, and a duplicate in a collection is malformed. | §11, §22 | the WF and HDR checkpoints that are not retired, KEY-23, HST-40 |
+| INV-10 | The exception taxonomy is complete: nothing on a payload path leaves under a framework name. | §8, §9 | EXC-14…EXC-20, REF-19 |
+| INV-11 | Key material is always an owned copy; the serializer clears only what it owns. | §13.2 | ENC-12, ENC-14 |
+| INV-12 | The member plan is a total order over the whole inheritance chain, identical for the reflected contract and for any generated contract. | §14.1 | CONF-01…CONF-07 |
+| INV-13 | Limits are policy, validated once; a payload can never raise them. | §5 | CFG-09, OPT-08 |
+| INV-14 | The header is authenticated whole: the associated data is the exact header bytes, from the first byte of the magic to the last byte of `onDiskLength`. | §13.1 | ENC-05, ENC-06 |
+| INV-15 | A data or graph error leaves no byte in the destination; encryption starts only after the whole payload is in the serializer's buffer. | §2.6 | STR-30 |
+| INV-16 | The engine never awaits: `await` exists only at the frame edge, and the engine and the formatters contain no asynchronous method. | §2.4, §3.5 | LIM-50 |
+| INV-17 | Boxing happens only in a polymorphic slot (`[BinaryUnion]`, an interface, `object`), verified by a counting test double. | §2.4, §15 | TYP-02 |
+| INV-18 | A V0 payload is byte-identical to the V1 payload of the same value written without references. | §10.2, §22.7 | V0-19, V0-21, KEY-18 |

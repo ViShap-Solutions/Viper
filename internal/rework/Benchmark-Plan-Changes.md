@@ -1,5 +1,7 @@
 # Benchmark-Plan.md — changes required
 
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
 **Applies to:** `internal/Benchmark-Plan.md` as of 2026-09-26.
 **Scope rule unchanged:** benchmark work is read-only over `src/` and the contract; it writes only to
 `benchmarks/`, the plan and `internal/performance/`. The method stays in the `viper_bencher` skill.

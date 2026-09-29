@@ -20,7 +20,7 @@ public sealed class DefaultCorpusTests : Corpus
 /// <summary>
 /// RT-C08, profile P7: the same corpus through the headerless format. V0 supports every shape in the
 /// corpus — it lacks only the envelope's four phases and reference framing, none of which the corpus
-/// uses — so anything that round-trips under V1 must round-trip here unchanged (§10.2, §22.8).
+/// uses — so anything that round-trips under V1 must round-trip here unchanged (§10.2, §22.7).
 /// </summary>
 public sealed class HeaderlessCorpusTests : Corpus
 {
