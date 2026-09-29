@@ -195,7 +195,7 @@ Key material is a `SecretKey`, which always owns a copy of its bytes, obtained f
 |---|---|
 | `StaticKeyProvider` | one key, optionally bound to an id; a payload naming a different id is refused rather than decrypted with the wrong key. `WithEncryption(algorithm, key, keyId)` and `WithKeys(key, keyId)` build one for you |
 | `DelegateKeyProvider` | keys come from a function of the key id, such as a vault lookup. `WithEncryption(algorithm, resolver, keyId)` and `WithKeys(resolver)` build one for you |
-| `HkdfKeyProvider` | one root key, and one derived key per key id: HKDF-SHA-256 with the id as info, with an optional salt and a key size that is 32 by default. The root key is copied and never exposed |
+| `HkdfKeyProvider` | one root key, and one derived key per key id: HKDF-SHA-256 with the id as info, with an optional salt and a key size that is 32 by default. The root key is copied and never exposed. A key id holding a lone surrogate is refused with `BinaryEncryptionKeyException`, so two ids never derive the same key |
 | your own `IKeyProvider` | anything else; return an owned `SecretKey` on every call |
 
 ```csharp

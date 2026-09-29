@@ -1210,7 +1210,9 @@ Examples:
 - an algorithm that breaks its own statement (§12, §13): a ciphertext length below the plaintext
   length, an encryption that writes other than the length it stated, a decryption reporting a
   plaintext outside `0…ciphertext.Length`, a destination refused with `ArgumentException`, a checksum
-  size outside `1…255`.
+  size outside `1…255`;
+- a key id or a custom algorithm name that the header must carry holding a lone surrogate, which
+  UTF-8 cannot encode; it is refused on write, before anything reaches the destination.
 
 Not for null public arguments.
 
@@ -1300,7 +1302,8 @@ Examples:
 - configured key identity mismatch;
 - key provider cannot supply usable material, a resolved key of a length the algorithm does not take
   among it (§13.2);
-- `HkdfKeyProvider` asked for the key of a payload that names no key id.
+- `HkdfKeyProvider` asked for the key of a payload that names no key id, or of a key id holding a
+  lone surrogate, which has no UTF-8 bytes to derive from.
 
 `KeyId` is a selector; the header never supplies secret key bytes.
 
@@ -1782,8 +1785,9 @@ which hands out owned copies.
   for reading a payload whose algorithm the reader learns only from the header — is checked when it
   is resolved, with `BinaryEncryptionKeyException` (§8.7), and a refused key is disposed at once. A
   missing key is `BinaryEncryptionKeyException` too.
-- `HkdfKeyProvider` derives the key for an id as HKDF-SHA-256 over its root key, with the UTF-8 bytes
-  of the key id as info and an optional salt; the key size is a constructor argument, 32 by default.
+- `HkdfKeyProvider` derives the key for an id as HKDF-SHA-256 over its root key, with the strict UTF-8
+  bytes of the key id as info — an id holding a lone surrogate is `BinaryEncryptionKeyException`, so
+  two ids never share a key through a substituted character — and an optional salt; the key size is a constructor argument, 32 by default.
   The same id always yields the same key and different ids independent ones. The root key is copied
   when the provider is built and is never exposed — the provider's only members are `Resolve` and
   `Dispose` — and every derived key is an owned `SecretKey`. A payload that names no key id has

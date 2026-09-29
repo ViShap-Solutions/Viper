@@ -176,8 +176,18 @@ public sealed class HkdfKeyProvider : IKeyProvider, IDisposable
         _keySizeInBytes = keySizeInBytes;
     }
 
+    /// <summary>
+    /// Encodes the key id strictly, so two ids that differ only in a lone surrogate never derive the
+    /// same key.
+    /// </summary>
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     /// <inheritdoc />
-    /// <exception cref="BinaryEncryptionKeyException"><paramref name="keyId"/> is null: there is no id to derive a key from.</exception>
+    /// <exception cref="BinaryEncryptionKeyException">
+    /// <paramref name="keyId"/> is null, or holds a lone surrogate that UTF-8 cannot encode: there is no
+    /// id to derive a key from.
+    /// </exception>
     /// <exception cref="ObjectDisposedException">The provider has been disposed.</exception>
     public SecretKey Resolve(string? keyId)
     {
@@ -188,9 +198,20 @@ public sealed class HkdfKeyProvider : IKeyProvider, IDisposable
                 "A key is derived from a key id, but none was given. Write with a key id so that " +
                 "readers can derive the same key.");
 
-        int infoLength = Encoding.UTF8.GetByteCount(keyId);
+        int infoLength;
+        try
+        {
+            infoLength = StrictUtf8.GetByteCount(keyId);
+        }
+        catch (EncoderFallbackException ex)
+        {
+            throw new BinaryEncryptionKeyException(
+                "The key id holds a lone surrogate, which UTF-8 cannot encode, so no key can be " +
+                "derived from it.", ex);
+        }
+
         Span<byte> info = infoLength <= StackBytes ? stackalloc byte[StackBytes] : new byte[infoLength];
-        info = info[..Encoding.UTF8.GetBytes(keyId, info)];
+        info = info[..StrictUtf8.GetBytes(keyId, info)];
 
         Span<byte> derived = _keySizeInBytes <= StackBytes
             ? stackalloc byte[StackBytes]

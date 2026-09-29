@@ -462,9 +462,22 @@ internal readonly record struct BinaryFormatHeaderV1(
         return SevenBitLength(bytes + 1) + bytes;
     }
 
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
     private static int HeaderStringBytes(string value, string what)
     {
-        int bytes = Encoding.UTF8.GetByteCount(value);
+        int bytes;
+        try
+        {
+            bytes = StrictUtf8.GetByteCount(value);
+        }
+        catch (EncoderFallbackException ex)
+        {
+            throw new BinaryConfigurationException(
+                $"{what} holds a lone surrogate, which UTF-8 cannot encode.", ex);
+        }
+
         if (bytes > BinaryFormatConstants.MaxHeaderStringBytes)
             throw new BinaryConfigurationException(
                 $"{what} encodes to {bytes} byte(s), but this field admits at most " +
