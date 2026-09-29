@@ -16,8 +16,8 @@ public enum EncryptionAlgorithm : byte
 
     /// <summary>
     /// ChaCha20-Poly1305 (RFC 8439): confidentiality plus authentication, including of the format
-    /// metadata. Fast in software, which makes it a good choice where the processor has no AES
-    /// instructions. Not every platform provides it.
+    /// metadata. Implemented in software, so it does not depend on processor AES instructions. Not
+    /// every platform provides it.
     /// </summary>
     ChaCha20Poly1305 = 2,
 

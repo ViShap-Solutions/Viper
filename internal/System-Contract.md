@@ -413,7 +413,7 @@ while (true)
     ReadOnlySequence<byte> buffer = read.Buffer;
 
     // the protocol: a 4-byte little-endian length, then the V0 payload
-    if (TryReadFrame(ref buffer, out ReadOnlySequence<byte> frame))
+    while (TryReadFrame(ref buffer, out ReadOnlySequence<byte> frame))
     {
         Order? message = compact.Deserialize<Order>(frame);   // synchronous: the frame is in memory
         Handle(message);
@@ -2377,7 +2377,7 @@ A box is checked only when source and a test prove it. The checkpoints that prov
   build deterministically, publish a `.snupkg` of their symbols, and record
   the repository and the exact commit through Source Link, so a published package can be traced
   back to the source it was built from and stepped into.
-- [ ] `dotnet pack` succeeds for all three packages, each with its own non-empty README.
+- [x] `dotnet pack` succeeds for all three packages, each with its own non-empty README.
 
 ---
 

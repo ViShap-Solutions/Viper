@@ -300,7 +300,7 @@ public sealed class BinarySerializerOptionsBuilder
     ///     ReadOnlySequence&lt;byte&gt; buffer = read.Buffer;
     ///
     ///     // the protocol: a 4-byte little-endian length, then the V0 payload
-    ///     if (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
+    ///     while (TryReadFrame(ref buffer, out ReadOnlySequence&lt;byte&gt; frame))
     ///     {
     ///         Order? message = compact.Deserialize&lt;Order&gt;(frame);   // synchronous: the frame is in memory
     ///         Handle(message);

@@ -10,8 +10,8 @@ namespace ViShap.Viper.Crypto;
 /// Requires a 256-bit (32-byte) key. The output is <c>nonce (12 bytes) || ciphertext || tag (16
 /// bytes)</c>, 28 bytes longer than the plaintext; the nonce is generated per message with a
 /// cryptographic RNG, so the same key may be reused across messages without the caller tracking
-/// anything. It is fast in software, which makes it a good choice where the processor has no AES
-/// instructions; where it has them, <see cref="Aes256GcmEncryption"/> is usually faster.
+/// anything. It is implemented in software, so it does not depend on processor AES instructions, which
+/// <see cref="Aes256GcmEncryption"/> uses where they exist.
 /// </para>
 /// <para>
 /// It authenticates the payload's format metadata as associated data, exactly as

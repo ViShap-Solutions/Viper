@@ -90,8 +90,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R6 — The final format | `rework/r6-final-format` | no tag: `v1.0.0-beta.1` deliberately not set (owner, 2026-09-29, `Owner-Review.md` log 64) | closed | `4a7d820` |
 | R7 — Removed | — | — | — | — |
 | R8 — Generator ground | `rework/r8-generator-ground` | — | closed | `a41f64a` |
-| R9a — Reconciliation | `rework/r9a-reconcile` | — | gate holds — awaiting commit; `viper_refactorer` stays as it is until `v1.0.0` (owner's decision) and is replaced after it; the `dotnet pack` boxes of contract §24 and QA §32 stay for R9b | |
-| R9b — Consumer documentation | `docs/v1-consumer-docs` | — | not started | |
+| R9a — Reconciliation | `rework/r9a-reconcile` | — | closed; `viper_refactorer` stays as it is until `v1.0.0` (owner's decision) and is replaced after it; the `dotnet pack` boxes of contract §24 and QA §32 stay for R9b | `16b2680` |
+| R9b — Consumer documentation | `docs/v1-consumer-docs` | — | gate holds — awaiting commit | |
 | R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | not started | |
 | R9d — Audit fixes | `bugfix/v1-audit-<topic>`, one per group; skipped if nothing was found | — | not started | |
 | R9e — Closure check | `audit/v1-conformance-closure` (separate session) | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
@@ -1601,6 +1601,13 @@ Each of these is additive; none blocks a stage [D9.2, D9.20]:
 - **Zstandard, LZ4, AES-GCM-SIV** — separate packages implementing the §8.1 interfaces.
 - **Source generator** — §13.1.
 - **Benchmark Track B** — on the `v1.0.0` tag.
+- **Executable documentation examples** — a test in `tests/ViShap.Viper.Serialization.Tests` that extracts
+  every `csharp` block of `docs/` and of the READMEs, compiles it with Roslyn and runs it, so CI catches an
+  example that no longer matches the API. Costs one new dependency (Roslyn) in the test project; decided by
+  the owner during R9b, not part of the rework.
+- **Performance in the README and `docs/`** — after the publication gate of `Benchmark-Plan.md` §28 is
+  green: one or two charts from `Baselines/v1.0.0/` in the repository `README.md` and a performance page in
+  `docs/`, each figure citing its raw file.
 
 **Live tracing of ordinary calls** (owner's note of 2026-09-29, not in v1.0). The diagnostics of §9.7
 read a finished frame. Logging each ordinary `Serialize`/`Deserialize` as it runs is additive later:

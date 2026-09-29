@@ -7,8 +7,7 @@ namespace ViShap.Viper.Compression;
 /// Raw DEFLATE compression (RFC 1951).
 /// </summary>
 /// <remarks>
-/// Fast and widely compatible, with a lower ratio than <see cref="BrotliCompression"/>. A good default
-/// when throughput matters more than size.
+/// Widely compatible, with a lower compression ratio than <see cref="BrotliCompression"/>.
 /// </remarks>
 /// <example>
 /// <code>

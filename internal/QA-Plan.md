@@ -1512,4 +1512,4 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every defect in §30.1 and §30.3 is fixed and pinned by its checkpoint. *(D1-01…D6-02, NX-01…NX-11)*
 - [x] No test relies on undocumented project history.
 - [x] `dotnet test` is green with no skipped tests. *(1978 passed, 0 skipped, Debug and Release)*
-- [ ] `dotnet pack` succeeds for all three packages, each with its own non-empty README. *(closed by the consumer documentation, which writes the READMEs)*
+- [x] `dotnet pack` succeeds for all three packages, each with its own non-empty README. *(the three `cd.yml` pack commands with `-p:Version=1.0.0-rc.1` produce three `.nupkg` and two `.snupkg`; each `.nupkg` carries its own README, `CORE-README.md`, `SERIALIZATION-README.md` or `METAPACK-README.md`)*

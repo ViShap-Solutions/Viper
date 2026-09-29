@@ -14,10 +14,10 @@ public enum ChecksumAlgorithm : byte
     /// <summary>No checksum is computed or verified.</summary>
     None = 0,
 
-    /// <summary>CRC-32 (IEEE 802.3), 4 bytes. Fast, suitable for detecting accidental corruption.</summary>
+    /// <summary>CRC-32 (IEEE 802.3), 4 bytes. Detects accidental corruption.</summary>
     Crc32 = 1,
 
-    /// <summary>XXH3, 64-bit, 8 bytes. Very fast on large payloads, with a far lower collision rate than CRC-32.</summary>
+    /// <summary>XXH3, 64-bit, 8 bytes. A wider hash than CRC-32, so a corruption that collides is far less likely.</summary>
     XxHash3 = 2,
 
     /// <summary>XXH3, 128-bit, 16 bytes. For very large volumes of data, where 64 bits leave a collision within reach.</summary>

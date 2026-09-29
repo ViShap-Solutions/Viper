@@ -26,9 +26,13 @@ Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark 
 
 ## Where the authoritative information lives
 
-`docs/` is reserved for the official, consumer-facing Viper documentation shipped at release; it is
-currently empty pending that content. Everything below is engineering material — for the contributor
-and for Claude Code — and lives under `internal/`.
+`docs/` is the official, consumer-facing Viper documentation, one page per subject, written from the
+contract. The three package READMEs (`src/*/*-README.md`) are drawn from it, and the repository's
+`README.md` links to both. Every `csharp` block in `docs/` and in the READMEs is a complete example: it
+states the `using` directives it needs, compiles and runs against the current code, and a change to an
+API or a behaviour updates the page that describes it in the same change. No page cites `internal/`,
+names a retired API or carries an adjective about performance (`Benchmark-Plan.md` §28). Everything
+below is engineering material — for the contributor and for Claude Code — and lives under `internal/`.
 
 Every file under `internal/` carries its class at its head, and `internal/README.md` states the
 classes: **normative** (the contract), **plan** (a checklist of work to do or repeat), **operational**

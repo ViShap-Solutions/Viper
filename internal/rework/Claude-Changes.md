@@ -126,3 +126,11 @@ earlier is reported to the owner by the stage that notices it.
   its rules no longer apply [D9.28].
 - The whole file read once against `src/`, `tests/` and the contract, and searched for every
   `Retired.md` entry; anything a stage missed is fixed here and reported.
+
+### R9b — Consumer documentation — applied
+
+- **Where the authoritative information lives** — `docs/` is described as it now is: the consumer
+  documentation, one page per subject, with the package READMEs drawn from it and the repository
+  `README.md` linking to both; every `csharp` block in it is a complete example that compiles and runs
+  against the current code; no page cites `internal/`, names a retired API or carries an adjective about
+  performance.

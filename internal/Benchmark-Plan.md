@@ -935,6 +935,7 @@ Checked only when a committed raw result proves it.
 - [ ] The report and charts regenerate from the raw files with one command.
 - [ ] The environment manifest, the package lock and the source revision are committed with the results.
 - [ ] The v1.0.0 baseline is frozen under `Baselines/v1.0.0/`.
+- [ ] **After the release, additive:** once this gate is green, one or two representative charts from `Baselines/v1.0.0/` are shown in the repository `README.md`, and `docs/` gains a performance page with the methodology, the tier tables and the charts, each figure citing the raw file behind it. Nothing about speed appears in either before then.
 - [ ] Reproduction instructions are committed, and the sequence has been executed once from a clean clone on a machine that did not produce the baseline — a second machine, or a base container image — proving the instructions complete. The check compares payload sizes, verification outcomes and result states, which are machine-independent; it does not compare timings or allocation, which belong to the recorded machine.
 
 ---
