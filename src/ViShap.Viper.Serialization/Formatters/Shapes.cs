@@ -57,6 +57,12 @@ internal interface ISequenceShape<TCollection, TElement, TBuilder, TEnumerator>
     /// <summary>The element count when the collection knows it; <see langword="null"/> otherwise.</summary>
     int? CountOf(TCollection collection);
 
+    /// <summary>
+    /// The elements as one contiguous span when the collection keeps them that way; the engine then
+    /// writes them from the span instead of enumerating.
+    /// </summary>
+    bool TryGetSpan(TCollection collection, out ReadOnlySpan<TElement> elements);
+
     TEnumerator GetEnumerator(TCollection collection);
 
     TBuilder Create(int capacity);

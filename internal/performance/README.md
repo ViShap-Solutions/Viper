@@ -1,5 +1,7 @@
 # Performance findings and proposals
 
+**Class: plan.** The index of the performance findings and proposals; it defines no behavior.
+
 Where a measurement becomes a suggestion, and stops.
 
 Everything the benchmark work discovers lands here as its own file: an observation about behavior, a

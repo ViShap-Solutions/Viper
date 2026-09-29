@@ -1,5 +1,7 @@
 # PERF-02 — should bulk binary data spend the structural element budget?
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open — a design question for a future format version, not a v1.x change
 **Raised:** 2026-09-21, out of [PERF-01](PERF-01-byte-array-limits.md), while working Benchmark-Plan
 A5 (SCALE-02 and SCALE-09)

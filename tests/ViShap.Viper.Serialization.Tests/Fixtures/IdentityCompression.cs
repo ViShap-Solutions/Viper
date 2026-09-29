@@ -14,7 +14,12 @@ internal sealed class IdentityCompression : ICompressionAlgorithm
 
     public CompressionAlgorithm Kind => CompressionAlgorithm.Custom;
 
-    public string? CustomName => RegisteredName;
+    private readonly string _name;
+
+    /// <summary>A pass-through compression registered under <paramref name="name"/>.</summary>
+    public IdentityCompression(string name = RegisteredName) => _name = name;
+
+    public string? CustomName => _name;
 
     /// <summary>How many times this instance compressed, so a test can prove what ran before it.</summary>
     public int CompressCalls { get; private set; }

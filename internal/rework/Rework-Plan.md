@@ -91,9 +91,9 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R7 — Removed | — | — | — | — |
 | R8 — Generator ground | `rework/r8-generator-ground` | — | closed | `a41f64a` |
 | R9a — Reconciliation | `rework/r9a-reconcile` | — | closed; `viper_refactorer` stays as it is until `v1.0.0` (owner's decision) and is replaced after it; the `dotnet pack` boxes of contract §24 and QA §32 stay for R9b | `16b2680` |
-| R9b — Consumer documentation | `docs/v1-consumer-docs` | — | gate holds — awaiting commit | |
-| R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | not started | |
-| R9d — Audit fixes | `bugfix/v1-audit-<topic>`, one per group; skipped if nothing was found | — | not started | |
+| R9b — Consumer documentation | `docs/v1-consumer-docs` | — | closed | `16d2704` |
+| R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | closed; seventeen findings, six of weight "blocks the rc" | `867ba6b` |
+| R9d — Audit fixes | `bugfix/v1-audit-all`, all seventeen findings in one group (owner, 2026-09-29) | — | gate holds — awaiting commit | |
 | R9e — Closure check | `audit/v1-conformance-closure` (separate session) | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
 | Release | `release/v1.0.0` → `main` | the owner tags `v1.0.0` on `main` | not started | |
 

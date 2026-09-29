@@ -8,9 +8,9 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Pins ENC-01…ENC-05, ENC-07, ENC-09…ENC-17, ENC-19…ENC-22, ENC-24…ENC-26 and ENC-29, and CFG-05:
+/// Pins ENC-01…ENC-05, ENC-07, ENC-09…ENC-17, ENC-19…ENC-22, ENC-24…ENC-26, ENC-29 and ENC-30, and CFG-05:
 /// authenticated metadata, key ownership and key size, the phase ceilings encryption answers to, what
-/// the service holds an algorithm to, the built-in ciphers, the frame encrypted straight into its
+/// the service holds an algorithm to, a cipher failure on the way out, the built-in ciphers, the frame encrypted straight into its
 /// destination, and the difference between being able to decrypt and requiring it.
 /// </summary>
 public class EncryptionTests
@@ -556,6 +556,20 @@ public class EncryptionTests
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
     }
 
+    // --- ENC-30: a cipher failure on the way out -----------------------------------------------------
+
+    [Fact]
+    public void Serialize_ACipherRaisingCryptographicException_ThrowsEncryptionWithTheCauseInside()
+    {
+        var serializer = Misbehaving(new MisbehavingCipher { FailCryptographically = true });
+        var destination = new ArrayBufferWriter<byte>();
+
+        var ex = Assert.Throws<BinaryEncryptionException>(() => serializer.Serialize(destination, 123));
+
+        Assert.IsType<CryptographicException>(ex.InnerException);
+        Assert.Equal(0, destination.WrittenCount);
+    }
+
     private static BinarySerializer Misbehaving(MisbehavingCipher cipher) =>
         new(BinarySerializerOptions.Configure()
             .WithEncryption(cipher, Shared)
@@ -575,6 +589,8 @@ public class EncryptionTests
         public int WrittenDelta { get; init; }
 
         public bool RefuseDestination { get; init; }
+
+        public bool FailCryptographically { get; init; }
 
         public int? DecryptedLength { get; init; }
 
@@ -596,6 +612,9 @@ public class EncryptionTests
         {
             if (RefuseDestination)
                 throw new ArgumentException("Destination refused.", nameof(destination));
+
+            if (FailCryptographically)
+                throw new CryptographicException("The cipher failed.");
 
             destination.Clear();
             plaintext[..Math.Min(plaintext.Length, Math.Max(0, destination.Length - 4))]

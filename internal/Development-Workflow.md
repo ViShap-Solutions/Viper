@@ -178,11 +178,12 @@ git branch -d <ветка>                               # 8. удалить л�
 
 ```text
 ветка                release/v1.0.0 от main (после слияния benchmark/release-v1-closing)
-этапы                rework/r0-baseline … rework/r9-release-gate → PR в release/v1.0.0
+этапы                rework/r0-baseline … rework/r8-generator-ground → PR в release/v1.0.0
+                     R9 — пять подэтапов: rework/r9a-reconcile, docs/v1-consumer-docs,
+                     audit/v1-conformance, bugfix/v1-audit-<тема>, audit/v1-conformance-closure
                      (точные имена — таблица Progress в rework/Rework-Plan.md)
-до R6                никаких публикаций: формат ещё меняется
-после R6             v1.0.0-beta.N — формат окончательный
-после R9             v1.0.0-rc.N   — только исправления
+до R9                никаких публикаций; после R6 формат окончательный, но beta не ставится
+после R9e            v1.0.0-rc.N   — первый pre-release, только исправления
 выпуск               release/v1.0.0 → main, тег v1.0.0
 ```
 

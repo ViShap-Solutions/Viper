@@ -1,5 +1,7 @@
 # PERF-06 — Win back the first operation the typed engine made slower
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open
 **Raised:** 2026-09-28, while working rework R4 (COLD against `Baselines/pre-rework/`, MICRO-04 cold half)
 **Touches the wire / the public surface / a security boundary:** no

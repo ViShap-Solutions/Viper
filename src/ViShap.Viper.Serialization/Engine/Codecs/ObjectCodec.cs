@@ -249,13 +249,7 @@ internal static class ObjectMembers
 
         ref var state = ref reader.State;
 
-        int fieldCount = reader.ReadFolded(nullFolded, "keyed field count");
-        if (fieldCount > state.Limits.MaxKeyedFields)
-            throw new BinaryLimitException(
-                $"Keyed field count {fieldCount} exceeds the configured maximum of " +
-                $"{state.Limits.MaxKeyedFields} (MaxKeyedFields).");
-
-        state.Budget.ConsumeKeyedFields(fieldCount);
+        var fieldCount = reader.ReadCount(CountKind.KeyedFields, "Keyed field count", nullFolded);
         trace?.Shape(TraceShape.KeyedObject, fieldCount);
 
         int previousKey = -1;

@@ -249,12 +249,13 @@ public class ValueLimitTests
     }
 
     [Fact]
-    public void Deserialize_ZeroLengthBlob_YieldsTheEmptyValue()
+    public void Deserialize_ZeroLengthBlob_IsMalformedNotALimitBreach()
     {
         var serializer = Limited(SerializationLimits.Default with { MaxByteBlobBytes = 4 });
         byte[] frame = Wire.Frame(Wire.Payload(writer => writer.Write7BitEncodedInt(0)));
 
-        Assert.Equal(BigInteger.Zero, serializer.Deserialize<BigInteger>(frame));
+        var ex = Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<BigInteger>(frame));
+        Assert.IsNotType<BinaryLimitException>(ex);
     }
 
     [Fact]

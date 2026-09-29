@@ -1,5 +1,7 @@
 # PERF-09 — The final format (R6): sizes, the header of service records, and the cost of the trace seam
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open — the seam's cost accepted by the owner on 2026-09-29 (`Owner-Review.md` log 63): the seam stays as built for v1.0; narrowing it (a generic struct observer, or the test hoisted out of element loops) is an internal change that can follow the release. The header-parse proposal below is open.
 **Raised:** 2026-09-29, while working rework R6 (SIZE-02, SIZE-03, SIZE-05, SIZE-09, SIZE-10, MICRO-08, MICRO-19, WL-01…WL-06)
 **Touches the wire / the public surface / a security boundary:** no — every figure below is a measurement of what R6 built; nothing here has been applied

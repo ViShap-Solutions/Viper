@@ -1,5 +1,7 @@
 # PERF-01 — a `byte[]` is bounded by `MaxArrayLength`, not by `MaxByteBlobBytes`
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Resolved — contract and documentation clarification, no behavior change
 **Raised:** 2026-09-20, while working Benchmark-Plan B0 (corpus verification, DATA-08 and DATA-14)
 **Kind:** Observation about behavior a consumer will meet

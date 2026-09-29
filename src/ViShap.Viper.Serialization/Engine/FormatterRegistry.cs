@@ -10,7 +10,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Text;
 
-namespace ViShap.Viper.Formatters;
+namespace ViShap.Viper.Engine;
 
 /// <summary>
 /// Resolves the codec of a declared type, once per type, for <see cref="FormatterCache{T}"/>. The

@@ -255,5 +255,16 @@ internal sealed class BigIntegerFormatter : IScalarFormatter<BigInteger>
         writer.WriteBlob(buffer[..written], "BigInteger");
     }
 
-    public BigInteger Read(ref WireReader reader) => new(reader.ReadBlob("BigInteger"));
+    public BigInteger Read(ref WireReader reader)
+    {
+        byte[] bytes = reader.ReadBlob("BigInteger");
+        var value = new BigInteger(bytes);
+
+        if (bytes.Length == 0 || value.GetByteCount() != bytes.Length)
+            throw new BinaryFormatException(
+                $"BigInteger is not in its shortest two's-complement form: {bytes.Length} byte(s) " +
+                $"hold a value that is written in {value.GetByteCount()}.");
+
+        return value;
+    }
 }

@@ -1,5 +1,7 @@
 # PERF-07 — Remove the fixed per-call allocations the frame still makes
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open
 **Raised:** 2026-09-28, while working rework R4 (ALLOC-10…ALLOC-20)
 **Touches the wire / the public surface / a security boundary:** no

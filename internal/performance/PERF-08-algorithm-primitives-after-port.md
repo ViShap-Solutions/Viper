@@ -1,5 +1,7 @@
 # PERF-08 — The algorithm primitives after their port to the R5 interfaces
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open
 **Raised:** 2026-09-28, while working rework R5 (MICRO-10, ALLOC-12…ALLOC-14)
 **Touches the wire / the public surface / a security boundary:** no

@@ -1,4 +1,5 @@
-// SUPERSEDED — historical audit artifact, kept for provenance. Do not compile.
+// Class: historical. A record of work already done, whose rules no longer apply and which is never a
+// reason to change the system. Superseded, kept for provenance; it does not compile.
 //
 // These 19 probes were written against the pre-rework architecture and assert the DEFECTS as they
 // existed then. The architecture audit (internal/Architecture-Audit.md) replaced that
