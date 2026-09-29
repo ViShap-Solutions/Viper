@@ -5,11 +5,13 @@ internal enum CountKind
 {
     Array,
     Collection,
-    Dictionary
+    Dictionary,
+    KeyedFields
 }
 
 /// <summary>
-/// A count that has been checked against its limit and charged to the operation's element budget.
+/// A count that has been checked against its limit and charged to the operation's budget — the element
+/// budget, or the keyed field budget for the fields of a keyed object.
 /// <para>
 /// The only way to obtain one is <see cref="Validate"/>, which performs both steps, and the engine
 /// accepts nothing else as a loop bound. "Read a length and allocate it" is therefore not
@@ -62,6 +64,7 @@ internal readonly struct ElementCount
             CountKind.Array => (state.Limits.MaxArrayLength, "MaxArrayLength"),
             CountKind.Collection => (state.Limits.MaxCollectionLength, "MaxCollectionLength"),
             CountKind.Dictionary => (state.Limits.MaxDictionaryEntries, "MaxDictionaryEntries"),
+            CountKind.KeyedFields => (state.Limits.MaxKeyedFields, "MaxKeyedFields"),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 
@@ -69,7 +72,11 @@ internal readonly struct ElementCount
             throw new BinaryLimitException(
                 $"{what} {raw} exceeds the configured maximum of {maximum} ({limit}).");
 
-        state.Budget.ConsumeElements(raw);
+        if (kind == CountKind.KeyedFields)
+            state.Budget.ConsumeKeyedFields(raw);
+        else
+            state.Budget.ConsumeElements(raw);
+
         return new ElementCount(raw);
     }
 

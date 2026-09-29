@@ -48,7 +48,7 @@ jobs:
             echo
             echo "Expected:"
             echo "  vMAJOR.MINOR.PATCH                  stable release, from main"
-            echo "  vMAJOR.MINOR.PATCH-alpha.N          pre-release, from any branch"
+            echo "  vMAJOR.MINOR.PATCH-alpha.N          pre-release, from a release/* branch"
             echo "  vMAJOR.MINOR.PATCH-beta.N"
             echo "  vMAJOR.MINOR.PATCH-rc.N"
             exit 1

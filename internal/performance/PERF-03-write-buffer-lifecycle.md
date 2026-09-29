@@ -1,5 +1,7 @@
 # PERF-03 — the write buffer's lifecycle costs a small blob write more than the stream it replaced
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open
 **Raised:** 2026-09-27, while working rework stage R1 (MICRO-01, rewritten in R1)
 **Touches the wire / the public surface / a security boundary:** the security boundary, if acted on —

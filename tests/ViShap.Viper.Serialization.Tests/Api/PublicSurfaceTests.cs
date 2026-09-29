@@ -217,7 +217,7 @@ public class PublicSurfaceTests
             "ViShap.Viper.Formatters.ISequenceShape`4",
             "ViShap.Viper.Formatters.IMapShape`5",
             "ViShap.Viper.Formatters.ICompositeFormatter`1",
-            "ViShap.Viper.Formatters.FormatterRegistry",
+            "ViShap.Viper.Engine.FormatterRegistry",
             "ViShap.Viper.Pipeline.FormatRouter"
         ];
 

@@ -1,5 +1,7 @@
 # PERF-05 — the ancestor-stack cycle search is quadratic in depth, and eats most of R2's gain at depth 500
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open
 **Raised:** 2026-09-27, while working rework stage R2 (ALLOC-09, SCALE-03)
 **Touches the wire / the public surface / a security boundary:** no — the diagnostic and the rule of

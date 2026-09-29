@@ -121,11 +121,12 @@ internal ref struct WireWriter
     /// the zero of that length, which the engine writes.
     /// </summary>
     /// <exception cref="BinaryLimitException">The encoded length exceeds the configured maximum.</exception>
+    /// <exception cref="BinaryFormatException">The string holds a lone surrogate.</exception>
     public void WriteString(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        int byteCount = Encoding.UTF8.GetByteCount(value);
+        int byteCount = EncodedLength(value);
         if (byteCount > _state.Limits.MaxStringBytes)
             throw new BinaryLimitException(
                 $"String byte length {byteCount} exceeds the configured maximum of " +
@@ -148,7 +149,7 @@ internal ref struct WireWriter
     {
         ArgumentNullException.ThrowIfNull(value);
 
-        int byteCount = Encoding.UTF8.GetByteCount(value);
+        int byteCount = EncodedLength(value);
         if (byteCount > maxBytes)
             throw new BinaryConfigurationException(
                 $"{what} encodes to {byteCount} byte(s), but this field admits at most {maxBytes}.");
@@ -173,7 +174,7 @@ internal ref struct WireWriter
             return;
         }
 
-        int byteCount = Encoding.UTF8.GetByteCount(value);
+        int byteCount = EncodedLength(value);
         if (byteCount > maxBytes)
             throw new BinaryConfigurationException(
                 $"{what} encodes to {byteCount} byte(s), but this field admits at most {maxBytes}.");
@@ -267,12 +268,32 @@ internal ref struct WireWriter
         _buffered = 0;
     }
 
+    /// <summary>
+    /// Encodes strictly: a string that is not well-formed UTF-16 — a lone surrogate — raises instead of
+    /// becoming a U+FFFD replacement character, so a value is never written as a different one.
+    /// </summary>
+    private static readonly UTF8Encoding StrictUtf8 =
+        new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    private static int EncodedLength(string value)
+    {
+        try
+        {
+            return StrictUtf8.GetByteCount(value);
+        }
+        catch (EncoderFallbackException ex)
+        {
+            throw new BinaryFormatException(
+                "A string holds a lone surrogate, which UTF-8 cannot encode.", ex);
+        }
+    }
+
     private void WriteEncodedBytes(string value, int byteCount)
     {
         if (byteCount == 0)
             return;
 
-        Encoding.UTF8.GetBytes(value, Reserve(byteCount));
+        StrictUtf8.GetBytes(value, Reserve(byteCount));
     }
 
     /// <summary>Hands out the next <paramref name="size"/> bytes of contiguous space.</summary>

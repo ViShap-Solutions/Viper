@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace ViShap.Viper.Formatters;
 
@@ -25,6 +26,12 @@ internal abstract class SequenceShape<TCollection, TElement, TBuilder, TEnumerat
     public virtual bool BuilderIsInstance => true;
 
     public abstract int? CountOf(TCollection collection);
+
+    public virtual bool TryGetSpan(TCollection collection, out ReadOnlySpan<TElement> elements)
+    {
+        elements = default;
+        return false;
+    }
 
     public abstract TEnumerator GetEnumerator(TCollection collection);
 
@@ -50,6 +57,13 @@ internal static class Counts
 internal sealed class ListShape<T> : SequenceShape<List<T>, T, List<T>, List<T>.Enumerator>
 {
     public override int? CountOf(List<T> collection) => collection.Count;
+
+    public override bool TryGetSpan(List<T> collection, out ReadOnlySpan<T> elements)
+    {
+        elements = CollectionsMarshal.AsSpan(collection);
+        return true;
+    }
+
     public override List<T>.Enumerator GetEnumerator(List<T> collection) => collection.GetEnumerator();
     public override List<T> Create(int capacity) => new(capacity);
     public override void Add(ref List<T> builder, T element) => builder.Add(element);

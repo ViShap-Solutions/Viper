@@ -22,6 +22,13 @@ used.
 
 `Nullable<T>` of any supported value type is supported as well.
 
+Every value has exactly one spelling on the wire, and a reader refuses any other with
+`BinaryFormatException`: a string's bytes are strict UTF-8, a `BigInteger` is its shortest two's
+complement, a `BitArray`'s unused bits are zero, and a `Version` or a `CultureInfo` is the text its
+writer produces (`1.2`, `en-US`). A `string` that UTF-8 cannot encode — one holding a lone surrogate
+such as `"\uD800"` — is refused when it is written, with `BinaryFormatException`, rather than
+stored as a different value; nothing reaches the destination.
+
 ```csharp
 using System.Collections.Immutable;
 using ViShap.Viper;

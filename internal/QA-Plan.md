@@ -169,15 +169,15 @@ BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build()
 
 The 94 tests present today were written by hand as smoke checks, before this plan existed. Each file is re-homed, rewritten, or deleted. Nothing is counted as coverage until it has been compared with the clause it claims to prove.
 
-- [x] BASE-01 — `API/BinarySerializerApiTests.cs` (8 tests): entry-point smoke checks with no boundary or failure assertions → superseded by §6 and §31; delete after §6 is green — `deleted; replaced by Api/SerializerApiTests and Api/ExistingInstanceTests`
-- [x] BASE-02 — `API/StreamExtensionsApiTests.cs` (13 tests): same → superseded by §8; delete after §8 is green — `deleted; replaced by Api/StreamExtensionsTests`
+- [x] BASE-01 — `API/BinarySerializerApiTests.cs` (8 tests): entry-point smoke checks with no boundary or failure assertions → superseded by §6 and §31; delete after §6 is green — `deleted; replaced by Api/SerializerApiTests and Api/ExistingInstanceTests` *— `Api/ExistingInstanceTests` retired in R3, replaced by `Api/PopulateTests` (API-24)*
+- [x] BASE-02 — `API/StreamExtensionsApiTests.cs` (13 tests): same → superseded by §8; delete after §8 is green — `deleted; replaced by Api/StreamExtensionsTests` *— `Api/StreamExtensionsTests` retired in R3 with the stream extensions (SX-01…SX-11)*
 - [x] BASE-03 — `Correctness/RoundTripCorpusTests.cs` (17 tests): family-level round trips → split into the per-family suites of §19; keep the assertions that already check runtime type and ordering — `RoundTrip/Corpus` (the two M0 holding files it first became were absorbed by M5)
-- [x] BASE-04 — `Correctness/TypeContractTests.cs` (17 tests): contract, polymorphism, reference and populate-in-place behavior → split into §15, §17, §18 — `Contracts/, References/, Api/ExistingInstanceTests`
+- [x] BASE-04 — `Correctness/TypeContractTests.cs` (17 tests): contract, polymorphism, reference and populate-in-place behavior → split into §15, §17, §18 — `Contracts/, References/, Api/ExistingInstanceTests` *— `Api/ExistingInstanceTests` retired in R3, replaced by `Api/PopulateTests` (API-24)*
 - [x] BASE-05 — `Correctness/WireFormatTests.cs` (9 tests): byte-level pins → move to §14, extend to every row of §22 — `Format/WireFormatTests`
 - [x] BASE-06 — `Security/CryptoContractTests.cs` (14 tests): crypto and compression contract → split into §23 and §25 — `Algorithms/CompressionTests, Algorithms/EncryptionTests`
-- [x] BASE-07 — `Security/HostileInputTests.cs` (13 tests): hostile corpus → split into §20, §21, §22 — `Limits/, Streams/, Hostile/`
+- [x] BASE-07 — `Security/HostileInputTests.cs` (13 tests): hostile corpus → split into §20, §21, §22 — `Limits/, Streams/, Hostile/` *— `Streams/` retired in R2, replaced by `Metering/`*
 - [x] BASE-08 — `Fixtures/Basic.cs`, `Fixtures/Wire.cs` → become the shared fixture base of §29; `Wire.Frame` gains the parameters the §11 header suite needs — `Fixtures/AssertEx, Wire, Mutate, Streams`
-- [x] BASE-09 — no test file remains outside the §2 layout (`Streams/` and `Hostile/` already started by the D1 fix) — `Correctness/ and Security/ removed`
+- [x] BASE-09 — no test file remains outside the §2 layout (`Streams/` and `Hostile/` already started by the D1 fix) — `Correctness/ and Security/ removed` *— `Streams/` retired in R2, replaced by `Metering/`*
 - [x] BASE-10 — every surviving test names the checkpoint it proves — `every suite names its checkpoints`
 
 ---
@@ -215,6 +215,7 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] API-26 — every asynchronous read and populate, from a stream and from a pipe, that meets V0 is `NotSupportedException` naming the rule, and consumes nothing from a pipe; an asynchronous V0 write to a stream and to a pipe succeeds with the bytes of the synchronous write *(§3.5, §10.2)* — `Api/AsynchronyTests`
 - [x] API-27 — `DeserializeAsyncEnumerable` over a `Stream` and a `PipeReader`: 0, 1 and 5 frames yield as many values and complete, consuming every frame; the source ending inside a frame is `BinaryFormatException` after the complete frames were yielded; each frame has its own budget (four frames each just under a cumulative limit all pass); V0 is `NotSupportedException`; cancellation leaves a started frame unconsumed in the pipe *(§3.5)* — `Api/AsyncEnumerableTests`
 - [x] API-28 — a buffer writer that hands out spans shorter than asked for receives the bytes of the array form; one that hands out an empty span is `BinaryStreamException` within a bounded time instead of a copy that never ends, for `Serialize(IBufferWriter<byte>, T)` *(§3.1, §8.8)* — `Api/BufferWriterTests` *(added in R3, owner's decision of 2026-09-27, `rework/Owner-Review.md` log 55)*
+- [x] API-29 — every public member of every public type is listed in contract §3.6, and every listed member exists; the list is read from the contract *(§3.6)* — `Api/MemberSurfaceTests`
 
 **Sources** *(added in R3)*. Every kind of source reads the same value from the same frame, under P0 and
 P6 and, where V0 can be read from it, P7; a source that delivers bytes over time is asked for exactly
@@ -370,6 +371,7 @@ Field order, types and invariants per §22.6.
 - [x] HDR-30 — a record naming the algorithm id `None` → `BinaryFormatException`, for each of the three *(§11)* — `Format/HeaderTests` *(added in R6)*
 - [x] HDR-31 — a custom algorithm with an empty name → `BinaryFormatException` *(§11)* — `Format/HeaderTests` *(added in R6)*
 - [x] HDR-32 — a checksum whose length is not the named algorithm's, or a checksum record with no hash → `BinaryFormatException` *(§11)* — `Format/HeaderTests`, `Algorithms/ChecksumTests` *(added in R6)*
+- [x] HDR-33 — the serializer writes the checksum and custom-compression records of the §22 examples byte for byte (`03 05 01` + the CRC-32; `05 09 FF 01 04 6C 7A 34 78 E8 07`) *(§11, §22)* — `Format/HeaderTests`
 
 ---
 
@@ -483,6 +485,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] WF-35 — a positional object carries a flag; a union a flag then its tag, and under references the frame then its tag *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
 - [x] WF-36 — a type that cannot be null carries nothing for it *(§22.2)* — `Format/WireFormatTests` *(added in R6)*
 - [x] WF-37 — the types the rule reaches beyond the table of the format decision: a string-encoded scalar folds its length (`Uri "a"` is `02 61`), `BitArray` its bit count (`0A 02 8D 01`), an array of rank > 1 its rank (`03 02 03 …`), and `Tuple<…>` carries a flag *(§22.2, owner's decision of 2026-09-28)* — `Format/WireFormatTests` *(added in R6)*
+- [x] WF-38 — writing a string with a lone surrogate → `BinaryFormatException` and nothing in the destination; a surrogate pair round-trips *(§22.1, §2.6, INV-9)* — `Hostile/CanonicalScalarTests`
 
 ---
 
@@ -794,6 +797,14 @@ Every limit gets **below · exact · one above · structurally invalid** where t
 - [x] LIM-49 — INV-5: a sequence, map or array shape takes and returns no count, no primitive and no reader or writer; a type contract implements only creation, writing, reading and the response to a key, each handed a `MemberWriter` or `MemberReader` and nothing that reaches bytes; those two expose only member values; outside the readers and writers only the engine's codecs read or write a count; the shapes' sources name no primitive and no count *(§2.3, §2.4)* — `Limits/StructuralBarrierTests` *(added in R4)*
 - [x] LIM-50 — INV-16: no method in the engine or the formatters is asynchronous — none carries an async state machine or returns a task, a value task or an async enumerable — and the check recognizes an awaitable return *(§2.4)* — `Limits/StructuralBarrierTests` *(added in R3)*
 - [x] LIM-51 — INV-1: only the serializer, the inspector and the dumper create an `OperationState`, only the state creates a budget and a phase policy, and every member below the public edge takes the state by reference, an asynchronous method excepted *(§2.2)* — `Limits/StructuralBarrierTests` *(added in R4)*
+- [x] LIM-52 — INV-4 structurally: the keyed field count is read as a `CountKind.KeyedFields` `ElementCount`, and no formatter reads a raw count *(§2.3, §5.9)* — `Limits/InvariantStructureTests`
+- [x] LIM-53 — INV-7 structurally: no static field of either assembly holds an algorithm or a factory of one *(§4.1)* — `Limits/InvariantStructureTests`
+- [x] LIM-54 — INV-8 structurally: no production file resolves a type by name, and `WireWriter` takes no `Type` *(§15)* — `Limits/InvariantStructureTests`
+- [x] LIM-55 — INV-9 structurally: `WireReader` and `WireWriter` encode and decode strings only through a strict UTF-8 encoding, and nothing below the pipeline encodes text itself *(§22.1)* — `Limits/InvariantStructureTests`
+- [x] LIM-56 — INV-10 structurally: production code throws only the taxonomy and the standard exceptions of §8.10; an algorithm primitive's own failures are translated by its service *(§8, §9)* — `Limits/InvariantStructureTests`
+- [x] LIM-57 — INV-11 structurally: `SecretKey` is created only by `CopyFrom` and exposes no array; only the key's owners zero memory *(§13.2)* — `Limits/InvariantStructureTests`
+- [x] LIM-58 — INV-14 and INV-15 structurally: the associated data is the header's own bytes, and only the finished frame writes to the caller's destination *(§13.1, §2.6)* — `Limits/InvariantStructureTests`
+- [x] LIM-59 — INV-18 structurally: V0 and V1 encode the payload through the one engine entry, V0 without references *(§10.2)* — `Limits/InvariantStructureTests`
 
 ## 20.7 Materialization and allocation
 
@@ -893,6 +904,10 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] HST-14 — a 7-bit integer overflowing `Int32` → `BinaryFormatException` *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-40 — a non-minimal 7-bit integer → `BinaryFormatException`, for a payload string length, the keyed field count and key, and a header string length, where it fails before the tag is checked; the minimal spelling of the same value is accepted *(§22.1)* — `Hostile/TruncationTests`
 - [x] HST-41 — a non-minimal varint → `BinaryFormatException` in every structural position: count, length, reference frame, key, version, payload mode, service kind, service length, `onDiskLength` *(§22.1)* — `Hostile/TruncationTests` *(added in R6)*
+- [x] HST-42 — a `BigInteger` blob that is not the shortest two's complement — empty, or with a redundant `00`/`FF` byte — → `BinaryFormatException` *(§22.4, INV-9)* — `Hostile/CanonicalScalarTests`
+- [x] HST-43 — a `BitArray` with a set bit past its declared count → `BinaryFormatException` *(§22.4, INV-9)* — `Hostile/CanonicalScalarTests`
+- [x] HST-44 — a `Version` text that parses but is not `ToString()` (`01.2`, ` 1.2`, `+1.2`) → `BinaryFormatException` *(§22.4, INV-9)* — `Hostile/CanonicalScalarTests`
+- [x] HST-45 — a culture name the runtime resolves to a culture of another `Name` (`EN-us`) → `BinaryFormatException`, where the host has the culture *(§22.4, INV-9)* — `Hostile/CanonicalScalarTests`
 - [x] HST-15 — V0 truncation → `BinaryFormatException` *(§8.2)* — `Hostile/TruncationTests`
 - [x] HST-16 — a failed `ReadExact` retains no partial output *(§2.3)* — `Hostile/TruncationTests`
 
@@ -993,6 +1008,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] ENC-27 — `HkdfKeyProvider` derives distinct keys per key id, equal keys for equal ids, and never exposes the root key *(§13.2)* — `Algorithms/HkdfKeyProviderTests`: equal and distinct ids, the value against `HKDF.DeriveKey` with the id as info, a derived key never equal to the root, no public member beyond `Resolve` and `Dispose`, owned copies both ways, `Resolve(null)` refused, key sizes and their bounds, and payloads written under two ids read by one provider
 - [x] ENC-28 — `RequireEncryption` refuses an algorithm reporting `AuthenticatesAssociatedData = false` *(§13.1)* — ENC-18 at `Build()` and ENC-23 on read; since R5 every algorithm states the property, because the interface declares no default member (EXT-06)
 - [x] ENC-29 — an encrypted frame is encrypted straight into the destination *(§2.6, §13)* — `Algorithms/EncryptionTests`: a buffer writer is asked once for the whole frame and advanced once; a writer handing out 7-byte spans still receives the whole frame; a cipher that fails leaves the writer empty; `OnDiskLength` is the length the algorithm stated. Added in R5 for the contract's §13 entry, which no ID of the change file covered
+- [x] ENC-30 — a cipher raising `CryptographicException` on the way out → `BinaryEncryptionException` with it as the inner exception, and nothing in the destination *(§8.6, §13)* — `Algorithms/EncryptionTests`
 
 ---
 
@@ -1467,8 +1483,8 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Format
 
-- [x] Every row of §22 is pinned at the byte level. *(WF-01…WF-37, REF-20, HST-41)*
-- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-32, ENV-01, ENV-02, CMP-18)*
+- [x] Every row of §22 is pinned at the byte level. *(WF-01…WF-38, REF-20, HST-41, HDR-33)*
+- [x] V1 header validation is deterministic and ordered. *(HDR-01…HDR-33, ENV-01, ENV-02, CMP-18)*
 - [x] V0 is never confused with V1 and is never selected without the caller's opt-in. *(V0-10…V0-17, V0-26)*
 - [x] V0 carries the same type set, unions, keyed contracts, limits and budgets as V1 — only the envelope is absent. *(V0-03, V0-07, V0-08, V0-19…V0-21)*
 - [x] Committed fixed-byte fixtures decode; none is regenerated by the code under test. *(V0-18, UTIL-09, CMPT-01…CMPT-12)*
@@ -1482,11 +1498,11 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Security
 
-- [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-47, and P2-01 for the tight profile as a whole)*
+- [x] Every limit has below / exact / above / invalid. *(LIM-01…LIM-47, LIM-52, and P2-01 for the tight profile as a whole)*
 - [x] Cumulative element, node and keyed-field budgets are covered. *(LIM-15…LIM-25)*
 - [x] Declared lengths are proven to be checked against physically available bytes before allocation, on the wire as well as inside the payload (D1). *(D1-01…D1-05, HST-17, HST-18, HST-20)*
-- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-40)*
-- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-29, ENC-01…ENC-29)*
+- [x] The malformed and truncated corpus passes with no uncontrolled failure. *(HST-01…HST-40, HST-42…HST-45)*
+- [x] Stream wrappers, key ownership and buffer clearing are covered. *(STR-01…STR-29, ENC-01…ENC-30)*
 - [x] No test can cause a process-fatal stack overflow. *(LIM-26…LIM-33: every depth case is a `BinaryLimitException`, and the whole suite completes without a process failure)*
 
 ## Exceptions
@@ -1498,7 +1514,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Architecture
 
-- [x] The eighteen invariants of contract §25 are each held by a structural test. *(LIM-51, LIM-44, LIM-47, LIM-49, TYP-03, SRC-10, LIM-42, LIM-40, CMP-12, CAT-06, PM-14, CFG-09, OPT-08, ENC-05, ENC-06, STR-30, LIM-50, TYP-02, V0-19; INV-9, INV-10, INV-11 by the checkpoints of the Format, Exceptions and Security groups)*
+- [x] The eighteen invariants of contract §25 are each held by a structural test. *(LIM-51, LIM-44, LIM-47, LIM-49, TYP-03, SRC-10, LIM-42, LIM-40, CMP-12, CAT-06, PM-14, CFG-09, OPT-08, ENC-05, ENC-06, STR-30, LIM-50, TYP-02, V0-19, LIM-52…LIM-59)*
 - [x] No type below `Pipeline/` references `SerializationLimits`, and no `MemoryStream` lies on the payload path. *(LIM-43, STR-29)*
 - [x] The contract seam a generated contract implements is pinned: the conformance suite passes on the reflected contract. *(CONF-01…CONF-07)*
 - [x] The reflection path states its requirements and no public algorithm interface declares a default member. *(EXT-06, EXT-07)*

@@ -1,5 +1,7 @@
 # PERF-04 — the pooled write path of R2 is slower on a large unphased blob and on some compressed cells
 
+**Class: plan.** A performance finding and the proposal it leads to, for the owner to decide on; its status line says what became of it, and it defines no behavior.
+
 **Status:** Open
 **Raised:** 2026-09-27, while working rework stage R2 (ALLOC-02, ALLOC-03, ALLOC-06, MICRO-02,
 MICRO-03, the profile matrix)

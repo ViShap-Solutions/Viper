@@ -50,8 +50,9 @@ internal sealed class VersionFormatter : IScalarFormatter<Version>
     public Version Read(ref WireReader reader)
     {
         string text = reader.ReadString();
-        if (!Version.TryParse(text, out var version))
-            throw new BinaryFormatException("Version payload is not a valid version string.");
+        if (!Version.TryParse(text, out var version) || version.ToString() != text)
+            throw new BinaryFormatException(
+                $"Version payload '{text}' is not a version string in its canonical form.");
 
         return version;
     }
@@ -76,14 +77,21 @@ internal sealed class CultureInfoFormatter : IScalarFormatter<CultureInfo>
     {
         string name = reader.ReadString();
 
+        CultureInfo culture;
         try
         {
-            return CultureInfo.GetCultureInfo(name);
+            culture = CultureInfo.GetCultureInfo(name);
         }
         catch (CultureNotFoundException ex)
         {
             throw new BinaryFormatException($"Culture name '{name}' is not a known culture.", ex);
         }
+
+        if (culture.Name != name)
+            throw new BinaryFormatException(
+                $"Culture name '{name}' is not in its canonical form '{culture.Name}'.");
+
+        return culture;
     }
 }
 
@@ -114,6 +122,11 @@ internal sealed class BitArrayFormatter : IScalarFormatter<BitArray>
             throw new BinaryFormatException(
                 $"BitArray declares {length} bit(s), which needs {expected} byte(s), but {bytes.Length} " +
                 "were present.");
+
+        int usedBits = length % 8;
+        if (usedBits != 0 && bytes[^1] >> usedBits != 0)
+            throw new BinaryFormatException(
+                $"BitArray declares {length} bit(s), but a bit past the last one is set.");
 
         return new BitArray(bytes) { Length = length };
     }

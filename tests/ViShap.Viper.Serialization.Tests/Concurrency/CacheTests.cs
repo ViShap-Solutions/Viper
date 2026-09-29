@@ -82,7 +82,7 @@ public class CacheTests
             "ViShap.Viper.Serialization/Engine/Codec.cs",
             "ViShap.Viper.Serialization/Engine/Contracts/ReflectedContract.cs",
             "ViShap.Viper.Serialization/Engine/Contracts/TypeContractCache.cs",
-            "ViShap.Viper.Serialization/Formatters/FormatterRegistry.cs"
+            "ViShap.Viper.Serialization/Engine/FormatterRegistry.cs"
         ];
 
         string[] requestLocal =

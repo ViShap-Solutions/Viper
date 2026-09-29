@@ -1,3 +1,4 @@
+using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
 using ViShap.Viper.Metadata;
@@ -7,7 +8,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Format;
 
 /// <summary>
-/// Pins HDR-02…HDR-08, HDR-12, HDR-16, HDR-18, HDR-19 and HDR-21…HDR-32: the V1 header is a list of
+/// Pins HDR-02…HDR-08, HDR-12, HDR-16, HDR-18, HDR-19 and HDR-21…HDR-33: the V1 header is a list of
 /// service records with exactly one encoding, it owns every invariant over the values it declares,
 /// and it decides them before a byte of payload is touched.
 /// </summary>
@@ -184,6 +185,35 @@ public class HeaderTests
             "exceeds the configured maximum of 16 (MaxPayloadBytes)", () => serializer.Deserialize<int>(frame));
 
         AssertEx.AllocatesLessThan(1 << 20, () => serializer.Deserialize<int>(frame));
+    }
+
+    // --- HDR-33: the serializer writes the service records of the contract's examples byte for byte ---
+
+    [Fact]
+    public void Serialize_ChecksumAndCustomCompression_WritesTheDocumentedRecords()
+    {
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithChecksum(new Crc32Checksum())
+            .WithCompression(new IdentityCompression("lz4x"))
+            .RegisterCustomCompression("lz4x", () => new IdentityCompression("lz4x"))
+            .Build());
+
+        // A byte[] of 998 zeros is a 1 000-byte payload: its count plus one, 999, in two bytes.
+        byte[] payload = Wire.Payload(writer => { writer.Write7BitEncodedInt(999); writer.Write(new byte[998]); });
+        Assert.Equal(1000, payload.Length);
+
+        byte[] hash = new byte[4];
+        new Crc32Checksum().Compute(payload, hash);
+
+        byte[] frame = serializer.Serialize(new byte[998]);
+
+        byte[] expected =
+        [
+            0x02,                                                          // two service records
+            0x03, 0x05, 0x01, .. hash,                                     // CRC-32 (id 1), 4-byte hash
+            0x05, 0x09, 0xFF, 0x01, 0x04, 0x6C, 0x7A, 0x34, 0x78, 0xE8, 0x07 // "lz4x", 1 000 bytes
+        ];
+        Assert.Equal(expected, frame[6..(6 + expected.Length)]);
     }
 
     [Theory]

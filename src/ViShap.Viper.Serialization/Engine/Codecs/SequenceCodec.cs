@@ -21,6 +21,13 @@ internal sealed class SequenceCodec<TCollection, TElement, TBuilder, TEnumerator
 
     protected override void WriteBody(ref WireWriter writer, TCollection value, bool nullFolded)
     {
+        if (shape.TryGetSpan(value, out var span))
+        {
+            writer.WriteCount(span.Length, shape.CountKind, shape.CountName, nullFolded);
+            Elements.Write(ref writer, span);
+            return;
+        }
+
         if (!shape.ReverseOnWrite && shape.CountOf(value) is { } known)
         {
             var count = writer.WriteCount(known, shape.CountKind, shape.CountName, nullFolded);

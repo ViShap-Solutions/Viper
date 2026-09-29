@@ -29,7 +29,8 @@ Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark 
 `docs/` is the official, consumer-facing Viper documentation, one page per subject, written from the
 contract. The three package READMEs (`src/*/*-README.md`) are drawn from it, and the repository's
 `README.md` links to both. Every `csharp` block in `docs/` and in the READMEs is a complete example: it
-states the `using` directives it needs, compiles and runs against the current code, and a change to an
+states the `using` directives it needs and compiles against the current code — a block with top-level
+statements also runs; a block that only declares types compiles as a library — and a change to an
 API or a behaviour updates the page that describes it in the same change. No page cites `internal/`,
 names a retired API or carries an adjective about performance (`Benchmark-Plan.md` §28). Everything
 below is engineering material — for the contributor and for Claude Code — and lives under `internal/`.
@@ -92,11 +93,12 @@ system). Where a historical document and the contract disagree, the contract is 
 - Operational besides the workflow: this file, `internal/README.md`, the skills under
   `.claude/skills/`, the package READMEs and `docs/`.
 
-Current state: `src/` matches the contract, and the architecture rework is complete but for its last
-reconciliation, the consumer documentation and the release audit. The public API is fully
+Current state: `src/` matches the contract. The architecture rework, its reconciliation, the consumer
+documentation and the release conformance audit are done; the audit's findings are fixed on
+`bugfix/v1-audit-*` branches, and the closure check (R9e) comes before `v1.0.0-rc.1`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 1 978 tests, green in Debug and Release.
+with the generated XML file. The suite is 2 012 tests, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
@@ -171,16 +173,16 @@ run — under native AOT analysis.
 
 These are why the codebase does not carry a security check in every class. Do not work around them:
 
-1. **Byte monopoly.** `WireReader`/`WireWriter` (`Io/`) are the only types that touch payload bytes. They are `ref struct`s over memory and are passed by `ref`, never stored: `WireReader` reads a span or a `ReadOnlySequence<byte>`, `WireWriter` writes into the serializer's pooled `PayloadBuffer`, and there is no stream under the engine. Fixed-size reads throw `BinaryFormatException` on truncation, strings and blobs are bounded by their limits, and every declared length is compared with `WireReader.Remaining` — exact, because the bytes are in memory — before anything is allocated. A composite formatter gets `ref CompositeReader`/`ref CompositeWriter`, which only the engine's entry creates and which expose no raw integer.
-2. **Validated counts.** A loop bound over wire data exists only as an `ElementCount`, whose sole factory checks the count against its limit and charges the element budget. There is no other way to obtain one, so "read a length, then allocate" is not expressible.
+1. **Byte monopoly.** `WireReader`/`WireWriter` (`Io/`) are the only types that parse or produce payload bytes; the phases and the finished frame carry them as opaque spans. They are `ref struct`s over memory and are passed by `ref`, never stored: `WireReader` reads a span or a `ReadOnlySequence<byte>`, `WireWriter` writes into the serializer's pooled `PayloadBuffer`, and there is no stream under the engine. Fixed-size reads throw `BinaryFormatException` on truncation, strings and blobs are bounded by their limits, and every declared length is compared with `WireReader.Remaining` — exact, because the bytes are in memory — before anything is allocated. A composite formatter gets `ref CompositeReader`/`ref CompositeWriter`, which only the engine's entry creates and which expose no raw integer.
+2. **Validated counts.** A loop the engine runs over wire data — container elements and keyed fields — is bounded only by an `ElementCount`, whose sole factory checks the count against its limit and charges the element or keyed-field budget; a formatter reads no count, and the header's service records are bounded by the 4 096-byte header. There is no other way to obtain one, so "read a length, then allocate" is not expressible.
 3. **Engine-owned traversal.** The engine's codecs (`Engine/Codecs/`) own all recursion: null — folded into a value's first number, or a flag — and the reference frame, depth scopes, node budget, reference identity and scopes, cycle detection, the union tag, the keyed layout, and the element loop of every container. A shape receives no count and no primitive, and a type contract receives only a `MemberWriter`/`MemberReader`, which expose one member value per call and nothing else; the engine checks every contract call against the contract's description. A formatter never writes a loop over attacker-controlled data.
 
 ### Adding a formatter
 
-A declared type resolves once to the engine's codec for it, held in the static field of `FormatterCache<T>`: `FormatterRegistry` (`Formatters/`) applies its rules in order — delegates (refused), `Nullable<T>`, the scalars by exact type and enums, arrays, the fixed table of generic definitions, a concrete `ICollection<T>` with a public parameterless constructor, and last the object codec. Pick the shape, implement its interface (`Formatters/Shapes.cs`), and add it to the registry's table:
+A declared type resolves once to the engine's codec for it, held in the static field of `FormatterCache<T>`: `FormatterRegistry` (`Engine/`) applies its rules in order — delegates (refused), `Nullable<T>`, the scalars by exact type and enums, arrays, the fixed table of generic definitions, a concrete `ICollection<T>` with a public parameterless constructor, and last the object codec. Pick the shape, implement its interface (`Formatters/Shapes.cs`), and add it to the registry's table:
 
 - `IScalarFormatter<T>` — a self-contained value with no children and no data-driven allocation, through the checked primitives of `WireReader`/`WireWriter`; it states its `MinimumWireSize`. A reference type begins with a length or a count that its formatter writes one higher; the engine writes its null as that number's zero.
-- `ISequenceShape<TCollection, TElement, TBuilder, TEnumerator>` — count, enumerate, build and complete; the engine's `SequenceCodec` owns count, loop, depth, nodes and identity. A builder that is not the final instance sets `BuilderIsInstance = false`, a LIFO container sets `ReverseOnWrite`, and a struct enumerator keeps writing free of allocation.
+- `ISequenceShape<TCollection, TElement, TBuilder, TEnumerator>` — count, enumerate, build and complete; the engine's `SequenceCodec` owns count, loop, depth, nodes and identity. A builder that is not the final instance sets `BuilderIsInstance = false`, a LIFO container sets `ReverseOnWrite`, a collection that keeps its elements contiguously (`List<T>`) answers `TryGetSpan` and is written from the span, and otherwise a struct enumerator keeps writing free of allocation.
 - `IMapShape<TMap, TKey, TValue, TBuilder, TEnumerator>` — the same, for key/value entries.
 - `IArrayShape<TCollection, TElement>` — a sequence whose elements lie in one array: the engine writes them from the span it exposes and reads them into an array of their final length, which the shape wraps.
 - `ICompositeFormatter<T>` — a fixed, type-determined child layout (tuples, pairs, lazies) or an irregular one (array rank), through `CompositeReader`/`CompositeWriter`, which offer child values, a validated array shape and the elements behind it — and no raw integer.
