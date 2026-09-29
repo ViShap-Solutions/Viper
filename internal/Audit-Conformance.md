@@ -1,4 +1,4 @@
-# Аудит соответствия v1.0.0 — R9c
+# Аудит соответствия v1.0.0 — R9c и закрытие R9e
 
 **Класс: исторический.** Запись независимого аудита соответствия перед первым выпуском. Систему описывают `System-Contract.md` и документы, которые `README.md` относит к нормативным и действующим; этот отчёт — свидетельство того, что было проверено, и перечень находок для R9d и R9e.
 
@@ -8,7 +8,13 @@
 
 # 1. Вердикт
 
-**rc ставить нельзя.**
+**rc можно ставить** (R9e, коммит `e8af35b`, 2026-09-29).
+
+- Все семнадцать находок R9c закрыты в коде и документах на слое, который они называли; три вопроса к владельцу решены и записаны (`Owner-Review.md` логи 65–68), подробности — §12.
+- Пробный прогон CD прошёл: сборка Release без предупреждений в пакетах, 2 014 тестов зелёные в Debug и Release, три `.nupkg` и два `.snupkg` версии `1.0.0-rc.1`, у каждого пакета свой непустой README; харнесс — `--verify` 351 пара без отказов, `--smoke` 1 158 бенчмарков без отказов.
+- Новых находок веса «блокирует rc» или «исправить до выпуска» нет; две новые находки — вес «зафиксировано» (CONF-18, CONF-19).
+
+Вердикт R9c, заменённый этим: **rc ставить нельзя.**
 
 - Три находки требуют решения владельца: объём INV-9 («у каждого поля одна кодировка») при подтверждённых пробой вторых записях `BigInteger`, `BitArray`, `CultureInfo`, `Version` (CONF-01); INV-4 в сформулированном виде не выполняется для цикла по keyed-полям и по записям сервисов заголовка (CONF-02); запись строки с одиночным суррогатом молча меняет значение (CONF-06).
 - Ещё три находки веса «блокирует rc» ясны по стороне и слою: инварианты INV-8…INV-11, INV-14, INV-15, INV-18 держатся поведенческими, а не структурными тестами (CONF-03); D9.13(2) для `List<T>` реализовано иначе (CONF-04); часть публичной поверхности не записана в контракте (CONF-05).
@@ -429,4 +435,85 @@ Nullable flag 02: BinaryFormatException: Boolean value 2 is not a valid encoding
 
 # 12. Закрытие
 
-Пишется в R9e.
+R9e, ветка `audit/v1-conformance-closure`, коммит `e8af35bfbed2e75705270b17b713140f625b3142` (merge PR #21 `bugfix/v1-strict-utf8-keys` поверх merge PR #20 `bugfix/v1-audit-all`), 2026-09-29, дерево чистое. Закрытие проверено по коду и документам (`git diff 867ba6b e8af35b`, 43 файла), не по отчёту R9d.
+
+## 12.1 Прогоны
+
+```text
+dotnet --version                                                     10.0.400
+dotnet restore Viper.sln                                             ok
+dotnet build Viper.sln --configuration Release --no-restore
+    0 ошибок, 7 предупреждений — все в тестовом проекте (CS0414 Fixtures/Basic.cs:93, CS8631 Format/V0CorpusTests.cs:135,
+    CS8604 Hostile/PropertyTests.cs:171, CS8602 Hostile/CanonicalScalarTests.cs:55 — новое, CONF-19; остальные — как в R9c);
+    в Core и Serialization — ни одного, в том числе trimming/AOT
+dotnet test …Serialization.Tests.csproj --configuration Release --no-build --no-restore
+    Passed! Failed: 0, Passed: 2014, Skipped: 0, Total: 2014 (Api/AotAnalysisTests, Api/MemberSurfaceTests в их числе)
+dotnet test …Serialization.Tests.csproj --configuration Debug
+    Passed! Failed: 0, Passed: 2014, Skipped: 0, Total: 2014
+dotnet pack src/ViShap.Viper.Core/…            --configuration Release --no-build --no-restore -p:Version=1.0.0-rc.1 --output <scratchpad>/artifacts
+dotnet pack src/ViShap.Viper.Serialization/…   (то же)
+dotnet pack src/ViShap.Viper/…                 (то же)
+    ViShap.Viper.Core.1.0.0-rc.1.nupkg           <version>1.0.0-rc.1</version>, README CORE-README.md (6 891 байт)
+    ViShap.Viper.Core.1.0.0-rc.1.snupkg
+    ViShap.Viper.Serialization.1.0.0-rc.1.nupkg  <version>1.0.0-rc.1</version>, README SERIALIZATION-README.md (6 851 байт)
+    ViShap.Viper.Serialization.1.0.0-rc.1.snupkg
+    ViShap.Viper.1.0.0-rc.1.nupkg                <version>1.0.0-rc.1</version>, README METAPACK-README.md (3 982 байт)
+    — ровно три .nupkg и два .snupkg, имена ожидаемые; артефакты — вне репозитория
+dotnet run --project benchmarks/… -c Release -- --verify          "351 pairs, 0 failed." Corpus: 27 datasets
+dotnet run --project benchmarks/… -c Release -- --smoke           "Smoke: 1158 benchmarks, 0 failed."
+```
+
+Фикстуры `Fixtures/Wire/*.bin` после R9c не менялись (`git log 867ba6b..HEAD -- …/Fixtures/Wire/` пуст).
+
+## 12.2 Находки R9c
+
+| ID | Итог | Доказательство |
+|---|---|---|
+| CONF-01 | закрыта — решение владельца: вариант (а), чтение канонично (`Owner-Review.md` лог 65) | `BigIntegerFormatter.Read` отвергает пустой и не кратчайший блоб (`PrimitiveFormatters.cs:258-269`); `VersionFormatter.Read` требует `version.ToString() == text`, `CultureInfoFormatter.Read` — `culture.Name == name`, `BitArrayFormatter.Read` — нулевые биты заполнения (`SystemFormatters.cs`); контракт §22.4 (строки `BigInteger`, `Version`, `CultureInfo`, `BitArray`) и §25 INV-9 дополнены; `docs/supported-types.md`; QA HST-42…HST-45 → `Hostile/CanonicalScalarTests` |
+| CONF-02 | закрыта — решение владельца: гибрид (лог 66) | `CountKind.KeyedFields` в `Io/ElementCount.cs`, фабрика проверяет `MaxKeyedFields` и списывает бюджет keyed-полей; `ObjectCodec.cs:252` — `reader.ReadCount(CountKind.KeyedFields, …)`; записи сервисов ограничены заголовком 4 096 байт — записано в контракте §2.3 (строки 108-116), §5.9, §25 INV-4; `CLAUDE.md` барьер 2; LIM-52 → `Limits/InvariantStructureTests` (`KeyedObject_TakesItsFieldCountAsAValidatedCount`, `Formatters_ReadNoRawCount`) |
+| CONF-03 | закрыта | LIM-52…LIM-59 в `Limits/InvariantStructureTests` — отражение и поиск по исходникам текущих типов: INV-7 (нет статического поля с алгоритмом или фабрикой, по обеим сборкам), INV-8 (нет разрешения типа по имени, `WireWriter` не берёт `Type`), INV-9 (строгий UTF-8 в `WireReader`/`WireWriter`, нет `Encoding.UTF8` ниже пайплайна), INV-10 (бросаются только таксономия и стандартные исключения §8.10), INV-11 (`SecretKey` только через `CopyFrom`, обнуление только у владельцев), INV-14/15 (AAD — байты заголовка, в приёмник пишет только готовый кадр), INV-18 (обе версии через `Graph.WriteRoot`); колонка «Held by» §25 и итог «Architecture» QA обновлены |
+| CONF-04 | закрыта | `ISequenceShape.TryGetSpan` (`Formatters/Shapes.cs`), `ListShape<T>.TryGetSpan` через `CollectionsMarshal.AsSpan` (`SequenceShapes.cs:61`), `SequenceCodec.WriteBody` пишет из span (`SequenceCodec.cs:24`); `CLAUDE.md` «Adding a formatter» обновлён |
+| CONF-05 | закрыта | контракт §3.6 «Member surface» (строка 462) — каждый публичный член каждого публичного типа, включая `Peek(…, SerializationLimits)`, `SerializationLimits.Validate()` с описанием семантики, свойства опций, `BinaryHeaderInfo`, `SecretKey`, конструкторы провайдеров; API-29 → `Api/MemberSurfaceTests` читает список из самого контракта и сверяет в обе стороны (`EveryPublicMember_IsListedInTheContract`, `EveryListedMember_Exists`, `TheList_IsFoundAndNotEmpty`) |
+| CONF-06 | закрыта — решение владельца: строгая запись, `BinaryFormatException` (лог 67) | `WireWriter.EncodedLength` на строгом `UTF8Encoding(throwOnInvalidBytes: true)` для всех трёх путей записи строк (`Io/WireWriter.cs`); контракт §22.1 (строка 2340), `docs/supported-types.md`; WF-38 → `Hostile/CanonicalScalarTests`. Дополнительно по поручению владельца (лог 69): строгий UTF-8 для key id в `HkdfKeyProvider.Resolve` (`BinaryEncryptionKeyException`) и для строк заголовка (`BinaryConfigurationException`), контракт §8.1, §13.2, `docs/algorithms-and-keys.md`, ENC-31 → `Algorithms/HkdfKeyProviderTests` |
+| CONF-07 | закрыта | ENC-30 → `EncryptionTests.Serialize_ACipherRaisingCryptographicException_ThrowsEncryptionWithTheCauseInside`: `BinaryEncryptionException`, `CryptographicException` внутри, приёмник пуст |
+| CONF-08 | закрыта | QA BASE-01/02/04/07/09 помечены `retired in R3`/`retired in R2` с заменой; `SourceInvariantTests.cs:99` без `Cache/`; строки `Retired.md` R3 и R4 (`ITypeFormatter` — «clean») исправлены. Повторный поиск строк этих строк реестра по `src/`, `tests/`, `benchmarks/`, `docs/`, `.claude/`, `CLAUDE.md` и живым документам `internal/`: попадания только в QA-плане с пометками retired; в `tests/ViShap.Viper.AotConsumer/bin/` — устаревший выход сборки от 02:09 (игнорируется `.gitignore:33`, в репозиторий не входит), текущий `ViShap.Viper.Serialization.xml` называет только `ViShap.Viper.Engine.FormatterRegistry` |
+| CONF-09 | закрыта | строка `**Class: plan.**` в третьей строке `performance/README.md` и `PERF-01…PERF-09`; `audit/Problems.cs` начинается с «Class: historical … whose rules no longer apply» |
+| CONF-10 | закрыта | `Rework-Plan.md` Progress: R9b `closed` / `16d2704`, R9c `closed` / `867ba6b`; абзац «Current state» `CLAUDE.md` описывает R9a–R9c как сделанные и R9e как следующий шаг. Строка R9d после слияния снова отстала — CONF-18 |
+| CONF-11 | закрыта — по поручению владельца (лог 68) | `Development-Workflow.md` §3.3: этапы до `rework/r8-generator-ground`, R9 — пять подэтапов с их ветками, «после R6 формат окончательный, но beta не ставится», первый pre-release — `v1.0.0-rc.N` после R9e |
+| CONF-12 | закрыта | `cd.yml:51` — «pre-release, from a release/* branch» |
+| CONF-13 | закрыта — решение владельца: перенос (лог 68) | `Engine/FormatterRegistry.cs`, `namespace ViShap.Viper.Engine`; в `Formatters/` нет ни одной ссылки на кодеки движка и на реестр (поиск `ObjectCodec|SequenceCodec|MapCodec|ScalarCodec|NullableCodec|ImmutableArrayCodec|RejectedCodec|UnsupportedCodec|FormatterRegistry` пуст); `CLAUDE.md`, `PublicSurfaceTests`, строка `Retired.md` R9d |
+| CONF-14 | закрыта | HDR-33 → `HeaderTests.Serialize_ChecksumAndCustomCompression_WritesTheDocumentedRecords`: продовый вывод сверен байт в байт с `03 05 01` + CRC-32 и `05 09 FF 01 04 6C 7A 34 78 E8 07` из §22 |
+| CONF-15 | закрыта | `CLAUDE.md` формулирует правило так, как устроены примеры: блок с верхнеуровневыми операторами компилируется и выполняется, блок только с объявлениями — компилируется как библиотека |
+| CONF-16 | остаётся зафиксированной — не критерий выпуска | адаптеры Track B не написаны; `Benchmark-Plan.md` §28 |
+| CONF-17 | закрыта | контракт §2.3 (строки 100-102) и `CLAUDE.md` барьер 1: «the only types that parse or produce payload bytes», фазы, готовый кадр и hex-вид дампа держат байты как непрозрачные спаны |
+
+## 12.3 Новые находки
+
+### CONF-18 — строка R9d в Progress после слияния не обновлена
+
+- **Вес:** зафиксировано
+- **Сторона:** `rework/Rework-Plan.md` (Progress)
+- **Слой:** строка R9d таблицы Progress
+- **Доказательство:** `Rework-Plan.md:96` — R9d «gate holds — awaiting commit», колонка merge-коммита пуста, хотя `9d8e8ae` сливает `bugfix/v1-audit-all`, а `e8af35b` — `bugfix/v1-strict-utf8-keys` (вторая ветка в строке не названа).
+- **Наблюдается:** та же отстающая строка, что в CONF-10, у следующего подэтапа.
+- **Ожидается:** Progress — закрытые этапы с merge-коммитом. Вес ниже, чем у CONF-10: у отчёта R9e нет права менять план, а строку R9d/R9e по образцу R9a–R9c заполняет следующий шаг; ни потребитель, ни выпуск от неё не зависят. Заполнить вместе со строкой R9e при слиянии этого отчёта или в первой ветке после rc.
+
+### CONF-19 — новое предупреждение компилятора в тестовом проекте
+
+- **Вес:** зафиксировано
+- **Сторона:** тесты
+- **Слой:** `Hostile/CanonicalScalarTests.cs:55`
+- **Доказательство:** `warning CS8602: Dereference of a possibly null reference` в сборке Release — `Serializer.Deserialize<BitArray>(canonical).Length`.
+- **Наблюдается:** к шести предупреждениям тестового проекта, записанным в R9c, добавилось седьмое; пакеты предупреждений не имеют.
+- **Ожидается:** §3.7 требует чистоты только от двух пакетов; записано как наблюдение.
+
+## 12.4 Повторный поиск по затронутым файлам и принципы
+
+- `Retired.md` (§3.4) по 43 файлам R9d: новая строка R9d (`Formatters/FormatterRegistry`) — чисто; прежние строки — попаданий вне допустимых нет (см. CONF-08).
+- `SerializationLimits` ниже `Pipeline/` по-прежнему не встречается (LIM-43 зелёный, список папок без `Cache/`). Перенос реестра в `Engine/` убрал единственную ссылку вверх из `Formatters/`.
+- `Encoding.UTF8` в `src/` остался один раз — `Diagnostics/BinaryDump.cs:207`, декодирование собственного JSON дампа, не байтов payload; ниже пайплайна его нет (LIM-55).
+- Строгие кодировщики добавлены в `WireWriter`, `BinaryFormatHeaderV1` и `HkdfKeyProvider`; каждое новое исключение — из таксономии (LIM-56 зелёный) и записано в контракте (§8.1, §13.2, §22.1).
+
+## 12.5 Итог
+
+Все находки веса «блокирует rc» и «исправить до выпуска» закрыты; открыты только CONF-16, CONF-18, CONF-19 веса «зафиксировано». Решений владельца не требуется. **rc можно ставить.**
