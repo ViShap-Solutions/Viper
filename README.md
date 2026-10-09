@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icon.png" alt="Viper Logo" width="150px" />
+  <img src="icon-transparent.png" alt="Viper Logo" width="150px" />
 </p>
 
 # Viper
