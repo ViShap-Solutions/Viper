@@ -117,6 +117,15 @@ jobs:
           --no-restore
           --logger "trx;LogFileName=serialization-tests.trx"
 
+      - name: Run generator tests
+        run: >
+          dotnet test
+          tests/ViShap.Viper.Generator.Tests/ViShap.Viper.Generator.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --logger "trx;LogFileName=generator-tests.trx"
+
       - name: Pack ViShap.Viper.Core
         run: >
           dotnet pack
@@ -131,6 +140,16 @@ jobs:
         run: >
           dotnet pack
           src/ViShap.Viper.Serialization/ViShap.Viper.Serialization.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          -p:Version=${{ env.VERSION }}
+          --output ./artifacts
+
+      - name: Pack ViShap.Viper.Generator
+        run: >
+          dotnet pack
+          src/ViShap.Viper.Generator/ViShap.Viper.Generator.csproj
           --configuration Release
           --no-build
           --no-restore
@@ -155,7 +174,7 @@ jobs:
           echo "Produced packages:"
           find ./artifacts -maxdepth 1 -type f -name '*.nupkg' -print | sort
 
-          EXPECTED_COUNT=3
+          EXPECTED_COUNT=4
           ACTUAL_COUNT="$(
             find ./artifacts \
               -maxdepth 1 \
@@ -172,6 +191,7 @@ jobs:
           EXPECTED_PACKAGES=(
             "ViShap.Viper.Core.$VERSION.nupkg"
             "ViShap.Viper.Serialization.$VERSION.nupkg"
+            "ViShap.Viper.Generator.$VERSION.nupkg"
             "ViShap.Viper.$VERSION.nupkg"
           )
 
@@ -288,7 +308,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          EXPECTED_COUNT=3
+          EXPECTED_COUNT=4
           ACTUAL_COUNT="$(
             find ./artifacts \
               -maxdepth 1 \
@@ -305,6 +325,7 @@ jobs:
           EXPECTED_PACKAGES=(
             "ViShap.Viper.Core.$VERSION.nupkg"
             "ViShap.Viper.Serialization.$VERSION.nupkg"
+            "ViShap.Viper.Generator.$VERSION.nupkg"
             "ViShap.Viper.$VERSION.nupkg"
           )
 
@@ -341,6 +362,7 @@ jobs:
           PACKAGES=(
             "./artifacts/ViShap.Viper.Core.$VERSION.nupkg"
             "./artifacts/ViShap.Viper.Serialization.$VERSION.nupkg"
+            "./artifacts/ViShap.Viper.Generator.$VERSION.nupkg"
             "./artifacts/ViShap.Viper.$VERSION.nupkg"
           )
 

@@ -44,14 +44,14 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
             accessor.WriteTo(ref writer, in value);
     }
 
-    public override void Read(ref MemberReader reader, ref T value)
+    public override void ReadPositional(ref MemberReader reader, ref T value)
     {
         foreach (var accessor in _accessors)
-            accessor.ReadFrom(ref reader, ref value);
+            accessor.ReadPositionalFrom(ref reader, ref value);
     }
 
-    public override bool ReadField(ref MemberReader reader, int key, ref T value) =>
-        _byKey.TryGetValue(key, out var accessor) && accessor.ReadFieldFrom(ref reader, ref value);
+    public override bool ReadKeyed(ref MemberReader reader, int key, ref T value) =>
+        _byKey.TryGetValue(key, out var accessor) && accessor.ReadKeyedFrom(ref reader, ref value);
 }
 
 internal delegate TMember Getter<T, TMember>(in T owner);
@@ -65,9 +65,9 @@ internal abstract class MemberAccessor<T>(MemberDescription description)
 
     public abstract void WriteTo(ref MemberWriter writer, in T owner);
 
-    public abstract void ReadFrom(ref MemberReader reader, ref T owner);
+    public abstract void ReadPositionalFrom(ref MemberReader reader, ref T owner);
 
-    public abstract bool ReadFieldFrom(ref MemberReader reader, ref T owner);
+    public abstract bool ReadKeyedFrom(ref MemberReader reader, ref T owner);
 }
 
 /// <summary>One member of <typeparamref name="T"/>, of type <typeparamref name="TMember"/>, with its getter and setter compiled once.</summary>
@@ -95,17 +95,17 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
     public override void WriteTo(ref MemberWriter writer, in T owner)
     {
         if (_key is { } key)
-            writer.Field(key, _get(in owner));
+            writer.Member(key, _get(in owner));
         else
             writer.Member(_get(in owner));
     }
 
-    public override void ReadFrom(ref MemberReader reader, ref T owner) =>
+    public override void ReadPositionalFrom(ref MemberReader reader, ref T owner) =>
         _set(ref owner, reader.Member<TMember>());
 
-    public override bool ReadFieldFrom(ref MemberReader reader, ref T owner)
+    public override bool ReadKeyedFrom(ref MemberReader reader, ref T owner)
     {
-        _set(ref owner, reader.Value<TMember>());
+        _set(ref owner, reader.Member<TMember>());
         return true;
     }
 }
@@ -119,7 +119,7 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
 [RequiresDynamicCode(ReflectionPath.DynamicCode)]
 internal static class ReflectedContract
 {
-    public static TypeContract Build(Type type)
+    public static ITypeContract Build(Type type)
     {
         var candidates = Candidates(type).ToArray();
         bool isContract = type.GetCustomAttribute<BinaryContractAttribute>() is not null;
@@ -140,7 +140,7 @@ internal static class ReflectedContract
         for (int i = 0; i < members.Length; i++)
             accessors.SetValue(Accessor(type, members[i]), i);
 
-        return (TypeContract)Activator.CreateInstance(
+        return (ITypeContract)Activator.CreateInstance(
             typeof(ReflectedContract<>).MakeGenericType(type),
             BindingFlags.Instance | BindingFlags.NonPublic,
             binder: null,

@@ -5,16 +5,18 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins API-29: every public member of every public type is listed in contract §3.6, and every member
-/// the list names exists. The list is read from <c>internal/System-Contract.md</c> itself, so the
-/// contract cannot drift from the assemblies in either direction.
+/// Pins API-29: every public member of every public type — and every protected member of a public type
+/// a consumer can derive from — is listed in contract §3.6, and every member the list names exists. The
+/// list is read from <c>internal/System-Contract.md</c> itself, so the contract cannot drift from the
+/// assemblies in either direction.
 /// </summary>
 public class MemberSurfaceTests
 {
     private const string Heading = "## 3.6 Member surface";
 
     private const BindingFlags Declared =
-        BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static |
+        BindingFlags.DeclaredOnly;
 
     [Fact]
     public void EveryPublicMember_IsListedInTheContract()
@@ -78,13 +80,19 @@ public class MemberSurfaceTests
             yield break;
         }
 
-        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance))
-            yield return $".ctor({Parameters(constructor)})";
+        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        {
+            if (Visible(type, constructor))
+                yield return $"{Access(constructor)}.ctor({Parameters(constructor)})";
+        }
 
         foreach (var property in type.GetProperties(Declared))
         {
-            var getter = property.GetMethod is { IsPublic: true } ? " get;" : string.Empty;
-            var setter = property.SetMethod is { IsPublic: true } set
+            if (!Visible(type, property.GetMethod) && !Visible(type, property.SetMethod))
+                continue;
+
+            var getter = Visible(type, property.GetMethod) ? " get;" : string.Empty;
+            var setter = property.SetMethod is { } set && Visible(type, set)
                 ? set.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(IsExternalInit)) ? " init;" : " set;"
                 : string.Empty;
             string owner = (property.GetMethod ?? property.SetMethod)!.IsStatic ? "static " : string.Empty;
@@ -92,14 +100,20 @@ public class MemberSurfaceTests
                 ? $"[{string.Join(", ", indices.Select(parameter => Spell(parameter.ParameterType)))}]"
                 : string.Empty;
 
-            yield return $"{owner}{property.Name}{index} : {Spell(property.PropertyType)} {{{getter}{setter} }}";
+            yield return $"{Access((property.GetMethod ?? property.SetMethod)!)}{owner}{property.Name}{index} : {Spell(property.PropertyType)} {{{getter}{setter} }}";
         }
 
         foreach (var field in type.GetFields(Declared))
-            yield return $"{(field.IsStatic ? "static " : string.Empty)}{field.Name} : {Spell(field.FieldType)}";
+        {
+            if (field.IsPublic || (!type.IsSealed && (field.IsFamily || field.IsFamilyOrAssembly)))
+                yield return $"{(field.IsStatic ? "static " : string.Empty)}{field.Name} : {Spell(field.FieldType)}";
+        }
 
         foreach (var method in type.GetMethods(Declared))
         {
+            if (!Visible(type, method))
+                continue;
+
             if (method.IsSpecialName && !method.Name.StartsWith("op_", StringComparison.Ordinal))
                 continue;
 
@@ -110,13 +124,24 @@ public class MemberSurfaceTests
                 ? $"<{string.Join(", ", method.GetGenericArguments().Select(Spell))}>"
                 : string.Empty;
 
-            yield return $"{(method.IsStatic ? "static " : string.Empty)}{method.Name}{generics}({Parameters(method)}) : {Spell(method.ReturnType)}";
+            yield return $"{Access(method)}{(method.IsStatic ? "static " : string.Empty)}{method.Name}{generics}({Parameters(method)}) : {Spell(method.ReturnType)}";
         }
     }
+
+    /// <summary>
+    /// Whether a consumer reaches <paramref name="method"/>: it is public, or it is protected on a type
+    /// the consumer can derive from.
+    /// </summary>
+    private static bool Visible(Type type, MethodBase? method) =>
+        method is not null &&
+        (method.IsPublic || (!type.IsSealed && (method.IsFamily || method.IsFamilyOrAssembly)));
+
+    private static string Access(MethodBase method) => method.IsPublic ? string.Empty : "protected ";
 
     private static string Parameters(MethodBase method) =>
         string.Join(", ", method.GetParameters().Select(parameter =>
             parameter.IsOut ? $"out {Spell(parameter.ParameterType.GetElementType()!)}"
+            : parameter.ParameterType.IsByRef && parameter.IsIn ? $"in {Spell(parameter.ParameterType.GetElementType()!)}"
             : parameter.ParameterType.IsByRef ? $"ref {Spell(parameter.ParameterType.GetElementType()!)}"
             : Spell(parameter.ParameterType)));
 

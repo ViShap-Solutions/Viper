@@ -69,5 +69,7 @@ public sealed class OrderCodec(BinarySerializer serializer)
 }
 ```
 
-There is no source generator in v1.0: the encoding of every type is built by reflection, and the
-requirement above is how that is made visible rather than hidden.
+The [source generator](generator.md) does not change this. It writes the type contracts of a context,
+which removes the reflection over each type's members, but the codecs around them are still built at
+run time over the declared types, so every entry point keeps both requirements whether or not a
+context is configured.

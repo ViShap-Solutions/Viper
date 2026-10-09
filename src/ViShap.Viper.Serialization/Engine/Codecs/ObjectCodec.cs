@@ -13,23 +13,56 @@ namespace ViShap.Viper.Engine;
 /// the value is not reference-framed. A positional type, and any type with a union map, carries its
 /// null in a flag byte.
 /// </para>
+/// <para>
+/// The contract of a type is the one the operation's configuration supplies, when it supplies one,
+/// and otherwise the one built by reflection, which the codec keeps.
+/// </para>
 /// </summary>
 internal sealed class ObjectCodec<T> : StructuralCodec<T>
 {
     private static readonly bool IsReference = !typeof(T).IsValueType;
 
-    private TypeContract<T>? _contract;
+    private TypeContract<T>? _reflected;
     private UnionLookup? _union;
 
     public override CodecShape Shape => CodecShape.Object;
 
-    protected override bool FoldsNull => Union is null && Contract.Layout == MemberLayout.Keyed;
+    protected override bool FoldsNull(ref OperationState state) =>
+        Union is null && Contract(ref state).Layout == MemberLayout.Keyed;
 
     /// <summary>
-    /// The contract of the declared type. Building one can fail — a delegate member, a duplicate
-    /// key — and a failure is not kept, so every use reports it the same way.
+    /// The contract of the declared type: the configuration's, or the one built by reflection.
+    /// Building one can fail — a delegate member, a duplicate key — and a failure is not kept, so
+    /// every use reports it the same way.
     /// </summary>
-    private TypeContract<T> Contract => _contract ??= TypeContractCache.Get<T>();
+    private TypeContract<T> Contract(ref OperationState state)
+    {
+        if (state.Contracts is { } contracts)
+        {
+            if (contracts.Find<T>() is { } supplied)
+                return supplied;
+
+            if (contracts.RequireAll)
+                throw contracts.Missing(typeof(T));
+        }
+
+        return _reflected ??= TypeContractCache.Get<T>();
+    }
+
+    /// <summary>The contract of a runtime type met in the polymorphic slot, found the same way.</summary>
+    private static ITypeContract RuntimeContract(Type runtimeType, ref OperationState state)
+    {
+        if (state.Contracts is { } contracts)
+        {
+            if (contracts.Find(runtimeType) is { } supplied)
+                return supplied;
+
+            if (contracts.RequireAll)
+                throw contracts.Missing(runtimeType);
+        }
+
+        return TypeContractCache.Get(runtimeType);
+    }
 
     private UnionMap? Union => (_union ??= new UnionLookup(TypeContractCache.GetUnion(typeof(T)))).Map;
 
@@ -58,11 +91,11 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
 
         if (runtimeType == typeof(T))
         {
-            ObjectMembers.Write(ref writer, Contract, in value, nullFolded);
+            ObjectMembers.Write(ref writer, Contract(ref writer.State), in value, nullFolded);
             return;
         }
 
-        var runtimeContract = TypeContractCache.Get(runtimeType);
+        var runtimeContract = RuntimeContract(runtimeType, ref writer.State);
         var boxed = MemberWriter.Begin(ref writer, runtimeContract, nullFolded: false);
         runtimeContract.WriteBoxed(ref boxed, value!);
         boxed.End(ref writer);
@@ -74,10 +107,10 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
         {
             var runtimeType = ReadTag(ref reader, union);
             if (runtimeType != typeof(T))
-                return (T)TypeContractCache.Get(runtimeType).ReadBoxed(ref reader, referenceId, target: null);
+                return (T)RuntimeContract(runtimeType, ref reader.State).ReadBoxed(ref reader, referenceId, target: null);
         }
 
-        return ObjectMembers.ReadInstance(ref reader, Contract, referenceId, target: null, nullFolded);
+        return ObjectMembers.ReadInstance(ref reader, Contract(ref reader.State), referenceId, target: null, nullFolded);
     }
 
     /// <summary>
@@ -102,7 +135,7 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
 
             referenceId = frame.Id;
         }
-        else if (FoldsNull)
+        else if (FoldsNull(ref reader.State))
         {
             if (reader.TryReadNull())
                 throw NullRoot();
@@ -136,9 +169,9 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
         }
 
         if (instanceType == typeof(T))
-            ObjectMembers.ReadInstance(ref reader, Contract, referenceId, target, nullFolded);
+            ObjectMembers.ReadInstance(ref reader, Contract(ref reader.State), referenceId, target, nullFolded);
         else
-            TypeContractCache.Get(instanceType).ReadBoxed(ref reader, referenceId, target);
+            RuntimeContract(instanceType, ref reader.State).ReadBoxed(ref reader, referenceId, target);
     }
 
     private static BinaryFormatException NullRoot() =>
@@ -236,17 +269,28 @@ internal static class ObjectMembers
 
     private static void ReadMembers<T>(ref WireReader reader, TypeContract<T> contract, ref T instance, bool nullFolded)
     {
-        var trace = reader.State.Trace;
-
         if (contract.Layout == MemberLayout.Positional)
-        {
-            trace?.Shape(TraceShape.Object, contract.Members.Length);
-            var members = MemberReader.Positional(ref reader, contract);
-            contract.Read(ref members, ref instance);
-            members.End(ref reader);
-            return;
-        }
+            ReadPositional(ref reader, contract, ref instance);
+        else
+            ReadKeyed(ref reader, contract, ref instance, nullFolded);
+    }
 
+    /// <summary>
+    /// The members of a positional value. Kept apart from the keyed loop so that a nested positional
+    /// graph, which recurses through here, carries none of that loop's state on every level of the stack.
+    /// </summary>
+    private static void ReadPositional<T>(ref WireReader reader, TypeContract<T> contract, ref T instance)
+    {
+        reader.State.Trace?.Shape(TraceShape.Object, contract.Members.Count);
+        var members = MemberReader.Positional(ref reader, contract);
+        contract.ReadPositional(ref members, ref instance);
+        members.End(ref reader);
+    }
+
+    private static void ReadKeyed<T>(ref WireReader reader, TypeContract<T> contract, ref T instance, bool nullFolded)
+    {
+        var trace = reader.State.Trace;
+        ITypeContract description = contract;
         ref var state = ref reader.State;
 
         var fieldCount = reader.ReadCount(CountKind.KeyedFields, "Keyed field count", nullFolded);
@@ -273,15 +317,16 @@ internal static class ObjectMembers
 
             if (trace is not null)
             {
-                int index = contract.IndexOfKey(key);
+                int index = description.IndexOfKey(key);
                 if (index >= 0)
-                    trace.Label(contract.Members[index].Name);
+                    trace.Label(description.Members[index].Name);
 
                 trace.Field(key, payloadLength, fieldStart);
             }
 
             var field = MemberReader.Field(reader.SliceField(key, payloadLength), contract, key);
-            bool known = contract.ReadField(ref field, key, ref instance);
+            bool known = contract.ReadKeyed(ref field, key, ref instance);
+            field.EndField();
 
             if (known && !field.ValueRead)
                 throw new BinaryTypeException(
@@ -294,7 +339,7 @@ internal static class ObjectMembers
             if (known && field.Remaining != 0)
                 throw new BinaryFormatException(
                     $"Key {key} payload contains {field.Remaining} trailing byte(s) after " +
-                    $"decoding '{contract.Members[contract.IndexOfKey(key)].Name}'.");
+                    $"decoding '{description.Members[description.IndexOfKey(key)].Name}'.");
 
             trace?.EndField(known, reader.Position);
         }

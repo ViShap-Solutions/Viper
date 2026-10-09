@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using ViShap.Viper.Contracts;
 using ViShap.Viper.Engine;
 using ViShap.Viper.Formatters;
 using ViShap.Viper.Io;
@@ -181,7 +182,7 @@ public class StructuralBarrierTests
         for (var level = type; level is not null; level = level.BaseType)
         {
             var definition = level.IsGenericType ? level.GetGenericTypeDefinition() : level;
-            if (definition == typeof(Codec<>) || definition == typeof(TypeContract))
+            if (definition == typeof(Codec<>) || definition == typeof(TypeContract<>))
                 return true;
         }
 
@@ -223,7 +224,7 @@ public class StructuralBarrierTests
             .ToArray();
 
         Assert.Equal(
-            ["Create", "Read", "ReadField", "Write"],
+            ["Create", "ReadKeyed", "ReadPositional", "Write"],
             abstracts.Select(method => method.Name).Order(StringComparer.Ordinal));
 
         Type[] forbidden = [typeof(WireReader), typeof(WireWriter), typeof(ElementCount), typeof(OperationState)];
@@ -235,8 +236,8 @@ public class StructuralBarrierTests
     public void MemberSurfaces_ExposeOnlyMemberValues()
     {
         // No bytes, no counts, no position: what a contract can call is one value at a time.
-        Assert.Equal(["Field", "Member"], PublicMemberNames(typeof(MemberWriter)));
-        Assert.Equal(["Member", "Value"], PublicMemberNames(typeof(MemberReader)));
+        Assert.Equal(["Member"], PublicMemberNames(typeof(MemberWriter)));
+        Assert.Equal(["Member"], PublicMemberNames(typeof(MemberReader)));
 
         foreach (var surface in new[] { typeof(MemberWriter), typeof(MemberReader) })
         {

@@ -17,7 +17,8 @@ dotnet add package ViShap.Viper
 | [Entry points](entry-points.md) | writing to and reading from buffers, streams and pipes; asynchronous use; `Populate`; streams of frames |
 | [Options and limits](options-and-limits.md) | the options builder, its validation, and every `SerializationLimits` value |
 | [Formats: V1 and V0](formats.md) | the self-describing frame and the headerless codec, and how to choose between them |
-| [Contracts and schema evolution](contracts.md) | positional and keyed layouts, member attributes, evolving a type |
+| [Contracts and schema evolution](contracts.md) | positional and keyed layouts, member attributes, evolving a type, supplying a contract |
+| [The source generator](generator.md) | generated type contracts, the context, diagnostics VPR001–VPR019 |
 | [References](references.md) | preserving shared and cyclic references, and what happens without it |
 | [Polymorphism](polymorphism.md) | `[BinaryUnion]`: serializing a base type and its derived types |
 | [Algorithms and keys](algorithms-and-keys.md) | compression, checksums, encryption, key providers, custom algorithms |
@@ -30,9 +31,10 @@ dotnet add package ViShap.Viper
 
 | Package | Contains |
 |---|---|
-| [`ViShap.Viper`](../src/ViShap.Viper/METAPACK-README.md) | the meta-package: references the two below |
+| [`ViShap.Viper`](../src/ViShap.Viper/METAPACK-README.md) | the meta-package: references the three below |
 | [`ViShap.Viper.Core`](../src/ViShap.Viper.Core/CORE-README.md) | attributes, algorithm and key contracts, exceptions |
 | [`ViShap.Viper.Serialization`](../src/ViShap.Viper.Serialization/SERIALIZATION-README.md) | the serializer, built-in algorithms and key providers, diagnostics |
+| [`ViShap.Viper.Generator`](../src/ViShap.Viper.Generator/GENERATOR-README.md) | the build-time source generator of type contracts; nothing of it ships with your application |
 
 The public API is documented in XML and ships beside the assemblies, so every type and member is
 described on hover in the editor.

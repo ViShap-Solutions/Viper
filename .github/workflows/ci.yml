@@ -57,6 +57,15 @@ jobs:
           --no-restore
           --logger "trx;LogFileName=serialization-tests.trx"
 
+      - name: Run generator tests
+        run: >
+          dotnet test
+          tests/ViShap.Viper.Generator.Tests/ViShap.Viper.Generator.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --logger "trx;LogFileName=generator-tests.trx"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

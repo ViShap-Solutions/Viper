@@ -140,7 +140,14 @@ engine's loop. No formatter owns a loop over attacker-controlled data, so none c
 accounting step.
 
 A member-encoded type is described by its **type contract**, `TypeContract<T>`: member order, member
-access, instance creation and the response to a known key, and nothing else. The engine checks every
+access, instance creation and the response to a known key, and nothing else. It implements four
+methods: `Create`; `Write`, which makes one `MemberWriter.Member(value)` call per member in plan order
+under a positional layout, and one `Member(key, value)` call per member in ascending key order under a
+keyed one; `ReadPositional`, which makes one `MemberReader.Member<TMember>()` call per member in plan
+order; and `ReadKeyed`, which the engine calls once for each field on the wire with that field's key —
+a known key reads its member with one `Member<TMember>()` call and answers `true`, an unknown one
+answers `false` and the engine skips the field. A layout's member is always a `Member` call; "field"
+names only what the engine puts on the wire around it. The engine checks every
 call a contract makes against the contract's own description — the member each call names, its type,
 its key, and the number of calls; under a keyed layout, that an accepted field was read exactly once
 and a declined one not at all. A mismatch is `BinaryTypeException` naming the type and the member,
@@ -205,8 +212,11 @@ This is the whole public surface. Anything not listed is internal, and adding to
 change that belongs in a release note.
 
 **`ViShap.Viper`** — `BinarySerializer`, `BinarySerializerOptions`, `BinarySerializerOptionsBuilder`,
-`PooledPayload`, and the attributes `[BinaryContract]`, `[BinaryKey]`, `[BinaryIgnore]`,
-`[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`.
+`PooledPayload`, `BinarySerializerContext`, and the attributes `[BinaryContract]`, `[BinaryKey]`,
+`[BinaryIgnore]`, `[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`, `[BinaryContext]`.
+
+**`ViShap.Viper.Contracts`** — the type-contract seam of §14.3: `TypeContract<T>`, `MemberWriter`,
+`MemberReader`, `MemberDescription`, `MemberLayout`.
 
 **`ViShap.Viper.Security`** — `SerializationLimits`.
 
@@ -237,7 +247,9 @@ the only additive path.
 Deliberately **not** public: the payload engine, the value primitives, the format pipelines, the
 formatter contracts, the algorithm orchestrators, and the operation and budget types. Every one of
 them enforces part of the resource policy or the traversal protocol, and publishing any of them would
-let a caller step around it.
+let a caller step around it. The type-contract seam is public because it carries none of that: a
+contract sees one member value per call and nothing that reaches a byte, a count or a position, and
+every call it makes is checked (§14.3, INV-2, INV-5).
 
 Every public type and member carries XML documentation. Both packages build with
 `GenerateDocumentationFile`, so the documentation ships beside the assembly and a consumer sees it on
@@ -246,10 +258,12 @@ written for that consumer: what the member does, what it takes, what it returns 
 it raises. It does not cite this document, and it does not record how the code came to look the way
 it does.
 
-**The reflection path states its requirements.** In v1.0 the codec of every type, and the type
-contract of every member-encoded one (§14.1), is built by reflection on first use: members,
-constructors and generic definitions are found at run time, and the engine's generic codecs and
-shapes are closed over the types they encode. Every public entry point that encodes or decodes a
+**The reflection path states its requirements.** In v1.0 the codec of every type is built by
+reflection on first use, and so is the type contract of every member-encoded one that the
+configuration does not supply (§14.3): members, constructors and generic definitions are found at run
+time, and the engine's generic codecs and shapes are closed over the types they encode. A supplied
+contract removes the member reflection of its type, not the codec's, so the requirement stands for
+every entry point whatever the configuration. Every public entry point that encodes or decodes a
 value of the caller's type therefore carries `[RequiresUnreferencedCode]` and
 `[RequiresDynamicCode]` — the twenty-two generic methods of `BinarySerializer` (§3.1–§3.5) and the
 four of `BinaryFormatDumper` (`Dump<T>` over a span and over a sequence, `DumpValue<T>`,
@@ -463,11 +477,15 @@ await foreach (Order? order in serializer.DeserializeAsyncEnumerable<Order>(netw
 
 Every public member of every public type, one per line, as `Namespace.Type :: member`: constructors,
 properties with their accessors, fields, methods with simple type names, and an enum's values with
-their numbers. Records list the equality and printing members the compiler gives them, because a
-consumer calls them. `Api/MemberSurfaceTests` reads this block and compares it with the assemblies in
-both directions, so a member added, removed or re-typed fails the suite until this list says so.
+their numbers. A protected member of a public type a consumer can derive from is part of the surface
+too and is listed with `protected`; an `in` parameter is spelled `in`. Records list the equality and
+printing members the compiler gives them, because a consumer calls them. `Api/MemberSurfaceTests`
+reads this block and compares it with the assemblies in both directions, so a member added, removed or
+re-typed fails the suite until this list says so.
 
 ```text
+ViShap.Viper.BinaryContextAttribute :: .ctor(Type[])
+ViShap.Viper.BinaryContextAttribute :: Types : IReadOnlyList<Type> { get; }
 ViShap.Viper.BinaryContractAttribute :: .ctor()
 ViShap.Viper.BinaryIgnoreAttribute :: .ctor()
 ViShap.Viper.BinaryIncludeAttribute :: .ctor()
@@ -498,9 +516,12 @@ ViShap.Viper.BinarySerializer :: Serialize<T>(T) : Byte[]
 ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: SerializePooled<T>(T) : PooledPayload
+ViShap.Viper.BinarySerializerContext :: protected .ctor()
+ViShap.Viper.BinarySerializerContext :: protected Add<T>(TypeContract<T>) : Void
 ViShap.Viper.BinarySerializerOptions :: AllowV0Fallback : Boolean { get; }
 ViShap.Viper.BinarySerializerOptions :: Checksum : IChecksumAlgorithm { get; }
 ViShap.Viper.BinarySerializerOptions :: Compression : ICompressionAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Contracts : BinarySerializerContext { get; }
 ViShap.Viper.BinarySerializerOptions :: Encryption : IEncryptionAlgorithm { get; }
 ViShap.Viper.BinarySerializerOptions :: Equals(BinarySerializerOptions) : Boolean
 ViShap.Viper.BinarySerializerOptions :: Equals(Object) : Boolean
@@ -511,6 +532,7 @@ ViShap.Viper.BinarySerializerOptions :: Limits : SerializationLimits { get; }
 ViShap.Viper.BinarySerializerOptions :: PreserveReferences : Boolean { get; }
 ViShap.Viper.BinarySerializerOptions :: RequireChecksum : Boolean { get; }
 ViShap.Viper.BinarySerializerOptions :: RequireEncryption : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireGeneratedContracts : Boolean { get; }
 ViShap.Viper.BinarySerializerOptions :: ToString() : String
 ViShap.Viper.BinarySerializerOptions :: WriteVersion : Int32 { get; }
 ViShap.Viper.BinarySerializerOptions :: static Configure() : BinarySerializerOptionsBuilder
@@ -525,8 +547,10 @@ ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomCompression(String,
 ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomEncryption(String, Func<IEncryptionAlgorithm>) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: RequireChecksum(Boolean) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: RequireEncryption(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireGeneratedContracts(Boolean) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithChecksum(IChecksumAlgorithm) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithCompression(ICompressionAlgorithm) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithContracts(BinarySerializerContext) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, Func<String, Byte[]>, String) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, IKeyProvider, String) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder
@@ -590,6 +614,23 @@ ViShap.Viper.Compression.NoCompression :: Compress(ReadOnlySpan<Byte>, IBufferWr
 ViShap.Viper.Compression.NoCompression :: CustomName : String { get; }
 ViShap.Viper.Compression.NoCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
 ViShap.Viper.Compression.NoCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Contracts.MemberDescription :: .ctor(String, Type, Int32?)
+ViShap.Viper.Contracts.MemberDescription :: Key : Int32? { get; }
+ViShap.Viper.Contracts.MemberDescription :: MemberType : Type { get; }
+ViShap.Viper.Contracts.MemberDescription :: Name : String { get; }
+ViShap.Viper.Contracts.MemberLayout :: Keyed = 1
+ViShap.Viper.Contracts.MemberLayout :: Positional = 0
+ViShap.Viper.Contracts.MemberReader :: Member<TMember>() : TMember
+ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(Int32, TMember) : Void
+ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(TMember) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: CanBeConstructed : Boolean { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: Create() : T
+ViShap.Viper.Contracts.TypeContract`1 :: Layout : MemberLayout { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: Members : IReadOnlyList<MemberDescription> { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: ReadKeyed(ref MemberReader, Int32, ref T) : Boolean
+ViShap.Viper.Contracts.TypeContract`1 :: ReadPositional(ref MemberReader, ref T) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: Write(ref MemberWriter, in T) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: protected .ctor(MemberLayout, MemberDescription[], Boolean)
 ViShap.Viper.Crypto.Aes256GcmEncryption :: .ctor()
 ViShap.Viper.Crypto.Aes256GcmEncryption :: AuthenticatesAssociatedData : Boolean { get; }
 ViShap.Viper.Crypto.Aes256GcmEncryption :: CustomName : String { get; }
@@ -701,6 +742,8 @@ ViShap.Viper.Exceptions.BinaryIntegrityException :: .ctor(String)
 ViShap.Viper.Exceptions.BinaryIntegrityException :: .ctor(String, Exception)
 ViShap.Viper.Exceptions.BinaryLimitException :: .ctor(String)
 ViShap.Viper.Exceptions.BinaryLimitException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinarySerializerException :: protected .ctor(String)
+ViShap.Viper.Exceptions.BinarySerializerException :: protected .ctor(String, Exception)
 ViShap.Viper.Exceptions.BinaryStreamException :: .ctor(String)
 ViShap.Viper.Exceptions.BinaryStreamException :: .ctor(String, Exception)
 ViShap.Viper.Exceptions.BinaryTypeException :: .ctor(String)
@@ -790,6 +833,8 @@ WithLimits(SerializationLimits)
 AllowV0Fallback(bool)
 RequireEncryption(bool)
 RequireChecksum(bool)
+WithContracts(BinarySerializerContext)
+RequireGeneratedContracts(bool)
 RegisterCustomCompression(string, Func<ICompressionAlgorithm>)
 RegisterCustomChecksum(string, Func<IChecksumAlgorithm>)
 RegisterCustomEncryption(string, Func<IEncryptionAlgorithm>)
@@ -836,7 +881,8 @@ Order? order = reader.Deserialize<Order>(stream);   // any V1 frame, encrypted o
 - `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`;
 - a fixed key given to `WithEncryption` whose length is not the algorithm's `KeySizeInBytes` (§13.2).
   The check applies only to a fixed key: a key from a resolver or a provider exists only once it is
-  resolved, and is checked then.
+  resolved, and is checked then;
+- `RequireGeneratedContracts` without `WithContracts` (§14.3).
 
 `Build()` also refuses options that encrypt with `ChaCha20Poly1305Encryption` on a platform whose
 cryptography library does not provide it, with `BinaryFormatNotSupportedException` naming the
@@ -1804,10 +1850,11 @@ reflection, as `ReflectedContract<T>`, and it is the one description reader and 
 member order is the total order below; a contract built any other way must produce the same plan
 (INV-12).
 
-The type contract is the unit a generated contract replaces, and nothing else is generated. A source
-generator released after v1.0 implements `TypeContract<T>` for a type — the same description and the
-same member calls, in straight-line code instead of compiled accessors — while the engine, its call
-checks, the codecs and the wire stay as they are. What a contract must produce is fixed by the
+The type contract is the unit a supplied contract replaces, and nothing else is replaced. A contract
+given to the serializer through a `BinarySerializerContext` (§14.3) — generated, or written by hand —
+implements `TypeContract<T>` for a type: the same description and the same member calls, in
+straight-line code instead of compiled accessors, while the engine, its call checks, the codecs and
+the wire stay as they are. What a contract must produce is fixed by the
 conformance suite (`Contracts/ConformanceTests`): for every object shape — positional, keyed,
 inherited, shadowed, overridden, union, struct — the layout, the members in order with their types
 and keys, construction, and the exact bytes the engine writes around the contract's calls and reads
@@ -1896,6 +1943,125 @@ Unknown keyed fields are skipped according to their declared payload length and 
 Keyed mode is independent of the wire format version: the encoding lives in the payload, so it
 applies under V0 and V1 alike. Each field's length is patched after the field is written, in the
 serializer's own buffer, so keyed mode places no requirement on the caller's destination (§10.2).
+
+## 14.3 Supplied contracts
+
+The type contract is public, in `ViShap.Viper.Contracts`, so that a contract can be supplied instead of
+built by reflection: `TypeContract<T>`, the `MemberWriter` and `MemberReader` it is handed,
+`MemberDescription` and `MemberLayout`. What a contract implements, and what the engine checks each
+of its calls against, is §2.4; nothing in the seam reaches a byte, a count, a position or a limit
+(INV-2, INV-5).
+
+**The description.** The protected constructor of `TypeContract<T>` takes the layout, the members in
+the order the contract writes them and whether `Create` produces an instance. It copies the member
+array and refuses, with `BinaryConfigurationException`:
+
+```text
+an undefined layout, a null member array or a null member
+a positional member with a key, a keyed member without one
+keys that are not strictly ascending — a repeated key included
+```
+
+`MemberDescription` refuses an empty or null name, a null member type and a negative key, likewise.
+
+**The context.** A `BinarySerializerContext` holds at most one contract per type. A derived class adds
+them from its constructor with the protected `Add<T>(TypeContract<T>)`; a null contract is
+`ArgumentNullException`, a second contract for a type and a contract added after options were built
+with the context are `BinaryConfigurationException`. `[BinaryContext(typeof(…), …)]` on a `partial`
+context lists root types for the source generator and has no effect at run time. A context holds no
+other state, so one context serves any number of options and threads; a contract is shared the same
+way and holds no state of an operation.
+
+**The options.** `WithContracts(context)` gives a configuration a context; `Build()` takes a snapshot
+of it, frozen on first use and shared by every later build. For each member-encoded type an operation
+meets — a declared type, a union arm, the runtime type in a polymorphic slot — the engine uses the
+context's contract when it holds one, and otherwise builds the contract by reflection, as without a
+context. `RequireGeneratedContracts()` turns that fallback into `BinaryConfigurationException` naming
+the type, raised when an operation first needs the type's contract; `Build()` refuses it without
+`WithContracts`. A union base whose values are always one of its arms needs no contract, because the
+engine never encodes its members itself; a contract held for a type the engine encodes by a formatter
+— a collection, a string, a scalar — is never consulted. The diagnostics of §19 read with the
+contracts of the options they are given.
+
+**What the engine trusts.** The engine checks every call against the supplied contract's own
+description, not against the one reflection would build: a supplied contract decides the layout and
+the member list of its type. Whether a value carries its null in a flag or in its keyed field count
+(§22.2) follows the layout of the contract in force for that operation. A contract that describes its
+type as reflection does writes exactly the bytes reflection writes; that is the guarantee a generated
+contract gives, and the conformance suite (§14.1) and the byte-identity tests hold it.
+
+**Misuse of the seam.** A `MemberWriter` or `MemberReader` is used through the reference it is handed.
+A copy — passed to a helper by value, or assigned to a local — or a default instance is refused with
+`BinaryTypeException` the moment either copy is used after the other, and the operation leaves
+nothing in its destination. The engine counts every member call of the operation, and each writer and
+reader remembers the count after its own last call, so no copy can write or read past the checks.
+
+## 14.4 The source generator
+
+`ViShap.Viper.Generator` is a Roslyn incremental source generator, shipped as its own package and
+packed as an analyzer (`analyzers/dotnet/cs`); it runs only in the compiler, and no shipped assembly
+references it. The meta-package `ViShap.Viper` depends on it, so one install brings it; it is inert in a
+project with no `[BinaryContext]` class.
+
+**What it generates.** For each `partial` class deriving from `BinarySerializerContext` and marked
+`[BinaryContext(typeof(…), …)]`: a contract (§14.3) for each listed type and for every member-encoded
+type those reach — through member types, array elements, the arguments of the supported generic
+definitions, the elements of concrete collections, nullable values and `[BinaryUnion]` arms, classified
+by the serializer's own rules (§23) — and, in the context, a public parameterless constructor that adds
+them and a static `Default` instance. Each contract is the description of §14.1/§14.2 — the members of
+every level of the hierarchy, each override once at its most derived declaration with the attributes
+nearest to it, a hidden member as a second member, the total order of INV-12 or ascending keys — with
+`Create`, `Write`, `ReadPositional` and `ReadKeyed` as straight-line code. A public member is reached
+directly; a non-public one, an `init` or non-public setter, and a constructor that is not accessible or
+leaves required members unset, through `[UnsafeAccessor]`, declared over the generic definition when the
+declaring type is generic. Nothing generated holds a loop, a length, a count, a limit, a reference frame,
+a union tag or a byte: those stay in the engine (INV-2, INV-5).
+
+**Byte identity.** A generated contract has exactly the description the reflected contract has, so a
+value writes the same bytes with the context and without it, and each reads the other's payloads, under
+every version and option. The conformance suite runs a second time against generated contracts, the
+frozen fixtures are read and written back through them, and a corpus of every rule is compared byte for
+byte with reflection.
+
+**What it leaves to reflection.** A type declared in another assembly (whose non-public members the
+compiler cannot see), deriving from one, not accessible from the context, open generic, static, a ref
+struct, or with a member the generated code cannot name (an explicit interface implementation, a fixed
+buffer, a type not accessible from the context) gets no contract; warning `VPR019` names it, and
+`RequireGeneratedContracts` makes its use a `BinaryConfigurationException` (§14.3).
+
+**Diagnostics.** Every rejection the serializer makes when it builds a contract by reflection is a
+compiler error with its own id, reported for a type the context reaches; the serializer keeps rejecting
+the same things at run time for a type without a generated contract:
+
+```text
+VPR001  error    [BinaryContext] class not partial (nor every type it is nested in)
+VPR002  error    [BinaryContext] class generic, abstract, static, or not deriving from BinarySerializerContext
+VPR003  error    [BinaryContext] class declares a parameterless constructor or a member named Default
+VPR004  error    [BinaryKey] without [BinaryContract]
+VPR005  error    [BinaryInclude] with [BinaryIgnore]
+VPR006  error    duplicate [BinaryOrder]
+VPR007  error    [BinaryInclude] on a contract member
+VPR008  error    [BinaryOrder] on a contract member
+VPR009  error    [BinaryKey] with [BinaryIgnore]
+VPR010  error    contract member with neither [BinaryKey] nor [BinaryIgnore]
+VPR011  error    negative [BinaryKey]
+VPR012  error    duplicate [BinaryKey]
+VPR013  error    delegate member
+VPR014  error    member type with no representation on the wire (pointer, ref struct)
+VPR015  error    [BinaryUnion] tag outside 0-255
+VPR016  error    duplicate [BinaryUnion] tag
+VPR017  error    [BinaryUnion] type not assignable to the base
+VPR018  warning  abstract type or interface without [BinaryUnion], whose values cannot be read back
+VPR019  warning  type described by reflection, with the reason
+```
+
+`VPR018` is a warning because the reflected contract of such a type builds: the serializer refuses a
+value of it only when one is read, and writes a null of it.
+
+**Trimming and native AOT.** A generated contract removes the member reflection and the compiled
+accessors of its type, not the construction of the codecs around it, which closes generic shapes over
+the declared types at run time. The entry points of §3 therefore keep `[RequiresUnreferencedCode]` and
+`[RequiresDynamicCode]` whatever the configuration.
 
 ---
 
@@ -2058,11 +2224,12 @@ IMapShape<,,,,>          = the same for key/value entries
 IArrayShape<,>           = a sequence whose elements lie in one array: exposed as a span, wrapped back
 ICompositeFormatter<T>   = a fixed child layout, through CompositeReader / CompositeWriter
 TypeContract<T>          = member order, access, construction, the response to a known key
-ReflectedContract<T>     = the type contract built by reflection, the one v1.0 ships
+ReflectedContract<T>     = the type contract built by reflection, used when the configuration supplies none
+BinarySerializerContext  = the contracts a configuration supplies instead (§14.3); ContractSet is its snapshot
 MemberWriter / Reader    = what a type contract writes and reads its members through
 CompositeReader / Writer = what a composite formatter may do: child values, a validated ArrayShape
                            and the elements behind it, read by the engine — and no raw integer
-TypeContract             = the description of a TypeContract<T>: members, keys, layout mode,
+ITypeContract            = the description of a TypeContract<T>: members, keys, layout mode,
                            constructibility; what the engine checks every contract call against
 UnionMap                 = tag ↔ type map for one declared type
 ```
@@ -2076,8 +2243,8 @@ each safe when several threads use a type for the first time at once:
 
 - the codec of each declared type, in the static field of `FormatterCache<T>`. The shapes of the
   generic definitions it is built from are a fixed table, closed once per type;
-- the type contract of each member-encoded type, found by type, which is what the polymorphic slot
-  needs;
+- the reflected type contract of each member-encoded type, found by type, which is what the
+  polymorphic slot needs — a contract a context supplies is held by the options, not cached;
 - the union map of each declared type.
 
 Nothing request-local takes part in building an entry, and an entry that fails to build — a delegate
@@ -2267,9 +2434,8 @@ A03 object-declared values                   → write-side rejection (§15)    
 
 Deferred by design, and **not** claimed by this contract: a public formatter contract, an
 asynchronous engine (the engine never awaits, §2.4; asynchrony lives at the frame edge, §3.5), a V2
-codec, constant-time checksum comparison, and source generators in place of the reflected contract —
-the seam a generated contract implements is in place (`TypeContract<T>`, §14.1), and the generator
-itself is not.
+codec, constant-time checksum comparison, and a generated codec graph — the source generator of
+§14.4 writes type contracts, not codecs, so native AOT without warnings is not claimed.
 
 ## 21.4 Array length vs blob length
 

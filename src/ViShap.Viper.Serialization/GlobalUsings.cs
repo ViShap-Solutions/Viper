@@ -1,6 +1,7 @@
 ﻿global using ViShap.Viper.Checksum;
 global using ViShap.Viper.Compression;
 global using ViShap.Viper.Configuration;
+global using ViShap.Viper.Contracts;
 global using ViShap.Viper.Crypto;
 global using ViShap.Viper.Diagnostics;
 global using ViShap.Viper.Engine;

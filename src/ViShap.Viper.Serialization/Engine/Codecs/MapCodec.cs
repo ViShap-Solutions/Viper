@@ -21,7 +21,7 @@ internal sealed class MapCodec<TMap, TKey, TValue, TBuilder, TEnumerator>(
 
     public override CodecShape Shape => CodecShape.Map;
 
-    protected override bool FoldsNull => true;
+    protected override bool FoldsNull(ref OperationState state) => true;
 
     protected override void WriteBody(ref WireWriter writer, TMap value, bool nullFolded)
     {

@@ -1,3 +1,4 @@
+using ViShap.Viper.Contracts;
 using ViShap.Viper.Engine;
 using ViShap.Viper.Io;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -379,7 +380,7 @@ public abstract class ContractConformance
 
     // --- the engine's entries for a contract -----------------------------------------------------
 
-    private static (string Name, Type Type, int? Key)[] Describe(TypeContract contract) =>
+    private static (string Name, Type Type, int? Key)[] Describe<T>(TypeContract<T> contract) =>
         [.. contract.Members.Select(member => (member.Name, member.MemberType, member.Key))];
 
     /// <summary>The members of <paramref name="value"/>, written through the engine's entry for a declared type's contract.</summary>
@@ -387,7 +388,7 @@ public abstract class ContractConformance
         Capture((ref WireWriter writer) => ObjectMembers.Write(ref writer, contract, in value, nullFolded));
 
     /// <summary>The members of <paramref name="value"/>, written through the polymorphic slot's entry.</summary>
-    private static byte[] WriteBoxed(TypeContract contract, object value) =>
+    private static byte[] WriteBoxed(ITypeContract contract, object value) =>
         Capture((ref WireWriter writer) =>
         {
             var members = MemberWriter.Begin(ref writer, contract, nullFolded: false);
@@ -406,7 +407,7 @@ public abstract class ContractConformance
     }
 
     /// <summary>A new instance read through the polymorphic slot's entry, which must consume every byte.</summary>
-    private static object ReadBoxed(TypeContract contract, byte[] bytes)
+    private static object ReadBoxed(ITypeContract contract, byte[] bytes)
     {
         var operation = new OperationBox();
         var reader = new WireReader(bytes, ref operation.State);
@@ -435,4 +436,18 @@ public abstract class ContractConformance
 public sealed class ReflectedContractConformanceTests : ContractConformance
 {
     internal override TypeContract<T> ContractOf<T>() => TypeContractCache.Get<T>();
+}
+
+/// <summary>
+/// Pins GEN-11: the conformance suite run a second time, against the contracts the source generator
+/// writes for the same shapes (<c>Fixtures/GeneratedContracts</c>), reached through the options their
+/// context was given to.
+/// </summary>
+public sealed class GeneratedContractConformanceTests : ContractConformance
+{
+    private static readonly BinarySerializerOptions Options =
+        BinarySerializerOptions.Configure().WithContracts(GeneratedConformanceContracts.Default).Build();
+
+    internal override TypeContract<T> ContractOf<T>() =>
+        Options.ContractSet!.Find<T>() ?? throw new InvalidOperationException($"No generated contract for '{typeof(T)}'.");
 }

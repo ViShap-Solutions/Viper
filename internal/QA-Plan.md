@@ -215,7 +215,7 @@ Surface under test: the `BinarySerializer` overloads of §3.1 as compiled.
 - [x] API-26 — every asynchronous read and populate, from a stream and from a pipe, that meets V0 is `NotSupportedException` naming the rule, and consumes nothing from a pipe; an asynchronous V0 write to a stream and to a pipe succeeds with the bytes of the synchronous write *(§3.5, §10.2)* — `Api/AsynchronyTests`
 - [x] API-27 — `DeserializeAsyncEnumerable` over a `Stream` and a `PipeReader`: 0, 1 and 5 frames yield as many values and complete, consuming every frame; the source ending inside a frame is `BinaryFormatException` after the complete frames were yielded; each frame has its own budget (four frames each just under a cumulative limit all pass); V0 is `NotSupportedException`; cancellation leaves a started frame unconsumed in the pipe *(§3.5)* — `Api/AsyncEnumerableTests`
 - [x] API-28 — a buffer writer that hands out spans shorter than asked for receives the bytes of the array form; one that hands out an empty span is `BinaryStreamException` within a bounded time instead of a copy that never ends, for `Serialize(IBufferWriter<byte>, T)` *(§3.1, §8.8)* — `Api/BufferWriterTests` *(added in R3, owner's decision of 2026-09-27, `rework/Owner-Review.md` log 55)*
-- [x] API-29 — every public member of every public type is listed in contract §3.6, and every listed member exists; the list is read from the contract *(§3.6)* — `Api/MemberSurfaceTests`
+- [x] API-29 — every public member of every public type, and every protected member of a public type a consumer can derive from, is listed in contract §3.6, and every listed member exists; the list is read from the contract *(§3.6; protected members since P2 of the rc.2 plan)* — `Api/MemberSurfaceTests`
 
 **Sources** *(added in R3)*. Every kind of source reads the same value from the same frame, under P0 and
 P6 and, where V0 can be read from it, P7; a source that delivers bytes over time is asked for exactly
@@ -521,7 +521,7 @@ Every row of §22 is pinned at the byte level. This is the section a second impl
 - [x] CTR-28 — a member hidden by `new` is a second member; both travel, the base declaration first *(§14.1, §22.3)* — `Contracts/InheritanceTests`
 - [x] CTR-29 — an override is one member, and its own attributes apply *(§14.1)* — `Contracts/InheritanceTests`
 - [x] CTR-30 — the plan of a type is the same however many times it is built *(§14.1)* — `Contracts/InheritanceTests`
-- [x] CTR-31 — the engine checks every call of a type contract against its description: a member of the wrong type, the wrong key, keys or members out of order, too few or too many calls, a keyed field under a positional layout or the reverse, a key the description does not have — each `BinaryTypeException` naming the type and the member; a field accepted without its value read, a value read and then disowned, or read twice, likewise; a declined unknown key is skipped *(§2.4)* — `Contracts/ContractCallTests` *(added in R4)*
+- [x] CTR-31 — the engine checks every call of a type contract against its description: a member of the wrong type, the wrong key, keys or members out of order, too few or too many calls, a keyed member written under a positional layout or the reverse, a key the description does not have — each `BinaryTypeException` naming the type and the member; a field accepted by `ReadKeyed` without its member read, a member read and then disowned, or read twice, likewise; a declined unknown key is skipped, and one `Member` call per known key reads that field's member *(§2.4)* — `Contracts/ContractCallTests` *(added in R4; calls renamed in P1 of the rc.2 plan)*
 - [x] CTR-32 — a struct owner is populated in place through the `ref` setter, and a struct root is read into the instance returned *(§2.4, §14.1)* — `Contracts/ContractCallTests` *(added in R4)*
 
 ## 15.1 Contract conformance
@@ -539,6 +539,44 @@ class deriving from `ContractConformance` runs the same cases against another `T
 - [x] CONF-05 — overridden: an override is one member, ordered by the attribute written on the override *(§14.1)* — `Contracts/ConformanceTests`
 - [x] CONF-06 — union: the abstract base describes its members and cannot be constructed; each tagged type writes and reads its members through the polymorphic slot's entry and is read back as its runtime type *(§15, §22.3)* — `Contracts/ConformanceTests`
 - [x] CONF-07 — struct: a positional struct is created as `default`, written and read in place; a keyed struct writes its field count as it is; a struct in the polymorphic slot is read into its box *(§14.2, §15, §22.2)* — `Contracts/ConformanceTests`
+
+`ContextContractConformanceTests` runs the same cases against contracts written by hand in
+`Fixtures/HandWrittenContracts` and reached through the options a `BinarySerializerContext` was given
+to — the path a supplied contract takes. *(added in P2 of the rc.2 plan)*
+
+## 15.2 Supplied contracts and the context
+
+A contract supplied through a `BinarySerializerContext` replaces the reflected one for its type; the
+seam it is written against is public. *(added in P2 of the rc.2 plan)*
+
+- [x] CTX-01 — the context's contracts write the bytes reflection writes and read them back, for keyed, inherited, overridden, struct, union and collection values, null included, under V1 with and without references and under V0 *(§14.3)* — `Contracts/ContextTests`
+- [x] CTX-02 — the engine takes a type's contract from the operation's configuration before reflection — for a declared type and for the runtime type of a polymorphic slot — and a serializer without the context in the same process keeps the reflected one *(§14.3)* — `Contracts/ContextTests`
+- [x] CTX-03 — whether a value carries its null in a flag or in its keyed field count follows the layout of the contract in force for the operation, not the one reflection would build *(§14.3, §22.2)* — `Contracts/ContextTests`
+- [x] CTX-04 — `RequireGeneratedContracts` refuses a type the context lacks — a declared type, a union arm — with `BinaryConfigurationException` naming it and the policy, lets every type the context holds through, and is refused by `Build()` without `WithContracts`; the options expose the context and the policy *(§4.1, §14.3)* — `Contracts/ContextTests`
+- [x] CTX-05 — a context holds one contract per type: a second one, one added after options were built, and a null one are refused *(§14.3)* — `Contracts/ContextTests`
+- [x] CTX-06 — a description refuses an empty or null name, a null type, a negative key, a key under a positional layout, a keyed member without one, keys out of order or repeated, a null member array or member and an undefined layout, each with `BinaryConfigurationException`; the member array is copied *(§14.3)* — `Contracts/ContextTests`
+- [x] CTX-07 — a member writer or reader used through a copy, replaced by a default instance or used as a default instance is `BinaryTypeException`, positional and keyed, and a refused write leaves nothing in its destination *(§14.3)* — `Contracts/ContextTests`
+- [x] CTX-08 — the conformance suite passes on hand-written contracts supplied through a context *(§14.1, §14.3)* — `Contracts/ContextContractConformanceTests`
+
+## 15.3 The source generator
+
+The generator's own tests are `tests/ViShap.Viper.Generator.Tests`: they compile sources with Roslyn
+against the built assemblies, run the generator as the compiler does, and load what it produced. The
+runs through generated contracts that need the shared case lists stay in this project, which
+references the generator as an analyzer. *(added in P3–P4 of the rc.2 plan)*
+
+- [x] GEN-01 — the source written for each object shape — positional, keyed, inherited, shadowed, overridden, union base and arm, struct, nested context and type, closed generic with a non-public member, `init`/`required`/private setter/private constructor/keyword member, global namespace — matches its reviewed snapshot and compiles with the types it describes *(§14.4)* — `Generator.Tests/EmissionTests`
+- [x] GEN-02 — every diagnostic VPR001…VPR019 is reported for the source that earns it, with its severity, the type and member in its message and its link into `docs/generator.md`; every descriptor has a case *(§14.4)* — `Generator.Tests/DiagnosticTests`
+- [x] GEN-03 — every error the generator reports for a type (VPR004…VPR016) is a type the serializer refuses with `BinaryTypeException` when it describes it by reflection — the same sources compiled without the generated code — and a valid type is reported nothing and accepted *(§14.4)* — `Generator.Tests/DiagnosticTests`
+- [x] GEN-04 — a corpus exercising every rule the generator reproduces writes the same bytes through generated contracts as through reflection, with reflection refused, under V1 with and without references and under V0, and reads back to the same bytes *(§14.4, INV-12)* — `Generator.Tests/ByteIdentityTests`
+- [x] GEN-05 — a project without a `[BinaryContext]` gets no source and no diagnostic *(§14.4)* — `Generator.Tests/PipelineTests`
+- [x] GEN-06 — an unrelated edit re-emits no contract; an edit to one type re-emits its contract alone *(§14.4)* — `Generator.Tests/PipelineTests`
+- [x] GEN-07 — the frozen payloads read through generated contracts, with reflection refused, decode to what reflection decodes and write back to exactly the frozen bytes, V1, V1 with references and V0; the protected one decrypts to the same payload *(§14.4, §22)* — `Format/GeneratedCompatibilityTests`
+- [x] GEN-08 — the same sources, in any order, give the same generated files, with `
+` line endings *(§14.4)* — `Generator.Tests/PipelineTests`
+- [x] GEN-09 — the emitted source holds no loop, no length, no count, no limit, no reader or writer, no tag, no reflection *(§14.4, INV-2, INV-5)* — `Generator.Tests/PipelineTests`
+- [x] GEN-10 — the generator classifies types by exactly the serializer's tables of scalars and generic definitions, references only Roslyn and the standard library, and no shipped assembly references it *(§14.4, §23)* — `Generator.Tests/PipelineTests`
+- [x] GEN-11 — the conformance suite passes on generated contracts *(§14.1, §14.4)* — `Contracts/GeneratedContractConformanceTests`
 
 ---
 

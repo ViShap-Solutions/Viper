@@ -1097,5 +1097,6 @@ public sealed class BinarySerializer
             _options.Keys,
             _options.PreserveReferences,
             _options.RequireEncryption,
-            _options.RequireChecksum);
+            _options.RequireChecksum,
+            _options.ContractSet);
 }

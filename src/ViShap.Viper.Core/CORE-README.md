@@ -30,6 +30,7 @@ dotnet add package ViShap.Viper.Core
 | `[BinaryInclude]` | includes a non-public member of a positional type |
 | `[BinaryOrder(n)]` | pins the position of a member of a positional type |
 | `[BinaryUnion(tag, typeof(Derived))]` | declares a derived type a base class or interface may hold, and its one-byte tag |
+| `[BinaryContext(typeof(T), …)]` | on a `BinarySerializerContext`, lists the types the source generator writes contracts for; no effect at run time |
 
 ```csharp
 using ViShap.Viper;

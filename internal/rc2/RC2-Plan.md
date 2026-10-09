@@ -269,9 +269,14 @@ Filled in by the owner.
 
 | | Decision | Date |
 |---|---|---|
-| N1a / N1b | | |
-| S1 / S2 / S3 | | |
-| S4 / S5 | | |
+| N1a / N1b | B + M1 (recommended) | 2026-10-09 |
+| S1 / S2 / S3 | a / c / b (recommended) | 2026-10-09 |
+| S4 / S5 | A / a (recommended) | 2026-10-09 |
+| S1 base type | `TypeContract<T>` implements an internal interface; exactly the five types of S1-a are public | 2026-10-09 |
+| S2 context | abstract `BinarySerializerContext`, contracts added in its constructor through `protected Add<T>`, snapshotted by `Build()`; `[BinaryContext(typeof(…))]` in Core lists the root types | 2026-10-09 |
+| S2 type coverage | the listed types and every member-encoded type reachable from them through members, element and key/value types, `Nullable<T>` and `[BinaryUnion]` arms | 2026-10-09 |
+| Invalid description | `BinaryConfigurationException` from the public constructors and from `Add<T>` | 2026-10-09 |
+| P1–P4 on one branch | `feature/generator`; the order inside it is kept, the gates are checked together at the end | 2026-10-09 |
 | F1 | | |
 | A1 | | |
 | T1 | | |
@@ -292,10 +297,10 @@ quotations).
 | Stage | Branch | Skill | Needs decision |
 |---|---|---|---|
 | P0 State sync | `docs/rc1-state-sync` | `viper_builder` | — |
-| P1 Naming | `rework/p1-contract-naming` | `viper_builder` | N1 |
-| P2 Public contract seam | `feature/public-contract-seam` | `viper_builder`, `viper_generator` | S1, S2, S3, S4 |
-| P3 Generator | `feature/generator` | `viper_generator` | S2, S3, S4, S5 |
-| P4 Generator tests | `test/generator-conformance` | `viper_tester`, `viper_generator` | — |
+| P1 Naming | `feature/generator` (one branch for P1–P4, owner's decision) | `viper_generator` | N1 — taken |
+| P2 Public contract seam | `feature/generator` | `viper_generator` | S1–S4 — taken |
+| P3 Generator | `feature/generator` | `viper_generator` | S2–S5 — taken |
+| P4 Generator tests | `feature/generator` | `viper_generator`, `viper_tester` | — |
 | P5a Schema fingerprint | `feature/schema-fingerprint` | `viper_builder` | F1 |
 | P5b Live tracing | `feature/trace-sink` | `viper_builder` | T1 |
 | P5c Zstandard | `feature/zstd-package` | `viper_builder` | A1 |
@@ -484,7 +489,18 @@ documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living docu
 
 | Stage | Was | Now | Searched as | Result |
 |---|---|---|---|---|
-| P1 | | | | |
+| P1 | `TypeContract<T>.Read` | `TypeContract<T>.ReadPositional` | `override void Read(`, `.Read(ref members` | clean |
+| P1 | `TypeContract<T>.ReadField` | `TypeContract<T>.ReadKeyed` | `ReadField\b`, `ReadField_` | clean outside historical documents |
+| P1 | `MemberWriter.Field<TMember>(key, value)` | `MemberWriter.Member<TMember>(key, value)` | `.Field(`, `Field<TMember>` | clean; `MemberReader.Field` (the engine's internal factory that opens one field) and `WireTrace.Field` keep the wire word |
+| P1 | `MemberReader.Value<TMember>()` | `MemberReader.Member<TMember>()`, one call for both layouts | `.Value<`, `Value<TMember>` | clean |
+| P1 | `MemberAccessor<T>.ReadFrom` / `ReadFieldFrom` | `ReadPositionalFrom` / `ReadKeyedFrom` | `ReadFieldFrom`, `.ReadFrom(ref reader` | clean (`BinaryFormatHeaderV1.ReadFrom` is unrelated) |
+| P1 | `Contracts.WrongLayout(…, write)` on the read side | write side only: a reader's layout is the one the engine opened it for | `WrongLayout(` | one caller, `MemberWriter` |
+| P2 | `ViShap.Viper.Engine.TypeContract` (internal abstract base) | `ViShap.Viper.Engine.ITypeContract` (internal interface `TypeContract<T>` implements) | `TypeContract contract`, `typeof(TypeContract)`, `(TypeContract)` | clean |
+| P2 | `ViShap.Viper.Engine.TypeContract<T>`, `MemberWriter`, `MemberReader`, `MemberDescription`, `MemberLayout` (internal) | the same names, public, in `ViShap.Viper.Contracts` | `ViShap.Viper.Engine.TypeContract`, `ViShap.Viper.Engine.Member` | clean outside historical documents |
+| P2 | `ViShap.Viper.Engine.Contracts` (static diagnostics class) | `ContractCalls` — the old name would shadow the new namespace | `Contracts.Mismatch`, `Contracts.WrongLayout`, `Contracts.TooManyCalls` | clean |
+| P2 | `StructuralCodec<T>.FoldsNull` (property) | `FoldsNull(ref OperationState)` — an object's null follows the contract in force for the operation | `FoldsNull =>` | clean |
+| P3 | `SourceTree.ProductionFiles` over every file of `src/` | over the shipped runtime assemblies only; the generator is held to its own tests | `ProductionFiles` | the source invariants still cover Core and Serialization |
+| P1 | test `ReadField_APositionalMemberUnderAKeyedLayout_ThrowsType` | `ReadKeyed_AMemberCallPerKnownKey_ReadsEachFieldsMember` — the mistake is no longer expressible | `APositionalMemberUnderAKeyedLayout` | clean |
 
 ---
 
@@ -495,12 +511,12 @@ its branch into `release/v1.0.0`.
 
 | Stage | Branch | Status | Closed by (merge commit) |
 |---|---|---|---|
-| Decisions of §3 | — | open | |
+| Decisions of §3 | — | N1, S1–S5 taken; F1, A1, T1, B1, B2 open | |
 | P0 State sync | `docs/rc1-state-sync` | not started | |
-| P1 Naming | `rework/p1-contract-naming` | not started | |
-| P2 Public contract seam | `feature/public-contract-seam` | not started | |
-| P3 Generator | `feature/generator` | not started | |
-| P4 Generator tests | `test/generator-conformance` | not started | |
+| P1 Naming | `feature/generator` | gate holds — awaiting commit | |
+| P2 Public contract seam | `feature/generator` | gate holds — awaiting commit | |
+| P3 Generator | `feature/generator` | gate holds — awaiting commit | |
+| P4 Generator tests | `feature/generator` | gate holds — awaiting commit | |
 | P5a Schema fingerprint | `feature/schema-fingerprint` | not started | |
 | P5b Live tracing | `feature/trace-sink` | not started | |
 | P5c Zstandard | `feature/zstd-package` | not started | |
