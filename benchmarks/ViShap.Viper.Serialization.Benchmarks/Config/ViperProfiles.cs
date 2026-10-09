@@ -2,6 +2,7 @@ using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
 using ViShap.Viper.Security;
+using ViShap.Viper.Serialization.Benchmarks.Models.Viper;
 
 namespace ViShap.Viper.Serialization.Benchmarks.Config;
 
@@ -49,6 +50,12 @@ public enum ViperProfile
 
     /// <summary>B-P7 — the headerless compact codec.</summary>
     Headerless,
+
+    /// <summary>B-P0g — B-P0 with the generated contracts of a context, and reflection refused.</summary>
+    Generated,
+
+    /// <summary>B-P1g — B-P1 with the generated contracts of a context, and reflection refused.</summary>
+    GeneratedReferences,
 }
 
 public static class ViperProfiles
@@ -93,7 +100,7 @@ public static class ViperProfiles
     /// <summary>
     /// The profiles an entry-point suite runs over: the default frame, reference framing, one
     /// encryption, the full envelope and V0 — every kind of path a frame takes through an entry point.
-    /// What each of the thirteen profiles costs is the profile matrix's to measure, not an entry point's.
+    /// What each of the fifteen profiles costs is the profile matrix's to measure, not an entry point's.
     /// </summary>
     internal static IReadOnlyList<ViperProfile> Representative { get; } =
     [
@@ -107,6 +114,21 @@ public static class ViperProfiles
     /// <summary>The representative profiles that write version 1 frames.</summary>
     internal static IReadOnlyList<ViperProfile> RepresentativeFramed { get; } =
         [.. Representative.Where(profile => profile != ViperProfile.Headerless)];
+
+    /// <summary>Whether the profile frames references, so a shared instance keeps its identity.</summary>
+    internal static bool PreservesReferences(ViperProfile profile) =>
+        profile is ViperProfile.PreserveReferences or ViperProfile.GeneratedReferences;
+
+    /// <summary>
+    /// The reflected profile a generated one is the twin of: the same configuration, the contracts
+    /// described by reflection instead. The two write the same bytes, and the harness checks it.
+    /// </summary>
+    internal static ViperProfile? ReflectedTwin(ViperProfile profile) => profile switch
+    {
+        ViperProfile.Generated => ViperProfile.Default,
+        ViperProfile.GeneratedReferences => ViperProfile.PreserveReferences,
+        _ => null,
+    };
 
     /// <summary>The plan's identifier for a profile, as it appears in a published cell.</summary>
     internal static string PlanId(ViperProfile profile) => profile switch
@@ -124,6 +146,8 @@ public static class ViperProfiles
         ViperProfile.ProtectedBrotli => "B-P6b",
         ViperProfile.ProtectedDeflate => "B-P6d",
         ViperProfile.Headerless => "B-P7",
+        ViperProfile.Generated => "B-P0g",
+        ViperProfile.GeneratedReferences => "B-P1g",
         _ => throw new ArgumentOutOfRangeException(nameof(profile)),
     };
 
@@ -177,6 +201,19 @@ public static class ViperProfiles
 
         ViperProfile.Headerless =>
             BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build(),
+
+        ViperProfile.Generated =>
+            BinarySerializerOptions.Configure()
+                .WithContracts(BenchmarkContracts.Default)
+                .RequireGeneratedContracts()
+                .Build(),
+
+        ViperProfile.GeneratedReferences =>
+            BinarySerializerOptions.Configure()
+                .WithContracts(BenchmarkContracts.Default)
+                .RequireGeneratedContracts()
+                .PreserveReferences()
+                .Build(),
 
         _ => throw new ArgumentOutOfRangeException(nameof(profile)),
     };

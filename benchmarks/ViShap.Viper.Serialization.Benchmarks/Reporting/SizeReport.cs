@@ -30,7 +30,7 @@ internal static class SizeReport
         foreach (var profile in ViperProfiles.All)
         {
             var adapter = new ViperAdapter(profile);
-            var references = profile == ViperProfile.PreserveReferences;
+            var references = ViperProfiles.PreservesReferences(profile);
 
             foreach (var dataset in Corpus.All)
             {

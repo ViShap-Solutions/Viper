@@ -42,6 +42,7 @@ internal static class ReportWriter
         Verification(document, directory);
         Sizes(document, sizes);
         Matrix(document, results);
+        Generator(document, results);
         Algorithms(document, results);
         Components(document, results);
         Scaling(document, results);
@@ -271,6 +272,14 @@ internal static class ReportWriter
             ["ProfileMatrixBenchmarks", "ProfileStreamBenchmarks", "HarnessFloorBenchmarks"]);
     }
 
+    private static void Generator(Document document, IReadOnlyList<ResultRow> results) =>
+        Suite(document, results,
+            "The generator profile",
+            "The contracts of a generated context (B-P0g, B-P1g) beside the reflected ones (B-P0, B-P1), " +
+            "on the same values and the same bytes: positional and keyed, few members and many, one object " +
+            "and a batch. The first use of each type is in the first-use table below.",
+            ["GeneratorProfileBenchmarks"]);
+
     private static void Algorithms(Document document, IReadOnlyList<ResultRow> results) =>
         Suite(document, results,
             "Compression, checksum and encryption",
@@ -319,6 +328,7 @@ internal static class ReportWriter
         {
             ("cold-start.csv", "Cold start", "One process per measurement. A first in-process call after a warm-up is not cold."),
             ("contract-cold.csv", "Member-plan construction", "What a type costs the first time it is seen. The first row of the table also pays the one-time JIT of the construction path."),
+            ("first-use.csv", "First use of a type", "The first serialize and deserialize of each type in a process already warm for another, reflected (B-P0) and generated (B-P0g), one process per launch. The serializer row is its construction, which under B-P0g includes the context."),
             ("soak.csv", "Sustained load", "Throughput and memory sampled throughout a fixed duration."),
         })
         {

@@ -78,5 +78,8 @@ Filled in by the repository owner.
 | [PERF-05](PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth, and eats most of R2's gain at depth 500 | Open |
 | [PERF-06](PERF-06-typed-engine-first-use.md) | The typed engine's first operation in a process is ×1.34–1.69 slower (+20–35 ms); steady state is about twice as fast | Open |
 | [PERF-07](PERF-07-frame-fixed-allocations.md) | The frame still allocates 136–272 B per write and 72 B per read, outside the engine | Open |
+| [PERF-08](PERF-08-algorithm-primitives-after-port.md) | The algorithm primitives after their port to the R5 interfaces: every pipeline cell faster, 28 primitive cells slower | Open |
+| [PERF-09](PERF-09-final-format-and-trace-seam.md) | The final format: sizes, the header of service records, and the cost of the trace seam | Open — the seam's cost accepted for v1.0 |
+| [PERF-10](PERF-10-generated-context-first-use.md) | A generated context creates all its contracts on first read of `Default` (21 ms for 34), and a generated contract's methods compile on first call, moving cost from the first write to the first read | Open |
 | [PERF-08](PERF-08-algorithm-primitives-after-port.md) | MICRO-10 slower after the R5 port (Brotli ×1.04–1.22, one Deflate cell ×1.57, a control ×1.05–1.10); ALLOC-12 +56 B; the pipeline faster in every cell | Open |
 | [PERF-09](PERF-09-final-format-and-trace-seam.md) | R6: every payload smaller (envelope 29 → 8 bytes, references framing ≈ free); the widest header parses ×1.39 slower; the switched-off trace seam costs ≈ 1.5 % on reads (2–3 % on record batches) — the owner's decision | Open |

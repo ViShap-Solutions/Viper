@@ -75,13 +75,21 @@ internal static class ColdStartRunner
 
         var cases = new List<(ViperProfile Profile, string Dataset, string Operation)>();
 
-        foreach (var profile in new[] { ViperProfile.Default, ViperProfile.Headerless, ViperProfile.ProtectedBrotli })
+        foreach (var profile in new[] { ViperProfile.Default, ViperProfile.Headerless, ViperProfile.ProtectedBrotli, ViperProfile.Generated })
         {
             foreach (var dataset in new[] { "DATA-01", "DATA-02", "DATA-03" })
             {
                 cases.Add((profile, dataset, "serialize"));
                 cases.Add((profile, dataset, "deserialize"));
             }
+        }
+
+        // The generator profile asks for a keyed contract beside the positional ones, under the
+        // reflected and the generated contracts alike.
+        foreach (var profile in new[] { ViperProfile.Default, ViperProfile.Generated })
+        {
+            cases.Add((profile, "DATA-13", "serialize"));
+            cases.Add((profile, "DATA-13", "deserialize"));
         }
 
         var payloads = Path.Combine(Path.GetTempPath(), $"viper-cold-{System.Environment.ProcessId}");
@@ -147,7 +155,8 @@ internal static class ColdStartRunner
         return 0;
     }
 
-    private static string Launch(string arguments)
+    /// <summary>Starts this program again with <paramref name="arguments"/> and returns what it printed.</summary>
+    internal static string Launch(string arguments)
     {
         var executable = System.Environment.ProcessPath ?? "dotnet";
         var assembly = System.Reflection.Assembly.GetEntryAssembly()!.Location;

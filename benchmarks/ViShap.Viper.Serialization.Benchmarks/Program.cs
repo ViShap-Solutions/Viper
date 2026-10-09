@@ -32,6 +32,11 @@ internal static class Program
             return ColdStartRunner.Child(profile, dataset, operation, args.Length > 4 ? args[4] : null);
         }
 
+        if (args is ["--first-use-child", var firstUseProfile, ..])
+        {
+            return FirstUseRunner.Child(firstUseProfile);
+        }
+
         // A track run carries the same flags the single modes use — --filter, --soak — so it is
         // recognized before any of them.
         if (args.Contains("--track", StringComparer.Ordinal))
@@ -52,6 +57,11 @@ internal static class Program
         if (args.Contains("--cold", StringComparer.Ordinal))
         {
             return ColdStartRunner.Drive();
+        }
+
+        if (args.Contains("--first-use", StringComparer.Ordinal))
+        {
+            return FirstUseRunner.Drive();
         }
 
         if (args.Contains("--contract-cold", StringComparer.Ordinal))

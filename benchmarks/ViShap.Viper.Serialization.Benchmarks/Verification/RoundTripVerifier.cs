@@ -40,7 +40,8 @@ internal static class RoundTripVerifier
         foreach (var profile in ViperProfiles.All)
         {
             var adapter = new ViperAdapter(profile);
-            var references = profile == ViperProfile.PreserveReferences;
+            var references = ViperProfiles.PreservesReferences(profile);
+            var twin = ViperProfiles.ReflectedTwin(profile) is { } reflected ? new ViperAdapter(reflected) : null;
 
             foreach (var dataset in Corpus.All)
             {
@@ -58,6 +59,13 @@ internal static class RoundTripVerifier
                     && VerifyEntryPoints(adapter, dataset, framed: profile != ViperProfile.Headerless) is { } failure)
                 {
                     result = result with { State = VerificationState.Failed, Detail = failure };
+                }
+
+                if (twin is not null
+                    && result.State is VerificationState.Supported or VerificationState.Partial
+                    && SameBytes(adapter, twin, dataset) is { } difference)
+                {
+                    result = result with { State = VerificationState.Failed, Detail = difference };
                 }
 
                 results.Add(result);
@@ -120,6 +128,22 @@ internal static class RoundTripVerifier
                 buffered.Name, dataset.Id, VerificationState.Failed, 0, 0,
                 $"{exception.GetType().Name}: {Single(exception.Message)}");
         }
+    }
+
+    /// <summary>
+    /// A generated contract must write the bytes the reflected one writes, or a generated cell would be
+    /// timing a different payload. Returns where the two differ, or <see langword="null"/>.
+    /// </summary>
+    private static string? SameBytes(ViperAdapter generated, ViperAdapter reflected, Dataset dataset)
+    {
+        byte[] ours = dataset.Serialize(generated);
+        byte[] theirs = dataset.Serialize(reflected);
+
+        if (ours.AsSpan().SequenceEqual(theirs))
+            return null;
+
+        int offset = ours.AsSpan().CommonPrefixLength(theirs);
+        return $"{generated.Name} writes {ours.Length} bytes and {reflected.Name} {theirs.Length}; they differ from offset {offset}";
     }
 
     /// <summary>

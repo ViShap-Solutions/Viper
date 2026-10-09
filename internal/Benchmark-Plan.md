@@ -337,6 +337,8 @@ The configurations a consumer can build, each measured as itself. Built with the
 | **B-P5c** | `Configure().WithEncryption(ChaCha20Poly1305Encryption, key)` | — | §16 *(added in R5)* |
 | **B-P6** | `BrotliCompression` + `Crc32Checksum` + `Aes256GcmEncryption` (B-P6b), and the same with `DeflateCompression` (B-P6d) | T4 | The full protected envelope |
 | **B-P7** | `Configure().WithVersion(0).AllowV0Fallback()` | T0 | The compact codec |
+| **B-P0g** | `Configure().WithContracts(context).RequireGeneratedContracts()` | T1 | The generated contracts of a context in place of reflection *(Contract §14.4; added in rc.2 P4a)* |
+| **B-P1g** | B-P0g with `PreserveReferences()` | T3 | The same, with reference framing *(added in rc.2 P4a)* |
 
 - [ ] PROF-01 — every profile is measured on every dataset it supports, buffered and streaming
 - [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(Contract §10.2, §22.8)*
@@ -353,6 +355,9 @@ A cell therefore keeps its identity across the rename, and BASE-02 still matches
 `pre-rework`. The three profiles R5 added have no `pre-rework` cell.
 
 - [x] PROF-09 — the same profile set is measured on the `pre-rework` commit, so the matrices of every rework stage compare with it cell by cell — `Baselines/pre-rework/`, 667 cells, none without a number
+- [ ] PROF-10 — B-P0g and B-P1g against B-P0 and B-P1 in steady state, on the same values and the same bytes: positional and keyed, five members and two hundred, one object and a batch, union arms; a generated profile that writes other bytes than its reflected twin is refused before timing *(Contract §14.4; added in rc.2 P4a)* — `GeneratorProfileBenchmarks`
+- [ ] PROF-11 — the first use of each member-encoded type of the corpus in a process warm for another type, under B-P0 and B-P0g, one process per launch, with the context's instantiation and the serializer's construction as rows of their own *(WL-10, COLD-04; added in rc.2 P4a)* — `FirstUseRunner`, `first-use.csv`
+- [ ] PROF-12 — cold start of B-P0g beside B-P0, and of the keyed DATA-13 under both *(COLD-01, COLD-02; added in rc.2 P4a)* — `ColdStartRunner`, `cold-start.csv`
 
 ---
 
@@ -850,6 +855,9 @@ can be recorded against it.
 | [PERF-05](performance/PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth; SCALE-03 goes from ×0.56 at depth 1 to ×0.94 at depth 500 | ALLOC-09, SCALE-03, rework R2 | Open |
 | [PERF-06](performance/PERF-06-typed-engine-first-use.md) | The first operation of a process is ×1.34–1.69 slower after the typed engine (+20–35 ms), and one member plan ×1.3–1.5; the steady state is ×0.41–0.51 | COLD against pre-rework, MICRO-04, rework R4 | Open |
 | [PERF-07](performance/PERF-07-frame-fixed-allocations.md) | The frame allocates 136 B per payload buffer on write and 72 B of algorithm objects per read; the engine adds nothing | ALLOC-10…ALLOC-17, rework R4 | Open |
+| [PERF-08](performance/PERF-08-algorithm-primitives-after-port.md) | Every pipeline cell of the algorithm phases is faster after R5, while 28 MICRO-10 primitive cells are slower (×1.01–1.57) | MICRO-10, ALLOC-12…ALLOC-14, rework R5 | Open |
+| [PERF-09](performance/PERF-09-final-format-and-trace-seam.md) | The final format's sizes and header parse, and the trace seam's cost on every read (≈ 1.5 %) | SIZE-02…SIZE-10, MICRO-08, MICRO-19, rework R6 | Open — the seam's cost accepted for v1.0 |
+| [PERF-10](performance/PERF-10-generated-context-first-use.md) | A generated context creates all 34 contracts on the first read of `Default` (20.8 ms), and a generated contract compiles on its first call: first writes ×0.11–0.59 of reflection, first reads up to ×23; per corpus ≈ 177 ms against 352 ms | PROF-11, PROF-12, rc.2 P4a | Open |
 
 ## 27.2 Open questions
 
@@ -874,6 +882,7 @@ The place where an unflattering result is recorded rather than argued with. Each
 | **R-02** | B0 verification, DATA-09 under B-P3b and B-P6b | The Track A run for the `pre-rework` baseline stopped at verification: 2 of 270 pairs failed with `BinaryLimitException` — Brotli wrote 20 000 identical strings, 1 440 005 bytes, as 64, and the reader refused an expansion of 22 500 against the default `MaxDecompressionRatio` of 10 000. Deflate wrote the same payload as 8 496 bytes and passed | The ratio check arrived with the NX fixes after the corpus was sized. Brotli compresses this payload to a few dozen bytes at any count — 76 to 77 bytes anywhere from 2 000 to 10 000 strings — so the ratio grows with the count alone, and at 20 000 the dataset required a limit above `SerializationLimits.Default`, which DATA-23 forbids | Harness defect, fixed by the repository owner's decision of 2026-09-26 before the baseline: DATA-09 holds 5 000 strings, 360 005 bytes, an expansion of about 4 700 under Brotli. It stays compression's best case and needs no relaxed limit, as FAIR-18 requires. Raising the limit in the Brotli profiles, varying the strings and recording the refusal as a result were rejected. `--verify` passes 270 of 270 pairs |
 | **R-03** | Rework R4 against `pre-rework`, `Measurements/48c7bf5-20260928T082209Z`, `comparison-pre-rework.md` | Of 220 matched timed cells of `results.csv`, 211 are faster and 8 slower. The slower are six nanosecond-scale component cells — MICRO-02 `validate array count` 1.3 → 1.7 ns, `charge graph node` 0.9 → 1.0 ns, `charge keyed field` ×1.05; MICRO-03 `descend and return` at depth 64 and `descend and unwind` ×1.02–1.03 — one profile cell, WL-01 B-P3b DATA-01 13 381 ± 47 → 14 412 ± 74 ns (×1.08, with allocation 2 336 → 448 B), and one cell within error. All 18 cold-start cells and both generic contract rows are slower | The budget is reached through a `ref` to the state instead of a class field, which the JIT keeps in a register less often; the Brotli cell is the phase, which R5 rewrites; the cold cells are PERF-06 | Micro cells accepted as the cost of one operation state per call (INV-1), a few tenths of a nanosecond per charge. The cold cells are PERF-06, open. The Brotli cell is re-measured in R5 |
 | **R-04** | Rework R5 against `pre-rework`, `Measurements/c215131-20260928T131001Z`, `comparison-pre-rework.md` | All 70 matched `AlgorithmBenchmarks` cells are faster (×0.05–×0.88). Of the MICRO-10 primitives 28 cells are slower: `Crc32Checksum` ×1.05–1.10 and AES-GCM ×1.01–1.15 though their code did not change, Brotli ×1.04–1.22 with 32 B per call, Deflate decompress of 1 MB compressible ×1.57. ALLOC-12 296 → 352 B, ALLOC-13 840 → 552 B, ALLOC-14 432 B unchanged | The unchanged primitives set the run's own drift at up to ~15 %; the soak took 40 minutes of wall time for 10. Brotli moved from the one-shot calls to a stepped encoder and decoder over the buffer writer; Deflate copies its input for the stream it reads through; compression writes into a `CompressionBuffer` object | PERF-08, open: re-measure MICRO-10 on an idle machine first, then the one-shot Brotli path, a Deflate profile and a reused `CompressionBuffer` |
+| **R-05** | rc.2 P4a, PROF-10, `Measurements/v1.0.0-rc.1-8-g7da99ba-20261009T204932Z`, `GeneratorProfileBenchmarks` | B-P0g is slower than B-P0 in steady state where many objects pass through one operation without reference framing: DATA-04 write 3.57 ± 0.01 → 4.50 ± 0.02 ms (×1.26), read 7.22 ± 0.02 → 10.05 ± 0.18 ms (×1.39); DATA-12 ×1.26 / ×1.12; DATA-13 ×1.22 / ×1.27; the five-member types ×1.04–1.14 under both B-P0g and B-P1g, one write within error. With reference framing DATA-04 narrows to ×1.03–1.05, DATA-13 to ×0.99–1.05, and DATA-12 turns faster, ×0.91–0.95. Faster: the 200-member keyed type ×0.79–0.94, DATA-02 ×0.94–0.99, DATA-18 ×0.86–0.92 except its B-P0g write (×1.13). Same bytes in every pair (§7.6 check) | Most likely the contract lookup, not yet isolated: under a context `ObjectCodec.Contract` looks the type up in the `ContractSet` dictionary per value — twice per value of a class without reference framing (`FoldsNull` and the body), once with it — where the reflected path reads a cached field. The gap follows the lookup count — largest on batches without framing, smallest on wide single objects — though DATA-12 with framing, where both paths look an arm up by runtime type, does not fit it | The engine's own work, item 1 of rc.2 P4b, which re-runs this suite against this measurement. One cell is unexplained and not attributed to the profile: B-P0 DATA-04 write allocated 2 655 064 B where B-P0g and every earlier B-P0 run of the same cell allocate 1.72 MB — re-read at the P4b re-run |
 
 ## 27.4 Proposals — `internal/performance/`
 
@@ -1001,25 +1010,24 @@ Kept accurate at the end of every session, so a session that starts cold knows w
 without reading the history.
 
 ```text
-Track:        A — Viper alone
+Track:        A — Viper alone, and rc.2 P4a (the generator profile) on benchmark/generator-profiles
 Stage:        A0–A7 written. Every A-stage suite exists, builds and runs; what remains for each is the
-              number, which only the publication run produces
-Harness:      frozen? not yet, and nothing further is planned in it. The freeze takes effect when the
-              publication run starts
-Last stage:   rework R4 — Measurement 48c7bf5-20260928T082209Z (11 suites, cold start, contract cold,
-              soak), compared with pre-rework through --compare: comparison-pre-rework.md beside it
-Last run:     the pre-rework Baseline — every suite of Track A under the publication job on 916f805, the
-              commit the rework started from, tagged locally pre-rework: 667 cells, none without a
-              number, 3h54m. Committed under Baselines/pre-rework/. It is the "before" of every rework
-              stage (§25), not a release baseline
+              number, which only the publication run produces. P4a added B-P0g and B-P1g (§8), the
+              suite GeneratorProfileBenchmarks (PROF-10), FirstUseRunner (--first-use, PROF-11) and
+              B-P0g with DATA-13 in the cold start (PROF-12); --verify now also refuses a generated
+              profile whose bytes differ from its reflected twin's — 405 pairs, none failed
+Harness:      frozen? not yet. The freeze takes effect when the publication run starts
+Last run:     the P4a profile — Measurement v1.0.0-rc.1-8-g7da99ba-20261009T204932Z, 72 cells, none
+              without a number, plus first-use.csv and cold-start.csv; 28 min. It is the measurement
+              rc.2 P4b and P4d compare against (--compare <it> <their run>). Findings: R-05, PERF-10
+Baseline:     Baselines/pre-rework/ — 667 cells, the "before" of every rework stage (§25), not a release
+              baseline
 Machine:      the one recorded in Baselines/pre-rework/environment.json
-Next action:  during the rework, the stage measurements of Development-Workflow §6.5 against pre-rework.
-              After the release, tag v1.0.0, check the tag out, and take the publication run there on an
-              idle machine — about 4 hours, of which 40 minutes is the soak. Then tick the A-stage
-              measurement boxes against the committed raw files under Baselines/v1.0.0/. Nothing is open before that: the
-              last two A5 items are written — the 16 MB and 64 MB points of SCALE-02 are built from
-              records rather than byte arrays, because array data spends the element budget per byte
-              (PERF-01, PERF-02), and SCALE-09 re-runs that large end under Server GC
+Next action:  P4b re-runs `--track A --filter '*GeneratorProfile*' --soak 0` on its branch and compares
+              with the P4a measurement; R-05 is what its item 1 is expected to close. After the release,
+              tag v1.0.0, check the tag out, and take the publication run there on an idle machine —
+              about 4 hours, of which 40 minutes is the soak — then tick the A-stage boxes against
+              Baselines/v1.0.0/
 ```
 
 ---

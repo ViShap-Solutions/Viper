@@ -48,6 +48,7 @@ internal static class BaselineComparison
 
         Section(markdown, "contract-cold.csv", CompareContractCold(baselineDirectory, runDirectory), rows);
         Section(markdown, "cold-start.csv", CompareColdStart(baselineDirectory, runDirectory), rows);
+        Section(markdown, "first-use.csv", CompareFirstUse(baselineDirectory, runDirectory), rows);
 
         string markdownPath = output ?? Path.Combine(runDirectory, $"comparison-{baselineName}.md");
         File.WriteAllText(markdownPath, markdown.ToString(), Encoding.UTF8);
@@ -193,6 +194,42 @@ internal static class BaselineComparison
                 Interval(
                     Number(before["operation_ms_min"]), Number(before["operation_ms_max"]),
                     Number(after["operation_ms_min"]), Number(after["operation_ms_max"]))));
+        }
+
+        return rows;
+    }
+
+    private static IReadOnlyList<Row> CompareFirstUse(string baselineDirectory, string runDirectory)
+    {
+        const string file = "first-use.csv";
+        static string Key(Dictionary<string, string> cell) =>
+            $"{cell["profile"]} | {cell["type"]} | {cell["operation"]}";
+
+        var baseline = Read(Path.Combine(baselineDirectory, file), Key);
+        var run = Read(Path.Combine(runDirectory, file), Key);
+        var rows = new List<Row>();
+
+        static string Use(Dictionary<string, string> cell) =>
+            $"{cell["median_us"]} µs [{cell["min_us"]}, {cell["max_us"]}]";
+
+        foreach (var key in baseline.Keys.Union(run.Keys).Order(StringComparer.Ordinal))
+        {
+            baseline.TryGetValue(key, out var before);
+            run.TryGetValue(key, out var after);
+
+            if (before is null || after is null)
+            {
+                rows.Add(OneSided(file, key, before, after, Use, cell => cell["allocated_bytes_median"]));
+                continue;
+            }
+
+            rows.Add(new Row(
+                file, key, Use(before), Use(after),
+                Ratio(Number(after["median_us"]), Number(before["median_us"])),
+                before["allocated_bytes_median"], after["allocated_bytes_median"],
+                Interval(
+                    Number(before["min_us"]), Number(before["max_us"]),
+                    Number(after["min_us"]), Number(after["max_us"]))));
         }
 
         return rows;
