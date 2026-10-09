@@ -63,6 +63,9 @@ system). Where a historical document and the contract disagree, the contract is 
 - `internal/performance/` — *plan.* Where a measurement becomes a suggestion and stops: one
   `PERF-nn-*.md` per proposed optimization or extension point, cited to the cells that motivate it,
   for the owner to decide on. Nothing here has been applied.
+- `internal/ideas/` — *plan.* Features considered and deliberately not built for `v1.0.0`, one
+  `IDEA-nn-*.md` each: what it gives, every option with its cost, the open questions and the version it
+  would cost under SemVer. Nothing here is decided; an idea becomes work only through a plan.
 - `internal/Benchmark-Graceful-Stop.md` — *plan.* A decided backlog item for the benchmark harness,
   not started.
 - `internal/Development-Workflow.md` — *operational.* How work moves through the repository (Russian):
@@ -97,8 +100,9 @@ system). Where a historical document and the contract disagree, the contract is 
 Current state: `src/` matches the contract. The architecture rework, its reconciliation, the consumer
 documentation, the release conformance audit and its closure check (R9e) are done, and `v1.0.0-rc.1` is
 tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-contract seam and the
-source generator (P1–P4) are merged into `release/v1.0.0`; the additive features (P5), the benchmarks
-(P6), the documentation (P7) and the audit of `rc.2` (P8) remain. The public API is fully
+source generator (P1–P4) are merged into `release/v1.0.0`; the executable examples (P5f), the
+benchmarks (P6), the documentation (P7) and the audit of `rc.2` (P8) remain; the other additive features
+were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
 with the generated XML file. The suite is 2 088 tests, and the generator's 42, green in Debug and Release.

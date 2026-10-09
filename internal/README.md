@@ -7,7 +7,7 @@ Every file under `internal/` belongs to one class, and says which at its head.
 | Class | What it means | Where it is |
 |---|---|---|
 | **Normative** | The source of truth. Code and every other document answer to it. | `System-Contract.md` |
-| **Plan** | A checklist of items and gates for work to be done or repeated. It never defines behavior. | `QA-Plan.md`, `Benchmark-Plan.md`, `Benchmark-Graceful-Stop.md`, `rc2/`, `performance/` |
+| **Plan** | A checklist of items and gates for work to be done or repeated. It never defines behavior. | `QA-Plan.md`, `Benchmark-Plan.md`, `Benchmark-Graceful-Stop.md`, `rc2/`, `performance/`, `ideas/` |
 | **Operational** | Working instructions that describe the system and the way it is developed as they are now. | `Development-Workflow.md`, this file, `../CLAUDE.md`, `../.claude/skills/`, the package READMEs, `../docs/` |
 | **Historical** | A record of work already done, kept for provenance. Its rules no longer apply, and it is never a reason to change the system. | `Architecture-Audit.md`, `Audit-Closure.md`, `Audit-Future.md`, `Audit-Refactor.md`, `audit/`, `rework/` |
 
@@ -17,8 +17,9 @@ Every file under `internal/` belongs to one class, and says which at its head.
 | [QA-Plan.md](QA-Plan.md) | **The release-gate test plan.** Checkpoint list only, staged M0–M8, every item citing the contract section it proves; §30 records the confirmed defects and the resolved contract questions. The method for working it lives in the `viper_tester` skill. | Plan |
 | [Benchmark-Plan.md](Benchmark-Plan.md) | **The post-release performance plan**, measured against the `v1.0.0` tag and re-run per v1.x. It gates no release — only what may be claimed about performance. Checkpoint list only, staged B0–B9. The method lives in the `viper_bencher` skill. | Plan |
 | [Benchmark-Graceful-Stop.md](Benchmark-Graceful-Stop.md) | A decided backlog item for the benchmark harness; not started. | Plan |
-| [rc2/RC2-Plan.md](rc2/RC2-Plan.md) | **The plan for `v1.0.0-rc.2`**: everything earlier documents deferred to after the release — the generator and the public contract seam, the naming of the contract's read side, schema fingerprint, further algorithm packages, live tracing, executable examples, Track B — with the open decisions for the owner and the stages that follow them. | Plan |
+| [rc2/RC2-Plan.md](rc2/RC2-Plan.md) | **The plan for `v1.0.0-rc.2`**: everything earlier documents deferred to after the release — the generator and the public contract seam, the naming of the contract's read side, executable examples, Track B — with the owner's decisions and the stages that follow them. What it deferred is in `ideas/`. | Plan |
 | [performance/](performance) | Proposals arising from benchmarking: one file per proposed optimization or extension point, each cited to the measurements behind it and left for the owner to decide. | Plan |
+| [ideas/](ideas) | Features considered and deliberately not built for `v1.0.0`: one file per idea with what it gives, every option with its cost, the open questions and the version it would cost under SemVer. Nothing here is decided. | Plan |
 | [Development-Workflow.md](Development-Workflow.md) | How work moves through the repository: branches, tags, the alpha/beta/rc/stable cycle, SemVer rules, fixture freezing, benchmark baselines, hotfixes. Written in Russian. | Operational |
 | [Architecture-Audit.md](Architecture-Audit.md) | The audit that produced the architecture: the alternatives rejected and the reasons. Written in Russian. | Historical |
 | [Audit-Refactor.md](Audit-Refactor.md), [Audit-Closure.md](Audit-Closure.md), [Audit-Future.md](Audit-Future.md) | The independent audit after the first refactor, the closure of its findings, and the directions it named. Written in Russian. | Historical |

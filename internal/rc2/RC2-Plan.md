@@ -85,7 +85,10 @@ What is still wrong after R9e — all small, all in P0:
 | I18 | CD / CI for new packages | `cd.yml` (`EXPECTED_COUNT=3`); `ci.yml` | Pack and validate every new package | — | P3, P5 |
 
 **Recorded, not scheduled** — the documents name them but do not give enough to plan, or say "not
-claimed". Each needs a design brief from the owner before it can become a stage:
+claimed". Each needs a design brief from the owner before it can become a stage; since 2026-10-09 each
+has a file in `internal/ideas/` (IDEA-05…IDEA-10) with its options and version impact, beside the
+deferred I8 (IDEA-01), I10 (IDEA-02), I9 (IDEA-03 AES-GCM-SIV, IDEA-11 Zstandard and LZ4) and S4-B
+(IDEA-04):
 
 | Item | Written in | Why it is not a stage |
 |---|---|---|
@@ -277,10 +280,11 @@ Filled in by the owner.
 | S2 type coverage | the listed types and every member-encoded type reachable from them through members, element and key/value types, `Nullable<T>` and `[BinaryUnion]` arms | 2026-10-09 |
 | Invalid description | `BinaryConfigurationException` from the public constructors and from `Add<T>` | 2026-10-09 |
 | P1–P4 on one branch | `feature/generator`; the order inside it is kept, the gates are checked together at the end | 2026-10-09 |
-| F1 | | |
-| A1 | | |
-| T1 | | |
-| B1 / B2 | | |
+| F1 | deferred past `v1.0.0` — `internal/ideas/IDEA-01` | 2026-10-09 |
+| A1 | Zstandard and LZ4 as **built-in** algorithms (`CompressionAlgorithm.Zstandard = 3`, `Lz4 = 4`, in `Serialization`, not `Custom`, not separate packages) — then **deferred past `v1.0.0`** until an official implementation exists; no third-party dependency. Everything chosen is in `internal/ideas/IDEA-11`. AES-GCM-SIV deferred — `internal/ideas/IDEA-03`. No P5 package stage remains | 2026-10-09 |
+| T1 | deferred past `v1.0.0` — `internal/ideas/IDEA-02` | 2026-10-09 |
+| B1 | a — Track B adapters with current competitors before `v1.0.0`; Track A and B measured in full on the `v1.0.0` tag; the figures and charts go into the READMEs and `docs/` after that run | 2026-10-09 |
+| B2 | | |
 | Workflow §3.3 amended | | |
 
 ---
@@ -301,19 +305,19 @@ quotations).
 | P2 Public contract seam | `feature/generator` | `viper_generator` | S1–S4 — taken |
 | P3 Generator | `feature/generator` | `viper_generator` | S2–S5 — taken |
 | P4 Generator tests | `feature/generator` | `viper_generator`, `viper_tester` | — |
-| P5a Schema fingerprint | `feature/schema-fingerprint` | `viper_builder` | F1 |
-| P5b Live tracing | `feature/trace-sink` | `viper_builder` | T1 |
-| P5c Zstandard | `feature/zstd-package` | `viper_builder` | A1 |
-| P5d LZ4 | `feature/lz4-package` | `viper_builder` | A1 |
-| P5e AES-GCM-SIV | `feature/aes-gcm-siv-package` | `viper_builder` | A1 |
+| ~~P5a Schema fingerprint~~ | — | — | F1 — deferred, `ideas/IDEA-01` |
+| ~~P5b Live tracing~~ | — | — | T1 — deferred, `ideas/IDEA-02` |
+| ~~P5c Zstandard~~ | — | — | A1 — deferred, `ideas/IDEA-11` |
+| ~~P5d LZ4~~ | — | — | A1 — deferred, `ideas/IDEA-11` |
+| ~~P5e AES-GCM-SIV~~ | — | — | A1 — deferred, `ideas/IDEA-03` |
 | P5f Executable examples | `test/docs-examples` | `viper_tester` | — |
 | P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop`, `benchmark/generator-profiles` | `viper_bencher` | B1, B2 |
 | P7 Documentation | `docs/rc2-docs` | `viper_builder` | — |
 | P8 Audit of rc.2 | `audit/rc2-conformance`, then `audit/rc2-closure` | `viper_conformance_auditor` (new brief) | — |
 
-P5a–P5f are independent of each other and of P3; the order above is a default, the owner may reorder. P5a
-follows P4 because the fingerprint is computed from the contract description, which the reflected and
-the generated contract must produce identically.
+Of P5 only P5f remains. P5a–P5e were deferred past `v1.0.0` on 2026-10-09; each is written up with its
+options, the choices already made and its version impact in `internal/ideas/`, and their paragraphs
+below are kept for the record.
 
 ## P0 — State sync — `docs/rc1-state-sync`
 
@@ -401,16 +405,26 @@ Each is one branch and follows the same pattern: contract section first (what it
 exception for what), checkpoint list in the QA plan, tests, XML docs, `docs/` page or section, README
 line, `CLAUDE.md` if an architectural sentence changes.
 
-- **P5a Fingerprint (F1).** A new critical service, number 4, in the header's ascending order after
+- **P5a Fingerprint (F1) — deferred, `ideas/IDEA-01`.** A new critical service, number 4, in the header's ascending order after
   encryption; at most 4 096 bytes still; written only when asked; read: if present and the reader's
   expectation differs, the chosen error. V1 only (V0 has no header). The reflected and generated contracts
   must produce the same value. Wire §22 gains the record; new frozen fixtures are **added**, none
   regenerated (`CLAUDE.md`: fixtures are frozen).
-- **P5b Tracing (T1).** The write-side trace seam in the codecs; `WithTrace(sink)`; the cost measured
+- **P5b Tracing (T1) — deferred, `ideas/IDEA-02`.** The write-side trace seam in the codecs; `WithTrace(sink)`; the cost measured
   against `PERF-09` and recorded as a new `PERF-nn` if it is more than the read side's.
-- **P5c–e Packages (A1).** Per package: `src/…`, a test project with the published vectors, its README,
-  CD steps, an entry in `docs/algorithms-and-keys.md`. Each implements the Core interface exactly and is
-  held to it by the services. Anything that needs a native dependency is refused (`Rework-Plan.md` §15).
+- **P5c Zstandard, P5d LZ4 (A1) — deferred, `ideas/IDEA-11`.** Built-in algorithms, like Deflate and Brotli: a value in Core's
+  `CompressionAlgorithm` (`Zstandard = 3`, `Lz4 = 4`), a public class in `ViShap.Viper.Serialization`
+  (`ZstandardCompression`, `Lz4Compression`) implementing `ICompressionAlgorithm` exactly — `expectedLength`
+  produced exactly, output bounded by the writer the service supplies — and a case in
+  `AlgorithmCatalog.ResolveCompression`. No new package and no change to CD. Wire: a new algorithm id in
+  the compression record, written only when chosen; every existing frame and fixture unchanged; new
+  frozen fixtures **added** for each id, with the expected bytes decoded in a test by a reference
+  decompressor independent of the code under test. Contract §3, §12 and §22 list the ids; QA gains the
+  checkpoints; `docs/algorithms-and-keys.md` and the Serialization README name them; `PublicSurfaceTests`
+  and `MemberSurfaceTests` list the classes and enum values; `AotAnalysisTests` reports nothing new.
+  Where the implementation comes from is the open question of §3.9; nothing native is accepted
+  (`Rework-Plan.md` §15).
+- **P5e AES-GCM-SIV — deferred, `ideas/IDEA-03`.**
 - **P5f Examples.** A test in `Serialization.Tests` extracting every `csharp` block of `docs/` and the
   READMEs, compiling it with Roslyn against the built assemblies, running those with top-level statements
   and compiling the others as a library — the CONF-15 wording. One new test-only dependency.
@@ -511,17 +525,17 @@ its branch into `release/v1.0.0`.
 
 | Stage | Branch | Status | Closed by (merge commit) |
 |---|---|---|---|
-| Decisions of §3 | — | N1, S1–S5 taken; F1, A1, T1, B1, B2 open | |
+| Decisions of §3 | — | N1, S1–S5, F1, A1, T1, B1 taken; B2 open | |
 | P0 State sync | `docs/rc1-state-sync` | gate holds — awaiting commit | |
 | P1 Naming | `feature/generator` | closed | `4604960` |
 | P2 Public contract seam | `feature/generator` | closed | `4604960` |
 | P3 Generator | `feature/generator` | closed | `4604960` |
 | P4 Generator tests | `feature/generator` | closed | `4604960` |
-| P5a Schema fingerprint | `feature/schema-fingerprint` | not started | |
-| P5b Live tracing | `feature/trace-sink` | not started | |
-| P5c Zstandard | `feature/zstd-package` | not started | |
-| P5d LZ4 | `feature/lz4-package` | not started | |
-| P5e AES-GCM-SIV | `feature/aes-gcm-siv-package` | not started | |
+| P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |
+| P5b Live tracing | — | deferred — `ideas/IDEA-02` | |
+| P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
+| P5d LZ4 | — | deferred — `ideas/IDEA-11` | |
+| P5e AES-GCM-SIV | — | deferred — `ideas/IDEA-03` | |
 | P5f Executable examples | `test/docs-examples` | not started | |
 | P6 Benchmarks | `benchmark/graceful-stop`, `benchmark/track-b-adapters`, `benchmark/generator-profiles` | not started | |
 | P7 Documentation | `docs/rc2-docs` | not started | |
