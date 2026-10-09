@@ -52,7 +52,7 @@ public class CanonicalScalarTests
         byte[] canonical = Wire.Frame([.. Wire.Varint(10), .. Wire.Varint(2), 0x8D, 0x01]);
         byte[] padded = Wire.Frame([.. Wire.Varint(10), .. Wire.Varint(2), 0x8D, 0xFF]);
 
-        Assert.Equal(9, Serializer.Deserialize<BitArray>(canonical).Length);
+        Assert.Equal(9, Serializer.Deserialize<BitArray>(canonical)!.Length);
         AssertEx.Throws<BinaryFormatException>("BitArray", () => Serializer.Deserialize<BitArray>(padded));
     }
 

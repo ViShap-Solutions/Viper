@@ -512,11 +512,11 @@ its branch into `release/v1.0.0`.
 | Stage | Branch | Status | Closed by (merge commit) |
 |---|---|---|---|
 | Decisions of §3 | — | N1, S1–S5 taken; F1, A1, T1, B1, B2 open | |
-| P0 State sync | `docs/rc1-state-sync` | not started | |
-| P1 Naming | `feature/generator` | gate holds — awaiting commit | |
-| P2 Public contract seam | `feature/generator` | gate holds — awaiting commit | |
-| P3 Generator | `feature/generator` | gate holds — awaiting commit | |
-| P4 Generator tests | `feature/generator` | gate holds — awaiting commit | |
+| P0 State sync | `docs/rc1-state-sync` | gate holds — awaiting commit | |
+| P1 Naming | `feature/generator` | closed | `4604960` |
+| P2 Public contract seam | `feature/generator` | closed | `4604960` |
+| P3 Generator | `feature/generator` | closed | `4604960` |
+| P4 Generator tests | `feature/generator` | closed | `4604960` |
 | P5a Schema fingerprint | `feature/schema-fingerprint` | not started | |
 | P5b Live tracing | `feature/trace-sink` | not started | |
 | P5c Zstandard | `feature/zstd-package` | not started | |

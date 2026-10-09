@@ -163,11 +163,11 @@ public class PropertyTests
         {
             int[] values = [.. Enumerable.Range(0, 16).Select(_ => random.Next(0, 64)).Distinct()];
 
-            var forwards = serializer.Deserialize<SortedSet<int>>(serializer.Serialize(new SortedSet<int>(values)));
+            var forwards = serializer.Deserialize<SortedSet<int>>(serializer.Serialize(new SortedSet<int>(values)))!;
             var backwards = serializer.Deserialize<SortedSet<int>>(
-                serializer.Serialize(new SortedSet<int>(values.Reverse())));
+                serializer.Serialize(new SortedSet<int>(values.Reverse())))!;
 
-            Assert.Equal(forwards!.ToArray(), backwards!.ToArray());
+            Assert.Equal(forwards.ToArray(), backwards.ToArray());
             Assert.Equal(values.Order().ToArray(), forwards.ToArray());
         }
     }

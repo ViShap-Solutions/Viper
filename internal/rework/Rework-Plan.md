@@ -2,7 +2,7 @@
 
 **Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
 
-**Status:** Approved by the owner on 2026-09-26. Stages R0–R8 are closed; the Progress table below records the open one. Two findings raised while
+**Status:** Approved by the owner on 2026-09-26. Stages R0–R9e are closed and `v1.0.0-rc.1` is tagged; the work before the release continues in `internal/rc2/RC2-Plan.md`. Two findings raised while
 preparing the plan are already applied to `src/`, the contract and the QA plan (§1).
 **Target:** the first public release, `v1.0.0`. The rework happens before it, while no published
 format, package or consumer exists.
@@ -93,8 +93,8 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 | R9a — Reconciliation | `rework/r9a-reconcile` | — | closed; `viper_refactorer` stays as it is until `v1.0.0` (owner's decision) and is replaced after it; the `dotnet pack` boxes of contract §24 and QA §32 stay for R9b | `16b2680` |
 | R9b — Consumer documentation | `docs/v1-consumer-docs` | — | closed | `16d2704` |
 | R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | closed; seventeen findings, six of weight "blocks the rc" | `867ba6b` |
-| R9d — Audit fixes | `bugfix/v1-audit-all`, all seventeen findings in one group (owner, 2026-09-29) | — | closed | `9d8e8ae` |
-| R9e — Closure check | `audit/v1-conformance-closure` (separate session) | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
+| R9d — Audit fixes | `bugfix/v1-audit-all`, all seventeen findings in one group (owner, 2026-09-29); `bugfix/v1-strict-utf8-keys` | — | closed | `9d8e8ae`, `e8af35b` |
+| R9e — Closure check | `audit/v1-conformance-closure` (separate session) | `v1.0.0-rc.1` tagged on `release/v1.0.0` at `c728c99` | closed; the work before `v1.0.0` continues in `internal/rc2/RC2-Plan.md` | `c728c99` |
 | Release | `release/v1.0.0` → `main` | the owner tags `v1.0.0` on `main` | not started | |
 
 A defect found on a beta or an rc is fixed on `bugfix/<topic>` from `release/v1.0.0` and merged back;
