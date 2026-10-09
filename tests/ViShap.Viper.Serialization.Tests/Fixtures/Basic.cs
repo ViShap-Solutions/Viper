@@ -93,6 +93,8 @@ public class ContradictoryPositional
     [BinaryInclude, BinaryIgnore] private int _secret = 42;
 
     public int Visible { get; set; }
+
+    public int Secret() => _secret;
 }
 
 [BinaryUnion(0, typeof(TaggedBase))]

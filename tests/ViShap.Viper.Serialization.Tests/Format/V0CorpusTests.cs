@@ -132,7 +132,7 @@ public class V0CorpusTests
     {
         Assert.Equal([1, 2, 3], RoundTrip(new[] { 1, 2, 3 })!);
         Assert.Equal([], RoundTrip(Array.Empty<int>())!);
-        Assert.Equal(["a", null, "c"], RoundTrip(new[] { "a", null, "c" })!);
+        Assert.Equal(new string?[] { "a", null, "c" }, RoundTrip(new[] { "a", null, "c" })!);
         Assert.Equal([1, 2, 3], RoundTrip(new Memory<int>([1, 2, 3])).ToArray());
         Assert.Equal([1, 2, 3], RoundTrip(new ReadOnlyMemory<int>([1, 2, 3])).ToArray());
         Assert.Equal([1, 2, 3], RoundTrip(new ArraySegment<int>([1, 2, 3])).ToArray());

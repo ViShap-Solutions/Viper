@@ -374,7 +374,7 @@ public abstract partial class Corpus
         // builds the array every segment gets.
         Assert.Null(default(ArraySegment<int>).Array);
         Assert.NotNull(RoundTrip(default(ArraySegment<int>)).Array);
-        Assert.Empty(RoundTrip(default(ArraySegment<int>)));
+        Assert.Equal(0, RoundTrip(default(ArraySegment<int>)).Count);
 
         Assert.True(default(Memory<int>).IsEmpty);
         Assert.True(RoundTrip(default(Memory<int>)).IsEmpty);

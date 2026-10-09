@@ -41,9 +41,9 @@ public class ArrayShapeTests
     {
         byte[] frame = Wire.MultiDimensionalArray([0, 5], int32Elements: 0);
 
-        var restored = new BinarySerializer().Deserialize<int[,]>(frame);
+        var restored = new BinarySerializer().Deserialize<int[,]>(frame)!;
 
-        Assert.Equal(0, restored!.Length);
+        Assert.Empty(restored);
         Assert.Equal(0, restored.GetLength(0));
         Assert.Equal(5, restored.GetLength(1));
     }
@@ -65,9 +65,9 @@ public class ArrayShapeTests
         var serializer = Limited(SerializationLimits.Default with { MaxArrayLength = 1_000 });
         byte[] frame = Wire.MultiDimensionalArray([0, 1_000], int32Elements: 0);
 
-        var restored = serializer.Deserialize<int[,]>(frame);
+        var restored = serializer.Deserialize<int[,]>(frame)!;
 
-        Assert.Equal(0, restored!.Length);
+        Assert.Empty(restored);
         Assert.Equal(1_000, restored.GetLength(1));
     }
 
