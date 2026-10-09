@@ -19,7 +19,8 @@ internal struct OperationState
         IKeyProvider? keys,
         bool preserveReferences,
         bool requireEncryption,
-        bool requireChecksum)
+        bool requireChecksum,
+        ContractSet? contracts = null)
     {
         Limits = limits;
         Budget = new SerializationBudget(limits);
@@ -28,6 +29,7 @@ internal struct OperationState
         PreserveReferences = preserveReferences;
         RequireEncryption = requireEncryption;
         RequireChecksum = requireChecksum;
+        Contracts = contracts;
         Graph = default;
     }
 
@@ -48,6 +50,19 @@ internal struct OperationState
     public readonly bool RequireEncryption;
 
     public readonly bool RequireChecksum;
+
+    /// <summary>
+    /// The type contracts the configuration supplies, consulted before a contract is built by
+    /// reflection; <see langword="null"/> when it supplies none.
+    /// </summary>
+    public readonly ContractSet? Contracts;
+
+    /// <summary>
+    /// The number of member calls type contracts have made so far in the operation. A member writer or
+    /// reader remembers the count after its own last call, so a copy of one is recognized the moment
+    /// either copy is used after the other.
+    /// </summary>
+    public long MemberCalls;
 
     /// <summary>
     /// The traversal of the payload being written or read: its reference framing, its reference

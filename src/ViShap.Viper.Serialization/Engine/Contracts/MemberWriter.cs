@@ -1,26 +1,35 @@
-namespace ViShap.Viper.Engine;
+namespace ViShap.Viper.Contracts;
 
 /// <summary>
-/// What a type contract writes its members through: one value per call, and nothing else — no bytes,
-/// no counts and no position. The engine frames each value, keys and measures each keyed field, and
-/// checks every call against the contract's description: the member it names, its type, its key and
-/// the number of calls. A mismatch is <see cref="BinaryTypeException"/>, never a distorted wire.
-/// <para>
-/// Only <see cref="Begin"/> creates one: it lends the engine's writer for one contract call, and
-/// <see cref="End"/> takes it back, advanced.
-/// </para>
+/// What a <see cref="TypeContract{T}"/> writes its members through: one member value per call, and
+/// nothing else — no bytes, no counts and no position.
 /// </summary>
-internal ref struct MemberWriter
+/// <remarks>
+/// <para>
+/// The serializer frames each value, keys and measures each keyed field, and checks every call against
+/// the contract's description: the member it names, its type, its key and the number of calls. A call
+/// that disagrees is <see cref="BinaryTypeException"/>, never a distorted payload.
+/// </para>
+/// <para>
+/// Only the serializer creates one, for one call of <see cref="TypeContract{T}.Write"/>, and it is
+/// used through the reference it is handed. A copy — passing it to a helper by value, or assigning it
+/// to a local — or a default instance is refused with <see cref="BinaryTypeException"/> as soon as
+/// either it or the original is used again.
+/// </para>
+/// </remarks>
+public ref struct MemberWriter
 {
     private WireWriter _writer;
-    private readonly TypeContract _contract;
+    private readonly ITypeContract _contract;
     private int _calls;
+    private long _mark;
 
-    private MemberWriter(WireWriter writer, TypeContract contract)
+    private MemberWriter(WireWriter writer, ITypeContract contract)
     {
         _writer = writer;
         _contract = contract;
         _calls = 0;
+        _mark = writer.State.MemberCalls;
     }
 
     /// <summary>
@@ -28,7 +37,7 @@ internal ref struct MemberWriter
     /// <c>MaxKeyedFields</c>, charged to the keyed field budget and written first — one higher when
     /// <paramref name="nullFolded"/>, because it then carries the value's null.
     /// </summary>
-    internal static MemberWriter Begin(scoped ref WireWriter writer, TypeContract contract, bool nullFolded)
+    internal static MemberWriter Begin(scoped ref WireWriter writer, ITypeContract contract, bool nullFolded)
     {
         if (contract.Layout == MemberLayout.Keyed)
         {
@@ -49,8 +58,10 @@ internal ref struct MemberWriter
     /// <summary>Requires every member to have been written, then hands the writer back.</summary>
     internal readonly void End(ref WireWriter writer)
     {
+        EnsureCurrent();
+
         if (_calls != _contract.Members.Length)
-            throw Contracts.Mismatch(
+            throw ContractCalls.Mismatch(
                 _contract,
                 _contract.Members[_calls],
                 $"it wrote {_calls} of its {_contract.Members.Length} members");
@@ -58,18 +69,32 @@ internal ref struct MemberWriter
         writer = _writer;
     }
 
-    /// <summary>Writes the next positional member: the whole value, framed.</summary>
+    /// <summary>Writes the next member of a positional layout, in plan order.</summary>
+    /// <param name="value">The member's value.</param>
+    /// <typeparam name="TMember">The member's type, exactly as the contract describes it.</typeparam>
+    /// <exception cref="BinaryTypeException">
+    /// The layout is keyed; every member was already written; or <typeparamref name="TMember"/> is not the
+    /// type the description gives the next member.
+    /// </exception>
     public void Member<TMember>(TMember value)
     {
         Next<TMember>(MemberLayout.Positional, key: null);
         FormatterCache<TMember>.Instance.Write(ref _writer, value);
+        _mark = _writer.State.MemberCalls;
     }
 
     /// <summary>
-    /// Writes the next keyed field: its key, a length reserved ahead of the value, the value — inside
-    /// its own reference scope — and then the length, patched in the serializer's buffer.
+    /// Writes the next member of a keyed layout, in ascending key order, as one field: its key, its
+    /// length and its value, which is a scope of its own for object references.
     /// </summary>
-    public void Field<TMember>(int key, TMember value)
+    /// <param name="key">The member's key, as the description gives it.</param>
+    /// <param name="value">The member's value.</param>
+    /// <typeparam name="TMember">The member's type, exactly as the contract describes it.</typeparam>
+    /// <exception cref="BinaryTypeException">
+    /// The layout is positional; every member was already written; or <paramref name="key"/> or
+    /// <typeparamref name="TMember"/> is not what the description gives the next member.
+    /// </exception>
+    public void Member<TMember>(int key, TMember value)
     {
         var member = Next<TMember>(MemberLayout.Keyed, key);
 
@@ -99,29 +124,51 @@ internal ref struct MemberWriter
             _writer.State.Phases.CheckPayload(payloadLength, $"Keyed member '{member.Name}' payload length");
 
         _writer.PatchInt32(lengthPosition, (int)payloadLength);
+        _mark = _writer.State.MemberCalls;
     }
 
     private MemberDescription Next<TMember>(MemberLayout layout, int? key)
     {
+        EnsureCurrent();
+
         var members = _contract.Members;
 
         if (_contract.Layout != layout)
-            throw Contracts.WrongLayout(_contract, layout, write: true);
+            throw ContractCalls.WrongLayout(_contract, layout);
 
         if (_calls >= members.Length)
-            throw Contracts.TooManyCalls(_contract, typeof(TMember), write: true);
+            throw ContractCalls.TooManyCalls(_contract, typeof(TMember), write: true);
 
         var member = members[_calls];
 
         if (key is { } written && member.Key != written)
-            throw Contracts.Mismatch(
+            throw ContractCalls.Mismatch(
                 _contract, member, $"it wrote key {written} where key {member.Key} comes next");
 
         if (typeof(TMember) != member.MemberType)
-            throw Contracts.Mismatch(
+            throw ContractCalls.Mismatch(
                 _contract, member, $"it wrote a '{typeof(TMember)}' for a member of type '{member.MemberType}'");
 
         _calls++;
+        _mark = ++_writer.State.MemberCalls;
         return member;
+    }
+
+    /// <summary>
+    /// Refuses a writer that is not the one the serializer handed out for the current call: a default
+    /// instance, or one of two copies after the other was used.
+    /// </summary>
+    private readonly void EnsureCurrent()
+    {
+        if (_contract is null)
+            throw new BinaryTypeException(
+                "This MemberWriter was not handed out by the serializer; a contract writes its members " +
+                "only through the writer it is given.");
+
+        if (_writer.State.MemberCalls != _mark)
+            throw new BinaryTypeException(
+                $"The contract of '{_contract.Type}' used a copy of its MemberWriter. A contract writes its " +
+                "members through the writer it is handed, by reference; a copy is refused once either it " +
+                "or the original has been used.");
     }
 }

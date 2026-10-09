@@ -1,3 +1,4 @@
+using ViShap.Viper.Contracts;
 using ViShap.Viper.Engine;
 using ViShap.Viper.Io;
 using ViShap.Viper.Serialization.Tests.Fixtures;
@@ -95,8 +96,8 @@ public class ContractCallTests
     {
         var contract = Contract(MemberLayout.Positional, Positional, write: (ref MemberWriter w, Pair v) =>
         {
-            w.Field(1, v.A);
-            w.Field(2, v.B);
+            w.Member(1, v.A);
+            w.Member(2, v.B);
         });
 
         Assert.Throws<BinaryTypeException>(() => WriteWith(contract, new Pair()));
@@ -119,8 +120,8 @@ public class ContractCallTests
     {
         var contract = Contract(MemberLayout.Keyed, Keyed, write: (ref MemberWriter w, Pair v) =>
         {
-            w.Field(3, v.A);
-            w.Field(2, v.B);
+            w.Member(3, v.A);
+            w.Member(2, v.B);
         });
 
         AssertEx.Throws<BinaryTypeException>("'A'", () => WriteWith(contract, new Pair()));
@@ -131,8 +132,8 @@ public class ContractCallTests
     {
         var contract = Contract(MemberLayout.Keyed, Keyed, write: (ref MemberWriter w, Pair v) =>
         {
-            w.Field(2, v.B);
-            w.Field(1, v.A);
+            w.Member(2, v.B);
+            w.Member(1, v.A);
         });
 
         AssertEx.Throws<BinaryTypeException>("'A'", () => WriteWith(contract, new Pair()));
@@ -143,8 +144,8 @@ public class ContractCallTests
     {
         var contract = Contract(MemberLayout.Keyed, Keyed, write: (ref MemberWriter w, Pair v) =>
         {
-            w.Field(1, (short)v.A);
-            w.Field(2, v.B);
+            w.Member(1, (short)v.A);
+            w.Member(2, v.B);
         });
 
         AssertEx.Throws<BinaryTypeException>("'A'", () => WriteWith(contract, new Pair()));
@@ -154,7 +155,7 @@ public class ContractCallTests
     public void Write_TooFewKeyedFields_ThrowsType()
     {
         var contract = Contract(MemberLayout.Keyed, Keyed, write: (ref MemberWriter w, Pair v) =>
-            w.Field(1, v.A));
+            w.Member(1, v.A));
 
         AssertEx.Throws<BinaryTypeException>("'B'", () => WriteWith(contract, new Pair()));
     }
@@ -201,21 +202,21 @@ public class ContractCallTests
     // --- CTR-31: reading keyed fields ------------------------------------------------------------
 
     [Fact]
-    public void ReadField_AcceptingAKeyWithoutReadingIt_ThrowsType()
+    public void ReadKeyed_AcceptingAKeyWithoutReadingIt_ThrowsType()
     {
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, Keyed, field: (ref MemberReader r, int key, ref Pair v) => true);
+        var contract = Contract(MemberLayout.Keyed, Keyed, keyed: (ref MemberReader r, int key, ref Pair v) => true);
 
         AssertEx.Throws<BinaryTypeException>("key 1", () => ReadWith(contract, bytes));
     }
 
     [Fact]
-    public void ReadField_ReadingAKeyAndThenDisowningIt_ThrowsType()
+    public void ReadKeyed_ReadingAKeyAndThenDisowningIt_ThrowsType()
     {
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, Keyed, field: (ref MemberReader r, int key, ref Pair v) =>
+        var contract = Contract(MemberLayout.Keyed, Keyed, keyed: (ref MemberReader r, int key, ref Pair v) =>
         {
-            v.A = r.Value<int>();
+            v.A = r.Member<int>();
             return false;
         });
 
@@ -223,13 +224,13 @@ public class ContractCallTests
     }
 
     [Fact]
-    public void ReadField_ReadingAValueTwice_ThrowsType()
+    public void ReadKeyed_ReadingAValueTwice_ThrowsType()
     {
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, Keyed, field: (ref MemberReader r, int key, ref Pair v) =>
+        var contract = Contract(MemberLayout.Keyed, Keyed, keyed: (ref MemberReader r, int key, ref Pair v) =>
         {
-            v.A = r.Value<int>();
-            v.A = r.Value<int>();
+            v.A = r.Member<int>();
+            v.A = r.Member<int>();
             return true;
         });
 
@@ -237,12 +238,12 @@ public class ContractCallTests
     }
 
     [Fact]
-    public void ReadField_AValueOfTheWrongType_ThrowsTypeNamingTheMember()
+    public void ReadKeyed_AValueOfTheWrongType_ThrowsTypeNamingTheMember()
     {
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, Keyed, field: (ref MemberReader r, int key, ref Pair v) =>
+        var contract = Contract(MemberLayout.Keyed, Keyed, keyed: (ref MemberReader r, int key, ref Pair v) =>
         {
-            _ = r.Value<string>();
+            _ = r.Member<string>();
             return true;
         });
 
@@ -250,13 +251,13 @@ public class ContractCallTests
     }
 
     [Fact]
-    public void ReadField_ReadingAKeyTheDescriptionDoesNotHave_ThrowsType()
+    public void ReadKeyed_ReadingAKeyTheDescriptionDoesNotHave_ThrowsType()
     {
         MemberDescription[] onlyA = [new("A", typeof(int), key: 1)];
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, onlyA, field: (ref MemberReader r, int key, ref Pair v) =>
+        var contract = Contract(MemberLayout.Keyed, onlyA, keyed: (ref MemberReader r, int key, ref Pair v) =>
         {
-            v.A = r.Value<int>();
+            v.A = r.Member<int>();
             return true;
         });
 
@@ -264,16 +265,16 @@ public class ContractCallTests
     }
 
     [Fact]
-    public void ReadField_DecliningAnUnknownKey_SkipsItsField()
+    public void ReadKeyed_DecliningAnUnknownKey_SkipsItsField()
     {
         MemberDescription[] onlyA = [new("A", typeof(int), key: 1)];
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, onlyA, field: (ref MemberReader r, int key, ref Pair v) =>
+        var contract = Contract(MemberLayout.Keyed, onlyA, keyed: (ref MemberReader r, int key, ref Pair v) =>
         {
             if (key != 1)
                 return false;
 
-            v.A = r.Value<int>();
+            v.A = r.Member<int>();
             return true;
         });
 
@@ -284,16 +285,23 @@ public class ContractCallTests
     }
 
     [Fact]
-    public void ReadField_APositionalMemberUnderAKeyedLayout_ThrowsType()
+    public void ReadKeyed_AMemberCallPerKnownKey_ReadsEachFieldsMember()
     {
         byte[] bytes = KeyedBytes();
-        var contract = Contract(MemberLayout.Keyed, Keyed, field: (ref MemberReader r, int key, ref Pair v) =>
+        var contract = Contract(MemberLayout.Keyed, Keyed, keyed: (ref MemberReader r, int key, ref Pair v) =>
         {
-            v.A = r.Member<int>();
-            return true;
+            switch (key)
+            {
+                case 1: v.A = r.Member<int>(); return true;
+                case 2: v.B = r.Member<string>(); return true;
+                default: return false;
+            }
         });
 
-        Assert.Throws<BinaryTypeException>(() => ReadWith(contract, bytes));
+        var pair = ReadWith(contract, bytes);
+
+        Assert.Equal(11, pair.A);
+        Assert.Equal("eleven", pair.B);
     }
 
     // --- CTR-32: a struct owner is assigned in place ---------------------------------------------
@@ -309,7 +317,7 @@ public class ContractCallTests
         var members = MemberReader.Positional(ref reader, contract);
 
         var target = new PointStruct();
-        contract.Read(ref members, ref target);
+        contract.ReadPositional(ref members, ref target);
         members.End(ref reader);
 
         Assert.Equal(3, target.X);
@@ -341,7 +349,7 @@ public class ContractCallTests
 
     private delegate void ReadScript(ref MemberReader reader, ref Pair value);
 
-    private delegate bool FieldScript(ref MemberReader reader, int key, ref Pair value);
+    private delegate bool KeyedScript(ref MemberReader reader, int key, ref Pair value);
 
     /// <summary>A contract for <see cref="Pair"/> whose calls are whatever the test scripts.</summary>
     private sealed class ScriptedContract(
@@ -349,16 +357,16 @@ public class ContractCallTests
         MemberDescription[] members,
         WriteScript? write,
         ReadScript? read,
-        FieldScript? field) : TypeContract<Pair>(layout, members, canBeConstructed: true)
+        KeyedScript? keyed) : TypeContract<Pair>(layout, members, canBeConstructed: true)
     {
         public override Pair Create() => new();
 
         public override void Write(ref MemberWriter writer, in Pair value) => write!(ref writer, value);
 
-        public override void Read(ref MemberReader reader, ref Pair value) => read!(ref reader, ref value);
+        public override void ReadPositional(ref MemberReader reader, ref Pair value) => read!(ref reader, ref value);
 
-        public override bool ReadField(ref MemberReader reader, int key, ref Pair value) =>
-            field!(ref reader, key, ref value);
+        public override bool ReadKeyed(ref MemberReader reader, int key, ref Pair value) =>
+            keyed!(ref reader, key, ref value);
     }
 
     private static ScriptedContract Contract(
@@ -366,16 +374,16 @@ public class ContractCallTests
         MemberDescription[] members,
         WriteScript? write = null,
         ReadScript? read = null,
-        FieldScript? field = null) =>
-        new(layout, members, write, read, field);
+        KeyedScript? keyed = null) =>
+        new(layout, members, write, read, keyed);
 
     /// <summary>A keyed Pair { A = 11, B = "eleven" } as a correct keyed contract writes it.</summary>
     private static byte[] KeyedBytes() =>
         WriteWith(
             Contract(MemberLayout.Keyed, Keyed, write: (ref MemberWriter w, Pair v) =>
             {
-                w.Field(1, v.A);
-                w.Field(2, v.B);
+                w.Member(1, v.A);
+                w.Member(2, v.B);
             }),
             new Pair { A = 11, B = "eleven" });
 

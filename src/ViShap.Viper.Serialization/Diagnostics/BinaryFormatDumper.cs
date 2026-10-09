@@ -192,7 +192,7 @@ public static class BinaryFormatDumper
         string typeName)
     {
         options ??= BinarySerializerOptions.Default;
-        var state = new OperationState(options.Limits, options.Keys, false, false, false);
+        var state = new OperationState(options.Limits, options.Keys, false, false, false, options.ContractSet);
 
         bool framed;
         try

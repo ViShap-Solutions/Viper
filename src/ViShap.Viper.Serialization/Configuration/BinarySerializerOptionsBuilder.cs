@@ -39,6 +39,8 @@ public sealed class BinarySerializerOptionsBuilder
     private bool _allowV0Fallback;
     private bool _requireEncryption;
     private bool _requireChecksum;
+    private BinarySerializerContext? _contracts;
+    private bool _requireGeneratedContracts;
 
     internal BinarySerializerOptionsBuilder() { }
 
@@ -364,6 +366,58 @@ public sealed class BinarySerializerOptionsBuilder
     }
 
     /// <summary>
+    /// Uses the type contracts of <paramref name="contracts"/> instead of describing those types by
+    /// reflection.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A context generated from <see cref="BinaryContextAttribute"/> describes each type exactly as
+    /// reflection does, so payloads are the same bytes with it and without it, in both directions. A
+    /// type the context does not hold is still described by reflection, unless
+    /// <see cref="RequireGeneratedContracts"/> is set.
+    /// </para>
+    /// <para>
+    /// <see cref="Build"/> takes a snapshot of the context; contracts cannot be added to it afterwards.
+    /// </para>
+    /// </remarks>
+    /// <param name="contracts">The context, usually the generated <c>Default</c> instance.</param>
+    /// <returns>The same builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="contracts"/> is null.</exception>
+    /// <example>
+    /// <code>
+    /// [BinaryContext(typeof(Order))]
+    /// public partial class AppContracts : BinarySerializerContext;
+    ///
+    /// var options = BinarySerializerOptions.Configure()
+    ///     .WithContracts(AppContracts.Default)
+    ///     .RequireGeneratedContracts()
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public BinarySerializerOptionsBuilder WithContracts(BinarySerializerContext contracts)
+    {
+        _contracts = contracts ?? throw new ArgumentNullException(nameof(contracts));
+        return this;
+    }
+
+    /// <summary>
+    /// Refuses to describe a member-encoded type by reflection: a type without a contract in the
+    /// context given to <see cref="WithContracts"/> is <see cref="BinaryConfigurationException"/> when
+    /// an operation first meets it.
+    /// </summary>
+    /// <remarks>
+    /// It makes a type missing from the context an error instead of a silent fallback. <see cref="Build"/>
+    /// refuses it without <see cref="WithContracts"/>.
+    /// </remarks>
+    /// <param name="require">Whether every member-encoded type needs a contract in the context.</param>
+    /// <returns>The same builder.</returns>
+    public BinarySerializerOptionsBuilder RequireGeneratedContracts(bool require = true)
+    {
+        _requireGeneratedContracts = require;
+        return this;
+    }
+
+    /// <summary>
     /// Registers a custom compression algorithm under <paramref name="name"/>, the name payloads
     /// carry.
     /// </summary>
@@ -408,7 +462,8 @@ public sealed class BinarySerializerOptionsBuilder
     /// format metadata; a checksum is required but not configured; a protection policy is combined
     /// with format version 0, which has no header in which to carry protection; keys are supplied
     /// both through <c>WithEncryption</c> and through <c>WithKeys</c>; or the fixed key given to
-    /// <c>WithEncryption</c> is not the length the algorithm requires.
+    /// <c>WithEncryption</c> is not the length the algorithm requires; or generated contracts are
+    /// required without a context.
     /// </exception>
     /// <exception cref="BinaryFormatNotSupportedException">
     /// Payloads are to be encrypted with <see cref="ChaCha20Poly1305Encryption"/> on a platform that does
@@ -462,6 +517,11 @@ public sealed class BinarySerializerOptionsBuilder
         RejectHeaderlessProtection(_requireEncryption, nameof(RequireEncryption));
         RejectHeaderlessProtection(_requireChecksum, nameof(RequireChecksum));
 
+        if (_requireGeneratedContracts && _contracts is null)
+            throw new BinaryConfigurationException(
+                "RequireGeneratedContracts is set, but no context is given with WithContracts, so no " +
+                "member-encoded type could be described.");
+
         return new BinarySerializerOptions
         {
             Compression = _compression ?? new NoCompression(),
@@ -475,7 +535,10 @@ public sealed class BinarySerializerOptionsBuilder
             AllowV0Fallback = _allowV0Fallback,
             RequireEncryption = _requireEncryption,
             RequireChecksum = _requireChecksum,
-            Catalog = AlgorithmCatalog.Create(_customCompression, _customChecksum, _customEncryption)
+            Catalog = AlgorithmCatalog.Create(_customCompression, _customChecksum, _customEncryption),
+            Contracts = _contracts,
+            RequireGeneratedContracts = _requireGeneratedContracts,
+            ContractSet = _contracts is null ? null : new ContractSet(_contracts.Snapshot(), _requireGeneratedContracts)
         };
     }
 

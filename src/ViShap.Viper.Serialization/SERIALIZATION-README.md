@@ -96,7 +96,9 @@ public sealed class Customer
 ```
 
 `[BinaryUnion(tag, typeof(Derived))]` declares the derived types a base class or interface may hold, and
-`PreserveReferences()` keeps shared and cyclic references. See
+`PreserveReferences()` keeps shared and cyclic references. A type's members can also be described by a
+`TypeContract<T>` supplied through a `BinarySerializerContext` and `WithContracts(…)` instead of by
+reflection; one that describes the type as reflection does writes the same bytes. See
 [Contracts and schema evolution](https://github.com/ViShap-Solutions/Viper/blob/main/docs/contracts.md),
 [Polymorphism](https://github.com/ViShap-Solutions/Viper/blob/main/docs/polymorphism.md) and
 [References](https://github.com/ViShap-Solutions/Viper/blob/main/docs/references.md).

@@ -20,8 +20,8 @@ internal sealed class UnionMap(
 }
 
 /// <summary>
-/// The contract of every member-encoded type and the union map of every declared type, each built
-/// once, on first use, and shared by every serializer in the process. Building either can fail with
+/// The reflected contract of every member-encoded type and the union map of every declared type, each
+/// built once, on first use, and shared by every serializer in the process. Building either can fail with
 /// <see cref="BinaryTypeException"/>; a failure is not kept, so every later use reports it again.
 /// Nothing an operation owns takes part in building an entry.
 /// </summary>
@@ -29,7 +29,7 @@ internal static class TypeContractCache
 {
     private const int MaxUnionTag = 255;
 
-    private static readonly ConcurrentDictionary<Type, TypeContract> Contracts = new();
+    private static readonly ConcurrentDictionary<Type, ITypeContract> Contracts = new();
     private static readonly ConcurrentDictionary<Type, UnionMap?> Unions = new();
 
     /// <summary>
@@ -39,7 +39,7 @@ internal static class TypeContractCache
     /// </summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Reached only from the engine, which is entered only through Graph, which requires unreferenced code.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Reached only from the engine, which is entered only through Graph, which requires dynamic code.")]
-    public static TypeContract Get(Type type) => Contracts.GetOrAdd(type, ReflectedContract.Build);
+    public static ITypeContract Get(Type type) => Contracts.GetOrAdd(type, ReflectedContract.Build);
 
     public static TypeContract<T> Get<T>() => (TypeContract<T>)Get(typeof(T));
 

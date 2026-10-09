@@ -5,12 +5,13 @@ streams and pipes, and can compress, checksum and encrypt a frame. It is built t
 trust: every declared length, count and nesting level is bounded before anything is allocated for it, and
 every failure is an exception from one hierarchy.
 
-This is the meta-package. It ships no code of its own; it references the two packages that do:
+This is the meta-package. It ships no code of its own; it references the three packages that do:
 
 | Package | Contains |
 |---|---|
 | [`ViShap.Viper.Core`](https://www.nuget.org/packages/ViShap.Viper.Core) | the attributes, the algorithm and key contracts, the exception hierarchy |
 | [`ViShap.Viper.Serialization`](https://www.nuget.org/packages/ViShap.Viper.Serialization) | the serializer, its options and limits, the built-in algorithms and key providers, the diagnostics |
+| [`ViShap.Viper.Generator`](https://www.nuget.org/packages/ViShap.Viper.Generator) | the build-time source generator of type contracts; it runs in the compiler and ships nothing with your application |
 
 ```bash
 dotnet add package ViShap.Viper

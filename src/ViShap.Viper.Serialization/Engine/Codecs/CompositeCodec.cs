@@ -16,7 +16,7 @@ internal sealed class CompositeCodec<T>(ICompositeFormatter<T> formatter) : Stru
 {
     public override CodecShape Shape => CodecShape.Composite;
 
-    protected override bool FoldsNull => formatter.BeginsWithShape;
+    protected override bool FoldsNull(ref OperationState state) => formatter.BeginsWithShape;
 
     protected override void WriteBody(ref WireWriter writer, T value, bool nullFolded) =>
         CompositeWriter.Encode(formatter, ref writer, value, nullFolded);

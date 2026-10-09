@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
@@ -29,6 +30,14 @@ public class PublicSurfaceTests
         "ViShap.Viper.BinaryIncludeAttribute",
         "ViShap.Viper.BinaryOrderAttribute",
         "ViShap.Viper.BinaryUnionAttribute",
+        "ViShap.Viper.BinaryContextAttribute",
+        "ViShap.Viper.BinarySerializerContext",
+
+        "ViShap.Viper.Contracts.TypeContract`1",
+        "ViShap.Viper.Contracts.MemberWriter",
+        "ViShap.Viper.Contracts.MemberReader",
+        "ViShap.Viper.Contracts.MemberDescription",
+        "ViShap.Viper.Contracts.MemberLayout",
 
         "ViShap.Viper.Security.SerializationLimits",
 
@@ -200,11 +209,10 @@ public class PublicSurfaceTests
             "ViShap.Viper.Engine.Graph",
             "ViShap.Viper.Engine.Codec`1",
             "ViShap.Viper.Engine.FormatterCache`1",
-            "ViShap.Viper.Engine.TypeContract",
-            "ViShap.Viper.Engine.TypeContract`1",
+            "ViShap.Viper.Engine.ITypeContract",
             "ViShap.Viper.Engine.ReflectedContract`1",
-            "ViShap.Viper.Engine.MemberWriter",
-            "ViShap.Viper.Engine.MemberReader",
+            "ViShap.Viper.Engine.TypeContractCache",
+            "ViShap.Viper.Engine.ContractSet",
             "ViShap.Viper.Engine.GraphState",
             "ViShap.Viper.Io.WireReader",
             "ViShap.Viper.Io.WireWriter",
@@ -276,6 +284,8 @@ public class PublicSurfaceTests
         "AllowV0Fallback(Boolean) : BinarySerializerOptionsBuilder",
         "RequireEncryption(Boolean) : BinarySerializerOptionsBuilder",
         "RequireChecksum(Boolean) : BinarySerializerOptionsBuilder",
+        "WithContracts(BinarySerializerContext) : BinarySerializerOptionsBuilder",
+        "RequireGeneratedContracts(Boolean) : BinarySerializerOptionsBuilder",
         "RegisterCustomCompression(String, Func<ICompressionAlgorithm>) : BinarySerializerOptionsBuilder",
         "RegisterCustomChecksum(String, Func<IChecksumAlgorithm>) : BinarySerializerOptionsBuilder",
         "RegisterCustomEncryption(String, Func<IEncryptionAlgorithm>) : BinarySerializerOptionsBuilder",
@@ -407,7 +417,7 @@ public class PublicSurfaceTests
         ];
     }
 
-    /// <summary>Drops the key's kind prefix, its parameter list and any generic arity.</summary>
+    /// <summary>Drops the key's kind prefix, its parameter list and the generic arity of every name in it.</summary>
     private static string Simplify(string key)
     {
         string name = key[2..];
@@ -416,8 +426,7 @@ public class PublicSurfaceTests
         if (parameters >= 0)
             name = name[..parameters];
 
-        int arity = name.IndexOf('`', StringComparison.Ordinal);
-        return arity >= 0 ? name[..arity] : name;
+        return Regex.Replace(name, "`+[0-9]+", string.Empty);
     }
 
     /// <summary>Every exported type and member of <paramref name="assembly"/> the XML file omits.</summary>
@@ -427,22 +436,41 @@ public class PublicSurfaceTests
 
         foreach (var type in assembly.GetExportedTypes())
         {
-            if (!documented.Contains(type.FullName!))
-                yield return type.FullName!;
+            string typeName = Simplify($"T:{type.FullName}");
+            if (!documented.Contains(typeName))
+                yield return typeName;
 
             var members = type.GetMembers(
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly);
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static |
+                BindingFlags.DeclaredOnly);
 
             foreach (var member in members)
             {
-                if (IsCompilerSupplied(member))
+                if (!IsVisible(type, member) || IsCompilerSupplied(member))
                     continue;
 
                 string name = member is ConstructorInfo ? "#ctor" : member.Name;
-                if (!documented.Contains($"{type.FullName}.{name}"))
-                    yield return $"{type.FullName}.{name}";
+                if (!documented.Contains($"{typeName}.{name}"))
+                    yield return $"{typeName}.{name}";
             }
         }
+    }
+
+    /// <summary>Public, or protected on a type a consumer can derive from.</summary>
+    private static bool IsVisible(Type type, MemberInfo member)
+    {
+        bool derivable = !type.IsSealed;
+
+        return member switch
+        {
+            MethodBase method => method.IsPublic || (derivable && (method.IsFamily || method.IsFamilyOrAssembly)),
+            FieldInfo field => field.IsPublic || (derivable && (field.IsFamily || field.IsFamilyOrAssembly)),
+            PropertyInfo property => new[] { property.GetMethod, property.SetMethod }.Any(accessor =>
+                accessor is not null && IsVisible(type, accessor)),
+            EventInfo @event => @event.AddMethod is { } add && IsVisible(type, add),
+            Type nested => nested.IsNestedPublic || (derivable && nested.IsNestedFamily),
+            _ => false
+        };
     }
 
     /// <summary>

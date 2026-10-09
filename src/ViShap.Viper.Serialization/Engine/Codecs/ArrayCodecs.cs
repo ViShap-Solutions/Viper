@@ -13,7 +13,7 @@ internal sealed class ArrayCodec<TCollection, TElement>(IArrayShape<TCollection,
 {
     public override CodecShape Shape => CodecShape.Sequence;
 
-    protected override bool FoldsNull => true;
+    protected override bool FoldsNull(ref OperationState state) => true;
 
     protected override void WriteBody(ref WireWriter writer, TCollection value, bool nullFolded)
     {

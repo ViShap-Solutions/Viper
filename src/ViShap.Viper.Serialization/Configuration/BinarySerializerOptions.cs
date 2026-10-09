@@ -161,5 +161,19 @@ public sealed record BinarySerializerOptions
     /// <summary>Whether payloads carrying no checksum are rejected.</summary>
     public bool RequireChecksum { get; internal init; }
 
+    /// <summary>
+    /// The type contracts used instead of the ones built by reflection, or <see langword="null"/> when
+    /// every member-encoded type is described by reflection.
+    /// </summary>
+    public BinarySerializerContext? Contracts { get; internal init; }
+
+    /// <summary>
+    /// Whether a member-encoded type without a contract in <see cref="Contracts"/> is refused with
+    /// <see cref="BinaryConfigurationException"/> instead of being described by reflection.
+    /// </summary>
+    public bool RequireGeneratedContracts { get; internal init; }
+
     internal AlgorithmCatalog Catalog { get; init; } = AlgorithmCatalog.BuiltIn;
+
+    internal ContractSet? ContractSet { get; init; }
 }

@@ -24,7 +24,7 @@ internal abstract class StructuralCodec<T> : Codec<T>
     /// rank — which then carries the value's null when the value is not reference-framed. A shape
     /// that begins otherwise carries it in a flag byte.
     /// </summary>
-    protected virtual bool FoldsNull => false;
+    protected virtual bool FoldsNull(ref OperationState state) => false;
 
     public sealed override void Write(ref WireWriter writer, T value)
     {
@@ -54,7 +54,7 @@ internal abstract class StructuralCodec<T> : Codec<T>
                 writer.WriteNull();
                 return;
             }
-            else if (FoldsNull)
+            else if (FoldsNull(ref writer.State))
             {
                 nullFolded = true;
             }
@@ -109,7 +109,7 @@ internal abstract class StructuralCodec<T> : Codec<T>
 
                 referenceId = frame.Id;
             }
-            else if (FoldsNull)
+            else if (FoldsNull(ref reader.State))
             {
                 if (reader.TryReadNull())
                     return Null(ref reader, trace);

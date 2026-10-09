@@ -9,7 +9,11 @@ internal static class SourceTree
     /// <summary>The directory holding the solution.</summary>
     public static string RepositoryRoot { get; } = FindRepositoryRoot();
 
-    /// <summary>Every production <c>.cs</c> file, keyed by its path relative to <c>src/</c>.</summary>
+    /// <summary>
+    /// Every production <c>.cs</c> file of the assemblies that ship at run time, keyed by its path
+    /// relative to <c>src/</c>. The source generator runs only in the compiler and is held to its own
+    /// tests.
+    /// </summary>
     public static IReadOnlyDictionary<string, string> ProductionFiles { get; } = Load();
 
     private static Dictionary<string, string> Load()
@@ -24,6 +28,7 @@ internal static class SourceTree
             .EnumerateFiles(src, "*.cs", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Where(path => !Path.GetRelativePath(src, path).StartsWith("ViShap.Viper.Generator", StringComparison.Ordinal))
             .ToDictionary(
                 path => Path.GetRelativePath(src, path).Replace(Path.DirectorySeparatorChar, '/'),
                 File.ReadAllText);

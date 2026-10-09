@@ -107,9 +107,10 @@ never type names. See [Contracts](docs/contracts.md) and [Polymorphism](docs/pol
 
 | Package | Contains |
 |---|---|
-| [`ViShap.Viper`](src/ViShap.Viper/METAPACK-README.md) | the meta-package: references the two packages below |
+| [`ViShap.Viper`](src/ViShap.Viper/METAPACK-README.md) | the meta-package: references the three packages below |
 | [`ViShap.Viper.Core`](src/ViShap.Viper.Core/CORE-README.md) | attributes, algorithm and key contracts, exceptions — for libraries that annotate types or implement algorithms |
 | [`ViShap.Viper.Serialization`](src/ViShap.Viper.Serialization/SERIALIZATION-README.md) | the serializer, built-in algorithms and key providers, diagnostics |
+| [`ViShap.Viper.Generator`](src/ViShap.Viper.Generator/GENERATOR-README.md) | the build-time source generator of type contracts, with compiler diagnostics for contract mistakes |
 
 ```bash
 dotnet add package ViShap.Viper
@@ -196,6 +197,7 @@ The documentation is in [`docs/`](docs/README.md):
 | [Options and limits](docs/options-and-limits.md) | the options builder and every limit |
 | [Formats: V1 and V0](docs/formats.md) | the self-describing frame and the headerless codec |
 | [Contracts and schema evolution](docs/contracts.md) | positional and keyed layouts |
+| [The source generator](docs/generator.md) | generated type contracts and their diagnostics |
 | [References](docs/references.md) | shared and cyclic references |
 | [Polymorphism](docs/polymorphism.md) | `[BinaryUnion]` |
 | [Algorithms and keys](docs/algorithms-and-keys.md) | compression, checksums, encryption, key providers, your own algorithms |

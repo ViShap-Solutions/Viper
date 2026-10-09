@@ -22,6 +22,7 @@
     <ItemGroup>
         <ProjectReference Include="..\ViShap.Viper.Core\ViShap.Viper.Core.csproj" />
         <ProjectReference Include="..\ViShap.Viper.Serialization\ViShap.Viper.Serialization.csproj" />
+        <ProjectReference Include="..\ViShap.Viper.Generator\ViShap.Viper.Generator.csproj" PrivateAssets="none" />
     </ItemGroup>
 
     <ItemGroup>
