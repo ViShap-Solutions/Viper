@@ -26,7 +26,7 @@ changes a default, a byte of an existing frame or a public signature is a major.
 | [IDEA-01 Schema fingerprint](IDEA-01-schema-fingerprint.md) | minor (opt-in); major if on by default | idea |
 | [IDEA-02 Live tracing](IDEA-02-live-tracing.md) | minor | idea |
 | [IDEA-03 AES-GCM-SIV](IDEA-03-aes-gcm-siv.md) | minor | idea |
-| [IDEA-04 Native AOT through the context](IDEA-04-native-aot.md) | minor | idea |
+| [IDEA-04 Native AOT through the context](IDEA-04-native-aot.md) | none before `v1.0.0`; minor after | decided — `rc2/RC2-Plan.md` P4c–P4d |
 | [IDEA-05 Preserving unknown keyed fields](IDEA-05-unknown-keyed-fields.md) | minor (opt-in) | idea |
 | [IDEA-06 Command-line tool and schema-driven reading](IDEA-06-cli.md) | minor, or a package of its own | idea |
 | [IDEA-07 Public formatter contract](IDEA-07-public-formatters.md) | minor to add; every later change to it a major | idea |

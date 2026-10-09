@@ -87,8 +87,8 @@ What is still wrong after R9e — all small, all in P0:
 **Recorded, not scheduled** — the documents name them but do not give enough to plan, or say "not
 claimed". Each needs a design brief from the owner before it can become a stage; since 2026-10-09 each
 has a file in `internal/ideas/` (IDEA-05…IDEA-10) with its options and version impact, beside the
-deferred I8 (IDEA-01), I10 (IDEA-02), I9 (IDEA-03 AES-GCM-SIV, IDEA-11 Zstandard and LZ4) and S4-B
-(IDEA-04):
+deferred I8 (IDEA-01), I10 (IDEA-02) and I9 (IDEA-03 AES-GCM-SIV, IDEA-11 Zstandard and LZ4); S4-B
+(IDEA-04) was taken back into this plan as P4c–P4d on 2026-10-10:
 
 | Item | Written in | Why it is not a stage |
 |---|---|---|
@@ -284,8 +284,10 @@ Filled in by the owner.
 | A1 | Zstandard and LZ4 as **built-in** algorithms (`CompressionAlgorithm.Zstandard = 3`, `Lz4 = 4`, in `Serialization`, not `Custom`, not separate packages) — then **deferred past `v1.0.0`** until an official implementation exists; no third-party dependency. Everything chosen is in `internal/ideas/IDEA-11`. AES-GCM-SIV deferred — `internal/ideas/IDEA-03`. No P5 package stage remains | 2026-10-09 |
 | T1 | deferred past `v1.0.0` — `internal/ideas/IDEA-02` | 2026-10-09 |
 | B1 | a — Track B adapters with current competitors before `v1.0.0`; Track A and B measured in full on the `v1.0.0` tag; the figures and charts go into the READMEs and `docs/` after that run | 2026-10-09 |
-| B2 | | |
-| Workflow §3.3 amended | | |
+| Engine fast path | a stage of `rc.2`, before the benchmarks: the generator profile first, then the measured internal improvements of the generated path (§4, P4a–P4b) | 2026-10-10 |
+| S4 revisited — native AOT | **in `rc.2`**, as S4-B through a façade of names (option a of `ideas/IDEA-04`): the context supplies every codec its types reach through statically typed factories named after the §23 definitions, entry points that take a typed handle carry no annotation, and every reflective resolution is guarded off under native AOT — `FormatterRegistry`, `ReflectedContract`, union maps from attributes, runtime contracts of polymorphic slots. Shapes and codecs stay internal. A design stage with the owner's approval comes before any code (§4, P4c–P4d). S4-A's annotations stay on the entry points that take no handle | 2026-10-10 |
+| B2 | no sitting on `PERF-02…PERF-09` before `v1.0.0`; each stays Open in its file | 2026-10-10 |
+| Workflow §3.3 amended | no — the owner does not amend `Development-Workflow.md`; `rc.2` carries this plan's features on the owner's decision recorded here | 2026-10-10 |
 
 ---
 
@@ -305,15 +307,22 @@ quotations).
 | P2 Public contract seam | `feature/generator` | `viper_generator` | S1–S4 — taken |
 | P3 Generator | `feature/generator` | `viper_generator` | S2–S5 — taken |
 | P4 Generator tests | `feature/generator` | `viper_generator`, `viper_tester` | — |
+| P4a Generator profile | `benchmark/generator-profiles` | `viper_bencher` | — |
+| P4b Engine fast path | `feature/engine-fast-path` | `viper_builder` | — (each optional item by its measurement) |
+| P4c Native AOT — design | `docs/native-aot-design` | `viper_generator` | the brief, approved by the owner |
+| P4d Native AOT | `feature/native-aot` | `viper_generator`, `viper_builder` | P4c approved |
 | ~~P5a Schema fingerprint~~ | — | — | F1 — deferred, `ideas/IDEA-01` |
 | ~~P5b Live tracing~~ | — | — | T1 — deferred, `ideas/IDEA-02` |
 | ~~P5c Zstandard~~ | — | — | A1 — deferred, `ideas/IDEA-11` |
 | ~~P5d LZ4~~ | — | — | A1 — deferred, `ideas/IDEA-11` |
 | ~~P5e AES-GCM-SIV~~ | — | — | A1 — deferred, `ideas/IDEA-03` |
 | P5f Executable examples | `test/docs-examples` | `viper_tester` | — |
-| P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop`, `benchmark/generator-profiles` | `viper_bencher` | B1, B2 |
+| P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | `viper_bencher` | B1, B2 — taken |
 | P7 Documentation | `docs/rc2-docs` | `viper_builder` | — |
 | P8 Audit of rc.2 | `audit/rc2-conformance`, then `audit/rc2-closure` | `viper_conformance_auditor` (new brief) | — |
+
+Order: P4a → P4b → P4c → P4d → P5f → P6 → P7 → P8. The profile comes first because P4b changes only what
+it shows to matter, and P4d is measured against P4b. P5f is independent and may move earlier.
 
 Of P5 only P5f remains. P5a–P5e were deferred past `v1.0.0` on 2026-10-09; each is written up with its
 options, the choices already made and its version impact in `internal/ideas/`, and their paragraphs
@@ -399,6 +408,92 @@ citing contract sections.
 
 - **Gate:** QA-Plan GEN group fully ticked with passing tests; snapshots committed; both CONF runs green.
 
+## P4a — Generator profile — `benchmark/generator-profiles`
+
+Governed by `viper_bencher`; read-only over `src/`. A profile of the generated contract beside the
+reflected one in the profile matrix (`Benchmark-Plan.md` §8): cold start (first operation in a fresh
+process), first use of a type, steady state; positional and keyed; small and large objects; with and
+without `PreserveReferences`. Recorded as the baseline of the current tree, so P4b and P4d are measured
+against it. A cost it shows that P4b does not remove is written up as a `PERF-nn`.
+
+- **Gate:** harness builds; `--verify` and `--smoke` pass; the profile's numbers recorded in
+  `Benchmark-Plan.md` and cited by P4b; no `src/` file edited.
+
+## P4b — Engine fast path — `feature/engine-fast-path`
+
+Internal only: no public type or member, no wire byte, no behavior changes; the frozen fixtures, `CONF-*`
+(both runs), `PublicSurfaceTests`, `MemberSurfaceTests` and `AotAnalysisTests` are the arbiters. Items,
+from the code review of 2026-10-10:
+
+1. **The contract of an object, found once.** With a context, `ObjectCodec.Contract` looks the type up in
+   the `ContractSet` dictionary on every value — twice for a class without reference framing, once from
+   `FoldsNull` and once from the body (`Engine/Codecs/ObjectCodec.cs` `Contract`, `FoldsNull`,
+   `WriteBody`, `ReadBody`) — while the reflected path reads a cached field. A one-entry cache in the codec,
+   keyed by the identity of the `ContractSet`, an immutable pair published by one reference write. Done
+   unconditionally; the profile shows how much it was worth.
+2. **Scalars without interface dispatch** — `ScalarCodec<T, TFormatter> where TFormatter : struct,
+   IScalarFormatter<T>`, the formatters becoming structs, so the call is specialised and inlined. Only if
+   P4a's steady-state numbers show the dispatch.
+3. **Reference-typed members without generic-dictionary lookups** — the shared generic path of
+   `MemberWriter.Member<TMember>` / `MemberReader.Member<TMember>` for `string` and other reference types.
+   Only if P4a shows it, and only by an internal change: a public overload is a §5 question for the owner.
+
+Not in scope: the per-call checks of `MemberWriter`/`MemberReader` and the copy detection (INV-2, INV-5 —
+they stay); `IndexOfKey` beside the generated `switch` (part of the same check); `PERF-02…PERF-09`
+(B2: stay Open).
+
+- **Gate:** suite green in Debug and Release; fixtures untouched; P4a's profile re-run, every item kept
+  shows its gain and no cell of the profile regresses beyond the harness's noise; the numbers recorded
+  beside the baseline; the harness `--verify` and `--smoke` pass.
+
+## P4c — Native AOT — design — `docs/native-aot-design`
+
+Governed by `viper_generator`. A brief, `internal/rc2/Native-AOT-Design.md`, for the owner to approve before
+any code, working out option a of `ideas/IDEA-04`. It answers, with alternatives and costs each:
+
+- **The façade of names.** Where the statically typed factories live (protected members of
+  `BinarySerializerContext`, or a public static class), their names, and one per generic definition of
+  the §23 table — composites, sequences, maps, arrays, `Nullable<T>`, enums; what they return (nothing
+  public about a codec: an opaque registration); that no shape, codec, count or loop becomes public
+  (INV-5), and how a structural test pins it.
+- **What the context carries** beyond contracts: the codec of every reachable declared type and the union
+  map of every union base, so nothing is read from attributes or closed by `MakeGenericType`; how the
+  generator's reachability walk (already equal to `FormatterRegistry`'s tables through `TypeShapes`)
+  emits them; how a second resolution path is proved identical to `FormatterRegistry` (a test over every
+  §23 definition and the corpus types).
+- **The entry points without annotation.** A typed handle per root type in the generated context (in the
+  manner of `JsonTypeInfo<T>`), the overloads of `BinarySerializer` and `BinaryFormatDumper` that take it,
+  and the async, stream, pipe and `Populate` forms; which of them exist.
+- **The guard.** Every reflective resolution (`FormatterRegistry`, `ReflectedContract`,
+  `TypeContractCache.GetUnion`, the runtime contract of a polymorphic slot) behind a feature check the
+  trimming and AOT analysers understand, so under native AOT a type the context does not hold is
+  `BinaryConfigurationException`, never reflection; the `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]`
+  annotations of the existing entry points stay.
+- **Static caches.** `FormatterCache<T>` is process-wide; the codec of a type is the same whoever builds
+  it, so seeding it from a context changes nothing a call observes — the brief states why this is not a
+  process-wide mutable registry in the sense of INV-7, or chooses a per-context table instead, with the
+  cost of each.
+- **Proof.** `tests/ViShap.Viper.AotConsumer` published with native AOT **and run**, writing and reading the
+  corpus and comparing bytes with the JIT build; the CI job that does it (native toolchain on the runner —
+  a `ci.yml` change, named in the brief); `Api/AotAnalysisTests` extended.
+- **Contract and documents** the code will change: §3, §14, §21.3, §23 reference, INV list; `docs/aot.md`,
+  `docs/generator.md`; the generator's README.
+
+- **Gate:** the brief written; every question above answered with its alternatives; the owner's approval
+  recorded in §3.9. No `src/` file edited.
+
+## P4d — Native AOT — `feature/native-aot`
+
+Governed by `viper_generator` with `viper_builder`; built exactly as P4c approved.
+
+- **Gate:** the AOT consumer published with native AOT reports no trimming or AOT warning and runs green,
+  producing the same bytes as the JIT build; every `CONF-*` case and the frozen fixtures pass through the
+  context path; the second resolution path is proved identical to `FormatterRegistry`; the existing entry
+  points keep their annotations and nothing is suppressed; `PublicSurfaceTests` and `MemberSurfaceTests`
+  list the new surface and the structural test shows no shape or codec public; P4a's profile re-run with
+  no regression against P4b; contract, QA, `docs/`, READMEs and `CLAUDE.md` ("The reflection path states
+  its requirements", "The source generator") rewritten.
+
 ## P5a–P5f — Additive features
 
 Each is one branch and follows the same pattern: contract section first (what it promises, what
@@ -422,7 +517,7 @@ line, `CLAUDE.md` if an architectural sentence changes.
   decompressor independent of the code under test. Contract §3, §12 and §22 list the ids; QA gains the
   checkpoints; `docs/algorithms-and-keys.md` and the Serialization README name them; `PublicSurfaceTests`
   and `MemberSurfaceTests` list the classes and enum values; `AotAnalysisTests` reports nothing new.
-  Where the implementation comes from is the open question of §3.9; nothing native is accepted
+  Deferred until an official implementation exists (§3.9); nothing native is accepted
   (`Rework-Plan.md` §15).
 - **P5e AES-GCM-SIV — deferred, `ideas/IDEA-03`.**
 - **P5f Examples.** A test in `Serialization.Tests` extracting every `csharp` block of `docs/` and the
@@ -438,9 +533,10 @@ line, `CLAUDE.md` if an architectural sentence changes.
   documented best mode, the model variants (§7.4), the capability probes (§7.5), verification before
   timing (§7.6), the tier tables (§6) generated from probes. Only the public surface is used for
   comparison; versions re-verified on the day of the run (RST-03). The work is read-only over `src/`.
-- `benchmark/generator-profiles`: a profile for the generated contract beside the reflected one (cold start,
-  first use, steady state) in the profile matrix (§8), so the generator's claim is a measured one.
-- A single sitting on `PERF-02…PERF-09` (B2): each accepted, rejected or superseded in the file itself.
+  Viper's best documented mode is a generated context with typed handles (P4d), measured beside the
+  reflected path.
+- The generator profile moved to P4a (2026-10-10).
+- `PERF-02…PERF-09` stay Open (B2, 2026-10-10); no sitting.
 - **Gate:** harness builds; `--verify` passes every pair; `--smoke` passes; no `src/` file edited; nothing
   measured or published as a result before B1 says where.
 
@@ -525,19 +621,23 @@ its branch into `release/v1.0.0`.
 
 | Stage | Branch | Status | Closed by (merge commit) |
 |---|---|---|---|
-| Decisions of §3 | — | N1, S1–S5, F1, A1, T1, B1 taken; B2 open | |
+| Decisions of §3 | — | all taken | |
 | P0 State sync | `docs/rc1-state-sync` | gate holds — awaiting commit | |
 | P1 Naming | `feature/generator` | closed | `4604960` |
 | P2 Public contract seam | `feature/generator` | closed | `4604960` |
 | P3 Generator | `feature/generator` | closed | `4604960` |
 | P4 Generator tests | `feature/generator` | closed | `4604960` |
+| P4a Generator profile | `benchmark/generator-profiles` | not started | |
+| P4b Engine fast path | `feature/engine-fast-path` | not started | |
+| P4c Native AOT — design | `docs/native-aot-design` | not started | |
+| P4d Native AOT | `feature/native-aot` | not started — waits for P4c's approval | |
 | P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |
 | P5b Live tracing | — | deferred — `ideas/IDEA-02` | |
 | P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
 | P5d LZ4 | — | deferred — `ideas/IDEA-11` | |
 | P5e AES-GCM-SIV | — | deferred — `ideas/IDEA-03` | |
 | P5f Executable examples | `test/docs-examples` | not started | |
-| P6 Benchmarks | `benchmark/graceful-stop`, `benchmark/track-b-adapters`, `benchmark/generator-profiles` | not started | |
+| P6 Benchmarks | `benchmark/graceful-stop`, `benchmark/track-b-adapters` | not started | |
 | P7 Documentation | `docs/rc2-docs` | not started | |
 | P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | not started | |
 | Tag | the owner tags `v1.0.0-rc.2` | not started | |
