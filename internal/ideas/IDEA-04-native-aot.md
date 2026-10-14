@@ -2,7 +2,8 @@
 
 **Class: plan.** **Status:** decided — `rc2/RC2-Plan.md` P4c (design) and P4d (build), option a, the
 owner on 2026-10-10. Scope option S4-B of `rc2/RC2-Plan.md` §3, first set aside for S4-A (2026-10-09),
-then taken into `rc.2`.
+then taken into `rc.2`. The design is `rc2/Native-AOT-Design.md`, approved on 2026-10-14; where its names differ from
+the sketch below (`Codecs` became `SupportedTypes`), the brief is right.
 
 ## What and why
 
