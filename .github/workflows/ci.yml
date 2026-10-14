@@ -105,5 +105,6 @@ jobs:
       - name: Run it native and under the JIT, and compare
         run: |
           artifacts/aot/ViShap.Viper.AotConsumer | tee aot.txt
-          dotnet run --project tests/ViShap.Viper.AotConsumer/ViShap.Viper.AotConsumer.csproj --configuration Release > jit.txt
+          dotnet build tests/ViShap.Viper.AotConsumer/ViShap.Viper.AotConsumer.csproj --configuration Release
+          dotnet run --project tests/ViShap.Viper.AotConsumer/ViShap.Viper.AotConsumer.csproj --configuration Release --no-build > jit.txt
           diff aot.txt jit.txt
