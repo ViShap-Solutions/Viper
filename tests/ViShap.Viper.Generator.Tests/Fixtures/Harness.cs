@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace ViShap.Viper.Generator.Tests.Fixtures;
 
@@ -37,18 +38,25 @@ internal static class Harness
                 nullableContextOptions: NullableContextOptions.Enable,
                 allowUnsafe: true));
 
-    /// <summary>A driver over the generator that records the steps of every run, for incremental tests.</summary>
-    public static GeneratorDriver Driver() =>
+    /// <summary>
+    /// A driver over the generator that records the steps of every run, for incremental tests, given the
+    /// build properties of <paramref name="properties"/> as the compiler would give them.
+    /// </summary>
+    public static GeneratorDriver Driver(IReadOnlyDictionary<string, string>? properties = null) =>
         CSharpGeneratorDriver.Create(
             [new ContractGenerator().AsSourceGenerator()],
             parseOptions: Parse,
+            optionsProvider: new BuildProperties(properties ?? new Dictionary<string, string>()),
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
 
     /// <summary>Runs the generator over <paramref name="sources"/>.</summary>
-    public static Generated Run(params string[] sources)
+    public static Generated Run(params string[] sources) => Run(properties: null, sources);
+
+    /// <summary>Runs the generator over <paramref name="sources"/> with the build properties of <paramref name="properties"/>.</summary>
+    public static Generated Run(IReadOnlyDictionary<string, string>? properties, params string[] sources)
     {
         var compilation = Compile(sources);
-        var driver = Driver().RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
+        var driver = Driver(properties).RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
         return new Generated(compilation, output, driver.GetRunResult(), diagnostics);
     }
 
@@ -94,5 +102,25 @@ internal static class Harness
 
         image.Position = 0;
         return new AssemblyLoadContext($"sample-{Guid.NewGuid():N}", isCollectible: true).LoadFromStream(image);
+    }
+}
+
+/// <summary>Build properties as the compiler hands them to a generator: <c>build_property.Name</c>.</summary>
+internal sealed class BuildProperties(IReadOnlyDictionary<string, string> properties) : AnalyzerConfigOptionsProvider
+{
+    private readonly Options _global = new(properties.ToDictionary(entry => "build_property." + entry.Key, entry => entry.Value));
+
+    public override AnalyzerConfigOptions GlobalOptions => _global;
+
+    public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => Options.Empty;
+
+    public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => Options.Empty;
+
+    private sealed class Options(Dictionary<string, string> values) : AnalyzerConfigOptions
+    {
+        public static readonly Options Empty = new([]);
+
+        public override bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? value) =>
+            values.TryGetValue(key, out value);
     }
 }

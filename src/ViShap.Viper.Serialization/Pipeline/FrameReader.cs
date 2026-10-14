@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 
@@ -37,8 +36,6 @@ internal static class FrameReader
 
     /// <summary>Reads one frame from <paramref name="source"/>, leaving it where the frame ends.</summary>
     /// <returns>The frame's value, or <see cref="Frame{T}.None"/> when the source held no byte at all.</returns>
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static Frame<T> Read<T>(
         FormatRouter router,
         Stream source,
@@ -119,8 +116,6 @@ internal static class FrameReader
     /// are not given back: after a failure or a cancellation the stream's position is undefined.
     /// </summary>
     /// <returns>The frame's value, or <see cref="Frame{T}.None"/> when the source ended before a byte arrived.</returns>
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public static async ValueTask<Frame<T>> ReadAsync<T>(
         FormatRouter router,
@@ -171,8 +166,6 @@ internal static class FrameReader
     /// where the frame starts, with everything seen marked examined.
     /// </summary>
     /// <returns>The frame's value, or <see cref="Frame{T}.None"/> when the pipe completed with nothing left in it.</returns>
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     public static async ValueTask<Frame<T>> ReadAsync<T>(
         FormatRouter router,

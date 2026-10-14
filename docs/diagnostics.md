@@ -285,5 +285,6 @@ public sealed class Line
   that cannot seek, and, from `DumpValue`, whatever `Serialize` raises for a value that cannot be written.
 - **Bytes without the magic number** are shown by `Dump` as a version 0 payload.
 
-Every method that reads with `T` builds a codec for it by reflection; see
-[Trimming and native AOT](aot.md). `DumpHeader`, the untyped `Dump` and `BinaryFormatInspector` do not.
+Every method that reads with `T` builds a codec by reflection for a type no context describes, unless it
+is given the type information of a context — `Dump(frame, AppContracts.Default.Order, options)`; see
+[Trimming and native AOT](aot.md). `DumpHeader`, the untyped `Dump` and `BinaryFormatInspector` never do.

@@ -33,13 +33,15 @@ public class AotAnalysisTests
     {
         var annotated = AnnotatedPublicMembers();
 
-        MethodInfo[] expected =
+        MethodInfo[] generic =
         [
             .. typeof(BinarySerializer).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(method => method.IsGenericMethodDefinition),
             .. typeof(BinaryFormatDumper).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
                 .Where(method => method.IsGenericMethodDefinition)
         ];
+
+        var expected = generic.Where(method => !TakesTypeInfo(method)).ToArray();
 
         Assert.Equal(26, expected.Length);
         Assert.Equal(
@@ -51,10 +53,46 @@ public class AotAnalysisTests
     }
 
     [Fact]
+    public void EntryPointsThatTakeTypeInformation_CarryNeitherRequirement()
+    {
+        // NAOT-12: the type information states that a context describes the type, so the entry
+        // points that take it reach no reflection and state no requirement.
+        var withTypeInfo = typeof(BinarySerializer).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Concat(typeof(BinaryFormatDumper).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            .Where(TakesTypeInfo)
+            .ToArray();
+
+        Assert.Equal(26, withTypeInfo.Length);
+        Assert.All(withTypeInfo, method =>
+        {
+            Assert.False(method.IsDefined(typeof(RequiresUnreferencedCodeAttribute), inherit: false), Describe(method));
+            Assert.False(method.IsDefined(typeof(RequiresDynamicCodeAttribute), inherit: false), Describe(method));
+        });
+    }
+
+    [Fact]
+    public void TheLibraries_SuppressNoTrimmingOrAotWarning()
+    {
+        // NAOT-12: every reflective resolution sits behind the reflection switch the analysers
+        // understand, so nothing in the shipped code silences them.
+        var suppressing = SourceTree.ProductionFiles
+            .Where(file => file.Value.Contains("UnconditionalSuppressMessage", StringComparison.Ordinal))
+            .Select(file => file.Key)
+            .ToArray();
+
+        Assert.Empty(suppressing);
+    }
+
+    private static bool TakesTypeInfo(MethodInfo method) =>
+        method.GetParameters().Any(parameter =>
+            parameter.ParameterType.IsGenericType &&
+            parameter.ParameterType.GetGenericTypeDefinition() == typeof(BinaryTypeInfo<>));
+
+    [Fact]
     public void ConsumerBuiltWithAotAnalysis_ReportsTheAnnotatedEntryPoints_AndNothingElse()
     {
         string project = Path.Combine(SourceTree.RepositoryRoot, "tests", Consumer);
-        string program = Path.Combine(project, "Program.cs");
+        string program = Path.Combine(project, "AnnotatedEntryPoints.cs");
 
         var expected = File.ReadAllLines(program)
             .Select((text, index) => (Line: index + 1, Match: Marker.Match(text)))
@@ -64,7 +102,7 @@ public class AotAnalysisTests
                 .Select(code => $"{line.Line} {code}"))
             .ToHashSet(StringComparer.Ordinal);
 
-        var reported = Build(Path.Combine(project, Consumer + ".csproj"));
+        var (reported, run) = BuildAndRun(Path.Combine(project, Consumer + ".csproj"));
 
         var foreign = reported
             .Where(warning => !string.Equals(Path.GetFullPath(warning.File), Path.GetFullPath(program), StringComparison.OrdinalIgnoreCase))
@@ -82,6 +120,12 @@ public class AotAnalysisTests
             .ToHashSet(StringComparer.Ordinal);
 
         Assert.Equal(AnnotatedPublicMembers().Unreferenced.Length, calledEntryPoints.Count);
+
+        // NAOT-13: the consumer, run with the reflection path switched off as its build sets it,
+        // passes every check of ContextRun.
+        Assert.True(
+            run.ExitCode == 0 && run.Output.Contains("all checks passed", StringComparison.Ordinal),
+            "The consumer run failed:\n" + run.Output);
     }
 
     private static (MemberInfo[] Unreferenced, MemberInfo[] Dynamic) AnnotatedPublicMembers()
@@ -106,9 +150,9 @@ public class AotAnalysisTests
     /// <summary>
     /// Builds <paramref name="project"/> and everything it references into a directory of its own, so
     /// the packages are compiled afresh and report every warning, and nothing in the working tree is
-    /// touched.
+    /// touched; then runs what it built.
     /// </summary>
-    private static (string File, int Line, string Code, string Message)[] Build(string project)
+    private static ((string File, int Line, string Code, string Message)[] Warnings, (int ExitCode, string Output) Run) BuildAndRun(string project)
     {
         string artifacts = Path.Combine(Path.GetTempPath(), "viper-aot-" + Guid.NewGuid().ToString("N"));
 
@@ -151,7 +195,7 @@ public class AotAnalysisTests
             string log = output.Result + error.Result;
             Assert.True(process.ExitCode == 0, "The consumer build failed:\n" + log);
 
-            return
+            (string, int, string, string)[] warnings =
             [
                 .. log.Split('\n')
                     .Select(line => Diagnostic.Match(line.TrimEnd('\r').Trim()))
@@ -163,6 +207,9 @@ public class AotAnalysisTests
                         match.Groups["message"].Value))
                     .Distinct()
             ];
+
+            string assembly = Directory.GetFiles(Path.Combine(artifacts, "bin"), Consumer + ".dll", SearchOption.AllDirectories).Single();
+            return (warnings, Run(assembly));
         }
         finally
         {
@@ -177,6 +224,32 @@ public class AotAnalysisTests
             {
             }
         }
+    }
+
+    /// <summary>Runs the built consumer and returns its exit code and what it printed.</summary>
+    private static (int ExitCode, string Output) Run(string assembly)
+    {
+        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            WorkingDirectory = Path.GetDirectoryName(assembly)!
+        };
+
+        start.ArgumentList.Add(assembly);
+
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+
+        if (!process.WaitForExit(TimeSpan.FromMinutes(2)))
+        {
+            process.Kill(entireProcessTree: true);
+            Assert.Fail("The consumer run did not finish within two minutes.");
+        }
+
+        return (process.ExitCode, output.Result + error.Result);
     }
 
 #if DEBUG

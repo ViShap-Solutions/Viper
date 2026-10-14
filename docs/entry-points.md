@@ -11,8 +11,10 @@ families by where the bytes are; within a family the rules are the same.
 | an object you already hold | — | `Populate<T>` over a span, a sequence, a stream or a pipe |
 | a sequence of frames | — | `DeserializeAsyncEnumerable<T>` over a stream or a pipe |
 
-Every generic entry point that encodes or decodes your type builds its codec by reflection; see
-[Trimming and native AOT](aot.md).
+Every generic entry point that encodes or decodes your type has a form that takes the type information
+of a [context](generator.md) as its last argument before an `out` or a `CancellationToken` —
+`Serialize(order, AppContracts.Default.Order)` — and builds nothing by reflection; without it, the codec of
+a type no context describes is built by reflection. See [Trimming and native AOT](aot.md).
 
 ## Writing to memory
 

@@ -1,0 +1,13 @@
+<Project>
+
+  <PropertyGroup>
+    <ViperReflectionEnabled Condition="'$(ViperReflectionEnabled)' == '' and ('$(PublishAot)' == 'true' or '$(PublishTrimmed)' == 'true')">false</ViperReflectionEnabled>
+    <ViperReflectionEnabled Condition="'$(ViperReflectionEnabled)' == ''">true</ViperReflectionEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="ViShap.Viper.ReflectionPath.IsEnabled" Value="$(ViperReflectionEnabled)" Trim="true" />
+    <CompilerVisibleProperty Include="ViperReflectionEnabled" />
+  </ItemGroup>
+
+</Project>

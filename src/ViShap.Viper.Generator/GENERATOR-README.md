@@ -44,8 +44,10 @@ reflection, so the bytes are the same with the context and without it, in both d
 `RequireGeneratedContracts()` on the options turns a type the context lacks into an error instead of
 a silent fallback to reflection.
 
-The serializer's entry points keep their trimming and native AOT annotations: a generated contract
-replaces the reflection over a type's members, not the construction of the codecs around them.
+The context also makes every type it reaches supported and exposes the type information of each type it
+lists — `AppContracts.Default.Order`. The serializer's methods that take it build nothing by reflection
+and carry no trimming or native AOT requirement, so an application published with native AOT
+serializes through them.
 
 ## Diagnostics
 
@@ -70,5 +72,7 @@ replaces the reflection over a type's members, not the construction of the codec
 | VPR017 | Error | a `[BinaryUnion]` type not assignable to the base |
 | VPR018 | Warning | an abstract type or interface without `[BinaryUnion]`, whose values cannot be read back |
 | VPR019 | Warning | a type that gets no generated contract and is described by reflection |
+| VPR020 | Error | two listed types, or a listed type and a member of the context, share the name of a type information property |
+| VPR021 | Error | a type that gets no generated contract, in an application that turns the reflection path off |
 
 Each is explained, with its fix, in [the generator documentation](https://github.com/ViShap-Solutions/Viper/blob/main/docs/generator.md).

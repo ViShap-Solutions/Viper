@@ -1,48 +1,90 @@
 # Trimming and native AOT
 
-Viper builds the encoding of a type by reflection, the first time the type is used. It finds the type's
-members, constructors and generic definitions at run time, and closes its generic encoders over the
-types it meets. Trimming can remove exactly the members and constructors reflection looks for, and
-native AOT cannot guarantee that a generic instantiation over your type was compiled.
+Viper can encode a type in two ways. A [context](generator.md) describes the type at build time: its
+contracts, and the encoding of every type it reaches, are plain generated code. Without one, Viper
+describes the type by reflection the first time it meets it — finding its members, constructors and
+generic definitions at run time and closing its generic encoders over the types it meets. Trimming can
+remove exactly what reflection looks for, and native AOT cannot guarantee that a generic instantiation
+built at run time was compiled.
 
-Instead of failing at run time on a member or an instantiation that was not kept, Viper states the
-requirement at the call, where the decision is yours.
+An application published trimmed or with native AOT therefore goes through a context, and Viper turns
+the reflection path off for it.
 
-## Which members carry it
+## Through a context
 
-Every public entry point that encodes or decodes a value of your type is marked with both
-`[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`:
+List the root types on a context and pass the **type information** of a listed type to the serializer.
+The generated context exposes one property of type information per type it lists:
 
-- the twenty-two generic methods of `BinarySerializer` — every `Serialize<T>`, `SerializePooled<T>`,
-  `SerializeAsync<T>`, `Deserialize<T>`, `DeserializeAsync<T>`, `DeserializeAsyncEnumerable<T>`,
-  `Populate<T>` and `PopulateAsync<T>` overload;
-- the four generic methods of `BinaryFormatDumper`: both `Dump<T>` overloads, `DumpValue<T>` and
-  `Compare<T>`.
+```csharp
+using ViShap.Viper;
 
-No other public member carries either attribute. The options and their builder, the algorithms, the
-keys, `PooledPayload`, `BinaryFormatInspector`, `BinaryFormatDumper.DumpHeader` and the untyped
-`BinaryFormatDumper.Dump` never build an encoding for your type, so they raise no warning.
+var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
+    .WithContracts(AppContracts.Default)
+    .Build());
 
-Both packages are built with `IsAotCompatible`, so the analysis reports nothing inside them. What a
-project that enables the trimming or AOT analyzers sees is one `IL2026` and one `IL3050` at each call to
-one of the members above, and nothing else from Viper.
+byte[] bytes = serializer.Serialize(new Order { Id = 7, Lines = ["a", "b"] }, AppContracts.Default.Order);
+Order? copy = serializer.Deserialize(bytes, AppContracts.Default.Order);
+Console.WriteLine($"{copy!.Id}: {string.Join(", ", copy.Lines)}");   // 7: a, b
 
-## What to do about the warnings
+public sealed class Order
+{
+    public int Id { get; set; }
+    public List<string> Lines { get; set; } = [];
+}
 
-The warnings appear only when the analyzers run — when the project sets `PublishTrimmed`,
-`PublishAot`, `IsTrimmable`, `IsAotCompatible`, `EnableTrimAnalyzer` or `EnableAotAnalyzer`. An
-application that does none of these needs to do nothing.
+[BinaryContext(typeof(Order))]
+public partial class AppContracts : BinarySerializerContext;
+```
 
-An application that does has two honest choices for each call:
+Every method of `BinarySerializer` and of `BinaryFormatDumper` that encodes or decodes your type has a
+form that takes type information — `Serialize`, `SerializePooled`, `SerializeAsync`, `Deserialize`,
+`DeserializeAsync`, `DeserializeAsyncEnumerable`, `Populate`, `PopulateAsync`, `Dump`, `DumpValue` and
+`Compare`, over every source and destination. Those forms carry no trimming or AOT requirement: the
+type information states that the context describes the type and everything it reaches, so nothing is
+built by reflection. The serializer's options must have been built with the same context;
+type information of another context is `BinaryConfigurationException` before anything is written.
 
-- **Pass the requirement on.** Mark the method that makes the call with the same attributes, and its
-  callers see the same warning. A library that serializes on its caller's behalf usually does this.
-- **Take responsibility for it.** Suppress the warning at the call, with a justification, once you have
-  made sure that the serialized types are kept: their members and constructors, and every type they
-  reach. Trimming keeps a type when it is referenced from code the trimmer can see, when it is rooted
-  with a `[DynamicDependency]` attribute or a trimmer root descriptor, or when it is preserved with
-  `[DynamicallyAccessedMembers]`. Under native AOT, generic instantiations over your types have to be
-  present in the compiled program.
+A type the generated context reaches but does not list has no property; `TryGetTypeInfo<T>()` returns
+its type information, or `null` for a type the context does not describe.
+
+## The reflection path
+
+Whether a type no context describes may still be described by reflection is one runtime switch,
+`ViShap.Viper.ReflectionPath.IsEnabled`, set from the MSBuild property `ViperReflectionEnabled`:
+
+| Application | `ViperReflectionEnabled` by default |
+|---|---|
+| `PublishAot` or `PublishTrimmed` set — in its published build and in its JIT runs alike | `false` |
+| any other | `true` |
+
+With the switch off, a type no context offered — a member type, a collection element, a union arm, the
+runtime type of a polymorphic value — is `BinaryConfigurationException` naming it, raised where the type
+is first used and before the destination is touched, never reflection. The source generator reports
+such a type at build time as [VPR021](generator.md#vpr021). The trimming and AOT tools understand the
+switch: with it off, the reflection path is removed from the published application, and the packages
+raise no trimming or AOT warning of their own.
+
+Set the property to keep the reflection path in a trimmed application whose types you keep yourself:
+
+```xml
+<PropertyGroup>
+  <ViperReflectionEnabled>true</ViperReflectionEnabled>
+</PropertyGroup>
+```
+
+## Which members carry a requirement
+
+The methods that encode or decode your type **without** type information — the twenty-two generic
+methods of `BinarySerializer` and the four of `BinaryFormatDumper` — carry `[RequiresUnreferencedCode]`
+and `[RequiresDynamicCode]`, because they reach the reflection path for any type no context describes.
+A project that enables the trimming or AOT analysers sees one `IL2026` and one `IL3050` at each call to
+them, and nothing else from Viper. Their counterparts that take type information, the options and their
+builder, the algorithms, the keys, `PooledPayload`, `BinaryFormatInspector`, `DumpHeader`, the untyped
+`Dump`, the context and `SupportedTypes` carry neither.
+
+A call without type information has two honest answers. Use the form that takes type information, which
+is what an application published with native AOT does. Or, in a library that serializes on its caller's
+behalf, pass the requirement on:
 
 ```csharp
 using System.Diagnostics.CodeAnalysis;
@@ -69,7 +111,36 @@ public sealed class OrderCodec(BinarySerializer serializer)
 }
 ```
 
-The [source generator](generator.md) does not change this. It writes the type contracts of a context,
-which removes the reflection over each type's members, but the codecs around them are still built at
-run time over the declared types, so every entry point keeps both requirements whether or not a
-context is configured.
+## A context written by hand
+
+A context does not have to be generated. Its constructor adds a contract per member-encoded type
+(see [Contracts](contracts.md#supplying-a-contract)) and makes every type it reaches supported with a
+method of `SupportedTypes` named after the entry of the [table of supported types](supported-types.md)
+that type is — `SupportedTypes.List<Line>()`, `SupportedTypes.Dictionary<string, int>()`,
+`SupportedTypes.Enum<Status>()`, `SupportedTypes.Object<Order>()`, `SupportedTypes.Union<Shape>(…)`; the
+scalars need nothing. `TypeInfo<T>()` then gives the type information of a type it made supported:
+
+```csharp
+using ViShap.Viper;
+using ViShap.Viper.Contracts;
+
+var context = new NumbersContext();
+var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+
+byte[] bytes = serializer.Serialize(new List<int> { 1, 2, 3 }, context.Numbers);
+Console.WriteLine(string.Join(", ", serializer.Deserialize(bytes, context.Numbers)!));   // 1, 2, 3
+
+public sealed class NumbersContext : BinarySerializerContext
+{
+    public NumbersContext()
+    {
+        Add(SupportedTypes.List<int>());
+        Numbers = TypeInfo<List<int>>();
+    }
+
+    public BinaryTypeInfo<List<int>> Numbers { get; }
+}
+```
+
+The encoding a context supplies is the one Viper would build by reflection for the same type, so the
+bytes are the same either way, and a payload written by one application reads in the other.

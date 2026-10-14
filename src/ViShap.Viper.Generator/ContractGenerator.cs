@@ -16,6 +16,9 @@ public sealed class ContractGenerator : IIncrementalGenerator
 {
     private const string ContextAttribute = "ViShap.Viper.BinaryContextAttribute";
 
+    /// <summary>The build property that says whether the application keeps the reflection path.</summary>
+    private const string ReflectionProperty = "build_property.ViperReflectionEnabled";
+
     /// <summary>The tracking name of the step that plans each context, for incremental tests.</summary>
     internal const string PlanStep = "Plan";
 
@@ -31,18 +34,31 @@ public sealed class ContractGenerator : IIncrementalGenerator
             .Select(static (model, _) => model!)
             .WithTrackingName(PlanStep);
 
-        context.RegisterSourceOutput(models, static (output, model) =>
+        var reflectionOff = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
+            options.GlobalOptions.TryGetValue(ReflectionProperty, out string? value) &&
+            string.Equals(value?.Trim(), "false", System.StringComparison.OrdinalIgnoreCase));
+
+        context.RegisterSourceOutput(models.Combine(reflectionOff), static (output, item) =>
         {
-            foreach (var diagnostic in model.Diagnostics)
-                output.ReportDiagnostic(diagnostic.ToDiagnostic());
+            foreach (var diagnostic in item.Left.Diagnostics)
+            {
+                var reported = item.Right && diagnostic.Id == Descriptors.DescribedByReflection.Id
+                    ? diagnostic with { Id = Descriptors.UnavailableWithoutReflection.Id }
+                    : diagnostic;
+
+                output.ReportDiagnostic(reported.ToDiagnostic());
+            }
         });
 
         var headers = models
             .Where(static model => model.CanEmit)
-            .Select(static (model, _) => (model.Header, Classes: new EquatableArray<string>(model.Contracts.Select(contract => contract.ClassName))));
+            .Select(static (model, _) => (model.Header, Body: new ContextBody(
+                new EquatableArray<string>(model.Contracts.Select(contract => contract.ClassName)),
+                model.Supported,
+                model.TypeInfos)));
 
         context.RegisterSourceOutput(headers, static (output, item) =>
-            output.AddSource(Emitter.ContextHint(item.Header), Emitter.Context(item.Header, item.Classes)));
+            output.AddSource(Emitter.ContextHint(item.Header), Emitter.Context(item.Header, item.Body)));
 
         var contracts = models
             .Where(static model => model.CanEmit)

@@ -251,44 +251,25 @@ internal sealed class ReadOnlySequenceShape<T>
 
 /// <summary>
 /// Any concrete type implementing <c>ICollection&lt;T&gt;</c> with a public parameterless constructor
-/// and a public <c>Add</c> method, built in place through that method.
+/// and a public <c>Add</c> method, built in place through that method. The two operations are given
+/// to it: compiled by the reflection path, or written as code by a context.
 /// </summary>
-internal sealed class CustomCollectionShape<
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicMethods)] TCollection,
-    T> : SequenceShape<TCollection, T, TCollection, IEnumerator<T>>
+internal sealed class CustomCollectionShape<TCollection, T>(Func<TCollection> create, Action<TCollection, T>? add)
+    : SequenceShape<TCollection, T, TCollection, IEnumerator<T>>
     where TCollection : ICollection<T>
 {
-    private readonly Func<TCollection> _create =
-        Expression.Lambda<Func<TCollection>>(Expression.New(typeof(TCollection))).Compile();
-
-    private readonly Action<TCollection, T>? _add = PublicAdd();
-
     public override int? CountOf(TCollection collection) => Counts.Of(collection);
     public override IEnumerator<T> GetEnumerator(TCollection collection) => collection.GetEnumerator();
-    public override TCollection Create(int capacity) => _create();
+    public override TCollection Create(int capacity) => create();
 
     public override void Add(ref TCollection builder, T element)
     {
-        if (_add is null)
+        if (add is null)
             throw new BinaryTypeException(
                 $"'{typeof(TCollection)}' has no public instance method Add({typeof(T).Name}).");
 
-        _add(builder, element);
+        add(builder, element);
     }
 
     public override TCollection Complete(TCollection builder) => builder;
-
-    private static Action<TCollection, T>? PublicAdd()
-    {
-        var method = typeof(TCollection).GetMethod(
-            "Add", BindingFlags.Public | BindingFlags.Instance, [typeof(T)]);
-
-        if (method is null)
-            return null;
-
-        var collection = Expression.Parameter(typeof(TCollection), "collection");
-        var element = Expression.Parameter(typeof(T), "element");
-        return Expression.Lambda<Action<TCollection, T>>(
-            Expression.Call(collection, method, element), collection, element).Compile();
-    }
 }

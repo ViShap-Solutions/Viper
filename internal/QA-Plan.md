@@ -70,7 +70,9 @@ tests/ViShap.Viper.Serialization.Tests/
 
 tests/ViShap.Viper.AotConsumer/
                     a consumer of the packages, in the solution but not built with it, built by
-                    Api/AotAnalysisTests under native AOT analysis (EXT-07); it is compiled, never run
+                    Api/AotAnalysisTests under native AOT analysis (EXT-07) and run there with the
+                    reflection path off (NAOT-13); the CI job native-aot publishes it with native AOT,
+                    runs it and compares its output with the JIT run
 ```
 
 The `Api/`, `Correctness/` and `Security/` folders that exist today are replaced by this layout during **M0**.
@@ -565,8 +567,8 @@ against the built assemblies, run the generator as the compiler does, and load w
 runs through generated contracts that need the shared case lists stay in this project, which
 references the generator as an analyzer. *(added in P3–P4 of the rc.2 plan)*
 
-- [x] GEN-01 — the source written for each object shape — positional, keyed, inherited, shadowed, overridden, union base and arm, struct, nested context and type, closed generic with a non-public member, `init`/`required`/private setter/private constructor/keyword member, global namespace — matches its reviewed snapshot and compiles with the types it describes *(§14.4)* — `Generator.Tests/EmissionTests`
-- [x] GEN-02 — every diagnostic VPR001…VPR019 is reported for the source that earns it, with its severity, the type and member in its message and its link into `docs/generator.md`; every descriptor has a case *(§14.4)* — `Generator.Tests/DiagnosticTests`
+- [x] GEN-01 — the source written for each object shape — positional, keyed, inherited, shadowed, overridden, union base and arm, struct, nested context and type, closed generic with a non-public member, `init`/`required`/private setter/private constructor/keyword member, global namespace, the context that makes every reached type supported and names the type information of its roots — matches its reviewed snapshot and compiles with the types it describes *(§14.4)* — `Generator.Tests/EmissionTests`
+- [x] GEN-02 — every diagnostic VPR001…VPR021 is reported for the source that earns it — VPR021 under the build property `ViperReflectionEnabled=false`, and VPR020 also for two listed types of one name — with its severity, the type and member in its message and its link into `docs/generator.md`; every descriptor has a case *(§14.4)* — `Generator.Tests/DiagnosticTests` *(VPR020, VPR021 added in rc.2 P4d)*
 - [x] GEN-03 — every error the generator reports for a type (VPR004…VPR016) is a type the serializer refuses with `BinaryTypeException` when it describes it by reflection — the same sources compiled without the generated code — and a valid type is reported nothing and accepted *(§14.4)* — `Generator.Tests/DiagnosticTests`
 - [x] GEN-04 — a corpus exercising every rule the generator reproduces writes the same bytes through generated contracts as through reflection, with reflection refused, under V1 with and without references and under V0, and reads back to the same bytes *(§14.4, INV-12)* — `Generator.Tests/ByteIdentityTests`
 - [x] GEN-05 — a project without a `[BinaryContext]` gets no source and no diagnostic *(§14.4)* — `Generator.Tests/PipelineTests`
@@ -575,7 +577,7 @@ references the generator as an analyzer. *(added in P3–P4 of the rc.2 plan)*
 - [x] GEN-08 — the same sources, in any order, give the same generated files, with `
 ` line endings *(§14.4)* — `Generator.Tests/PipelineTests`
 - [x] GEN-09 — the emitted source holds no loop, no length, no count, no limit, no reader or writer, no tag, no reflection *(§14.4, INV-2, INV-5)* — `Generator.Tests/PipelineTests`
-- [x] GEN-10 — the generator classifies types by exactly the serializer's tables of scalars and generic definitions, references only Roslyn and the standard library, and no shipped assembly references it *(§14.4, §23)* — `Generator.Tests/PipelineTests`
+- [x] GEN-10 — the generator classifies types by exactly the serializer's tables of scalars (`BuiltInCodecs`) and generic definitions (`TypeRules`), references only Roslyn and the standard library, and no shipped assembly references it *(§14.4, §23)* — `Generator.Tests/PipelineTests`
 - [x] GEN-11 — the conformance suite passes on generated contracts *(§14.1, §14.4)* — `Contracts/GeneratedContractConformanceTests`
 
 ---
@@ -1504,7 +1506,7 @@ For one logical value under one configuration, all entry points must agree.
 - [x] EXT-04 — every public member carries XML documentation, and it ships beside the assembly *(§3)* — `Api/PublicSurfaceTests` compares the exported surface with the generated XML file. CS1591 stays a warning: see Q15
 - [x] EXT-05 — the compiled public surface contains nothing beyond §3: its types, the members of `BinarySerializer` and of `BinarySerializerOptionsBuilder` signature by signature, and no factory on `BinarySerializerOptions` but `Configure` *(§3, §4.1)* — `Api/PublicSurfaceTests` *(re-evaluated in R3 against the new surface)*
 - [x] EXT-06 — no public algorithm interface declares a default member (reflection over Core) *(§3, §12, §13)* — `Api/PublicSurfaceTests`: every method of `ICompressionAlgorithm`, `IChecksumAlgorithm`, `IEncryptionAlgorithm` and `IKeyProvider` is abstract, and those four are every public interface Core exports
-- [x] EXT-07 — the reflection path states its requirements: every public entry point that encodes or decodes a value of the caller's type — the 22 generic methods of `BinarySerializer` and the 4 of `BinaryFormatDumper` — carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, and no other public member carries either (reflection over both assemblies); `tests/ViShap.Viper.AotConsumer`, which calls every one of them and the rest of the surface, built with native AOT analysis together with both packages compiled afresh, reports IL2026 and IL3050 exactly at the calls marked for them and no trimming or AOT warning anywhere else *(§3)* — `Api/AotAnalysisTests` *(added in R8)*
+- [x] EXT-07 — the reflection path states its requirements: every public entry point that encodes or decodes a value of the caller's type without type information — the 22 generic methods of `BinarySerializer` and the 4 of `BinaryFormatDumper` — carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, and no other public member carries either (reflection over both assemblies); `tests/ViShap.Viper.AotConsumer`, built with native AOT analysis together with both packages compiled afresh, reports IL2026 and IL3050 exactly at the calls its `AnnotatedEntryPoints` marks for them and no trimming or AOT warning anywhere else — its calls through type information included *(§3)* — `Api/AotAnalysisTests` *(added in R8; the consumer split into `AnnotatedEntryPoints` and `ContextRun` in rc.2 P4d)*
 - [x] EXT-08 — no public type of the three packages shares its simple name with a public type of the BCL assemblies the packages reference (`System.IO.Hashing`, `System.Security.Cryptography`, `System.IO.Compression`, `System.Buffers`, `System.IO.Pipelines`) — reflection over both *(§3)* — `Api/PublicSurfaceTests`, over the exported and forwarded types of those assemblies, which are asserted to contain `Crc32`, `ChaCha20Poly1305` and `ArrayPool` so the check cannot pass by loading nothing
 
 ---
@@ -1554,7 +1556,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 
 ## Architecture
 
-- [x] The eighteen invariants of contract §25 are each held by a structural test. *(LIM-51, LIM-44, LIM-47, LIM-49, TYP-03, SRC-10, LIM-42, LIM-40, CMP-12, CAT-06, PM-14, CFG-09, OPT-08, ENC-05, ENC-06, STR-30, LIM-50, TYP-02, V0-19, LIM-52…LIM-59)*
+- [x] The twenty invariants of contract §25 are each held by a structural test. *(LIM-51, LIM-44, LIM-47, LIM-49, TYP-03, SRC-10, LIM-42, LIM-40, CMP-12, CAT-06, PM-14, CFG-09, OPT-08, ENC-05, ENC-06, STR-30, LIM-50, TYP-02, V0-19, LIM-52…LIM-59, NAOT-01, NAOT-06, NAOT-12…NAOT-14)*
 - [x] No type below `Pipeline/` references `SerializationLimits`, and no `MemoryStream` lies on the payload path. *(LIM-43, STR-29)*
 - [x] The contract seam a generated contract implements is pinned: the conformance suite passes on the reflected contract. *(CONF-01…CONF-07)*
 - [x] The reflection path states its requirements and no public algorithm interface declares a default member. *(EXT-06, EXT-07)*
@@ -1569,3 +1571,27 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] No test relies on undocumented project history.
 - [x] `dotnet test` is green with no skipped tests. *(1978 passed, 0 skipped, Debug and Release)*
 - [x] `dotnet pack` succeeds for all three packages, each with its own non-empty README. *(the three `cd.yml` pack commands with `-p:Version=1.0.0-rc.1` produce three `.nupkg` and two `.snupkg`; each `.nupkg` carries its own README, `CORE-README.md`, `SERIALIZATION-README.md` or `METAPACK-README.md`)*
+
+---
+
+# 33. Native AOT through the context — `Contracts/`, `Api/`
+
+A context supplies, besides contracts, the encoding of every type it reaches (`SupportedTypes`) and the
+type information of the types it lists (`BinaryTypeInfo<T>`); the entry points that take it reach no
+reflection, and the reflection path sits behind one switch the analysers understand. *(added in rc.2
+P4d, contract §3, §14.5, INV-19, INV-20)*
+
+- [x] NAOT-01 — every method of `SupportedTypes`, closed over a value type, `string` and a member-encoded type, offers the codec `FormatterRegistry` builds for the same type — the same codec type holding the same shape types — and the methods cover every generic definition of the table; `Object`, `Enum`, `Nullable`, `MultiDimensionalArray` and `Collection` likewise *(§14.5, INV-20)* — `Contracts/SupportedTypesTests`
+- [x] NAOT-02 — `Union<T>` with the arms its attributes declare is the map the reflection path reads; `Object<T>` carries no map *(§14.5)* — `Contracts/SupportedTypesTests`
+- [x] NAOT-03 — a method refuses a type another entry of the table claims, a union base for `Object`, a collection of another element, anything but an array of rank 2 or more for `MultiDimensionalArray`, and a malformed union arm, with `BinaryConfigurationException`; a null argument is `ArgumentNullException` *(§14.5)* — `Contracts/SupportedTypesTests`
+- [x] NAOT-04 — a context refuses the same supported type twice, any after options were built with it, and a null one *(§14.5)* — `Contracts/SupportedTypesTests`
+- [x] NAOT-05 — an offered codec is the one the type's cache holds, and the first of two offers is kept *(§14.5, §18)* — `Contracts/SupportedTypesTests`
+- [x] NAOT-06 — a generated context makes supported exactly the types the engine reaches from those it lists — through the members of the contracts the engine builds, element, key and value types and union arms — and no scalar, for both generated contexts of the suite *(§14.4, §14.5, INV-20)* — `Contracts/GeneratedSupportedTypesTests`
+- [x] NAOT-07 — a generated context exposes the type information of every type it lists, bound to itself *(§14.4, §14.5)* — `Contracts/GeneratedSupportedTypesTests`
+- [x] NAOT-08 — every one of the 22 entry points of `BinarySerializer` that takes type information writes the bytes, and reads and populates the values, of its counterpart without it *(§3.1)* — `Api/TypeInfoTests`
+- [x] NAOT-09 — type information of another context than the options', or with options of no context, is `BinaryConfigurationException` before the destination is touched; a null one is `ArgumentNullException` *(§3.1)* — `Api/TypeInfoTests`
+- [x] NAOT-10 — a context hands out type information for a type it made supported or a scalar, `TryGetTypeInfo` returns null for any other and `TypeInfo<T>` refuses it; a hand-written context's type information serializes through it *(§14.5)* — `Api/TypeInfoTests`
+- [x] NAOT-11 — the 4 forms of `BinaryFormatDumper` that take type information report what their counterparts report, and refuse another context's *(§19, §14.5)* — `Api/TypeInfoTests`
+- [x] NAOT-12 — the 26 entry points that take type information carry neither requirement attribute, and nothing in the shipped code suppresses a trimming or AOT warning *(§3, INV-19)* — `Api/AotAnalysisTests`
+- [x] NAOT-13 — `tests/ViShap.Viper.AotConsumer`, run with the reflection path off as its build sets it, passes every check: every entry point that takes type information, the frozen V1, V1-with-references and V0 payloads read and written back to the same bytes through the generated context, the conformance shapes written, read and written again, and a type no context offered refused with `BinaryConfigurationException`; the CI job `native-aot` publishes it with native AOT with no trimming or AOT warning and requires its output to equal the JIT run's *(§3, §14.5, INV-19)* — `Api/AotAnalysisTests`, `.github/workflows/ci.yml`
+- [x] NAOT-14 — `SupportedType` exposes its type and `BinaryTypeInfo<T>` its type and context, nothing else, neither can be constructed by a caller, and every method of `SupportedTypes` returns a `SupportedType` and takes only a custom collection's operations or a union's arms *(§3, INV-5)* — `Api/SupportedSurfaceTests`

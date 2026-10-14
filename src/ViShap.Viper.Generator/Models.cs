@@ -13,7 +13,18 @@ internal sealed record ContextModel(
     ContextHeader Header,
     bool CanEmit,
     EquatableArray<ContractModel> Contracts,
+    EquatableArray<string> Supported,
+    EquatableArray<TypeInfoModel> TypeInfos,
     EquatableArray<DiagnosticInfo> Diagnostics);
+
+/// <summary>The body of a context's constructor: its contracts, its supported types and its type information.</summary>
+internal sealed record ContextBody(
+    EquatableArray<string> ContractClasses,
+    EquatableArray<string> Supported,
+    EquatableArray<TypeInfoModel> TypeInfos);
+
+/// <summary>One property of type information on the context, for a type it lists.</summary>
+internal sealed record TypeInfoModel(string Name, string TypeName);
 
 /// <summary>Where a context is declared, which every file generated for it repeats.</summary>
 internal sealed record ContextHeader(

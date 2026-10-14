@@ -142,3 +142,12 @@ catch (BinaryTypeException)
     Console.WriteLine("a delegate carries behaviour, not data");
 }
 ```
+
+## In a context
+
+Every entry of the table above that your types close — a generic type, an array, a nullable value, an
+enum, a custom collection, a member-encoded type — has a method of `SupportedTypes` named after it:
+`SupportedTypes.List<Line>()`, `SupportedTypes.Dictionary<string, int>()`, `SupportedTypes.Enum<Status>()`,
+`SupportedTypes.Object<Order>()`. A [context](generator.md) adds one for each type it reaches, which is
+what lets an application published with native AOT serialize without reflection; the generated context
+adds them all for you. The scalars need none. See [Trimming and native AOT](aot.md#a-context-written-by-hand).

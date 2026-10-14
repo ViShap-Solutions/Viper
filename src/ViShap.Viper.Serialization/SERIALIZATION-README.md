@@ -150,9 +150,12 @@ the value that failed. See
 
 ## Trimming and native AOT
 
-The encoding of a type is built by reflection on first use, so every generic entry point that encodes or
-decodes your type is marked `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`. Nothing else is. See
-[Trimming and native AOT](https://github.com/ViShap-Solutions/Viper/blob/main/docs/aot.md).
+Every entry point that encodes or decodes your type has a form that takes the type information of a
+[context](https://github.com/ViShap-Solutions/Viper/blob/main/docs/generator.md): it builds nothing by
+reflection and carries no trimming or native AOT requirement. The forms without it describe a type no
+context describes by reflection, and are marked `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`;
+nothing else is. An application published trimmed or with native AOT has the reflection path switched
+off. See [Trimming and native AOT](https://github.com/ViShap-Solutions/Viper/blob/main/docs/aot.md).
 
 ## Documentation
 

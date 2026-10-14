@@ -290,6 +290,7 @@ Filled in by the owner.
 | Workflow §3.3 amended | no — the owner does not amend `Development-Workflow.md`; `rc.2` carries this plan's features on the owner's decision recorded here | 2026-10-10 |
 | P4b item 1 | A — kept: the object codec finds its contract once per configuration; its gain is recorded as within the run-to-run drift of R-06, not as a measured number. Items 2 and 3 not made: neither P4a nor a cross-run comparison can show their cost — deferred past `v1.0.0` as `performance/PERF-11` | 2026-10-14 |
 | P4c — native AOT design | `rc2/Native-AOT-Design.md` approved as recommended, D1…D12 (a throughout; D7 a/a; INV-19 and INV-20 to be added by P4d). The façade of D1 is `ViShap.Viper.Contracts.SupportedTypes` and its token `SupportedType` — the term of contract §23 and `docs/supported-types.md`; `KnownTypes` declined as foreign to the system's vocabulary | 2026-10-14 |
+| P4d — the context's instantiation (R-07, PERF-12) | A + C — P4d closes with the regression of that one cell recorded; making the offers lazy waits, with PERF-10, past `v1.0.0` as one internal change | 2026-10-14 |
 
 ---
 
@@ -565,7 +566,7 @@ defects: `bugfix/` and `rc.3`. The release follows the sequence of `Rework-Plan.
    recommendation is better, a short example — and wait.
 3. The wire does not change except where a stage says so (P5a). The frozen `Fixtures/Wire/*.bin` are never
    regenerated; a failure there is a compatibility break to be fixed in `src/`. New features add fixtures.
-4. The structural barriers and INV-1…INV-18 hold by construction; a stage that would weaken one stops and
+4. The structural barriers and INV-1…INV-20 hold by construction; a stage that would weaken one stops and
    asks (`CLAUDE.md`, "Three structural barriers"). The generator in particular may not become a second
    place where a length, a count or a loop over wire data exists.
 5. Public surface is XML-documented for the NuGet consumer; no comment addresses the reader, records
@@ -613,6 +614,10 @@ documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living docu
 | P2 | `StructuralCodec<T>.FoldsNull` (property) | `FoldsNull(ref OperationState)` — an object's null follows the contract in force for the operation | `FoldsNull =>` | clean |
 | P3 | `SourceTree.ProductionFiles` over every file of `src/` | over the shipped runtime assemblies only; the generator is held to its own tests | `ProductionFiles` | the source invariants still cover Core and Serialization |
 | P1 | test `ReadField_APositionalMemberUnderAKeyedLayout_ThrowsType` | `ReadKeyed_AMemberCallPerKnownKey_ReadsEachFieldsMember` — the mistake is no longer expressible | `APositionalMemberUnderAKeyedLayout` | clean |
+| P4d | `FormatterRegistry.Scalars` | `BuiltInCodecs.Scalars`, the one table both the reflection path and a context use | `FormatterRegistry.Scalars`, `registry.GetField("Scalars"` | clean |
+| P4d | `FormatterRegistry.Shapes`, `FormatterRegistry.Closing`, its classification | `TypeRules.Shapes`, `TypeRules.Closing`, `TypeRules.Classify` | `FormatterRegistry.Shapes`, `registry.GetField("Shapes"` | clean |
+| P4d | the marked calls of `tests/ViShap.Viper.AotConsumer/Program.cs`, "compiled, never run" | `AnnotatedEntryPoints.cs`, left out of a publish; `Program.cs` runs `ContextRun` | `AotConsumer/Program.cs`, `never run` | clean |
+| P4c/P4d | `KnownTypes` / `KnownType` (the brief before the owner named it) | `SupportedTypes` / `SupportedType` | `KnownType` | clean outside the brief's record of the declined name; `UnionDeclarationTests` and `Fixtures/Unions` use "known type" for a union arm, unrelated |
 
 ---
 
@@ -631,8 +636,8 @@ its branch into `release/v1.0.0`.
 | P4 Generator tests | `feature/generator` | closed | `4604960` |
 | P4a Generator profile | `benchmark/generator-profiles` | closed | `e9a00bd` |
 | P4b Engine fast path | `feature/engine-fast-path` | closed | `ee3fefe` |
-| P4c Native AOT — design | `docs/native-aot-design` | gate holds — awaiting commit | |
-| P4d Native AOT | `feature/native-aot` | not started — P4c approved; starts after its merge | |
+| P4c Native AOT — design | `docs/native-aot-design` | closed | `146f03a` |
+| P4d Native AOT | `feature/native-aot` | gate holds — awaiting commit | |
 | P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |
 | P5b Live tracing | — | deferred — `ideas/IDEA-02` | |
 | P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
