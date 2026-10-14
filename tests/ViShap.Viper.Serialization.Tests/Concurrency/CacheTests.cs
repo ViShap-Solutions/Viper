@@ -5,7 +5,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Concurrency;
 
 /// <summary>
-/// Pins CN-03 to CN-05, CN-14 to CN-16 and CN-20: the caches that remain — the contract per type,
+/// Pins CN-03 to CN-05, CN-14 to CN-16, CN-20 and CN-21: the caches that remain — the contract per type,
 /// the union map per declared type, and the codec per type in <see cref="FormatterCache{T}"/> — are
 /// process-wide and filled on first use, so the moment that matters is the first touch, when several
 /// threads can be building the same entry at once. Each test below names a type the rest of the
@@ -152,6 +152,47 @@ public class CacheTests
 
         Assert.Equal(Concurrent.Workers, messages.Length);
         Assert.All(messages, message => Assert.Equal(messages[0], message));
+    }
+
+    // --- CN-21: the contract a codec keeps belongs to one configuration ---------------------------
+
+    [Fact]
+    public void ObjectCodec_UnderConfigurationsRacedOnOneType_WritesAndReadsEachConfigurationsLayout()
+    {
+        // The codec of a member-encoded type is process-wide and remembers the contract of the last
+        // configuration it met; threads that alternate between configurations on the same type race
+        // that memory on every call, and each call must still use its own configuration's contract.
+        BinarySerializer[] serializers =
+        [
+            new(),
+            new(BinarySerializerOptions.Configure().WithContracts(new RacedKeyedContext()).Build()),
+            new(BinarySerializerOptions.Configure().WithContracts(new RacedEmptyContext()).Build()),
+            new(BinarySerializerOptions.Configure().WithContracts(new RacedKeyedContext()).Build())
+        ];
+
+        var value = new RacedConfigured { A = 7, B = "raced" };
+        var expected = serializers.Select(serializer => serializer.Serialize(value)).ToArray();
+
+        var mismatches = Concurrent.Race(worker =>
+        {
+            int wrong = 0;
+            for (int call = 0; call < 2_000; call++)
+            {
+                int index = (worker + call) % serializers.Length;
+                var bytes = serializers[index].Serialize(value);
+                var read = serializers[index].Deserialize<RacedConfigured>(bytes)!;
+
+                if (!bytes.AsSpan().SequenceEqual(expected[index]) || read.A != 7 || read.B != "raced")
+                    wrong++;
+            }
+
+            return wrong;
+        });
+
+        Assert.NotEqual(expected[0], expected[1]);
+        Assert.Equal(expected[0], expected[2]);
+        Assert.Equal(expected[1], expected[3]);
+        Assert.All(mismatches, wrong => Assert.Equal(0, wrong));
     }
 
     // --- CN-20: the caches that remain are the only ones -----------------------------------------

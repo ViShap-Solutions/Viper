@@ -288,6 +288,7 @@ Filled in by the owner.
 | S4 revisited — native AOT | **in `rc.2`**, as S4-B through a façade of names (option a of `ideas/IDEA-04`): the context supplies every codec its types reach through statically typed factories named after the §23 definitions, entry points that take a typed handle carry no annotation, and every reflective resolution is guarded off under native AOT — `FormatterRegistry`, `ReflectedContract`, union maps from attributes, runtime contracts of polymorphic slots. Shapes and codecs stay internal. A design stage with the owner's approval comes before any code (§4, P4c–P4d). S4-A's annotations stay on the entry points that take no handle | 2026-10-10 |
 | B2 | no sitting on `PERF-02…PERF-09` before `v1.0.0`; each stays Open in its file | 2026-10-10 |
 | Workflow §3.3 amended | no — the owner does not amend `Development-Workflow.md`; `rc.2` carries this plan's features on the owner's decision recorded here | 2026-10-10 |
+| P4b item 1 | A — kept: the object codec finds its contract once per configuration; its gain is recorded as within the run-to-run drift of R-06, not as a measured number. Items 2 and 3 not made: neither P4a nor a cross-run comparison can show their cost — deferred past `v1.0.0` as `performance/PERF-11` | 2026-10-14 |
 
 ---
 
@@ -622,13 +623,13 @@ its branch into `release/v1.0.0`.
 | Stage | Branch | Status | Closed by (merge commit) |
 |---|---|---|---|
 | Decisions of §3 | — | all taken | |
-| P0 State sync | `docs/rc1-state-sync` | gate holds — awaiting commit | |
+| P0 State sync | `docs/rc1-state-sync` | closed | `c4995e1` |
 | P1 Naming | `feature/generator` | closed | `4604960` |
 | P2 Public contract seam | `feature/generator` | closed | `4604960` |
 | P3 Generator | `feature/generator` | closed | `4604960` |
 | P4 Generator tests | `feature/generator` | closed | `4604960` |
-| P4a Generator profile | `benchmark/generator-profiles` | not started | |
-| P4b Engine fast path | `feature/engine-fast-path` | not started | |
+| P4a Generator profile | `benchmark/generator-profiles` | closed | `e9a00bd` |
+| P4b Engine fast path | `feature/engine-fast-path` | gate holds — awaiting commit | |
 | P4c Native AOT — design | `docs/native-aot-design` | not started | |
 | P4d Native AOT | `feature/native-aot` | not started — waits for P4c's approval | |
 | P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |

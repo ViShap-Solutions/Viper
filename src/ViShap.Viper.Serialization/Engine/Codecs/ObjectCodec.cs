@@ -23,6 +23,7 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
     private static readonly bool IsReference = !typeof(T).IsValueType;
 
     private TypeContract<T>? _reflected;
+    private ContractChoice? _chosen;
     private UnionLookup? _union;
 
     public override CodecShape Shape => CodecShape.Object;
@@ -32,21 +33,24 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
 
     /// <summary>
     /// The contract of the declared type: the configuration's, or the one built by reflection.
-    /// Building one can fail — a delegate member, a duplicate key — and a failure is not kept, so
-    /// every use reports it the same way.
+    /// The contract chosen for the last configuration met is kept with that configuration's
+    /// contract set, so a run of operations under one configuration looks the type up once.
+    /// Building one can fail — a delegate member, a duplicate key, a type the configuration requires
+    /// and lacks — and a failure is not kept, so every use reports it the same way.
     /// </summary>
     private TypeContract<T> Contract(ref OperationState state)
     {
-        if (state.Contracts is { } contracts)
-        {
-            if (contracts.Find<T>() is { } supplied)
-                return supplied;
+        if (state.Contracts is not { } contracts)
+            return _reflected ??= TypeContractCache.Get<T>();
 
-            if (contracts.RequireAll)
-                throw contracts.Missing(typeof(T));
-        }
+        if (_chosen is { } chosen && ReferenceEquals(chosen.Contracts, contracts))
+            return chosen.Contract;
 
-        return _reflected ??= TypeContractCache.Get<T>();
+        var contract = contracts.Find<T>()
+            ?? (contracts.RequireAll ? throw contracts.Missing(typeof(T)) : _reflected ??= TypeContractCache.Get<T>());
+
+        _chosen = new ContractChoice(contracts, contract);
+        return contract;
     }
 
     /// <summary>The contract of a runtime type met in the polymorphic slot, found the same way.</summary>
@@ -186,6 +190,17 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
 
         reader.State.Trace?.Union(tag, runtimeType);
         return runtimeType;
+    }
+
+    /// <summary>
+    /// A contract set and the contract it gives the declared type, published together by one
+    /// reference write, so a thread reads either the whole pair or the one it replaced.
+    /// </summary>
+    private sealed class ContractChoice(ContractSet contracts, TypeContract<T> contract)
+    {
+        public ContractSet Contracts { get; } = contracts;
+
+        public TypeContract<T> Contract { get; } = contract;
     }
 
     /// <summary>A resolved union lookup, so "no map" is remembered as well as a map.</summary>

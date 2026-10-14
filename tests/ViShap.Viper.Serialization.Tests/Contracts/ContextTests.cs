@@ -114,6 +114,50 @@ public class ContextTests
         Assert.Equal(1, context.Contract.Writes);
     }
 
+    [Fact]
+    public void Serialize_TheSameTypeUnderConfigurationsInTurn_UsesEachConfigurationsContract()
+    {
+        var first = new CountingContext();
+        var second = new CountingContext();
+        var counted = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(first).Build());
+        var otherCounted = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(second).Build());
+        var keyed = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(new KeyedPairContext()).Build());
+        var lacking = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(new EmptyContext()).Build());
+        var pair = new CountedPair { A = 1, B = "x" };
+
+        var positionalBytes = Reflected.Serialize(pair);
+        var keyedBytes = keyed.Serialize(pair);
+
+        for (int round = 0; round < 3; round++)
+        {
+            Assert.Equal(positionalBytes, counted.Serialize(pair));
+            Assert.Equal(keyedBytes, keyed.Serialize(pair));
+            Assert.Equal(positionalBytes, otherCounted.Serialize(pair));
+            Assert.Equal(positionalBytes, lacking.Serialize(pair));
+            Assert.Equal(positionalBytes, Reflected.Serialize(pair));
+            Assert.Equal((1, "x"), (keyed.Deserialize<CountedPair>(keyedBytes)!.A, keyed.Deserialize<CountedPair>(keyedBytes)!.B));
+        }
+
+        Assert.NotEqual(positionalBytes, keyedBytes);
+        Assert.Equal((3, 3), (first.Contract.Writes, second.Contract.Writes));
+    }
+
+    [Fact]
+    public void Serialize_ARequiredTypeTheContextLacks_IsRefusedAfterAnotherConfigurationUsedIt()
+    {
+        var counted = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(new CountingContext()).Build());
+        var requiring = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithContracts(new EmptyContext()).RequireGeneratedContracts().Build());
+        var pair = new CountedPair { A = 1 };
+
+        counted.Serialize(pair);
+        Reflected.Serialize(pair);
+
+        Assert.Throws<BinaryConfigurationException>(() => requiring.Serialize(pair));
+        counted.Serialize(pair);
+        Assert.Throws<BinaryConfigurationException>(() => requiring.Serialize(pair));
+    }
+
     // --- CTX-03: the null follows the layout of the contract in force ------------------------------
 
     [Fact]
@@ -463,6 +507,8 @@ public class ContextTests
     {
         public void AddLate() => Add(new KeyedPairContract());
     }
+
+    private sealed class EmptyContext : BinarySerializerContext;
 
     private sealed class NullContext : BinarySerializerContext
     {

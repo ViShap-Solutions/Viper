@@ -1,3 +1,5 @@
+using ViShap.Viper.Contracts;
+
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
@@ -62,3 +64,49 @@ public sealed class RacedInvalidArmA : RacedInvalidUnion;
 
 /// <summary>The second arm of <see cref="RacedInvalidUnion"/>, under the same tag as the first.</summary>
 public sealed class RacedInvalidArmB : RacedInvalidUnion;
+
+/// <summary>
+/// The type whose codec meets several configurations at once: reflection describes it as positional,
+/// <see cref="RacedKeyedContext"/> as keyed.
+/// </summary>
+public sealed class RacedConfigured
+{
+    public int A { get; set; }
+    public string? B { get; set; }
+}
+
+/// <summary>A context that describes <see cref="RacedConfigured"/> under the keyed layout.</summary>
+public sealed class RacedKeyedContext : BinarySerializerContext
+{
+    public RacedKeyedContext() => Add(new KeyedContract());
+
+    private sealed class KeyedContract() : TypeContract<RacedConfigured>(
+        MemberLayout.Keyed,
+        [new("A", typeof(int), 1), new("B", typeof(string), 2)],
+        canBeConstructed: true)
+    {
+        public override RacedConfigured Create() => new();
+
+        public override void Write(ref MemberWriter writer, in RacedConfigured value)
+        {
+            writer.Member(1, value.A);
+            writer.Member(2, value.B);
+        }
+
+        public override void ReadPositional(ref MemberReader reader, ref RacedConfigured value) =>
+            throw new NotSupportedException();
+
+        public override bool ReadKeyed(ref MemberReader reader, int key, ref RacedConfigured value)
+        {
+            switch (key)
+            {
+                case 1: value.A = reader.Member<int>(); return true;
+                case 2: value.B = reader.Member<string>(); return true;
+                default: return false;
+            }
+        }
+    }
+}
+
+/// <summary>A context that holds no contract, so every type it meets is described by reflection.</summary>
+public sealed class RacedEmptyContext : BinarySerializerContext;
