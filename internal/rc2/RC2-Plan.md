@@ -289,6 +289,7 @@ Filled in by the owner.
 | B2 | no sitting on `PERF-02…PERF-09` before `v1.0.0`; each stays Open in its file | 2026-10-10 |
 | Workflow §3.3 amended | no — the owner does not amend `Development-Workflow.md`; `rc.2` carries this plan's features on the owner's decision recorded here | 2026-10-10 |
 | P4b item 1 | A — kept: the object codec finds its contract once per configuration; its gain is recorded as within the run-to-run drift of R-06, not as a measured number. Items 2 and 3 not made: neither P4a nor a cross-run comparison can show their cost — deferred past `v1.0.0` as `performance/PERF-11` | 2026-10-14 |
+| P4c — native AOT design | `rc2/Native-AOT-Design.md` approved as recommended, D1…D12 (a throughout; D7 a/a; INV-19 and INV-20 to be added by P4d). The façade of D1 is `ViShap.Viper.Contracts.SupportedTypes` and its token `SupportedType` — the term of contract §23 and `docs/supported-types.md`; `KnownTypes` declined as foreign to the system's vocabulary | 2026-10-14 |
 
 ---
 
@@ -629,9 +630,9 @@ its branch into `release/v1.0.0`.
 | P3 Generator | `feature/generator` | closed | `4604960` |
 | P4 Generator tests | `feature/generator` | closed | `4604960` |
 | P4a Generator profile | `benchmark/generator-profiles` | closed | `e9a00bd` |
-| P4b Engine fast path | `feature/engine-fast-path` | gate holds — awaiting commit | |
-| P4c Native AOT — design | `docs/native-aot-design` | not started | |
-| P4d Native AOT | `feature/native-aot` | not started — waits for P4c's approval | |
+| P4b Engine fast path | `feature/engine-fast-path` | closed | `ee3fefe` |
+| P4c Native AOT — design | `docs/native-aot-design` | gate holds — awaiting commit | |
+| P4d Native AOT | `feature/native-aot` | not started — P4c approved; starts after its merge | |
 | P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |
 | P5b Live tracing | — | deferred — `ideas/IDEA-02` | |
 | P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
