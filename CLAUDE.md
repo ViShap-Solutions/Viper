@@ -30,9 +30,11 @@ Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark 
 `docs/` is the official, consumer-facing Viper documentation, one page per subject, written from the
 contract. The four package READMEs (`src/*/*-README.md`) are drawn from it, and the repository's
 `README.md` links to both. Every `csharp` block in `docs/` and in the READMEs is a complete example: it
-states the `using` directives it needs and compiles against the current code — a block with top-level
-statements also runs; a block that only declares types compiles as a library — and a change to an
-API or a behaviour updates the page that describes it in the same change. No page cites `internal/`,
+states the `using` directives it needs beyond the SDK's implicit ones and compiles against the current
+code without a warning — a block with top-level statements also runs; a block that only declares types
+compiles as a library — and a change to an API or a behaviour updates the page that describes it in the
+same change. `Api/DocumentationExampleTests` holds the rule: it compiles every block with Roslyn and the
+source generator, runs the programs, and names the page and line of what fails. No page cites `internal/`,
 names a retired API or carries an adjective about performance (`Benchmark-Plan.md` §28). Everything
 below is engineering material — for the contributor and for Claude Code — and lives under `internal/`.
 
@@ -101,12 +103,12 @@ Current state: `src/` matches the contract. The architecture rework, its reconci
 documentation, the release conformance audit and its closure check (R9e) are done, and `v1.0.0-rc.1` is
 tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-contract seam and the
 source generator (P1–P4), the generator profile, the engine fast path and native AOT through the context
-(P4a–P4d) are done; the executable examples (P5f), the benchmarks (P6), the documentation (P7) and the
+(P4a–P4d) and the executable examples (P5f) are done; the benchmarks (P6), the documentation (P7) and the
 audit of `rc.2` (P8) remain; the other additive features
 were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 188 tests, and the generator's 46, green in Debug and Release.
+with the generated XML file. The suite is 2 261 tests, and the generator's 46, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
