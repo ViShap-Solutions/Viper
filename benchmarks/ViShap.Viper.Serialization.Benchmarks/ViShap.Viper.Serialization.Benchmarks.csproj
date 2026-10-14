@@ -12,6 +12,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\ViShap.Viper.Core\ViShap.Viper.Core.csproj" />
         <ProjectReference Include="..\..\src\ViShap.Viper.Serialization\ViShap.Viper.Serialization.csproj" />
+        <ProjectReference Include="..\..\src\ViShap.Viper.Generator\ViShap.Viper.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>

@@ -40,6 +40,7 @@ internal static class TrackRunner
         ("A1", typeof(ProfileFramedReadBenchmarks)),
         ("A1", typeof(FrameStreamBenchmarks)),
         ("A1", typeof(HarnessFloorBenchmarks)),
+        ("A1", typeof(GeneratorProfileBenchmarks)),
         ("A1", typeof(AllocationTargetBenchmarks)),
 
         // A3 — the algorithm phases, and the envelope by difference.
@@ -219,6 +220,10 @@ internal static class TrackRunner
 
         // §18 — the cold half of the member plan, which no repeated-invocation harness can measure.
         Step("member-plan construction", () => ContractColdRunner.Run(target.Directory));
+
+        // §20 WL-10 — the first use of each type in a warm process, reflected and generated, one process
+        // per launch.
+        Step("first use", () => FirstUseRunner.Drive(target.Directory));
 
         // §20 — cold start, one process per measurement.
         Step("cold start", () => ColdStartRunner.Drive(target.Directory));
@@ -484,6 +489,7 @@ internal static class TrackRunner
             {run} --sizes           # the size table
             {run} --manifest        # the environment
             {run} --contract-cold   # member-plan construction
+            {run} --first-use       # first use of a type, reflected and generated
             {run} --cold            # cold start
             {run} --soak 10         # sustained load
             {run} --track A --filter '*Algorithm*'
