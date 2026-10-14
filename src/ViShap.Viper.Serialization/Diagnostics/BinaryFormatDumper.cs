@@ -146,7 +146,72 @@ public static class BinaryFormatDumper
     {
         var left = Dump<T>(expected, options);
         var right = Dump<T>(actual, options);
+        return FirstDifference<T>(left, right);
+    }
 
+    /// <inheritdoc cref="Dump{T}(ReadOnlySpan{byte}, BinarySerializerOptions?)"/>
+    /// <param name="frame">The bytes of one frame.</param>
+    /// <param name="typeInfo">The type information of <typeparamref name="T"/>, from the context <paramref name="options"/> were built with.</param>
+    /// <param name="options">The options to read with, built with the context <paramref name="typeInfo"/> belongs to.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="typeInfo"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException"><paramref name="typeInfo"/> belongs to another context than the options'.</exception>
+    public static BinaryDump Dump<T>(ReadOnlySpan<byte> frame, BinaryTypeInfo<T> typeInfo, BinarySerializerOptions options)
+    {
+        Require(typeInfo, options);
+        return Read(frame, options, new RootDecoder<T>(), TypeNames.Of(typeof(T)));
+    }
+
+    /// <inheritdoc cref="Dump{T}(ReadOnlySequence{byte}, BinarySerializerOptions?)"/>
+    /// <param name="frame">The bytes of one frame.</param>
+    /// <param name="typeInfo">The type information of <typeparamref name="T"/>, from the context <paramref name="options"/> were built with.</param>
+    /// <param name="options">The options to read with, built with the context <paramref name="typeInfo"/> belongs to.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="typeInfo"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException"><paramref name="typeInfo"/> belongs to another context than the options'.</exception>
+    public static BinaryDump Dump<T>(ReadOnlySequence<byte> frame, BinaryTypeInfo<T> typeInfo, BinarySerializerOptions options) =>
+        frame.IsSingleSegment
+            ? Dump(frame.FirstSpan, typeInfo, options)
+            : Dump(frame.ToArray(), typeInfo, options);
+
+    /// <inheritdoc cref="DumpValue{T}(T, BinarySerializerOptions?)"/>
+    /// <param name="value">The value.</param>
+    /// <param name="typeInfo">The type information of <typeparamref name="T"/>, from the context <paramref name="options"/> were built with.</param>
+    /// <param name="options">The options to write and read with, built with the context <paramref name="typeInfo"/> belongs to.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="typeInfo"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException"><paramref name="typeInfo"/> belongs to another context than the options'.</exception>
+    public static BinaryDump DumpValue<T>(T value, BinaryTypeInfo<T> typeInfo, BinarySerializerOptions options)
+    {
+        Require(typeInfo, options);
+        byte[] frame = new BinarySerializer(options).Serialize(value, typeInfo);
+        return Dump(frame, typeInfo, options);
+    }
+
+    /// <inheritdoc cref="Compare{T}(ReadOnlySpan{byte}, ReadOnlySpan{byte}, BinarySerializerOptions?)"/>
+    /// <param name="expected">The frame expected.</param>
+    /// <param name="actual">The frame to compare with it.</param>
+    /// <param name="typeInfo">The type information of <typeparamref name="T"/>, from the context <paramref name="options"/> were built with.</param>
+    /// <param name="options">The options to read both with, built with the context <paramref name="typeInfo"/> belongs to.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="typeInfo"/> or <paramref name="options"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException"><paramref name="typeInfo"/> belongs to another context than the options'.</exception>
+    public static BinaryDumpDifference? Compare<T>(
+        ReadOnlySpan<byte> expected,
+        ReadOnlySpan<byte> actual,
+        BinaryTypeInfo<T> typeInfo,
+        BinarySerializerOptions options)
+    {
+        var left = Dump(expected, typeInfo, options);
+        var right = Dump(actual, typeInfo, options);
+        return FirstDifference<T>(left, right);
+    }
+
+    private static void Require<T>(BinaryTypeInfo<T> typeInfo, BinarySerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(typeInfo);
+        ArgumentNullException.ThrowIfNull(options);
+        typeInfo.Require(options);
+    }
+
+    private static BinaryDumpDifference? FirstDifference<T>(BinaryDump left, BinaryDump right)
+    {
         if (left.Root is null || right.Root is null)
             return left.Root is null && right.Root is null && left.Failure?.GetType() == right.Failure?.GetType()
                 ? null
@@ -395,8 +460,6 @@ public static class BinaryFormatDumper
     /// Reads the root as <typeparamref name="T"/>, through the engine. Only a typed dump creates one,
     /// so only a typed dump carries the requirements of the reflection path.
     /// </summary>
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private sealed class RootDecoder<T> : RootDecoder
     {
         public override void Decode(ref WireReader reader, bool preserveReferences) =>

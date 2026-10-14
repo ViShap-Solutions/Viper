@@ -390,3 +390,31 @@ release, and not after.
 | D10 | Internal annotation chain and both suppressions removed; guard instead | a |
 | D11 | The proof as listed, INV-19 and INV-20 added | — |
 | D12 | One `native-aot` CI job on `ubuntu-latest` | a |
+
+# 10. As built (P4d)
+
+Where the build differs from the text above, and why. None of it changes a decision of §9.
+
+- **D2.** There is one table of scalars, `BuiltInCodecs.Scalars`, a map from type to a statically typed
+  factory; the reflection path consults it before `FormatterRegistry` and the registry holds none. The
+  "second table held equal by a test" of D2 does not exist, so nothing has to hold two tables equal.
+- **D3.** The spike of §6 step 1 confirmed both risks closed on `net10.0`: the analysers accept a
+  `[FeatureGuard]` for `RequiresUnreferencedCode` and `RequiresDynamicCode` alike, and a type first used
+  before its offer keeps the unavailable codec while a type offered first gets the offer, under the JIT
+  and under ILC. `FormatterCache<T>.Instance` stays `static readonly`.
+- **D4.** `Union<T>` takes its arms as `params (int Tag, Type Type)[]` — `Union<Shape>((1, typeof(Circle)),
+  (2, typeof(Square)))` — instead of an `Arm<T>(tag)` factory, which would have needed one more public
+  type for the arm; it validates the arms as §14.5 states. `Object<T>` also refuses a type that declares
+  `[BinaryUnion]`, so a hand-written context cannot drop a union map by naming the wrong method.
+- **D5.** The custom-collection shape takes its two operations in every configuration: the reflection
+  path compiles them, a context writes them as code.
+- **D7.** `TryGetTypeInfo<T>` answers for a scalar as well as for a type the context made supported.
+- **D8.** The dumper's four forms take the options as a required argument after the type information:
+  the options must name the type information's context, and an omitted `null` never can.
+- **D10.** Besides the chain through the pipelines and both suppressions, the attributes on `Graph` and on
+  the private helpers of `BinarySerializer` went too; the reflective builders keep theirs.
+- **D11.4.** The marked calls moved out of `Program.cs` into `AnnotatedEntryPoints.cs`, which a publish
+  leaves out (`_IsPublishing`), so the native AOT publish reports no trimming or AOT warning at all — the
+  gate of P4d — while the build's analysis still sees every marked call. The consumer's run also covers
+  D11.3: it reads and writes back every frozen payload through the generated context with the switch off,
+  in the suite (`Api/AotAnalysisTests`) and natively in CI.

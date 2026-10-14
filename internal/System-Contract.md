@@ -212,11 +212,13 @@ This is the whole public surface. Anything not listed is internal, and adding to
 change that belongs in a release note.
 
 **`ViShap.Viper`** — `BinarySerializer`, `BinarySerializerOptions`, `BinarySerializerOptionsBuilder`,
-`PooledPayload`, `BinarySerializerContext`, and the attributes `[BinaryContract]`, `[BinaryKey]`,
-`[BinaryIgnore]`, `[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`, `[BinaryContext]`.
+`PooledPayload`, `BinarySerializerContext`, `BinaryTypeInfo<T>` (§14.5), and the attributes
+`[BinaryContract]`, `[BinaryKey]`, `[BinaryIgnore]`, `[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`,
+`[BinaryContext]`.
 
 **`ViShap.Viper.Contracts`** — the type-contract seam of §14.3: `TypeContract<T>`, `MemberWriter`,
-`MemberReader`, `MemberDescription`, `MemberLayout`.
+`MemberReader`, `MemberDescription`, `MemberLayout`; and the supported types of §14.5:
+`SupportedTypes`, `SupportedType`.
 
 **`ViShap.Viper.Security`** — `SerializationLimits`.
 
@@ -249,7 +251,10 @@ formatter contracts, the algorithm orchestrators, and the operation and budget t
 them enforces part of the resource policy or the traversal protocol, and publishing any of them would
 let a caller step around it. The type-contract seam is public because it carries none of that: a
 contract sees one member value per call and nothing that reaches a byte, a count or a position, and
-every call it makes is checked (§14.3, INV-2, INV-5).
+every call it makes is checked (§14.3, INV-2, INV-5). `SupportedTypes` is public for the same reason:
+each of its methods names one entry of the table of supported types (§23) closed over a caller's
+types and returns an opaque `SupportedType` that exposes its declared type and nothing else — no codec,
+shape, count or loop reaches the caller (§14.5, INV-5).
 
 Every public type and member carries XML documentation. Both packages build with
 `GenerateDocumentationFile`, so the documentation ships beside the assembly and a consumer sees it on
@@ -258,25 +263,35 @@ written for that consumer: what the member does, what it takes, what it returns 
 it raises. It does not cite this document, and it does not record how the code came to look the way
 it does.
 
-**The reflection path states its requirements.** In v1.0 the codec of every type is built by
-reflection on first use, and so is the type contract of every member-encoded one that the
-configuration does not supply (§14.3): members, constructors and generic definitions are found at run
-time, and the engine's generic codecs and shapes are closed over the types they encode. A supplied
-contract removes the member reflection of its type, not the codec's, so the requirement stands for
-every entry point whatever the configuration. Every public entry point that encodes or decodes a
-value of the caller's type therefore carries `[RequiresUnreferencedCode]` and
-`[RequiresDynamicCode]` — the twenty-two generic methods of `BinarySerializer` (§3.1–§3.5) and the
-four of `BinaryFormatDumper` (`Dump<T>` over a span and over a sequence, `DumpValue<T>`,
-`Compare<T>`). An application built with trimming or native AOT analysis is warned at each call, where
-the decision is its own, instead of failing at run time on a member or an instantiation that was not
-kept. No other public member carries either attribute: the options and their builder, the
-algorithms, the keys, `PooledPayload`, `BinaryFormatInspector`, `DumpHeader` and the untyped `Dump`
-never build a codec. Both packages build with `IsAotCompatible`, so the analysis reports nothing
-inside them. The engine is entered only through those entry points, which is what allows the two
-caches it resolves codecs and contracts through to rely on the requirement their caller stated
-rather than repeat it. `Api/AotAnalysisTests` holds the line twice: by reflection over the exported
-surface, and by building `tests/ViShap.Viper.AotConsumer` — a consumer that calls every entry point —
-under native AOT analysis, which must report those calls and nothing else.
+**The reflection path states its requirements.** The codec of a type is found in one of three
+places, in order: the codec a context offered for it (§14.5); the built-in codec of a scalar or a
+delegate, created by statically typed code; and otherwise the codec the **reflection path** builds on
+first use, finding members, constructors and generic definitions at run time and closing the engine's
+generic codecs and shapes over the types they encode. The type contract of a member-encoded type
+comes from the configuration's context, and otherwise from the reflection path too (§14.3). The
+reflection path is behind one switch, `ViShap.Viper.ReflectionPath.IsEnabled` (§14.5), which the
+trimming and AOT analysers treat as the guard of both requirements: the library suppresses no
+analysis warning, and an application that turns the switch off has the path removed from its build.
+
+Every public entry point that encodes or decodes a value of the caller's type **without** type
+information therefore carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` — the twenty-two
+generic methods of `BinarySerializer` (§3.1–§3.5) and the four of `BinaryFormatDumper` (`Dump<T>` over
+a span and over a sequence, `DumpValue<T>`, `Compare<T>`): with the switch on they reach the reflection
+path for any type no context offered. An application built with trimming or native AOT analysis is
+warned at each call, where the decision is its own. Each of those twenty-six has a counterpart that
+takes a `BinaryTypeInfo<T>` and carries neither attribute (§3.1, §14.5): the type information states
+that a context describes the type, and whatever the context does not describe is
+`BinaryConfigurationException` with the switch off, never reflection. No other public member carries
+either attribute: the options and their builder, the algorithms, the keys, `PooledPayload`,
+`BinaryFormatInspector`, `DumpHeader`, the untyped `Dump`, the context and `SupportedTypes` never build
+a codec by reflection. Both packages build with `IsAotCompatible`, so the analysis reports nothing
+inside them. `Api/AotAnalysisTests` holds the line three times: by reflection over the exported
+surface; by building `tests/ViShap.Viper.AotConsumer` under native AOT analysis, where the calls of
+its `AnnotatedEntryPoints` must report the annotated entry points and nothing else; and by running that
+consumer with the switch off, every entry point that takes type information, the frozen payloads of
+§22 read and written back through generated contexts. The CI job `native-aot` publishes the same
+consumer with native AOT — with no trimming or AOT warning — runs it, and requires its output to equal
+the JIT run's line for line.
 
 ## 3.1 Serializer
 
@@ -312,10 +327,39 @@ void          Populate<T>(ReadOnlySequence<byte> source, T target, out SequenceP
 void          Populate<T>(Stream source, T target) where T : class;
 ValueTask     PopulateAsync<T>(Stream source, T target, CancellationToken cancellationToken = default) where T : class;
 ValueTask     PopulateAsync<T>(PipeReader source, T target, CancellationToken cancellationToken = default) where T : class;
+
+// the same, with the type information of a context (§14.5)
+void          Serialize<T>(IBufferWriter<byte> destination, T value, BinaryTypeInfo<T> typeInfo);
+byte[]        Serialize<T>(T value, BinaryTypeInfo<T> typeInfo);
+PooledPayload SerializePooled<T>(T value, BinaryTypeInfo<T> typeInfo);
+void          Serialize<T>(Stream destination, T value, BinaryTypeInfo<T> typeInfo);
+ValueTask     SerializeAsync<T>(Stream destination, T value, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+ValueTask     SerializeAsync<T>(PipeWriter destination, T value, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+T?            Deserialize<T>(ReadOnlySpan<byte> source, BinaryTypeInfo<T> typeInfo);
+T?            Deserialize<T>(ReadOnlySpan<byte> source, BinaryTypeInfo<T> typeInfo, out int bytesConsumed);
+T?            Deserialize<T>(ReadOnlySequence<byte> source, BinaryTypeInfo<T> typeInfo);
+T?            Deserialize<T>(ReadOnlySequence<byte> source, BinaryTypeInfo<T> typeInfo, out SequencePosition consumed);
+T?            Deserialize<T>(Stream source, BinaryTypeInfo<T> typeInfo);
+ValueTask<T?> DeserializeAsync<T>(Stream source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+ValueTask<T?> DeserializeAsync<T>(PipeReader source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+void          Populate<T>(ReadOnlySpan<byte> source, T target, BinaryTypeInfo<T> typeInfo) where T : class;
+void          Populate<T>(ReadOnlySpan<byte> source, T target, BinaryTypeInfo<T> typeInfo, out int bytesConsumed) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target, BinaryTypeInfo<T> typeInfo) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target, BinaryTypeInfo<T> typeInfo, out SequencePosition consumed) where T : class;
+void          Populate<T>(Stream source, T target, BinaryTypeInfo<T> typeInfo) where T : class;
+ValueTask     PopulateAsync<T>(Stream source, T target, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default) where T : class;
+ValueTask     PopulateAsync<T>(PipeReader source, T target, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default) where T : class;
 ```
 
 `Api/PublicSurfaceTests` compares this list with the compiled assembly member by member, and the
 builder's list of §4.1 likewise.
+
+A method that takes type information does exactly what its counterpart without it does, with one
+check first: the serializer's options must have been built with the context the type information
+belongs to (`WithContracts`), and otherwise the call is `BinaryConfigurationException` before the
+destination is touched; a `null` type information is `ArgumentNullException`.
 
 Every write builds the whole frame in the serializer's own pooled buffers before the first byte
 reaches the destination (§2.6), so no destination is asked to seek. A buffer writer is advanced but
@@ -495,29 +539,54 @@ ViShap.Viper.BinaryOrderAttribute :: .ctor(Int32)
 ViShap.Viper.BinaryOrderAttribute :: Order : Int32 { get; }
 ViShap.Viper.BinarySerializer :: .ctor(BinarySerializerOptions)
 ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, out SequencePosition) : T
 ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, out SequencePosition) : T
 ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, out Int32) : T
 ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, out Int32) : T
 ViShap.Viper.BinarySerializer :: Deserialize<T>(Stream) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(Stream, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>
 ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(PipeReader, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>
 ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(Stream, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>
 ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(PipeReader, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>
 ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(Stream, CancellationToken) : IAsyncEnumerable<T>
 ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>, out SequencePosition) : Void
 ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, out SequencePosition) : Void
 ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>, out Int32) : Void
 ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, out Int32) : Void
 ViShap.Viper.BinarySerializer :: Populate<T>(Stream, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(Stream, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(PipeReader, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: PopulateAsync<T>(PipeReader, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: PopulateAsync<T>(Stream, T, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: Serialize<T>(IBufferWriter<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(IBufferWriter<Byte>, T, BinaryTypeInfo<T>) : Void
 ViShap.Viper.BinarySerializer :: Serialize<T>(Stream, T) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(Stream, T, BinaryTypeInfo<T>) : Void
 ViShap.Viper.BinarySerializer :: Serialize<T>(T) : Byte[]
+ViShap.Viper.BinarySerializer :: Serialize<T>(T, BinaryTypeInfo<T>) : Byte[]
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, CancellationToken) : ValueTask
 ViShap.Viper.BinarySerializer :: SerializePooled<T>(T) : PooledPayload
+ViShap.Viper.BinarySerializer :: SerializePooled<T>(T, BinaryTypeInfo<T>) : PooledPayload
+ViShap.Viper.BinarySerializerContext :: TryGetTypeInfo<T>() : BinaryTypeInfo<T>
 ViShap.Viper.BinarySerializerContext :: protected .ctor()
+ViShap.Viper.BinarySerializerContext :: protected Add(SupportedType) : Void
 ViShap.Viper.BinarySerializerContext :: protected Add<T>(TypeContract<T>) : Void
+ViShap.Viper.BinarySerializerContext :: protected TypeInfo<T>() : BinaryTypeInfo<T>
 ViShap.Viper.BinarySerializerOptions :: AllowV0Fallback : Boolean { get; }
 ViShap.Viper.BinarySerializerOptions :: Checksum : IChecksumAlgorithm { get; }
 ViShap.Viper.BinarySerializerOptions :: Compression : ICompressionAlgorithm { get; }
@@ -559,6 +628,8 @@ ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(IKeyProvider) : BinarySe
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithLimits(SerializationLimits) : BinarySerializerOptionsBuilder
 ViShap.Viper.BinarySerializerOptionsBuilder :: WithVersion(Int32) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinaryTypeInfo`1 :: Context : BinarySerializerContext { get; }
+ViShap.Viper.BinaryTypeInfo`1 :: Type : Type { get; }
 ViShap.Viper.BinaryUnionAttribute :: .ctor(Int32, Type)
 ViShap.Viper.BinaryUnionAttribute :: DerivedType : Type { get; }
 ViShap.Viper.BinaryUnionAttribute :: Tag : Int32 { get; }
@@ -623,6 +694,77 @@ ViShap.Viper.Contracts.MemberLayout :: Positional = 0
 ViShap.Viper.Contracts.MemberReader :: Member<TMember>() : TMember
 ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(Int32, TMember) : Void
 ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(TMember) : Void
+ViShap.Viper.Contracts.SupportedType :: Type : Type { get; }
+ViShap.Viper.Contracts.SupportedTypes :: static Array<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ArraySegment<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Collection<TCollection, T>(Func<TCollection>, Action<TCollection, T>) : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentBag<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Dictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Enum<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static FrozenDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static FrozenSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static HashSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ICollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IEnumerable<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ISet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableArray<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableHashSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableSortedDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableSortedSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static KeyValuePair<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Lazy<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static LinkedList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static List<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Memory<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static MultiDimensionalArray<TArray, TElement>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Nullable<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Object<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ObservableCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static PriorityQueue<TElement, TPriority>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Queue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyMemory<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyObservableCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlySequence<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedList<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Stack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6, T7, TRest>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6, T7>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Union<T>(ValueTuple<Int32, Type>[]) : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6, T7>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1>() : SupportedType
 ViShap.Viper.Contracts.TypeContract`1 :: CanBeConstructed : Boolean { get; }
 ViShap.Viper.Contracts.TypeContract`1 :: Create() : T
 ViShap.Viper.Contracts.TypeContract`1 :: Layout : MemberLayout { get; }
@@ -721,13 +863,17 @@ ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Sequence = 2
 ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Union = 8
 ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: UnknownKeyedField = 7
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Compare<T>(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDumpDifference
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Compare<T>(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDumpDifference
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump(ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDump
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySequence<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(ReadOnlySequence<Byte>) : String
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(ReadOnlySpan<Byte>) : String
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(Stream) : String
 ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpValue<T>(T, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpValue<T>(T, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
 ViShap.Viper.Exceptions.BinaryConfigurationException :: .ctor(String)
 ViShap.Viper.Exceptions.BinaryConfigurationException :: .ctor(String, Exception)
 ViShap.Viper.Exceptions.BinaryEncryptionException :: .ctor(String)
@@ -1976,9 +2122,10 @@ way and holds no state of an operation.
 of it, frozen on first use and shared by every later build. For each member-encoded type an operation
 meets — a declared type, a union arm, the runtime type in a polymorphic slot — the engine uses the
 context's contract when it holds one, and otherwise builds the contract by reflection, as without a
-context. `RequireGeneratedContracts()` turns that fallback into `BinaryConfigurationException` naming
-the type, raised when an operation first needs the type's contract; `Build()` refuses it without
-`WithContracts`. A union base whose values are always one of its arms needs no contract, because the
+context, while the reflection path is on (§14.5). `RequireGeneratedContracts()` turns that fallback into
+`BinaryConfigurationException` naming the type, raised when an operation first needs the type's
+contract; `Build()` refuses it without `WithContracts`. With the reflection path off, the fallback is
+that error whatever the options say. A union base whose values are always one of its arms needs no contract, because the
 engine never encodes its members itself; a contract held for a type the engine encodes by a formatter
 — a collection, a string, a scalar — is never consulted. The diagnostics of §19 read with the
 contracts of the options they are given.
@@ -2053,15 +2200,74 @@ VPR016  error    duplicate [BinaryUnion] tag
 VPR017  error    [BinaryUnion] type not assignable to the base
 VPR018  warning  abstract type or interface without [BinaryUnion], whose values cannot be read back
 VPR019  warning  type described by reflection, with the reason
+VPR020  error    two listed types, or a listed type and a member of the context, share the name of a type information property
+VPR021  error    VPR019 where the application turns the reflection path off (ViperReflectionEnabled is false)
 ```
 
 `VPR018` is a warning because the reflected contract of such a type builds: the serializer refuses a
-value of it only when one is read, and writes a null of it.
+value of it only when one is read, and writes a null of it. `VPR021` replaces `VPR019` when the build
+property `ViperReflectionEnabled` is `false` (§14.5): the type would have no description at run time.
 
-**Trimming and native AOT.** A generated contract removes the member reflection and the compiled
-accessors of its type, not the construction of the codecs around it, which closes generic shapes over
-the declared types at run time. The entry points of §3 therefore keep `[RequiresUnreferencedCode]` and
-`[RequiresDynamicCode]` whatever the configuration.
+**Supported types and type information.** Besides the contracts, the constructor makes every type the
+walk reaches supported (§14.5) — each container, array, nullable value, enum and member-encoded type,
+with the union map its `[BinaryUnion]` attributes declare when they are sound, and a custom collection
+with `() => new T()` and its public instance `Add(T)`, or no `Add` — in ordinal order of the types'
+names, and assigns one public property of type information per type the attribute lists that it makes
+supported or that is a scalar: `BinaryTypeInfo<Order> Order`, named after the type's simple name, a
+generic type's arguments each after an underscore (`List_Order`), an array's element followed by
+`_Array` and its rank above one (`Int32_Array2`), a nullable value as `Nullable_` and its underlying
+type. A type the generated code cannot name gets no entry.
+
+**Trimming and native AOT.** A context whose walk reaches every type of a value describes it entirely:
+its contracts remove the member reflection of each type, and its supported types the construction of
+every codec. The entry points that take its type information (§3.1) carry no requirement; those without
+it keep `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` (§3).
+
+## 14.5 Supported types and type information
+
+**Supported types.** `ViShap.Viper.Contracts.SupportedTypes` has one static method per entry of the
+table of §23 that a caller's types close: one per supported generic definition, named after it
+(`List<T>()`, `IDictionary<TKey, TValue>()`, `Tuple<T1, …, T7, TRest>()`, `ImmutableArray<T>()`, …),
+and `Array<T>()` for `T[]`, `MultiDimensionalArray<TArray, TElement>()` for an array of rank 2 or more,
+`Nullable<T>()`, `Enum<T>()`, `Collection<TCollection, T>(create, add)` for a concrete collection no
+definition claims, `Object<T>()` for a member-encoded type and `Union<T>(params (int Tag, Type Type)[])`
+for one with a union map. The scalars have no method: their codecs are built by statically typed code
+in every configuration. Each method returns a `SupportedType` naming its declared type, which a context
+adds with `protected Add(SupportedType)` from its constructor; the encoding is the one the reflection
+path builds for the same type — the same codec over the same shape, so a supported type never changes
+a byte (INV-20).
+
+A method refuses what its entry does not claim, with `BinaryConfigurationException`: `Object<T>` and
+`Union<T>` a type another entry claims (a scalar, an enum, an array, a collection, a supported generic
+type, a nullable value, a delegate), and `Object<T>` a type that declares `[BinaryUnion]`;
+`Collection<TCollection, T>` a type another entry claims or whose `ICollection<T>` element the rules of
+§23 take to be another; `MultiDimensionalArray` anything but an array of `TElement` of rank 2 or more;
+`Union<T>` a tag outside 0–255, a tag or a type given twice, a `null` type, or a type not assignable to
+`T`. The arms of a union are taken as given; the serializer does not read `[BinaryUnion]` for a type
+whose union map was supplied.
+
+**Where a supported type takes effect.** Adding one makes its codec the one the serializer uses for that
+type in the process, unless the type was already used before any context added it: the first offer of a
+type is kept, and an offer after the type's first use is ignored. Every offer of a type is the codec the
+rules give that type, so which context offers it, and when, changes nothing an operation writes or reads;
+an offer is not a registry through which behaviour can be changed (§18, INV-7). A context refuses the
+same type twice and any type after options were built with it, as it refuses contracts (§14.3).
+
+**Type information.** `BinaryTypeInfo<T>` states that a context describes `T`: a context creates it with
+`protected TypeInfo<T>()` for a type it made supported, or a scalar, and refuses any other with
+`BinaryConfigurationException`; `TryGetTypeInfo<T>()` returns it, or `null`. It exposes `Type` and
+`Context`. The entry points of §3.1 and the dumper's of §19 that take it require the options to have been
+built with that context.
+
+**The reflection path.** The runtime switch `ViShap.Viper.ReflectionPath.IsEnabled` — a feature switch
+the trimming and AOT analysers understand, `true` unless set — decides whether a type no context offered
+may be described by reflection: its codec (§2), its contract (§14.3), the contract of a runtime type in
+a polymorphic slot (§15). With it off, each of those is `BinaryConfigurationException` naming the type,
+raised where the type is first used and before the destination is touched; never reflection (INV-19).
+The package `ViShap.Viper.Serialization` sets the switch from the MSBuild property
+`ViperReflectionEnabled`, which defaults to `false` for an application published trimmed or with native
+AOT (`PublishTrimmed`, `PublishAot`) — also in its JIT runs — and to `true` otherwise, and makes the
+property visible to the source generator (§14.4, `VPR021`).
 
 ---
 
@@ -2241,8 +2447,12 @@ primitive it is given has already applied it.
 **What is cached.** Three things, each built once, on first use, for the life of the process, and
 each safe when several threads use a type for the first time at once:
 
-- the codec of each declared type, in the static field of `FormatterCache<T>`. The shapes of the
-  generic definitions it is built from are a fixed table, closed once per type;
+- the codec of each declared type, in the static field of `FormatterCache<T>`: the codec a context
+  offered for the type before its first use (§14.5) — kept in a write-once static field per type, the
+  first offer winning — else the built-in codec of a scalar or a delegate, else the one the reflection
+  path builds while it is on, else one that reports the type unavailable. The shapes of the generic
+  definitions are a fixed table, closed once per type. Every offer of a type is the codec the rules give
+  it, so which of these fills the cache, and in which order, changes nothing an operation observes;
 - the reflected type contract of each member-encoded type, found by type, which is what the
   polymorphic slot needs — a contract a context supplies is held by the options, not cached; the
   codec of a member-encoded type remembers the contract the last snapshot it met gives its type,
@@ -2293,6 +2503,9 @@ Dump(span, options?)                   without a type: the header, each phase un
 Dump<T>(span | sequence, options?)     with T as the schema: the payload as a tree of BinaryDumpNode
 DumpValue<T>(value, options?)          writes the value with the options and dumps what was written
 Compare<T>(expected, actual, options?) the first node at which two frames of T differ, or null
+Dump / DumpValue / Compare             each also takes the type information of a context before the
+  (…, BinaryTypeInfo<T>, options)      options, which must have been built with that context; those
+                                       forms build nothing by reflection (§14.5)
 ```
 
 `BinaryDump` reports the format version, the header, the header and payload lengths, whether the
@@ -2438,7 +2651,9 @@ A03 object-declared values                   → write-side rejection (§15)    
 Deferred by design, and **not** claimed by this contract: a public formatter contract, an
 asynchronous engine (the engine never awaits, §2.4; asynchrony lives at the frame edge, §3.5), a V2
 codec, constant-time checksum comparison, and a generated codec graph — the source generator of
-§14.4 writes type contracts, not codecs, so native AOT without warnings is not claimed.
+§14.4 writes type contracts and names the supported types a context reaches (§14.5); the codecs stay the
+engine's, built by its own statically typed code. Native AOT without warnings is claimed for an
+application that reaches the serializer through the type information of its contexts (§3, §14.5).
 
 ## 21.4 Array length vs blob length
 
@@ -2725,6 +2940,11 @@ A type is supported when a formatter claims it, or when it is member-encoded. An
 | Custom collections | any concrete non-abstract type implementing `ICollection<T>` with a public parameterless constructor and an `Add` method |
 | Objects | any other type with a parameterless constructor, encoded member by member |
 
+Every entry a caller's types close — each generic definition, `T[]`, an array of rank above one,
+`Nullable<T>`, an enum, a custom collection, an object and an object with a union map — has the method of
+`SupportedTypes` named after it (§14.5), which a context adds so the type needs no reflection; the
+scalars of the first four rows need none.
+
 Notes that belong to the contract:
 
 - **Interfaces** resolve to a concrete implementation on read, which is part of the contract:
@@ -2882,7 +3102,7 @@ A box is checked only when source and a test prove it. The checkpoints that prov
 
 # 25. Invariants
 
-Eighteen rules hold at every point of the system, each by construction and each pinned by a structural
+Twenty rules hold at every point of the system, each by construction and each pinned by a structural
 test that inspects the code rather than a behaviour. A change that would break one is a change to this
 contract first.
 
@@ -2892,7 +3112,7 @@ contract first.
 | INV-2 | `WireReader` and `WireWriter` are the only access to payload bytes; a type contract receives only `MemberWriter` / `MemberReader`, which expose no bytes, no counts and no position. | §2.3 | LIM-44, LIM-47, LIM-49 |
 | INV-3 | A declared length or count is compared with the bytes that can still arrive before it drives an allocation; the same rule decides whether an array is allocated at its final length and what capacity a collection receives. | §6, §17 | TYP-03, SRC-10, LIM-42 |
 | INV-4 | A loop the engine runs over wire data — container elements and keyed fields — is bounded only by a validated `ElementCount`; a formatter reads no count; header service records are bounded by the 4 096-byte header. | §2.3, §5.9, §6, §17 | LIM-40, LIM-52 |
-| INV-5 | One traversal owner: a formatter describes a shape and the engine's codec owns the loop; a type contract, reflected or generated, supplies only member order, member access, construction and the response to a known key. | §2.4, §14.1 | LIM-49 |
+| INV-5 | One traversal owner: a formatter describes a shape and the engine's codec owns the loop; a type contract, reflected or generated, supplies only member order, member access, construction and the response to a known key; a supported type names an entry of §23 and exposes no codec, shape, count or loop. | §2.4, §14.1, §14.5 | LIM-49, NAOT-14 |
 | INV-6 | Algorithms are pure mechanics, called inside the phase barrier, and never see a limit. | §2.5, §12, §13 | CMP-12 |
 | INV-7 | No process-wide mutable registry can change what an algorithm is. | §4.1 | CAT-06, LIM-53 |
 | INV-8 | Only tags travel, never type names. | §15 | PM-14, LIM-54 |
@@ -2906,3 +3126,5 @@ contract first.
 | INV-16 | The engine never awaits: `await` exists only at the frame edge, and the engine and the formatters contain no asynchronous method. | §2.4, §3.5 | LIM-50 |
 | INV-17 | Boxing happens only in a polymorphic slot (`[BinaryUnion]`, an interface, `object`), verified by a counting test double. | §2.4, §15 | TYP-02 |
 | INV-18 | A V0 payload is byte-identical to the V1 payload of the same value written without references. | §10.2, §22.7 | V0-19, V0-21, KEY-18, LIM-59 |
+| INV-19 | With the reflection path switched off, no codec, contract or union map is built by reflection: a type no context offered is `BinaryConfigurationException` where it is first used. | §3, §14.5 | NAOT-12, NAOT-13 |
+| INV-20 | A codec or union map a context offers through `SupportedTypes` is the one the reflection path builds for the same type, and a generated context offers exactly the types the engine reaches from those it lists. | §14.5 | NAOT-01, NAOT-02, NAOT-06 |

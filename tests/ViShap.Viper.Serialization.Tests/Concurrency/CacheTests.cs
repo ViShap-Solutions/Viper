@@ -79,10 +79,12 @@ public class CacheTests
         // later one.
         string[] builders =
         [
+            "ViShap.Viper.Serialization/Engine/BuiltInCodecs.cs",
             "ViShap.Viper.Serialization/Engine/Codec.cs",
             "ViShap.Viper.Serialization/Engine/Contracts/ReflectedContract.cs",
             "ViShap.Viper.Serialization/Engine/Contracts/TypeContractCache.cs",
-            "ViShap.Viper.Serialization/Engine/FormatterRegistry.cs"
+            "ViShap.Viper.Serialization/Engine/FormatterRegistry.cs",
+            "ViShap.Viper.Serialization/Engine/TypeRules.cs"
         ];
 
         string[] requestLocal =

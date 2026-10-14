@@ -33,14 +33,15 @@ internal static class TypeContractCache
     private static readonly ConcurrentDictionary<Type, UnionMap?> Unions = new();
 
     /// <summary>
-    /// The contract of <paramref name="type"/>, which the polymorphic slot finds by runtime type. It is
-    /// reached only from the engine's codecs, and the engine is entered only through
-    /// <see cref="Graph"/>, whose entries carry the requirements of the reflection path.
+    /// The contract of <paramref name="type"/> built by reflection, which the polymorphic slot finds by
+    /// runtime type. The engine reaches it only while the reflection path is enabled.
     /// </summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Reached only from the engine, which is entered only through Graph, which requires unreferenced code.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Reached only from the engine, which is entered only through Graph, which requires dynamic code.")]
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static ITypeContract Get(Type type) => Contracts.GetOrAdd(type, ReflectedContract.Build);
 
+    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
+    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     public static TypeContract<T> Get<T>() => (TypeContract<T>)Get(typeof(T));
 
     public static UnionMap? GetUnion(Type declaredType) => Unions.GetOrAdd(declaredType, BuildUnion);

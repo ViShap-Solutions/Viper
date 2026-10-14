@@ -26,6 +26,14 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
     private ContractChoice? _chosen;
     private UnionLookup? _union;
 
+    /// <summary>A codec that reads the declared type's union map from its attributes on first use.</summary>
+    public ObjectCodec()
+    {
+    }
+
+    /// <summary>A codec given its union map — <see langword="null"/> for none — instead of reading it.</summary>
+    public ObjectCodec(UnionMap? union) => _union = new UnionLookup(union);
+
     public override CodecShape Shape => CodecShape.Object;
 
     protected override bool FoldsNull(ref OperationState state) =>
@@ -41,17 +49,24 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
     private TypeContract<T> Contract(ref OperationState state)
     {
         if (state.Contracts is not { } contracts)
-            return _reflected ??= TypeContractCache.Get<T>();
+            return Reflected();
 
         if (_chosen is { } chosen && ReferenceEquals(chosen.Contracts, contracts))
             return chosen.Contract;
 
         var contract = contracts.Find<T>()
-            ?? (contracts.RequireAll ? throw contracts.Missing(typeof(T)) : _reflected ??= TypeContractCache.Get<T>());
+            ?? (contracts.RequireAll ? throw contracts.Missing(typeof(T)) : Reflected());
 
         _chosen = new ContractChoice(contracts, contract);
         return contract;
     }
+
+    /// <summary>
+    /// The contract built by reflection, kept once built; with the reflection path off, the type is
+    /// unavailable.
+    /// </summary>
+    private TypeContract<T> Reflected() =>
+        _reflected ??= ReflectionPath.IsEnabled ? TypeContractCache.Get<T>() : throw ReflectionPath.Unavailable(typeof(T));
 
     /// <summary>The contract of a runtime type met in the polymorphic slot, found the same way.</summary>
     private static ITypeContract RuntimeContract(Type runtimeType, ref OperationState state)
@@ -65,7 +80,7 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
                 throw contracts.Missing(runtimeType);
         }
 
-        return TypeContractCache.Get(runtimeType);
+        return ReflectionPath.IsEnabled ? TypeContractCache.Get(runtimeType) : throw ReflectionPath.Unavailable(runtimeType);
     }
 
     private UnionMap? Union => (_union ??= new UnionLookup(TypeContractCache.GetUnion(typeof(T)))).Map;

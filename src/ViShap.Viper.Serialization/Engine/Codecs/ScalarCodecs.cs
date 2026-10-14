@@ -104,12 +104,11 @@ internal sealed class NullableCodec<T> : Codec<T?>
 /// A type that has no representation on the wire, such as a delegate, which carries behaviour rather
 /// than data. A null value is written as null, a single zero byte; any other value is refused.
 /// </summary>
-internal sealed class RejectedCodec<T>(string writeMessage, string readMessage) : Codec<T?>
-    where T : class
+internal sealed class RejectedCodec<T>(string writeMessage, string readMessage) : Codec<T>
 {
     public override CodecShape Shape => CodecShape.Scalar;
 
-    public override void Write(ref WireWriter writer, T? value)
+    public override void Write(ref WireWriter writer, T value)
     {
         if (value is not null)
             throw new BinaryTypeException(writeMessage);
@@ -117,7 +116,7 @@ internal sealed class RejectedCodec<T>(string writeMessage, string readMessage) 
         writer.WriteNull();
     }
 
-    public override T? Read(ref WireReader reader)
+    public override T Read(ref WireReader reader)
     {
         var trace = reader.State.Trace;
         trace?.Begin(typeof(T), reader.Position);
@@ -127,7 +126,7 @@ internal sealed class RejectedCodec<T>(string writeMessage, string readMessage) 
 
         trace?.Null();
         trace?.End(reader.Position);
-        return null;
+        return default!;
     }
 }
 
@@ -146,5 +145,22 @@ internal sealed class UnsupportedCodec<T>(string message) : Codec<T>
     {
         reader.State.Trace?.Begin(typeof(T), reader.Position);
         throw new BinaryTypeException(message);
+    }
+}
+
+/// <summary>
+/// A type that no context offered while the reflection path is switched off. Every use raises the
+/// same <see cref="BinaryConfigurationException"/>, naming the type and how to make it available.
+/// </summary>
+internal sealed class UnavailableCodec<T> : Codec<T>
+{
+    public override CodecShape Shape => CodecShape.Object;
+
+    public override void Write(ref WireWriter writer, T value) => throw ReflectionPath.Unavailable(typeof(T));
+
+    public override T Read(ref WireReader reader)
+    {
+        reader.State.Trace?.Begin(typeof(T), reader.Position);
+        throw ReflectionPath.Unavailable(typeof(T));
     }
 }

@@ -18,14 +18,14 @@ dotnet add package ViShap.Viper
 | [Options and limits](options-and-limits.md) | the options builder, its validation, and every `SerializationLimits` value |
 | [Formats: V1 and V0](formats.md) | the self-describing frame and the headerless codec, and how to choose between them |
 | [Contracts and schema evolution](contracts.md) | positional and keyed layouts, member attributes, evolving a type, supplying a contract |
-| [The source generator](generator.md) | generated type contracts, the context, diagnostics VPR001–VPR019 |
+| [The source generator](generator.md) | generated type contracts, the context, its type information, diagnostics VPR001–VPR021 |
 | [References](references.md) | preserving shared and cyclic references, and what happens without it |
 | [Polymorphism](polymorphism.md) | `[BinaryUnion]`: serializing a base type and its derived types |
 | [Algorithms and keys](algorithms-and-keys.md) | compression, checksums, encryption, key providers, custom algorithms |
 | [Supported types](supported-types.md) | every type the serializer handles and how it comes back |
 | [Exceptions](exceptions.md) | the exception hierarchy and when each exception is raised |
 | [Diagnostics](diagnostics.md) | inspecting a header, dumping a frame, comparing two frames |
-| [Trimming and native AOT](aot.md) | what the reflection path asks of an application built with trimming or AOT |
+| [Trimming and native AOT](aot.md) | type information, the reflection switch, and what an application built with trimming or AOT needs |
 
 ## The packages
 

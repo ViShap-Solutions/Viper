@@ -109,12 +109,23 @@ internal static class Descriptors
         "Type described by reflection",
         "'{0}' gets no generated contract and is described by reflection at run time: {1}");
 
+    public static readonly DiagnosticDescriptor TypeInfoNameConflict = Error(
+        "VPR020",
+        "Type information name conflict",
+        "'{0}' cannot expose the type information of '{1}' as '{2}': {3}");
+
+    public static readonly DiagnosticDescriptor UnavailableWithoutReflection = Error(
+        "VPR021",
+        "Type unavailable without reflection",
+        "'{0}' gets no generated contract, and the application turns the reflection path off (ViperReflectionEnabled is false, as it is when published trimmed or with native AOT), so it cannot be serialized: {1}");
+
     private static readonly Dictionary<string, DiagnosticDescriptor> All = new[]
     {
         ContextNotPartial, ContextBaseType, ContextMemberConflict, KeyWithoutContract, IncludeWithIgnore,
         DuplicateOrder, IncludeOnContract, OrderOnContract, KeyWithIgnore, UnmarkedContractMember,
         NegativeKey, DuplicateKey, DelegateMember, MemberWithoutRepresentation, UnionTagOutOfRange,
-        DuplicateUnionTag, UnionTypeNotAssignable, AbstractWithoutUnion, DescribedByReflection
+        DuplicateUnionTag, UnionTypeNotAssignable, AbstractWithoutUnion, DescribedByReflection,
+        TypeInfoNameConflict, UnavailableWithoutReflection
     }.ToDictionary(descriptor => descriptor.Id);
 
     /// <summary>Every descriptor, in id order.</summary>

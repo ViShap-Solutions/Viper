@@ -81,6 +81,7 @@ Filled in by the repository owner.
 | [PERF-08](PERF-08-algorithm-primitives-after-port.md) | The algorithm primitives after their port to the R5 interfaces: every pipeline cell faster, 28 primitive cells slower | Open |
 | [PERF-09](PERF-09-final-format-and-trace-seam.md) | The final format: sizes, the header of service records, and the cost of the trace seam | Open — the seam's cost accepted for v1.0 |
 | [PERF-10](PERF-10-generated-context-first-use.md) | A generated context creates all its contracts on first read of `Default` (21 ms for 34), and a generated contract's methods compile on first call, moving cost from the first write to the first read | Open |
+| [PERF-12](PERF-12-context-offers-at-construction.md) | A generated context builds the codec of every type it reaches in its constructor: instantiation ×2.1 (+21 ms for 34 contracts), first uses cheaper, ≈ +6 ms per corpus | Open — deferred past `v1.0.0` with PERF-10 |
 | [PERF-11](PERF-11-member-call-dispatch.md) | A scalar member pays an interface call and a reference-typed member a generic-dictionary lookup on every call, under reflection and the generator alike; not isolated by any measurement yet | Open — deferred past `v1.0.0` |
 $r
 | [PERF-08](PERF-08-algorithm-primitives-after-port.md) | MICRO-10 slower after the R5 port (Brotli ×1.04–1.22, one Deflate cell ×1.57, a control ×1.05–1.10); ALLOC-12 +56 B; the pipeline faster in every cell | Open |

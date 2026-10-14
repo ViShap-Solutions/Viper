@@ -35,6 +35,7 @@ namespace ViShap.Viper;
 public abstract class BinarySerializerContext
 {
     private readonly Dictionary<Type, ITypeContract> _contracts = [];
+    private readonly HashSet<Type> _supported = [];
     private readonly Lock _gate = new();
     private FrozenDictionary<Type, ITypeContract>? _snapshot;
 
@@ -64,6 +65,66 @@ public abstract class BinarySerializerContext
                 throw new BinaryConfigurationException(
                     $"'{GetType()}' already holds a contract for '{typeof(T)}'.");
         }
+    }
+
+    /// <summary>
+    /// Makes <paramref name="type"/> supported: the serializer encodes it as the entry of the table of
+    /// supported types that <see cref="SupportedTypes"/> closed over it, without building anything for
+    /// it by reflection.
+    /// </summary>
+    /// <param name="type">A value created by one of the methods of <see cref="SupportedTypes"/>.</param>
+    /// <remarks>
+    /// The encoding of a type is the same whichever context supplies it, so the first context of the
+    /// process that adds a type supplies it for every serializer.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="type"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException">
+    /// The context already added the same type, or options have already been built with it.
+    /// </exception>
+    protected void Add(SupportedType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+
+        lock (_gate)
+        {
+            if (_snapshot is not null)
+                throw new BinaryConfigurationException(
+                    $"'{GetType()}' is already in use by built options; supported types are added before " +
+                    "the context is first used, from its constructor.");
+
+            if (!_supported.Add(type.Type))
+                throw new BinaryConfigurationException(
+                    $"'{GetType()}' already makes '{type.Type}' supported.");
+
+            type.Offer();
+        }
+    }
+
+    /// <summary>
+    /// The type information of <typeparamref name="T"/>, which the serializer's methods take in place of
+    /// building anything for the type by reflection.
+    /// </summary>
+    /// <typeparam name="T">A type the context made supported with <see cref="Add(SupportedType)"/>, or a scalar.</typeparam>
+    /// <returns>The type information, bound to this context.</returns>
+    /// <exception cref="BinaryConfigurationException">The context does not describe <typeparamref name="T"/>.</exception>
+    protected BinaryTypeInfo<T> TypeInfo<T>() =>
+        TryGetTypeInfo<T>() ?? throw new BinaryConfigurationException(
+            $"'{GetType()}' does not make '{typeof(T)}' supported; add SupportedTypes for it before " +
+            "creating its type information.");
+
+    /// <summary>
+    /// The type information of <typeparamref name="T"/> when the context describes it — a type it made
+    /// supported, or a scalar — and otherwise <see langword="null"/>.
+    /// </summary>
+    /// <typeparam name="T">The declared type.</typeparam>
+    /// <returns>The type information, bound to this context, or <see langword="null"/>.</returns>
+    public BinaryTypeInfo<T>? TryGetTypeInfo<T>()
+    {
+        bool described;
+        lock (_gate)
+            described = _supported.Contains(typeof(T));
+
+        return described || BuiltInCodecs.Scalars.ContainsKey(typeof(T)) ? new BinaryTypeInfo<T>(this) : null;
     }
 
     /// <summary>The contracts, frozen the first time options are built with the context.</summary>

@@ -118,14 +118,15 @@ public class PipelineTests
     [Fact]
     public void TheClassificationTables_AreTheSerializersOwn()
     {
-        var registry = typeof(BinarySerializer).Assembly.GetType("ViShap.Viper.Engine.FormatterRegistry", throwOnError: true)!;
+        var builtIns = typeof(BinarySerializer).Assembly.GetType("ViShap.Viper.Engine.BuiltInCodecs", throwOnError: true)!;
+        var rules = typeof(BinarySerializer).Assembly.GetType("ViShap.Viper.Engine.TypeRules", throwOnError: true)!;
 
-        var scalars = ((System.Collections.IEnumerable)registry.GetField("Scalars", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!)
+        var scalars = ((System.Collections.IEnumerable)builtIns.GetField("Scalars", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!)
             .Cast<object>()
             .Select(entry => ((Type)entry.GetType().GetProperty("Key")!.GetValue(entry)!).FullName!)
             .Order(StringComparer.Ordinal);
 
-        var shapes = ((System.Collections.IEnumerable)registry.GetField("Shapes", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!)
+        var shapes = ((System.Collections.IEnumerable)rules.GetField("Shapes", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!)
             .Cast<object>()
             .Select(entry => ((Type)entry.GetType().GetProperty("Key")!.GetValue(entry)!).FullName!)
             .Order(StringComparer.Ordinal);

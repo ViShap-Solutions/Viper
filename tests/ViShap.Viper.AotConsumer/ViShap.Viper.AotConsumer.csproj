@@ -9,5 +9,14 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ViShap.Viper\ViShap.Viper.csproj" />
+    <ProjectReference Include="..\..\src\ViShap.Viper.Generator\ViShap.Viper.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="AnnotatedEntryPoints.cs" Condition="'$(_IsPublishing)' == 'true'" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Compatibility.cs" Link="Fixtures\Compatibility.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Conformance.cs" Link="Fixtures\Conformance.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\GeneratedContracts.cs" Link="Fixtures\GeneratedContracts.cs" />
+    <None Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Wire\*.bin" Link="Wire\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Import Project="..\..\src\ViShap.Viper.Serialization\buildTransitive\ViShap.Viper.Serialization.targets" />
 </Project>

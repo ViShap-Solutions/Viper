@@ -266,6 +266,74 @@ public class EmissionTests
         Snapshot.Match("GlobalNamespace", run.Source("Contracts.ThingContract.g.cs"));
     }
 
+    [Fact]
+    public void Context_MakesEveryReachedTypeSupported_AndNamesTheTypeInformationOfItsRoots()
+    {
+        var run = Harness.Run(Usings + """
+            using System;
+            using System.Collections;
+            using System.Collections.Immutable;
+            namespace Shapes;
+
+            public enum Status : byte { Open, Closed }
+
+            public sealed class Bag : ICollection<int>
+            {
+                private readonly List<int> _items = [];
+                public int Count => _items.Count;
+                public bool IsReadOnly => false;
+                public void Add(int item) => _items.Add(item);
+                public void Clear() => _items.Clear();
+                public bool Contains(int item) => _items.Contains(item);
+                public void CopyTo(int[] array, int arrayIndex) => _items.CopyTo(array, arrayIndex);
+                public bool Remove(int item) => _items.Remove(item);
+                public IEnumerator<int> GetEnumerator() => _items.GetEnumerator();
+                IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            }
+
+            public sealed class Sealed : ICollection<string>
+            {
+                public int Count => 0;
+                public bool IsReadOnly => true;
+                void ICollection<string>.Add(string item) { }
+                public void Clear() { }
+                public bool Contains(string item) => false;
+                public void CopyTo(string[] array, int arrayIndex) { }
+                public bool Remove(string item) => false;
+                public IEnumerator<string> GetEnumerator() => System.Linq.Enumerable.Empty<string>().GetEnumerator();
+                IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+            }
+
+            [BinaryUnion(1, typeof(Circle))]
+            [BinaryUnion(2, typeof(Square))]
+            public abstract class Shape;
+            public sealed class Circle : Shape { public double Radius { get; set; } }
+            public sealed class Square : Shape { public double Side { get; set; } }
+
+            public sealed class Order
+            {
+                public int Id { get; set; }
+                public Status Status { get; set; }
+                public Status? Previous { get; set; }
+                public List<Line> Lines { get; set; } = [];
+                public Dictionary<string, Line[]> ByName { get; set; } = [];
+                public int[,] Grid { get; set; } = new int[0, 0];
+                public ImmutableArray<(int, string)> Pairs { get; set; }
+                public Bag? Bag { get; set; }
+                public Sealed? Sealed { get; set; }
+                public Shape? Shape { get; set; }
+            }
+
+            public sealed class Line { public string? Sku { get; set; } }
+
+            [BinaryContext(typeof(Order), typeof(List<Order>), typeof(int), typeof(Shape))]
+            public partial class Contracts : BinarySerializerContext;
+            """);
+
+        AssertCompiles(run);
+        Snapshot.Match("SupportedTypes", run.Source("Shapes_Contracts.g.cs"));
+    }
+
     private static void AssertCompiles(Harness.Generated run)
     {
         Assert.Empty(run.Diagnostics);

@@ -40,6 +40,7 @@
     <ItemGroup>
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
         <None Include="SERIALIZATION-README.md" Pack="true" PackagePath="\" />
+        <None Include="buildTransitive\ViShap.Viper.Serialization.targets" Pack="true" PackagePath="buildTransitive\" />
     </ItemGroup>
 
 </Project>

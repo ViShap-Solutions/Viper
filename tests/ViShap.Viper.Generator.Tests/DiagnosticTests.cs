@@ -37,7 +37,9 @@ public class DiagnosticTests
         { "VPR016", "[BinaryUnion(1, typeof(D))] [BinaryUnion(1, typeof(E))] public abstract class T; public class D : T; public class E : T;", "tag 1", "T", "D" },
         { "VPR017", "[BinaryUnion(1, typeof(D))] public abstract class T; public class D;", "'Sample.D'", null, null },
         { "VPR018", "public abstract class T { public int A { get; set; } }", "'Sample.T' is abstract", null, null },
-        { "VPR019", "public class T : Exception { }", "derives from 'System.Exception'", null, null }
+        { "VPR019", "public class T : Exception { }", "derives from 'System.Exception'", null, null },
+        { "VPR020", "public class T { public int A { get; set; } }\n[BinaryContext(typeof(T))] public partial class Ctx : BinarySerializerContext { public int T => 0; }", "as 'T': the context already has a member of that name", null, null },
+        { "VPR021", "public class T : Exception { }", "derives from 'System.Exception'", null, null }
     };
 
     [Theory]
@@ -48,14 +50,16 @@ public class DiagnosticTests
             ? string.Empty
             : "\n[BinaryContext(typeof(T))] public partial class Ctx : BinarySerializerContext;";
 
-        var run = Harness.Run(Usings + source + context);
+        var run = id == "VPR021"
+            ? Harness.Run(new Dictionary<string, string> { ["ViperReflectionEnabled"] = "false" }, Usings + source + context)
+            : Harness.Run(Usings + source + context);
 
         var diagnostic = Assert.Single(run.Diagnostics, candidate => candidate.Id == id);
         var descriptor = diagnostic.Descriptor;
 
         Assert.Contains(fragment, diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
         Assert.Equal($"https://github.com/ViShap-Solutions/Viper/blob/main/docs/generator.md#{id.ToLowerInvariant()}", descriptor.HelpLinkUri);
-        Assert.Equal(int.Parse(id[3..], System.Globalization.CultureInfo.InvariantCulture) <= 17 ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, descriptor.DefaultSeverity);
+        Assert.Equal(id is "VPR018" or "VPR019" ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error, descriptor.DefaultSeverity);
         Assert.All(run.Diagnostics, other => Assert.True(other.Id == id || other.Severity == DiagnosticSeverity.Warning, $"Unexpected {other.Id}: {other.GetMessage()}"));
 
         if (declared is null)
@@ -78,6 +82,22 @@ public class DiagnosticTests
         var covered = Cases().Select(row => (string)row[0]).ToHashSet(StringComparer.Ordinal);
 
         Assert.All(Descriptors.Each, descriptor => Assert.Contains(descriptor.Id, covered));
+    }
+
+    [Fact]
+    public void TwoListedTypesOfOneName_ExposeTheFirstAndReportTheSecond()
+    {
+        var run = Harness.Run("""
+            using ViShap.Viper;
+            namespace A { public class Item { public int X { get; set; } } }
+            namespace B { public class Item { public int Y { get; set; } } }
+            namespace Sample { [BinaryContext(typeof(A.Item), typeof(B.Item))] public partial class Ctx : BinarySerializerContext; }
+            """);
+
+        var diagnostic = Assert.Single(run.Diagnostics);
+        Assert.Equal("VPR020", diagnostic.Id);
+        Assert.Contains("'B.Item' as 'Item': the type information of 'A.Item' has that name", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("BinaryTypeInfo<global::A.Item> Item", run.Source("Sample_Ctx.g.cs"), StringComparison.Ordinal);
     }
 
     [Fact]

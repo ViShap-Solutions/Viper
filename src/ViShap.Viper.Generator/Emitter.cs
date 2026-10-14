@@ -18,8 +18,12 @@ internal static class Emitter
     private static readonly string Version =
         typeof(Emitter).Assembly.GetName().Version?.ToString() ?? "1.0.0.0";
 
-    /// <summary>The file that gives the context its <c>Default</c> instance and its constructor.</summary>
-    public static string Context(ContextHeader context, EquatableArray<string> contractClasses)
+    /// <summary>
+    /// The file that gives the context its <c>Default</c> instance, its constructor — which adds its
+    /// generated contracts and makes every type it reaches supported — and the type information of each
+    /// type it lists.
+    /// </summary>
+    public static string Context(ContextHeader context, ContextBody body)
     {
         var writer = new CodeWriter();
         Open(writer, context);
@@ -28,16 +32,29 @@ internal static class Emitter
         writer.Line("/// <summary>The context with the contracts generated for the types it lists and the types they reach.</summary>");
         writer.Line($"public static {self} Default {{ get; }} = new {self}();");
         writer.Line();
-        writer.Line("/// <summary>Creates the context and adds its generated contracts.</summary>");
+        writer.Line("/// <summary>Creates the context, adds its generated contracts and makes the types it reaches supported.</summary>");
         writer.Line($"public {self}()");
         writer.Open();
-        foreach (string contract in contractClasses)
+        foreach (string contract in body.ContractClasses)
             writer.Line($"Add(new {contract}());");
+        foreach (string supported in body.Supported)
+            writer.Line($"Add({supported});");
+        foreach (var info in body.TypeInfos)
+            writer.Line($"{info.Name} = TypeInfo<{info.TypeName}>();");
         writer.Close();
+
+        foreach (var info in body.TypeInfos)
+        {
+            writer.Line();
+            writer.Line($"/// <summary>The type information of <c>{Escape(info.TypeName.Replace("global::", string.Empty))}</c>, for the serializer's methods that take it.</summary>");
+            writer.Line($"public global::ViShap.Viper.BinaryTypeInfo<{info.TypeName}> {info.Name} {{ get; }}");
+        }
 
         Close(writer, context);
         return writer.ToString();
     }
+
+    private static string Escape(string text) => text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
     /// <summary>The file of one contract, nested in the context.</summary>
     public static string Contract(ContextHeader context, ContractModel contract)

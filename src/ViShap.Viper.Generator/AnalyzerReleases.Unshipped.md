@@ -24,3 +24,5 @@ VPR016 | ViShap.Viper | Error | Duplicate [BinaryUnion] tag
 VPR017 | ViShap.Viper | Error | [BinaryUnion] type not assignable to the base
 VPR018 | ViShap.Viper | Warning | Abstract type or interface without [BinaryUnion]
 VPR019 | ViShap.Viper | Warning | Type described by reflection
+VPR020 | ViShap.Viper | Error | Type information name conflict
+VPR021 | ViShap.Viper | Error | Type unavailable without reflection

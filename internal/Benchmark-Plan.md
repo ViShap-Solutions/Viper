@@ -859,6 +859,7 @@ can be recorded against it.
 | [PERF-09](performance/PERF-09-final-format-and-trace-seam.md) | The final format's sizes and header parse, and the trace seam's cost on every read (≈ 1.5 %) | SIZE-02…SIZE-10, MICRO-08, MICRO-19, rework R6 | Open — the seam's cost accepted for v1.0 |
 | [PERF-10](performance/PERF-10-generated-context-first-use.md) | A generated context creates all 34 contracts on the first read of `Default` (20.8 ms), and a generated contract compiles on its first call: first writes ×0.11–0.59 of reflection, first reads up to ×23; per corpus ≈ 177 ms against 352 ms | PROF-11, PROF-12, rc.2 P4a | Open |
 | [PERF-11](performance/PERF-11-member-call-dispatch.md) | Scalar members through an interface call and reference-typed members through a generic-dictionary lookup on every call, on both contract paths; invisible to PROF-10 by design and to a cross-run comparison by R-06, so a component suite measures it first | rc.2 P4b, R-05, R-06 | Open — deferred past `v1.0.0` |
+| [PERF-12](performance/PERF-12-context-offers-at-construction.md) | A generated context builds the codec of every type it reaches in its constructor: instantiation 18.7 → 39.5 ms (×2.1, 61 → 109 KB), first uses cheaper, ≈ +6 ms (×1.04) for the whole corpus | PROF-11, PROF-12, rc.2 P4d, R-07 | Open — deferred past `v1.0.0` with PERF-10 |
 $r2
 
 ## 27.2 Open questions
@@ -886,6 +887,7 @@ The place where an unflattering result is recorded rather than argued with. Each
 | **R-04** | Rework R5 against `pre-rework`, `Measurements/c215131-20260928T131001Z`, `comparison-pre-rework.md` | All 70 matched `AlgorithmBenchmarks` cells are faster (×0.05–×0.88). Of the MICRO-10 primitives 28 cells are slower: `Crc32Checksum` ×1.05–1.10 and AES-GCM ×1.01–1.15 though their code did not change, Brotli ×1.04–1.22 with 32 B per call, Deflate decompress of 1 MB compressible ×1.57. ALLOC-12 296 → 352 B, ALLOC-13 840 → 552 B, ALLOC-14 432 B unchanged | The unchanged primitives set the run's own drift at up to ~15 %; the soak took 40 minutes of wall time for 10. Brotli moved from the one-shot calls to a stepped encoder and decoder over the buffer writer; Deflate copies its input for the stream it reads through; compression writes into a `CompressionBuffer` object | PERF-08, open: re-measure MICRO-10 on an idle machine first, then the one-shot Brotli path, a Deflate profile and a reused `CompressionBuffer` |
 | **R-05** | rc.2 P4a, PROF-10, `Measurements/v1.0.0-rc.1-8-g7da99ba-20261009T204932Z`, `GeneratorProfileBenchmarks` | B-P0g is slower than B-P0 in steady state where many objects pass through one operation without reference framing: DATA-04 write 3.57 ± 0.01 → 4.50 ± 0.02 ms (×1.26), read 7.22 ± 0.02 → 10.05 ± 0.18 ms (×1.39); DATA-12 ×1.26 / ×1.12; DATA-13 ×1.22 / ×1.27; the five-member types ×1.04–1.14 under both B-P0g and B-P1g, one write within error. With reference framing DATA-04 narrows to ×1.03–1.05, DATA-13 to ×0.99–1.05, and DATA-12 turns faster, ×0.91–0.95. Faster: the 200-member keyed type ×0.79–0.94, DATA-02 ×0.94–0.99, DATA-18 ×0.86–0.92 except its B-P0g write (×1.13). Same bytes in every pair (§7.6 check) | Most likely the contract lookup, not yet isolated: under a context `ObjectCodec.Contract` looks the type up in the `ContractSet` dictionary per value — twice per value of a class without reference framing (`FoldsNull` and the body), once with it — where the reflected path reads a cached field. The gap follows the lookup count — largest on batches without framing, smallest on wide single objects — though DATA-12 with framing, where both paths look an arm up by runtime type, does not fit it | Re-measured at rc.2 P4b (R-06): **not reproduced on the same code.** A control run of the unchanged tree (`e9a00bd`, `Measurements/v1.0.0-rc.1-10-ge9a00bd-20261014T105458Z`) puts B-P0g at ×0.87 of B-P0 for the DATA-04 write and ×0.99 for its read, DATA-12 ×0.92 / ×0.87, DATA-13 ×0.96 / ×1.05 — the gap belonged to that run, not to the lookup. Item 1 of P4b was made as the plan required; its gain is not separable from the drift R-06 records. The allocation cell is the same drift: a +0.7–0.9 MB DATA-04 write appeared in P4a under B-P0, in neither profile of the control, and under B-P0g and B-P1g of the P4b run, while a smoke run of the P4b tree allocates 1 720 152 B under both B-P0 and B-P0g |
 | **R-06** | rc.2 P4b, PROF-10, `GeneratorProfileBenchmarks`: the P4a run (`v1.0.0-rc.1-8-g7da99ba-20261009T204932Z`), a control of the unchanged tree and the P4b tree (`v1.0.0-rc.1-10-ge9a00bd-20261014T102807Z`), the last two on the same day, one after the other | Between two runs, a cell moves by more than BenchmarkDotNet's error interval on code it does not exercise differently. P4a → control, the same code: ×0.72 (B-P0g DATA-04 read) to ×1.07 (B-P0 DATA-18 write); the reflected profiles alone ×0.88–1.07. Control → P4b, whose change does not reach a configuration without a context: the reflected profiles ×0.95–1.18 (B-P0 DATA-13 read, 75.9 → 89.8 µs); every profile ×0.93–1.25 (B-P1g DATA-04 read). `--compare` calls 41 of 72 cells `slower` and 22 `faster` between the two same-day runs | The interval of a cell describes the iterations of one run; the state of the machine between runs — frequency, other load, the GC's view of the pool — is not in it. R-04 saw the same order of drift on unchanged primitives | Open. Until the harness measures two trees under one machine state — interleaved runs, or both builds in one BenchmarkDotNet session — a `faster`/`slower` verdict between two runs is not evidence of a change below ~20 % on a single cell; a ratio between two profiles of one run (B-P0g ÷ B-P0) is the steadier reading and is what R-05's re-measurement used |
+| **R-07** | rc.2 P4d against P4b, the same day one after the other: `Measurements/v1.0.0-rc.1-14-g146f03a-20261014T131828Z` (P4b tree) and `…T134616Z` (P4d tree), `GeneratorProfileBenchmarks`, `first-use.csv`, `cold-start.csv` | Steady state: every cell ×0.87–1.12, the reflected profiles, whose code P4d does not change, ×0.92–1.06; the generated ÷ reflected ratios of each run agree within the same spread; allocations equal but for DATA-04's pool rounding (±400 B on 1.7–5.3 MB). First use: the context's instantiation 18 695 → 39 546 µs and 61 248 → 108 992 B; the serializer's construction 6 238 → 3 564 µs; first writes over the corpus 76.1 → 66.5 ms, first reads 58.5 → 56.2 ms; per corpus 159.5 → 165.8 ms. Cold start: B-P0g DATA-01 and DATA-02 faster, DATA-03 slower, B-P0 drifting by as much | The context's constructor builds and JIT-compiles the codec of every type it reaches, which the reflection path did on each type's first use | The steady state shows no change beyond R-06's drift. The instantiation is a regression of one cell, written up as PERF-12 for the owner |
 
 ## 27.4 Proposals — `internal/performance/`
 
@@ -1013,26 +1015,27 @@ Kept accurate at the end of every session, so a session that starts cold knows w
 without reading the history.
 
 ```text
-Track:        A — Viper alone, and the rc.2 generator profile (P4a, re-run at P4b)
+Track:        A — Viper alone, and the rc.2 generator profile (P4a, re-run at P4b and P4d)
 Stage:        A0–A7 written. Every A-stage suite exists, builds and runs; what remains for each is the
               number, which only the publication run produces. P4a added B-P0g and B-P1g (§8), the
               suite GeneratorProfileBenchmarks (PROF-10), FirstUseRunner (--first-use, PROF-11) and
               B-P0g with DATA-13 in the cold start (PROF-12); --verify now also refuses a generated
               profile whose bytes differ from its reflected twin's — 405 pairs, none failed
 Harness:      frozen? not yet. The freeze takes effect when the publication run starts
-Last run:     rc.2 P4b, 2026-10-14, one after the other: a control of the unchanged tree e9a00bd
-              (v1.0.0-rc.1-10-ge9a00bd-20261014T105458Z) and the P4b tree
-              (v1.0.0-rc.1-10-ge9a00bd-20261014T102807Z), 72 cells each, none without a number, about
-              26 min each. Against P4a (v1.0.0-rc.1-8-g7da99ba-20261009T204932Z): R-05 does not
-              reproduce on the same code; the drift between runs is R-06
+Last run:     rc.2 P4d, 2026-10-14, one after the other: the P4b tree 146f03a
+              (v1.0.0-rc.1-14-g146f03a-20261014T131828Z) and the P4d tree
+              (v1.0.0-rc.1-14-g146f03a-20261014T134616Z, uncommitted), 72 cells each, none without a
+              number. Steady state within R-06's drift; the context's instantiation ×2.1 — R-07, PERF-12.
+              The harness builds against the P4d surface unchanged: --verify 405 pairs, --smoke passes
 Baseline:     Baselines/pre-rework/ — 667 cells, the "before" of every rework stage (§25), not a release
               baseline
 Machine:      the one recorded in Baselines/pre-rework/environment.json
-Next action:  R-06 decides how P4d is measured against P4b: a control of the previous tree on the same
-              day at least, two trees under one machine state preferably. After the release, tag
-              v1.0.0, check the tag out, and take the publication run there on an idle machine —
-              about 4 hours, of which 40 minutes is the soak — then tick the A-stage boxes against
-              Baselines/v1.0.0/
+Next action:  P6 (Track B adapters, graceful stop); Viper's best mode there is a generated context with
+              type information. A cross-tree comparison is taken as P4b and P4d were, one run after the
+              other on the same day, until the harness measures two trees under one machine state
+              (R-06). After the release, tag v1.0.0, check the tag out, and take the publication run there
+              on an idle machine — about 4 hours, of which 40 minutes is the soak — then tick the A-stage
+              boxes against Baselines/v1.0.0/
 ```
 
 ---

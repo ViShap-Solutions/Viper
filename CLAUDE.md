@@ -21,7 +21,7 @@ dotnet test tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Te
 dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release
 ```
 
-CI (`.github/workflows/ci.yml`) runs restore → build → the serialization and generator test projects on every PR and push to `main`, `release/**` and `support/**`. CD (`cd.yml`) fires on `v*` tags: a stable `vX.Y.Z` must point exactly at `origin/main` HEAD; a pre-release `vX.Y.Z-alpha.N`, `-beta.N` or `-rc.N` must point at a commit on a `release/*` branch of origin, and is refused once `vX.Y.Z` exists. It packs all four packages with `-p:Version=<tag minus v>` and pushes them to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
+CI (`.github/workflows/ci.yml`) runs restore → build → the serialization and generator test projects on every PR and push to `main`, `release/**` and `support/**`, and a `native-aot` job that publishes `tests/ViShap.Viper.AotConsumer` with native AOT on Linux (clang, zlib1g-dev), fails on any trimming or AOT warning, runs it and compares its output with the JIT run's. Locally on Windows the publish needs the Visual Studio C++ tools: `dotnet publish tests/ViShap.Viper.AotConsumer -c Release -r win-x64`. CD (`cd.yml`) fires on `v*` tags: a stable `vX.Y.Z` must point exactly at `origin/main` HEAD; a pre-release `vX.Y.Z-alpha.N`, `-beta.N` or `-rc.N` must point at a commit on a `release/*` branch of origin, and is refused once `vX.Y.Z` exists. It packs all four packages with `-p:Version=<tag minus v>` and pushes them to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
 
 Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_conformance_auditor`, `viper_refactorer`); follow it for anything about how work moves through the repository.
 
@@ -46,7 +46,7 @@ system). Where a historical document and the contract disagree, the contract is 
   surface (§3), limits and budgets (§5–6), metering and windowing (§7), exception taxonomy (§8),
   versions and header (§10–11), compression and encryption (§12–13), member layouts (§14),
   polymorphism (§15), references (§16), the byte-level wire format (§22), the supported types with
-  their encodings (§23), the release checklist (§24) and the eighteen invariants (§25). Read the
+  their encodings (§23), the release checklist (§24) and the twenty invariants (§25). Read the
   relevant section before changing behavior; update it in the same commit when behavior changes.
 - `internal/QA-Plan.md` — *plan.* The release-gate test plan, realigned with the contract. Checkpoint
   list only, staged M0–M8; §30 records confirmed defects and the resolved contract questions. The
@@ -100,13 +100,13 @@ system). Where a historical document and the contract disagree, the contract is 
 Current state: `src/` matches the contract. The architecture rework, its reconciliation, the consumer
 documentation, the release conformance audit and its closure check (R9e) are done, and `v1.0.0-rc.1` is
 tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-contract seam and the
-source generator (P1–P4) are merged into `release/v1.0.0`; the generator profile and the engine
-fast path (P4a–P4b), native AOT through the context (P4c design, P4d build), the executable examples
-(P5f), the benchmarks (P6), the documentation (P7) and the audit of `rc.2` (P8) remain; the other additive features
+source generator (P1–P4), the generator profile, the engine fast path and native AOT through the context
+(P4a–P4d) are done; the executable examples (P5f), the benchmarks (P6), the documentation (P7) and the
+audit of `rc.2` (P8) remain; the other additive features
 were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 091 tests, and the generator's 42, green in Debug and Release.
+with the generated XML file. The suite is 2 188 tests, and the generator's 46, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
@@ -134,11 +134,11 @@ type fails the build's test run until the contract lists it.
 ## Projects
 
 - `ViShap.Viper.Core` — contracts only, no dependencies: attributes, the `CompressionAlgorithm`/`ChecksumAlgorithm`/`EncryptionAlgorithm` enums with their `ICompressionAlgorithm`/`IChecksumAlgorithm`/`IEncryptionAlgorithm` primitives and the `No*` pass-throughs, `SecretKey`/`IKeyProvider`, and the exception hierarchy (all derive from `BinarySerializerException`). Core carries **no policy**: no limits, no orchestration, nothing that enforces a resource ceiling.
-- `ViShap.Viper.Serialization` — the entire engine, and the built-in algorithms and key providers (`DeflateCompression`, `BrotliCompression`, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption`, `ChaCha20Poly1305Encryption`, `StaticKeyProvider`, `DelegateKeyProvider`, `HkdfKeyProvider`). Depends on Core + `System.IO.Hashing`.
-- `ViShap.Viper.Generator` — the Roslyn incremental source generator (`netstandard2.0`, packed to `analyzers/dotnet/cs`, a development dependency): writes the `TypeContract<T>` of every type a `[BinaryContext]` class reaches and reports contract mistakes as diagnostics VPR001…VPR019. It runs only in the compiler; no shipped assembly references it.
+- `ViShap.Viper.Serialization` — the entire engine, and the built-in algorithms and key providers (`DeflateCompression`, `BrotliCompression`, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption`, `ChaCha20Poly1305Encryption`, `StaticKeyProvider`, `DelegateKeyProvider`, `HkdfKeyProvider`). Depends on Core + `System.IO.Hashing`. Its package carries `buildTransitive/ViShap.Viper.Serialization.targets`, which sets the runtime switch `ViShap.Viper.ReflectionPath.IsEnabled` from the MSBuild property `ViperReflectionEnabled` (false under `PublishAot` or `PublishTrimmed`) and makes the property visible to the generator; a project of this repository that needs it imports the file directly.
+- `ViShap.Viper.Generator` — the Roslyn incremental source generator (`netstandard2.0`, packed to `analyzers/dotnet/cs`, a development dependency): writes the `TypeContract<T>` of every type a `[BinaryContext]` class reaches makes every type the context reaches supported (`SupportedTypes`), gives the context a `BinaryTypeInfo<T>` property per listed type, and reports contract mistakes as diagnostics VPR001…VPR021. It runs only in the compiler; no shipped assembly references it.
 - `ViShap.Viper` — meta-package, references the three, ships no code; the generator flows to the consumer as an analyzer.
 
-**Namespaces do not follow the folder/assembly layout.** Everything roots at `ViShap.Viper.*` regardless of project (e.g. `src/ViShap.Viper.Serialization/Io/` → `ViShap.Viper.Io`). The *public* API (`BinarySerializer`, `BinarySerializerOptions`, `PooledPayload`, `BinarySerializerContext`, the attributes) sits in the bare `ViShap.Viper` namespace so consumers need one `using`; the type-contract seam a hand-written or generated contract is written against (`TypeContract<T>`, `MemberWriter`, `MemberReader`, `MemberDescription`, `MemberLayout`) sits in `ViShap.Viper.Contracts`, though its files live in `Engine/Contracts/`. `GlobalUsings.cs` imports every sub-namespace, so new files in the Serialization project usually need no `using` for in-project types.
+**Namespaces do not follow the folder/assembly layout.** Everything roots at `ViShap.Viper.*` regardless of project (e.g. `src/ViShap.Viper.Serialization/Io/` → `ViShap.Viper.Io`). The *public* API (`BinarySerializer`, `BinarySerializerOptions`, `PooledPayload`, `BinarySerializerContext`, `BinaryTypeInfo<T>`, the attributes) sits in the bare `ViShap.Viper` namespace so consumers need one `using`; the type-contract seam a hand-written or generated contract is written against (`TypeContract<T>`, `MemberWriter`, `MemberReader`, `MemberDescription`, `MemberLayout`) and the supported types a context adds (`SupportedTypes`, `SupportedType`) sit in `ViShap.Viper.Contracts`, though its files live in `Engine/Contracts/`. `GlobalUsings.cs` imports every sub-namespace, so new files in the Serialization project usually need no `using` for in-project types.
 
 Most engine types are `internal`; `AssemblyInfo.QA.cs` grants `InternalsVisibleTo("ViShap.Viper.Serialization.Tests")`.
 
@@ -166,17 +166,25 @@ Algorithms                  pure mechanics over spans
 
 Dependencies point strictly downwards. **No type below `Pipeline/` may reference `SerializationLimits`.**
 
-**The reflection path states its requirements.** Codecs and type contracts are built by reflection, so
-every public entry point that encodes or decodes a caller's type — the generic methods of
-`BinarySerializer` and `BinaryFormatDumper` — carries `[RequiresUnreferencedCode]` and
-`[RequiresDynamicCode]` with the messages of `Engine/ReflectionPath`, and no other public member does.
-The requirement runs down through the pipelines to `Graph.WriteRoot`/`ReadRoot`, the engine's only
-entry; inside the engine only the two caches (`FormatterCache<T>`, `TypeContractCache.Get`) suppress
-the analysis, on the strength of that. Both packages build with `IsAotCompatible` and report no
-trimming or AOT warning: a new method that reaches the engine takes the attributes the analyzer asks
-for, never a suppression. `Api/AotAnalysisTests` (EXT-07) holds it by reflection and by building
-`tests/ViShap.Viper.AotConsumer` — in the solution, not built with it, compiled by the test and never
-run — under native AOT analysis.
+**The reflection path is behind one switch.** `FormatterCache<T>` takes the codec a context offered
+(`OfferedCodec<T>`, written by `SupportedTypes` through `BinarySerializerContext.Add(SupportedType)`),
+else the built-in codec of a scalar or a delegate (`BuiltInCodecs`), else — only while
+`ReflectionPath.IsEnabled` — the one `FormatterRegistry` builds, and otherwise an `UnavailableCodec<T>`;
+`ObjectCodec` asks the same switch before it builds a contract by reflection. `IsEnabled` is a
+`[FeatureSwitchDefinition]` with `[FeatureGuard]` for both `RequiresUnreferencedCode` and
+`RequiresDynamicCode`, so the analysers accept code behind it and ILC removes it when it is off: nothing
+in `src/` suppresses a trimming or AOT warning, and nothing below the public entry points carries the
+attributes except the reflective builders themselves (`FormatterRegistry`, `ReflectedContract`,
+`TypeContractCache.Get`). `TypeRules` classifies a type without building anything and is shared by the
+registry and by `SupportedTypes`, which is how the two paths stay one set of rules. The 26 generic
+methods of `BinarySerializer` and `BinaryFormatDumper` that take no type information keep
+`[RequiresUnreferencedCode]`/`[RequiresDynamicCode]` with the messages of `Engine/ReflectionPath`; their
+26 counterparts that take a `BinaryTypeInfo<T>` carry neither. Both packages build with `IsAotCompatible`
+and report no trimming or AOT warning: a new method that reaches a reflective builder goes behind the
+switch, never behind a suppression. `Api/AotAnalysisTests` holds it by reflection, by building
+`tests/ViShap.Viper.AotConsumer` under native AOT analysis — its `AnnotatedEntryPoints.cs` holds the
+marked calls and is left out of a publish — and by running the consumer's `ContextRun` with the switch
+off; the CI job `native-aot` publishes it and runs it natively.
 
 ### Three structural barriers
 
@@ -188,7 +196,7 @@ These are why the codebase does not carry a security check in every class. Do no
 
 ### Adding a formatter
 
-A declared type resolves once to the engine's codec for it, held in the static field of `FormatterCache<T>`: `FormatterRegistry` (`Engine/`) applies its rules in order — delegates (refused), `Nullable<T>`, the scalars by exact type and enums, arrays, the fixed table of generic definitions, a concrete `ICollection<T>` with a public parameterless constructor, and last the object codec. Pick the shape, implement its interface (`Formatters/Shapes.cs`), and add it to the registry's table:
+A declared type resolves once to the engine's codec for it, held in the static field of `FormatterCache<T>`. `TypeRules` (`Engine/`) decides which rule claims a type, in order — delegates (refused), `Nullable<T>`, the scalars by exact type (`BuiltInCodecs`) and enums, arrays, the fixed table of generic definitions, a concrete `ICollection<T>` with a public parameterless constructor, and last the object codec — and `FormatterRegistry` builds that rule's codec by reflection. Pick the shape, implement its interface (`Formatters/Shapes.cs`), add it to the table of `TypeRules` (a scalar to `BuiltInCodecs`), add the method of `SupportedTypes` named after the definition, and add the definition to the generator's `TypeShapes`; `SupportedTypesTests` and `PipelineTests` fail until all agree:
 
 - `IScalarFormatter<T>` — a self-contained value with no children and no data-driven allocation, through the checked primitives of `WireReader`/`WireWriter`; it states its `MinimumWireSize`. A reference type begins with a length or a count that its formatter writes one higher; the engine writes its null as that number's zero.
 - `ISequenceShape<TCollection, TElement, TBuilder, TEnumerator>` — count, enumerate, build and complete; the engine's `SequenceCodec` owns count, loop, depth, nodes and identity. A builder that is not the final instance sets `BuilderIsInstance = false`, a LIFO container sets `ReverseOnWrite`, a collection that keeps its elements contiguously (`List<T>`) answers `TryGetSpan` and is written from the span, and otherwise a struct enumerator keeps writing free of allocation.
@@ -235,15 +243,19 @@ References: with `PreserveReferences`, one varint frame precedes every structura
 ### The source generator
 
 `src/ViShap.Viper.Generator` reproduces `ReflectedContract` rule for rule — contract §14.4. `Planner` walks
-the types a context lists and every member-encoded type they reach, classified by `TypeShapes`, whose
-tables must equal `FormatterRegistry`'s (`PipelineTests` checks it); collects candidates level by level as
+the types a context lists and every type they reach, classified by `TypeShapes`, whose tables must equal
+`BuiltInCodecs`' and `TypeRules`' (`PipelineTests` checks it); records for each reached type the
+`SupportedTypes` entry the context adds (a union with its arms when its map is sound, a custom collection
+with `new T()` and its public `Add(T)`) and a `BinaryTypeInfo<T>` property per listed type (VPR020 on a
+name clash, VPR021 for VPR019 when `ViperReflectionEnabled` is false); collects candidates level by level as
 the reflected contract does (each override once at its most derived declaration, attributes inherited
 through overrides, a hidden member as a second member); applies every rejection as a diagnostic; and
 plans access — direct for an accessible member, `[UnsafeAccessor]` otherwise, over the generic definition
 when the declaring type is generic. `Emitter` writes straight-line code with `
 ` line endings, one file
-per contract. The pipeline carries only equatable models (`Models.cs`), never a symbol. It emits a
-contract and nothing else: no loop, length, count, limit, frame, tag or byte (GEN-09). A rule changed in
+per contract. The pipeline carries only equatable models (`Models.cs`), never a symbol. It emits
+contracts, supported-type registrations and type information, and nothing of the traversal: no loop,
+length, count, limit, frame, tag or byte (GEN-09). A rule changed in
 `ReflectedContract` is changed here in the same change, and `ByteIdentityTests` and the second
 conformance run are the arbiter.
 

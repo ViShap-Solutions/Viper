@@ -46,7 +46,10 @@ public partial class AppContracts : BinarySerializerContext;
 The generator writes a contract for each listed type and for every member-encoded type it reaches —
 through members, array and collection elements, dictionary keys and values, nullable values and
 `[BinaryUnion]` arms. `Line` above needs no entry of its own. It also writes the context's public
-parameterless constructor and its `Default` property, so the class declares neither.
+parameterless constructor and its `Default` property, so the class declares neither; makes every type it
+reaches supported, so the serializer builds nothing for it by reflection; and gives the context one
+property of [type information](aot.md) per listed type — `AppContracts.Default.Order` — named after the
+type (`List_Order` for `List<Order>`).
 
 Each contract describes its type exactly as the serializer does by reflection: the same members, in
 the same order, with the same keys. Payloads are the same bytes with the context and without it, so a
@@ -65,13 +68,16 @@ to be `partial` and does not have to be yours to change.
 A type gets no generated contract, and is described by reflection as before, when the generator cannot
 see or name all of it: a type declared in another assembly or deriving from one, a type not accessible
 from the context, an open generic type, or a type with a member that implements an interface
-explicitly. Warning [VPR019](#vpr019) names each one and why.
+explicitly. Warning [VPR019](#vpr019) names each one and why — error [VPR021](#vpr021) in an application
+that turns the reflection path off, where such a type could not be serialized at all.
 
 ## Trimming and native AOT
 
-A generated contract removes the reflection over a type's members. The codecs around the members are
-still built at run time over the declared types, so the serializer's entry points keep their trimming
-and AOT annotations with or without a context — see [Trimming and native AOT](aot.md).
+A context describes every type it reaches: its contracts replace the reflection over each type's
+members, and its supported types the construction of each type's encoding. Pass the type information of
+its listed types to the serializer — `serializer.Serialize(order, AppContracts.Default.Order)` — and the
+call carries no trimming or AOT requirement; an application published with native AOT needs nothing
+else. See [Trimming and native AOT](aot.md).
 
 ## Diagnostics
 
@@ -170,3 +176,20 @@ be read back — the serializer would not know what to create. Declare the types
 message gives, and is described by reflection at run time — or refused, under
 `RequireGeneratedContracts()`. Move the type into the project, make it accessible from the context, or
 mark the member that stands in the way `[BinaryIgnore]`.
+
+### VPR020
+
+**Type information name conflict** (error). The context exposes the type information of each listed
+type as a property named after the type, and two listed types — `A.Item` and `B.Item` — or a listed type
+and a member the context already declares share that name. The first listed type keeps the name; the
+other gets no property. Rename the member, or get the type information with
+`AppContracts.Default.TryGetTypeInfo<B.Item>()`.
+
+### VPR021
+
+**Type unavailable without reflection** (error). The same finding as [VPR019](#vpr019), in an
+application that turns the reflection path off — published trimmed or with native AOT, or with the
+MSBuild property `ViperReflectionEnabled` set to `false`. There, the type would have no description at
+run time and its first use would be `BinaryConfigurationException`. Move the type into a project with a
+`[BinaryContext]` of its own, make it accessible from the context, or mark the member that stands in the
+way `[BinaryIgnore]`.

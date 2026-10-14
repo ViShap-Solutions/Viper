@@ -24,6 +24,9 @@ internal sealed class Planner
     private readonly List<(ITypeSymbol Type, ContractModel Contract)> _contracts = [];
     private readonly HashSet<ITypeSymbol> _seen = new(SymbolEqualityComparer.Default);
     private readonly Queue<(ITypeSymbol Type, Location? Origin)> _pending = new();
+    private readonly Dictionary<string, string> _supported = new(System.StringComparer.Ordinal);
+    private readonly Dictionary<ITypeSymbol, List<(int Tag, ITypeSymbol Arm)>> _unions = new(SymbolEqualityComparer.Default);
+    private readonly List<(ITypeSymbol Type, Location? Origin)> _roots = [];
 
     private readonly INamedTypeSymbol? _contractAttribute;
     private readonly INamedTypeSymbol? _keyAttribute;
@@ -69,7 +72,10 @@ internal sealed class Planner
                 foreach (var root in roots)
                 {
                     if (root.Value is ITypeSymbol type)
+                    {
                         planner._pending.Enqueue((type, origin));
+                        planner._roots.Add((type, origin));
+                    }
                 }
             }
         }
@@ -88,10 +94,15 @@ internal sealed class Planner
             context.Name,
             TypeNames.Identifier(TypeNames.Plain(context).Replace("global::", string.Empty)));
 
+        var contracts = planner.NameContracts().ToList();
+        var typeInfos = planner.NameTypeInfos(contracts).ToList();
+
         return new ContextModel(
             header,
             canEmit,
-            new EquatableArray<ContractModel>(planner.NameContracts()),
+            new EquatableArray<ContractModel>(contracts),
+            new EquatableArray<string>(planner._supported.OrderBy(entry => entry.Key, System.StringComparer.Ordinal).Select(entry => entry.Value)),
+            new EquatableArray<TypeInfoModel>(typeInfos),
             new EquatableArray<DiagnosticInfo>(planner._diagnostics));
     }
 
@@ -173,12 +184,21 @@ internal sealed class Planner
         switch (TypeShapes.Classify(type, out var children))
         {
             case Shape.Container:
-                foreach (var child in children)
+                var elements = children.ToList();
+                foreach (var child in elements)
                     _pending.Enqueue((child, origin));
+
+                Offer(type, ContainerEntry(type, elements));
                 break;
 
             case Shape.Object:
-                PlanObject((INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), origin);
+                var named = (INamedTypeSymbol)type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+                PlanObject(named, origin);
+                Offer(type, ObjectEntry(named));
+                break;
+
+            case Shape.Scalar when type.TypeKind == TypeKind.Enum:
+                Offer(type, $"{SupportedTypes}.Enum<{TypeNames.Plain(type)}>()");
                 break;
         }
     }
@@ -273,7 +293,10 @@ internal sealed class Planner
 
     // --- unions ---------------------------------------------------------------------------------------
 
-    /// <summary>Checks the <c>[BinaryUnion]</c> map declared on <paramref name="type"/> and walks its arms.</summary>
+    /// <summary>
+    /// Checks the <c>[BinaryUnion]</c> map declared on <paramref name="type"/> and walks its arms; a map
+    /// without a fault is kept, to be offered with the type.
+    /// </summary>
     private bool CheckUnion(INamedTypeSymbol type)
     {
         var unions = type.GetAttributes().Where(attribute => Is(attribute, _unionAttribute)).ToArray();
@@ -282,27 +305,54 @@ internal sealed class Planner
 
         var seenTags = new HashSet<int>();
         var reportedTags = new HashSet<int>();
+        var arms = new List<(int Tag, ITypeSymbol Arm)>();
+        bool valid = true;
 
         foreach (var union in unions)
         {
             var location = union.ApplicationSyntaxReference?.GetSyntax(_cancellation).GetLocation();
             if (union.ConstructorArguments.Length != 2 || union.ConstructorArguments[0].Value is not int tag)
+            {
+                valid = false;
                 continue;
+            }
 
             if (tag is < 0 or > 255)
+            {
+                valid = false;
                 Report(Descriptors.UnionTagOutOfRange, location, Display(type), tag.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
 
-            if (!seenTags.Add(tag) && reportedTags.Add(tag))
-                Report(Descriptors.DuplicateUnionTag, location, Display(type), tag.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            if (!seenTags.Add(tag))
+            {
+                valid = false;
+                if (reportedTags.Add(tag))
+                    Report(Descriptors.DuplicateUnionTag, location, Display(type), tag.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
 
             if (union.ConstructorArguments[1].Value is not ITypeSymbol arm)
+            {
+                valid = false;
                 continue;
+            }
 
             if (!IsAssignable(arm, type))
+            {
+                valid = false;
                 Report(Descriptors.UnionTypeNotAssignable, location, Display(type), Display(arm));
+            }
             else
+            {
                 _pending.Enqueue((arm, location));
+                if (arms.Exists(entry => SymbolEqualityComparer.Default.Equals(entry.Arm, arm)))
+                    valid = false;
+
+                arms.Add((tag, arm));
+            }
         }
+
+        if (valid)
+            _unions[type] = arms;
 
         return true;
     }
@@ -762,6 +812,176 @@ internal sealed class Planner
             yield return contract with { ClassName = name };
         }
     }
+
+    // --- the supported types and the type information ----------------------------------------------
+
+    private const string SupportedTypes = "global::ViShap.Viper.Contracts.SupportedTypes";
+
+    /// <summary>Records how the context makes <paramref name="type"/> supported, when generated code can name it.</summary>
+    private void Offer(ITypeSymbol type, string? entry)
+    {
+        if (entry is not null && IsNameable(type))
+            _supported[TypeNames.Plain(type)] = entry;
+    }
+
+    /// <summary>
+    /// The entry of the table of supported types for a container: an array, a nullable value, a supported
+    /// generic definition, or a collection the table names no definition for.
+    /// </summary>
+    private string? ContainerEntry(ITypeSymbol type, List<ITypeSymbol> elements)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol { Rank: 1, IsSZArray: true } array:
+                return $"{SupportedTypes}.Array<{TypeNames.Plain(array.ElementType)}>()";
+
+            case IArrayTypeSymbol { Rank: > 1 } array:
+                return $"{SupportedTypes}.MultiDimensionalArray<{TypeNames.Plain(array)}, {TypeNames.Plain(array.ElementType)}>()";
+
+            case INamedTypeSymbol named when named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T:
+                return $"{SupportedTypes}.Nullable<{TypeNames.Plain(named.TypeArguments[0])}>()";
+
+            case INamedTypeSymbol named:
+                var definition = named.TupleUnderlyingType ?? named;
+                if (definition.IsGenericType && TypeShapes.GenericDefinitions.Contains(TypeShapes.MetadataName(definition.OriginalDefinition)))
+                    return $"{SupportedTypes}.{definition.Name}<{string.Join(", ", definition.TypeArguments.Select(TypeNames.Plain))}>()";
+
+                if (elements.Count != 1)
+                    return null;
+
+                string collection = TypeNames.Plain(named);
+                string element = TypeNames.Plain(elements[0]);
+                string add = PublicAdd(named, elements[0]) ? "static (collection, element) => collection.Add(element)" : "null";
+                return $"{SupportedTypes}.Collection<{collection}, {element}>(static () => new {collection}(), {add})";
+
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="collection"/> has the public instance method <c>Add</c> taking exactly
+    /// <paramref name="element"/>, declared on it or inherited — the method the reflection path calls.
+    /// </summary>
+    private static bool PublicAdd(INamedTypeSymbol collection, ITypeSymbol element)
+    {
+        for (var level = collection; level is not null; level = level.BaseType)
+        {
+            if (level.GetMembers("Add").OfType<IMethodSymbol>().Any(method =>
+                    method.DeclaredAccessibility == Accessibility.Public &&
+                    !method.IsStatic &&
+                    !method.IsGenericMethod &&
+                    method.Parameters.Length == 1 &&
+                    method.Parameters[0].RefKind == RefKind.None &&
+                    SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, element)))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>A member-encoded type: its union map when it declares a sound one, else the type alone.</summary>
+    private string? ObjectEntry(INamedTypeSymbol type)
+    {
+        if (type.IsStatic || type.IsRefLikeType)
+            return null;
+
+        string name = TypeNames.Plain(type);
+        if (!_unions.TryGetValue(type, out var arms))
+            return type.GetAttributes().Any(attribute => Is(attribute, _unionAttribute))
+                ? null
+                : $"{SupportedTypes}.Object<{name}>()";
+
+        if (!arms.All(arm => IsNameable(arm.Arm)))
+            return null;
+
+        var pairs = arms.Select(arm =>
+            $"({arm.Tag.ToString(System.Globalization.CultureInfo.InvariantCulture)}, typeof({TypeNames.Plain(arm.Arm)}))");
+        return $"{SupportedTypes}.Union<{name}>({string.Join(", ", pairs)})";
+    }
+
+    /// <summary>Whether generated code in the context can spell <paramref name="type"/> as a generic argument.</summary>
+    private bool IsNameable(ITypeSymbol type) =>
+        type switch
+        {
+            IArrayTypeSymbol array => IsNameable(array.ElementType),
+            INamedTypeSymbol named => named.TypeKind != TypeKind.Error &&
+                                      !named.IsAnonymousType &&
+                                      !named.IsRefLikeType &&
+                                      !named.IsStatic &&
+                                      !named.IsUnboundGenericType &&
+                                      _compilation.IsSymbolAccessibleWithin(named, _context) &&
+                                      (named.ContainingType is null || IsNameable(named.ContainingType)) &&
+                                      (named.TupleUnderlyingType ?? named).TypeArguments.All(IsNameable),
+            _ => false
+        };
+
+    /// <summary>
+    /// The type information the context exposes: one property per type it lists that it makes supported
+    /// or that is a scalar, named after the type; a name taken twice, or taken by a member of the
+    /// context, is reported and left out.
+    /// </summary>
+    private IEnumerable<TypeInfoModel> NameTypeInfos(List<ContractModel> contracts)
+    {
+        var reserved = new HashSet<string>(System.StringComparer.Ordinal) { _context.Name, "Default" };
+        foreach (var contract in contracts)
+            reserved.Add(contract.ClassName);
+
+        for (var level = _context; level is not null; level = level.BaseType)
+        {
+            foreach (var member in level.GetMembers())
+            {
+                if (SymbolEqualityComparer.Default.Equals(level, _context) || _compilation.IsSymbolAccessibleWithin(member, _context))
+                    reserved.Add(member.Name);
+            }
+        }
+
+        var named = new Dictionary<string, ITypeSymbol>(System.StringComparer.Ordinal);
+        var exposed = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var (type, origin) in _roots)
+        {
+            string typeName = TypeNames.Plain(type);
+            bool scalar = TypeShapes.Classify(type, out _) == Shape.Scalar && type.TypeKind != TypeKind.Enum;
+            if (!exposed.Add(type) || !(scalar || _supported.ContainsKey(typeName)))
+                continue;
+
+            string name = RootName(type);
+            if (named.TryGetValue(name, out var other))
+            {
+                Report(Descriptors.TypeInfoNameConflict, origin, _context.ToDisplayString(), Display(type), name,
+                    $"the type information of '{Display(other)}' has that name");
+                continue;
+            }
+
+            if (reserved.Contains(name))
+            {
+                Report(Descriptors.TypeInfoNameConflict, origin, _context.ToDisplayString(), Display(type), name,
+                    "the context already has a member of that name");
+                continue;
+            }
+
+            named[name] = type;
+            yield return new TypeInfoModel(name, typeName);
+        }
+    }
+
+    /// <summary>
+    /// The name of a type's information: its simple name, followed for a generic type by the names of its
+    /// arguments, each after an underscore — <c>Order</c>, <c>List_Order</c>, <c>Order_Array</c>.
+    /// </summary>
+    private static string RootName(ITypeSymbol type) =>
+        type switch
+        {
+            IArrayTypeSymbol array => RootName(array.ElementType) + "_Array" +
+                                      (array.Rank > 1 ? array.Rank.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty),
+            INamedTypeSymbol named when named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T =>
+                "Nullable_" + RootName(named.TypeArguments[0]),
+            INamedTypeSymbol named => (named.TupleUnderlyingType ?? named) is var definition && definition.TypeArguments.Length > 0
+                ? definition.Name + "_" + string.Join("_", definition.TypeArguments.Select(RootName))
+                : named.Name,
+            _ => TypeNames.Identifier(type.Name)
+        };
 
     // --- symbols --------------------------------------------------------------------------------------
 

@@ -32,12 +32,15 @@ public class PublicSurfaceTests
         "ViShap.Viper.BinaryUnionAttribute",
         "ViShap.Viper.BinaryContextAttribute",
         "ViShap.Viper.BinarySerializerContext",
+        "ViShap.Viper.BinaryTypeInfo`1",
 
         "ViShap.Viper.Contracts.TypeContract`1",
         "ViShap.Viper.Contracts.MemberWriter",
         "ViShap.Viper.Contracts.MemberReader",
         "ViShap.Viper.Contracts.MemberDescription",
         "ViShap.Viper.Contracts.MemberLayout",
+        "ViShap.Viper.Contracts.SupportedTypes",
+        "ViShap.Viper.Contracts.SupportedType",
 
         "ViShap.Viper.Security.SerializationLimits",
 
@@ -264,7 +267,29 @@ public class PublicSurfaceTests
         "Populate<T>(ReadOnlySequence<Byte>, T, out SequencePosition) : Void",
         "Populate<T>(Stream, T) : Void",
         "PopulateAsync<T>(Stream, T, CancellationToken) : ValueTask",
-        "PopulateAsync<T>(PipeReader, T, CancellationToken) : ValueTask"
+        "PopulateAsync<T>(PipeReader, T, CancellationToken) : ValueTask",
+        "Serialize<T>(IBufferWriter<Byte>, T, BinaryTypeInfo<T>) : Void",
+        "Serialize<T>(T, BinaryTypeInfo<T>) : Byte[]",
+        "SerializePooled<T>(T, BinaryTypeInfo<T>) : PooledPayload",
+        "Serialize<T>(Stream, T, BinaryTypeInfo<T>) : Void",
+        "SerializeAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask",
+        "SerializeAsync<T>(PipeWriter, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask",
+        "Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>) : T",
+        "Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, out Int32) : T",
+        "Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>) : T",
+        "Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, out SequencePosition) : T",
+        "Deserialize<T>(Stream, BinaryTypeInfo<T>) : T",
+        "DeserializeAsync<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>",
+        "DeserializeAsync<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>",
+        "DeserializeAsyncEnumerable<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>",
+        "DeserializeAsyncEnumerable<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>",
+        "Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>) : Void",
+        "Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>, out Int32) : Void",
+        "Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>) : Void",
+        "Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>, out SequencePosition) : Void",
+        "Populate<T>(Stream, T, BinaryTypeInfo<T>) : Void",
+        "PopulateAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask",
+        "PopulateAsync<T>(PipeReader, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask"
     ];
 
     /// <summary>The public members of <see cref="BinarySerializerOptionsBuilder"/> that contract §4.1 lists.</summary>

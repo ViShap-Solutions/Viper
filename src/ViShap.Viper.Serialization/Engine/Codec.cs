@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace ViShap.Viper.Engine;
 
 /// <summary>The form a value is encoded in, in the sense of the wire format's shapes.</summary>
@@ -35,16 +33,30 @@ internal abstract class Codec<T>
 }
 
 /// <summary>
-/// The codec of <typeparamref name="T"/>, resolved once by <see cref="FormatterRegistry"/> the first
-/// time the type is used. Finding it afterwards is a static field read.
-/// <para>
-/// The engine is entered only through <see cref="Graph"/>, whose entries carry the requirements of the
-/// reflection path, so every codec resolved here is resolved on behalf of a caller that stated them.
-/// </para>
+/// The codec of <typeparamref name="T"/>, resolved once, the first time the type is used: the codec a
+/// context offered for it, else the built-in codec of a scalar or a delegate, else — while the
+/// reflection path is enabled — the one <see cref="FormatterRegistry"/> builds, and otherwise one that
+/// reports the type unavailable. Finding it afterwards is a static field read.
 /// </summary>
-[UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The engine is entered only through Graph, which requires unreferenced code.")]
-[UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The engine is entered only through Graph, which requires dynamic code.")]
 internal static class FormatterCache<T>
 {
-    public static readonly Codec<T> Instance = FormatterRegistry.Resolve<T>();
+    public static readonly Codec<T> Instance =
+        OfferedCodec<T>.Codec
+        ?? BuiltInCodecs.Resolve<T>()
+        ?? (ReflectionPath.IsEnabled ? FormatterRegistry.Resolve<T>() : new UnavailableCodec<T>());
+}
+
+/// <summary>
+/// The codec a context offered for <typeparamref name="T"/>, written once, by the first context that
+/// offers the type, before the type's <see cref="FormatterCache{T}"/> is first read. Every offer of a
+/// type is the codec the rules of <see cref="TypeRules"/> give that type, so which context offers it
+/// first does not change what any operation writes or reads.
+/// </summary>
+internal static class OfferedCodec<T>
+{
+    private static Codec<T>? _codec;
+
+    public static Codec<T>? Codec => Volatile.Read(ref _codec);
+
+    public static void Offer(Codec<T> codec) => Interlocked.CompareExchange(ref _codec, codec, null);
 }

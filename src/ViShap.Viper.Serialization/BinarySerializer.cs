@@ -42,7 +42,7 @@ namespace ViShap.Viper;
 /// </code>
 /// </example>
 /// </remarks>
-public sealed class BinarySerializer
+public sealed partial class BinarySerializer
 {
     private readonly BinarySerializerOptions _options;
     private readonly FormatRouter _router;
@@ -926,18 +926,12 @@ public sealed class BinarySerializer
 
     // --- the operation behind every entry point ---------------------------------------------------
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private EncodedFrame Encode<T>(T value) =>
         Encode(value, BeginOperation());
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private EncodedFrame Encode<T>(T value, OperationState state) =>
         _router.ForWriting(_options.WriteVersion).Write(value, ref state);
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask WriteAsync<T>(Stream destination, T value, CancellationToken cancellationToken)
     {
@@ -948,8 +942,6 @@ public sealed class BinarySerializer
         await frame.WriteToAsync(destination, cancellationToken).ConfigureAwait(false);
     }
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask WriteAsync<T>(PipeWriter destination, T value, CancellationToken cancellationToken)
     {
@@ -961,8 +953,6 @@ public sealed class BinarySerializer
     }
 
     /// <summary>Reads the frame at the start of <paramref name="source"/>, which must be the whole of it.</summary>
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private T? ReadExactly<T>(ReadOnlySpan<byte> source, T? target)
     {
         var value = ReadFirst(source, target, out long consumed);
@@ -970,8 +960,6 @@ public sealed class BinarySerializer
         return value;
     }
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private T? ReadExactly<T>(ReadOnlySequence<byte> source, T? target)
     {
         var value = ReadFirst(source, target, out long consumed);
@@ -979,8 +967,6 @@ public sealed class BinarySerializer
         return value;
     }
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private T? ReadFirst<T>(ReadOnlySpan<byte> source, T? target, out long consumed)
     {
         if (source.IsEmpty)
@@ -990,8 +976,6 @@ public sealed class BinarySerializer
         return _router.ForReading(source).Read(source, target, ref state, out consumed);
     }
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private T? ReadFirst<T>(ReadOnlySequence<byte> source, T? target, out long consumed)
     {
         if (source.IsEmpty)
@@ -1013,36 +997,26 @@ public sealed class BinarySerializer
         }
     }
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<T?> ReadAsync<T>(Stream source, CancellationToken cancellationToken) =>
         Found(await FrameReader.ReadAsync<T>(
             _router, source, target: default, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
     private async ValueTask<T?> ReadAsync<T>(PipeReader source, CancellationToken cancellationToken) =>
         Found(await FrameReader.ReadAsync<T>(
             _router, source, target: default, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask PopulateFrameAsync<T>(Stream source, T target, CancellationToken cancellationToken) =>
         Found(await FrameReader.ReadAsync(
             _router, source, target, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask PopulateFrameAsync<T>(PipeReader source, T target, CancellationToken cancellationToken) =>
         Found(await FrameReader.ReadAsync(
             _router, source, target, BeginOperation(), cancellationToken).ConfigureAwait(false));
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private async IAsyncEnumerable<T?> ReadFramesAsync<T>(
         Stream source,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -1059,8 +1033,6 @@ public sealed class BinarySerializer
         }
     }
 
-    [RequiresUnreferencedCode(ReflectionPath.UnreferencedCode)]
-    [RequiresDynamicCode(ReflectionPath.DynamicCode)]
     private async IAsyncEnumerable<T?> ReadFramesAsync<T>(
         PipeReader source,
         [EnumeratorCancellation] CancellationToken cancellationToken)
