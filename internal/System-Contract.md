@@ -2244,7 +2244,10 @@ each safe when several threads use a type for the first time at once:
 - the codec of each declared type, in the static field of `FormatterCache<T>`. The shapes of the
   generic definitions it is built from are a fixed table, closed once per type;
 - the reflected type contract of each member-encoded type, found by type, which is what the
-  polymorphic slot needs — a contract a context supplies is held by the options, not cached;
+  polymorphic slot needs — a contract a context supplies is held by the options, not cached; the
+  codec of a member-encoded type remembers the contract the last snapshot it met gives its type,
+  paired with that snapshot and published with it in one write, so under another configuration it
+  looks the type up again and never answers with a contract that configuration does not hold;
 - the union map of each declared type.
 
 Nothing request-local takes part in building an entry, and an entry that fails to build — a delegate

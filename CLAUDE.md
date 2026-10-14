@@ -106,7 +106,7 @@ fast path (P4a–P4b), native AOT through the context (P4c design, P4d build), t
 were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 088 tests, and the generator's 42, green in Debug and Release.
+with the generated XML file. The suite is 2 091 tests, and the generator's 42, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and

@@ -550,7 +550,7 @@ A contract supplied through a `BinarySerializerContext` replaces the reflected o
 seam it is written against is public. *(added in P2 of the rc.2 plan)*
 
 - [x] CTX-01 — the context's contracts write the bytes reflection writes and read them back, for keyed, inherited, overridden, struct, union and collection values, null included, under V1 with and without references and under V0 *(§14.3)* — `Contracts/ContextTests`
-- [x] CTX-02 — the engine takes a type's contract from the operation's configuration before reflection — for a declared type and for the runtime type of a polymorphic slot — and a serializer without the context in the same process keeps the reflected one *(§14.3)* — `Contracts/ContextTests`
+- [x] CTX-02 — the engine takes a type's contract from the operation's configuration before reflection — for a declared type and for the runtime type of a polymorphic slot — and a serializer without the context in the same process keeps the reflected one; configurations used in turn on one type — two contexts holding it, a context lacking it, none, and `RequireGeneratedContracts` lacking it — each get their own contract or refusal on every call *(§14.3, §18)* — `Contracts/ContextTests` *(extended in rc.2 P4b)*
 - [x] CTX-03 — whether a value carries its null in a flag or in its keyed field count follows the layout of the contract in force for the operation, not the one reflection would build *(§14.3, §22.2)* — `Contracts/ContextTests`
 - [x] CTX-04 — `RequireGeneratedContracts` refuses a type the context lacks — a declared type, a union arm — with `BinaryConfigurationException` naming it and the policy, lets every type the context holds through, and is refused by `Build()` without `WithContracts`; the options expose the context and the policy *(§4.1, §14.3)* — `Contracts/ContextTests`
 - [x] CTX-05 — a context holds one contract per type: a second one, one added after options were built, and a null one are refused *(§14.3)* — `Contracts/ContextTests`
@@ -1121,6 +1121,7 @@ frame, which replace the three stream decorators; none is dropped.*
 - [x] CN-18 — concurrent inspection of separate streams stays correct *(§19)* — `Concurrency/ParallelOperationTests`
 - CN-19 — `ImmutableArray<T>` obtains its backing array through `ImmutableCollectionsMarshal.AsArray<T>`, never a reflective instance `ToArray` *(§17)* — *retired in R4: the typed codec writes from the value's own span and reads through `ImmutableCollectionsMarshal.AsImmutableArray<T>`, with no factory to resolve*
 - [x] CN-20 — no type remains under `src/ViShap.Viper.Serialization/Cache/`, and no `ConcurrentDictionary` keyed by `Type` exists outside the contract and union caches *(§18)* — `Concurrency/CacheTests` *(added in R4)*
+- [x] CN-21 — the codec of a member-encoded type, used by threads that alternate between configurations which describe the type differently — reflected, a keyed context, a context lacking it — writes and reads each configuration's own layout on every call *(§14.3, §18)* — `Concurrency/CacheTests` *(added in rc.2 P4b)*
 
 ---
 
