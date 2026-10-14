@@ -1164,6 +1164,8 @@ Cultures.Specific (a culture the host actually has) · the Frozen* compatibility
 FrameBoundStream (a non-seekable stream that fails on any read past a boundary)       (added by R3)
 ChunkedPipeReader (a PipeReader whose content arrives a chunk at a time)              (added by R3)
 StingyBufferWriter (an IBufferWriter<byte> that hands out at most N bytes per span)     (added by R3)
+DocumentationExamples.Pages · All · Named · Extract · FenceLanguages · FindPages        (added in rc.2 P5f)
+ExampleCompiler.Compile · IsProgram · Run (Roslyn, with the Viper source generator)    (added in rc.2 P5f)
 ```
 
 There is deliberately no `ThrowsExact`: xUnit's `Assert.Throws<T>` already matches the exact type, and
@@ -1193,6 +1195,8 @@ added by that stage rather than built ahead of use. The committed `*.bin` fixtur
 - [x] UTIL-19 — `ChunkedPipeReader` delivers a new chunk only once everything shown was examined, shows what arrived and was not consumed in one segment per chunk, completes when its content has all arrived, counts what was consumed, refuses a second read before advancing, reports a cancelled pending read, and without completion waits until the read is cancelled — `Fixtures/UtilityTests` *(added in R3)*
 - [x] UTIL-20 — `StingyBufferWriter` hands out spans of at most its limit, commits what was advanced in order, and with a limit of zero hands out an empty span — `Fixtures/UtilityTests` *(added in R3)*
 - [x] UTIL-21 — `OperationBox` holds a fresh state under the limits it is given, and is the state a reader handed it charges, one per box — `Fixtures/UtilityTests` *(added in R4)*
+- [x] UTIL-22 — `DocumentationExamples` takes the `csharp` blocks of a page in order with their ordinal and the page line of their first code line, reads an indented or longer fence and removes its indentation, skips every other language, refuses a fence left open, names the language of every fence including an unnamed one, and finds exactly the pages of `docs/`, the root `README.md` and the package READMEs, refusing a tree without `docs/` — `Fixtures/UtilityTests` *(added in rc.2 P5f)*
+- [x] UTIL-23 — `ExampleCompiler` reports a compiler error and a nullable warning at the page line they sit on and emits nothing on an error, compiles a block of declarations as a library that cannot be run, runs the Viper source generator and reports its diagnostics at their page line, and returns a program's exit code — awaited ones included — and raises what it throws unwrapped — `Fixtures/UtilityTests` *(added in rc.2 P5f)*
 
 ---
 
@@ -1595,3 +1599,20 @@ P4d, contract §3, §14.5, INV-19, INV-20)*
 - [x] NAOT-12 — the 26 entry points that take type information carry neither requirement attribute, and nothing in the shipped code suppresses a trimming or AOT warning *(§3, INV-19)* — `Api/AotAnalysisTests`
 - [x] NAOT-13 — `tests/ViShap.Viper.AotConsumer`, run with the reflection path off as its build sets it, passes every check: every entry point that takes type information, the frozen V1, V1-with-references and V0 payloads read and written back to the same bytes through the generated context, the conformance shapes written, read and written again, and a type no context offered refused with `BinaryConfigurationException`; the CI job `native-aot` publishes it with native AOT with no trimming or AOT warning and requires its output to equal the JIT run's *(§3, §14.5, INV-19)* — `Api/AotAnalysisTests`, `.github/workflows/ci.yml`
 - [x] NAOT-14 — `SupportedType` exposes its type and `BinaryTypeInfo<T>` its type and context, nothing else, neither can be constructed by a caller, and every method of `SupportedTypes` returns a `SupportedType` and takes only a custom collection's operations or a union's arms *(§3, INV-5)* — `Api/SupportedSurfaceTests`
+
+---
+
+# 34. Executable documentation — `Api/`
+
+Every `csharp` block of the consumer documentation — each page of `docs/`, the repository's `README.md`
+and the package READMEs — is a complete example: it compiles against the current code as a consumer's
+`net10.0` project would, with the SDK's implicit usings, nullable reference types and the Viper source
+generator, without a warning; a block with top-level statements also runs. The rule is the documentation
+rule of `CLAUDE.md` ("Where the authoritative information lives") and the CONF-15 wording, not a clause of
+the contract: it holds the documents to the contract's API, not the library to a behaviour. *(added in rc.2
+P5f, `rc2/RC2-Plan.md` I11)*
+
+- [x] DOC-01 — every block with top-level statements compiles with no warning or error of the compiler or the generator, and runs to exit code 0 without an exception — `Api/DocumentationExampleTests`
+- [x] DOC-02 — every block that only declares types compiles as a library with no warning or error — `Api/DocumentationExampleTests`
+- [x] DOC-03 — the pages read are every page of `docs/`, the root `README.md` and the README each of the four packages declares as its `PackageReadmeFile` — `Api/DocumentationExampleTests`
+- [x] DOC-04 — every fence of those pages names its language, and C# only as `csharp`, so no C# block escapes DOC-01 and DOC-02 — `Api/DocumentationExampleTests`

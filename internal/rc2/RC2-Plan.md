@@ -637,13 +637,13 @@ its branch into `release/v1.0.0`.
 | P4a Generator profile | `benchmark/generator-profiles` | closed | `e9a00bd` |
 | P4b Engine fast path | `feature/engine-fast-path` | closed | `ee3fefe` |
 | P4c Native AOT — design | `docs/native-aot-design` | closed | `146f03a` |
-| P4d Native AOT | `feature/native-aot` | gate holds — awaiting commit | |
+| P4d Native AOT | `feature/native-aot` | closed | `c36f50f` |
 | P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |
 | P5b Live tracing | — | deferred — `ideas/IDEA-02` | |
 | P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
 | P5d LZ4 | — | deferred — `ideas/IDEA-11` | |
 | P5e AES-GCM-SIV | — | deferred — `ideas/IDEA-03` | |
-| P5f Executable examples | `test/docs-examples` | not started | |
+| P5f Executable examples | `test/docs-examples` | gate holds — awaiting commit | |
 | P6 Benchmarks | `benchmark/graceful-stop`, `benchmark/track-b-adapters` | not started | |
 | P7 Documentation | `docs/rc2-docs` | not started | |
 | P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | not started | |

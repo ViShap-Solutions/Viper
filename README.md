@@ -120,7 +120,7 @@ dotnet add package ViShap.Viper
 
 ## 📂 Project Structure
 
-```
+```text
 📂 Viper
 ├── 📁 src
 │   │

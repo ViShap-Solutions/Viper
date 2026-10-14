@@ -6,7 +6,7 @@ using Xunit.Sdk;
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-15 and UTIL-18…UTIL-21. A helper with a bug passes every suite that uses it, so the
+/// Pins UTIL-01…UTIL-15 and UTIL-18…UTIL-23. A helper with a bug passes every suite that uses it, so the
 /// helpers are tested before anything is allowed to rely on them.
 /// </summary>
 /// <remarks>
@@ -743,5 +743,163 @@ public class UtilityTests
 
         Assert.Equal(3, operation.State.Budget.TotalElements);
         Assert.Equal(0, other.State.Budget.TotalElements);
+    }
+
+    // --- UTIL-22: the documentation example extractor ------------------------------------------
+
+    [Fact]
+    public void DocumentationExamples_Extract_TakesCsharpBlocksInOrderWithTheirOrdinalAndFirstCodeLine()
+    {
+        string markdown = "# Page\n\n```csharp\nint a = 1;\n```\n\ntext\n\n```bash\nls\n```\n\n```csharp\nint b = 2;\nint c = 3;\n```\n";
+
+        var examples = DocumentationExamples.Extract("docs/page.md", markdown);
+
+        Assert.Equal(2, examples.Count);
+        Assert.Equal(new DocumentationExample("docs/page.md", 1, 4, "int a = 1;"), examples[0]);
+        Assert.Equal(new DocumentationExample("docs/page.md", 2, 14, "int b = 2;\nint c = 3;"), examples[1]);
+        Assert.Equal("docs/page.md#2", examples[1].Name);
+    }
+
+    [Fact]
+    public void DocumentationExamples_Extract_ReadsAnIndentedOrLongerFenceAndRemovesItsIndentation()
+    {
+        string markdown = "- item\r\n\r\n   ````csharp\r\n   int a = 1;\r\n     int b = 2;\r\n   ```\r\n   ````\r\n";
+
+        var example = Assert.Single(DocumentationExamples.Extract("README.md", markdown));
+
+        Assert.Equal("int a = 1;\n  int b = 2;\n```", example.Code);
+        Assert.Equal(4, example.Line);
+    }
+
+    [Fact]
+    public void DocumentationExamples_Extract_AFenceLeftOpen_Throws()
+    {
+        string markdown = "text\n\n```csharp\nint a = 1;\n";
+
+        var ex = Assert.Throws<InvalidOperationException>(() => DocumentationExamples.Extract("docs/page.md", markdown));
+
+        Assert.Contains("docs/page.md:3", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DocumentationExamples_FenceLanguages_NamesEveryOpeningFenceIncludingAnUnnamedOne()
+    {
+        string markdown = "```csharp\nint a;\n```\n\n```\ntree\n```\n\n```cs\nint b;\n```\n";
+
+        var languages = DocumentationExamples.FenceLanguages(markdown);
+
+        Assert.Equal(["csharp", "", "cs"], languages);
+    }
+
+    [Fact]
+    public void DocumentationExamples_FindPages_TakesDocsTheRootReadmeAndThePackageReadmesOnly()
+    {
+        string root = Directory.CreateTempSubdirectory("viper-pages-").FullName;
+        try
+        {
+            foreach (string file in new[]
+            {
+                "docs/a.md", "docs/sub/b.md", "docs/image.png", "README.md", "src/P/P-README.md",
+                "src/P/notes.md", "src/P/Deep/Q-README.md", "internal/x.md", "tests/T/T-README.md"
+            })
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(root, file))!);
+                File.WriteAllText(Path.Combine(root, file), "");
+            }
+
+            var pages = DocumentationExamples.FindPages(root);
+
+            Assert.Equal(["README.md", "docs/a.md", "docs/sub/b.md", "src/P/P-README.md"], pages);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DocumentationExamples_FindPages_WithoutDocs_Throws()
+    {
+        string root = Directory.CreateTempSubdirectory("viper-pages-").FullName;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "src"));
+
+            Assert.Throws<InvalidOperationException>(() => DocumentationExamples.FindPages(root));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    // --- UTIL-23: the documentation example compiler -------------------------------------------
+
+    [Fact]
+    public void ExampleCompiler_AnErrorIsReportedAtItsPageLine_AndNothingIsEmitted()
+    {
+        var example = new DocumentationExample("docs/page.md", 1, 10, "using ViShap.Viper;\n\nvar serializer = new BinarySerializer();\nserializer.NoSuchMethod();\n");
+
+        var compiled = ExampleCompiler.Compile(example);
+
+        Assert.True(compiled.IsProgram);
+        Assert.Null(compiled.Image);
+        Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.StartsWith("docs/page.md:13: error CS1061", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExampleCompiler_ANullableWarningIsReported()
+    {
+        var example = new DocumentationExample("docs/page.md", 1, 1, "string? text = null;\nConsole.WriteLine(text.Length);\n");
+
+        var compiled = ExampleCompiler.Compile(example);
+
+        Assert.NotNull(compiled.Image);
+        Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.StartsWith("docs/page.md:2: warning CS8602", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExampleCompiler_DeclarationsOnly_CompileAsALibrary()
+    {
+        var example = new DocumentationExample("docs/page.md", 1, 1, "public sealed class Order\n{\n    public int Id { get; set; }\n}\n");
+
+        var compiled = ExampleCompiler.Compile(example);
+
+        Assert.False(compiled.IsProgram);
+        Assert.False(ExampleCompiler.IsProgram(example));
+        Assert.Empty(compiled.Diagnostics);
+        Assert.NotNull(compiled.Image);
+        Assert.Throws<InvalidOperationException>(() => ExampleCompiler.Run(compiled));
+    }
+
+    [Fact]
+    public void ExampleCompiler_TheSourceGeneratorRuns_AndItsDiagnosticsAreReported()
+    {
+        var generated = new DocumentationExample("docs/page.md", 1, 1,
+            "using ViShap.Viper;\n\nConsole.WriteLine(Contracts.Default.Order is not null);\n\n" +
+            "public sealed class Order { public int Id { get; set; } }\n\n" +
+            "[BinaryContext(typeof(Order))]\npublic partial class Contracts : BinarySerializerContext;\n");
+        var notPartial = new DocumentationExample("docs/page.md", 2, 20,
+            "using ViShap.Viper;\n\n[BinaryContext(typeof(int))]\npublic class Contracts : BinarySerializerContext;\n");
+
+        var compiled = ExampleCompiler.Compile(generated);
+        var refused = ExampleCompiler.Compile(notPartial);
+
+        Assert.Empty(compiled.Diagnostics);
+        Assert.Equal(0, ExampleCompiler.Run(compiled));
+        Assert.Contains(refused.Diagnostics, diagnostic => diagnostic.StartsWith("docs/page.md:23: error VPR001", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExampleCompiler_Run_ReturnsTheExitCode_AndRaisesWhatTheProgramThrows()
+    {
+        var exits = new DocumentationExample("docs/page.md", 1, 1, "return 3;\n");
+        var awaits = new DocumentationExample("docs/page.md", 2, 1, "await Task.Yield();\nreturn 4;\n");
+        var throws = new DocumentationExample("docs/page.md", 3, 1,
+            "using ViShap.Viper;\n\nnew BinarySerializer().Deserialize<string>(ReadOnlySpan<byte>.Empty);\n");
+
+        Assert.Equal(3, ExampleCompiler.Run(ExampleCompiler.Compile(exits)));
+        Assert.Equal(4, ExampleCompiler.Run(ExampleCompiler.Compile(awaits)));
+        Assert.Throws<BinaryFormatException>(() => ExampleCompiler.Run(ExampleCompiler.Compile(throws)));
     }
 }
