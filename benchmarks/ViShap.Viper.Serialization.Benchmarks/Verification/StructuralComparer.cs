@@ -18,7 +18,20 @@ internal static class StructuralComparer
         var visited = new HashSet<(object, object)>(ReferencePairComparer.Instance);
         difference = string.Empty;
 
-        return Compare(expected, actual, "$", visited, ref difference);
+        return Compare(expected, actual, "$", visited, ref difference, byName: false);
+    }
+
+    /// <summary>
+    /// Compares a value of one model family with its projection into another (FAIR-19): models are
+    /// matched by type name and member name, enums by value, and everything else as <see cref="Equal"/>
+    /// does.
+    /// </summary>
+    internal static bool EqualAcrossFamilies(object? expected, object? actual, out string difference)
+    {
+        var visited = new HashSet<(object, object)>(ReferencePairComparer.Instance);
+        difference = string.Empty;
+
+        return Compare(expected, actual, "$", visited, ref difference, byName: true);
     }
 
     private static bool Compare(
@@ -26,7 +39,8 @@ internal static class StructuralComparer
         object? actual,
         string path,
         HashSet<(object, object)> visited,
-        ref string difference)
+        ref string difference,
+        bool byName)
     {
         if (expected is null && actual is null)
         {
@@ -46,6 +60,18 @@ internal static class StructuralComparer
 
         var type = expected.GetType();
 
+        if (byName && type.IsEnum && actual.GetType().IsEnum)
+        {
+            if (Convert.ToInt64(expected, System.Globalization.CultureInfo.InvariantCulture)
+                != Convert.ToInt64(actual, System.Globalization.CultureInfo.InvariantCulture))
+            {
+                difference = $"{path}: {Describe(expected)} != {Describe(actual)}";
+                return false;
+            }
+
+            return true;
+        }
+
         if (IsScalar(type))
         {
             if (!expected.Equals(actual))
@@ -64,15 +90,15 @@ internal static class StructuralComparer
 
         if (expected is IDictionary expectedMap && actual is IDictionary actualMap)
         {
-            return CompareDictionary(expectedMap, actualMap, path, visited, ref difference);
+            return CompareDictionary(expectedMap, actualMap, path, visited, ref difference, byName);
         }
 
         if (expected is IEnumerable expectedItems && actual is IEnumerable actualItems)
         {
-            return CompareEnumerable(expectedItems, actualItems, path, visited, ref difference);
+            return CompareEnumerable(expectedItems, actualItems, path, visited, ref difference, byName);
         }
 
-        return CompareMembers(expected, actual, type, path, visited, ref difference);
+        return CompareMembers(expected, actual, type, path, visited, ref difference, byName);
     }
 
     private static bool CompareDictionary(
@@ -80,7 +106,8 @@ internal static class StructuralComparer
         IDictionary actual,
         string path,
         HashSet<(object, object)> visited,
-        ref string difference)
+        ref string difference,
+        bool byName)
     {
         if (expected.Count != actual.Count)
         {
@@ -96,7 +123,7 @@ internal static class StructuralComparer
                 return false;
             }
 
-            if (!Compare(entry.Value, actual[entry.Key], $"{path}[{Describe(entry.Key)}]", visited, ref difference))
+            if (!Compare(entry.Value, actual[entry.Key], $"{path}[{Describe(entry.Key)}]", visited, ref difference, byName))
             {
                 return false;
             }
@@ -110,7 +137,8 @@ internal static class StructuralComparer
         IEnumerable actual,
         string path,
         HashSet<(object, object)> visited,
-        ref string difference)
+        ref string difference,
+        bool byName)
     {
         var left = Materialize(expected);
         var right = Materialize(actual);
@@ -126,7 +154,7 @@ internal static class StructuralComparer
 
         for (var i = 0; i < left.Count; i++)
         {
-            if (!Compare(left[i], right[i], $"{path}[{i}]", visited, ref ordered))
+            if (!Compare(left[i], right[i], $"{path}[{i}]", visited, ref ordered, byName))
             {
                 sameOrder = false;
                 break;
@@ -154,7 +182,7 @@ internal static class StructuralComparer
 
                 var ignored = string.Empty;
 
-                if (Compare(item, right[i], path, visited, ref ignored))
+                if (Compare(item, right[i], path, visited, ref ignored, byName))
                 {
                     matched[i] = true;
                     found = true;
@@ -177,11 +205,14 @@ internal static class StructuralComparer
         Type type,
         string path,
         HashSet<(object, object)> visited,
-        ref string difference)
+        ref string difference,
+        bool byName)
     {
         var actualType = actual.GetType();
 
-        if (type != actualType && !type.IsAssignableFrom(actualType) && !actualType.IsAssignableFrom(type))
+        // The runtime type is part of what a round trip restores: a derived value read back as its base
+        // has lost its members and its dispatch, however equal the base members are.
+        if (byName ? type.Name != actualType.Name : type != actualType)
         {
             difference = $"{path}: {type.Name} restored as {actualType.Name}";
             return false;
@@ -194,7 +225,15 @@ internal static class StructuralComparer
                 continue;
             }
 
-            if (!Compare(property.GetValue(expected), property.GetValue(actual), $"{path}.{property.Name}", visited, ref difference))
+            var counterpart = byName ? actualType.GetProperty(property.Name, BindingFlags.Public | BindingFlags.Instance) : property;
+
+            if (counterpart is null)
+            {
+                difference = $"{path}.{property.Name}: {actualType.Name} has no such member";
+                return false;
+            }
+
+            if (!Compare(property.GetValue(expected), counterpart.GetValue(actual), $"{path}.{property.Name}", visited, ref difference, byName))
             {
                 return false;
             }
@@ -202,7 +241,15 @@ internal static class StructuralComparer
 
         foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (!Compare(field.GetValue(expected), field.GetValue(actual), $"{path}.{field.Name}", visited, ref difference))
+            var counterpart = byName ? actualType.GetField(field.Name, BindingFlags.Public | BindingFlags.Instance) : field;
+
+            if (counterpart is null)
+            {
+                difference = $"{path}.{field.Name}: {actualType.Name} has no such member";
+                return false;
+            }
+
+            if (!Compare(field.GetValue(expected), counterpart.GetValue(actual), $"{path}.{field.Name}", visited, ref difference, byName))
             {
                 return false;
             }
