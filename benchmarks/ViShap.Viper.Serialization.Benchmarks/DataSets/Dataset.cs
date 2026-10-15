@@ -51,7 +51,7 @@ public abstract class Dataset
 
     internal abstract void SerializeInto(IBufferWriterSerializer serializer, IBufferWriter<byte> destination);
 
-    internal abstract object? DeserializeSpan(IBufferWriterSerializer serializer, ReadOnlySpan<byte> payload);
+    internal abstract object? DeserializeSpan(ISpanDeserializer serializer, ReadOnlySpan<byte> payload);
 
     internal abstract object? DeserializeSequence(IBufferWriterSerializer serializer, ReadOnlySequence<byte> payload);
 
@@ -116,7 +116,7 @@ public abstract class Dataset<T> : Dataset
     internal override void SerializeInto(IBufferWriterSerializer serializer, IBufferWriter<byte> destination) =>
         serializer.Serialize(destination, Value);
 
-    internal override object? DeserializeSpan(IBufferWriterSerializer serializer, ReadOnlySpan<byte> payload) =>
+    internal override object? DeserializeSpan(ISpanDeserializer serializer, ReadOnlySpan<byte> payload) =>
         serializer.Deserialize<T>(payload);
 
     internal override object? DeserializeSequence(IBufferWriterSerializer serializer, ReadOnlySequence<byte> payload) =>

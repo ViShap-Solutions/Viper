@@ -126,8 +126,24 @@ internal static class RoundTripVerifier
         {
             return new VerificationResult(
                 buffered.Name, dataset.Id, VerificationState.Failed, 0, 0,
-                $"{exception.GetType().Name}: {Single(exception.Message)}");
+                Describe(exception));
         }
+    }
+
+    /// <summary>
+    /// An exception and the causes inside it, outermost first, so the detail names the rule that fired
+    /// and not only the wrapper a library put around it.
+    /// </summary>
+    internal static string Describe(Exception exception)
+    {
+        var parts = new List<string>();
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            parts.Add($"{current.GetType().Name}: {Single(current.Message)}");
+
+        // A recursive codec wraps one exception per level; the outermost and the cause say enough.
+        return parts.Count <= 2
+            ? string.Join(" <- ", parts)
+            : $"{parts[0]} <- ({parts.Count - 2} more) <- {parts[^1]}";
     }
 
     /// <summary>

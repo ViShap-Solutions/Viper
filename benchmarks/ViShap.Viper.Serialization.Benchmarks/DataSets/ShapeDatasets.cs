@@ -72,10 +72,8 @@ internal sealed class SharedReferenceDagDataset : Dataset<DagNode>
 
     internal override string? VerifyIdentity(object restored)
     {
-        var root = (DagNode)restored;
-
-        var first = root.Children[0].Children[0];
-        var second = root.Children[1].Children[0];
+        var first = Graph.Child(Graph.Child(restored, 0), 0);
+        var second = Graph.Child(Graph.Child(restored, 1), 0);
 
         return ReferenceEquals(first, second)
             ? null
@@ -139,9 +137,7 @@ internal sealed class CyclicGraphDataset : Dataset<CyclicNode>
 
     internal override string? VerifyIdentity(object restored)
     {
-        var root = (CyclicNode)restored;
-
-        return ReferenceEquals(root.Children[0].Parent, root)
+        return ReferenceEquals(Graph.Member(Graph.Child(restored, 0), "Parent"), restored)
             ? null
             : "the cycle back to the parent was not restored";
     }

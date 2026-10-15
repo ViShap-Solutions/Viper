@@ -12,9 +12,14 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        if (args is ["--probe-child", var probeAdapter, var capability, ..])
+        {
+            return Capabilities.Probes.Child(probeAdapter, capability);
+        }
+
         if (args.Contains("--verify", StringComparer.Ordinal))
         {
-            return Verify();
+            return args.Contains("--market", StringComparer.Ordinal) ? VerifyMarket() : Verify() | VerifyMarket();
         }
 
         if (args.Contains("--manifest", StringComparer.Ordinal))
@@ -193,6 +198,57 @@ internal static class Program
         Console.WriteLine($"Corpus: {Corpus.All.Count} datasets.");
 
         return failed == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Track B's verification (§7.4–§7.6): the model families against the schema, the probes, the tiers
+    /// they place each configuration in, and every (configuration, dataset) pair of those tiers. Writes
+    /// the capability matrix and the verified pairs the comparative suites take their cases from.
+    /// </summary>
+    private static int VerifyMarket()
+    {
+        var verification = MarketVerifier.VerifyAll();
+        var directory = MarketCases.Directory;
+        MarketVerifier.Write(verification, directory);
+        MarketCases.Record(verification);
+
+        foreach (var failure in verification.SchemaFailures)
+        {
+            Console.WriteLine($"schema: {failure}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"{"Configuration",-44} {"Capability",-18} {"State",-12} Detail");
+        Console.WriteLine(new string('-', 120));
+
+        foreach (var result in verification.Capabilities)
+        {
+            Console.WriteLine($"{result.Adapter.Name,-44} {result.Capability,-18} {result.Outcome.State,-12} {result.Outcome.Detail}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"{"Configuration",-44} {"Dataset",-20} {"State",-12} {"Buffered",10} {"Streamed",10}  Detail");
+        Console.WriteLine(new string('-', 120));
+
+        foreach (var pair in verification.Pairs)
+        {
+            Console.WriteLine(
+                $"{pair.Adapter.Name,-44} {pair.Dataset,-20} {pair.State,-12} {pair.BufferedBytes,10} {pair.StreamedBytes,10}  {pair.Detail}");
+        }
+
+        Console.WriteLine();
+        foreach (var tier in verification.Tiers.GroupBy(placement => placement.Tier).OrderBy(group => group.Key))
+        {
+            var members = tier.Where(placement => placement.Intended && placement.Qualified).Select(placement => placement.Adapter.Name);
+            Console.WriteLine($"{tier.Key}: {string.Join(", ", members)}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Market: {verification.Pairs.Count} pairs, {verification.Capabilities.Count} probes, " +
+            $"{verification.SchemaFailures.Count} schema failures, {verification.Failed} failed. Written to {directory}");
+
+        return verification.Failed == 0 ? 0 : 1;
     }
 
     /// <summary>§14 — sizes, recorded without a timing in the same table.</summary>

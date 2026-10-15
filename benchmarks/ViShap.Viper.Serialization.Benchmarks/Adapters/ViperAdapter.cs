@@ -13,7 +13,7 @@ namespace ViShap.Viper.Serialization.Benchmarks.Adapters;
 /// payload, the awaited stream and pipe, and the stream of frames — for the Viper-only workloads of the
 /// plan's §10.
 /// </remarks>
-internal sealed class ViperAdapter : IBufferedSerializer, IStreamingSerializer, IBufferWriterSerializer
+internal sealed class ViperAdapter : IBufferedSerializer, IStreamingSerializer, IBufferWriterSerializer, ISpanDeserializer
 {
     private readonly BinarySerializer _serializer;
 

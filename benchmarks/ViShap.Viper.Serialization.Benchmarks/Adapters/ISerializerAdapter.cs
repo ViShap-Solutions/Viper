@@ -22,9 +22,9 @@ internal interface IStreamingSerializer
 
 /// <summary>
 /// A serializer measured through its buffer entry points: it writes into a caller's
-/// <see cref="System.Buffers.IBufferWriter{T}"/> and reads from a span or a sequence, which is how
-/// serializers built for buffers are called (Benchmark-Plan FAIR-07). An adapter that has no such
-/// entry point does not implement this, and its cells in the family are <c>Unsupported</c>.
+/// <see cref="System.Buffers.IBufferWriter{T}"/> and reads from a sequence, which is how serializers
+/// built for buffers are called (Benchmark-Plan FAIR-07). An adapter that has no such entry point does
+/// not implement this, and its cells in the family are <c>Unsupported</c>.
 /// </summary>
 internal interface IBufferWriterSerializer
 {
@@ -32,7 +32,17 @@ internal interface IBufferWriterSerializer
 
     void Serialize<T>(System.Buffers.IBufferWriter<byte> destination, T value);
 
-    T? Deserialize<T>(ReadOnlySpan<byte> payload);
-
     T? Deserialize<T>(System.Buffers.ReadOnlySequence<byte> payload);
+}
+
+/// <summary>
+/// A serializer that reads straight from a <see cref="ReadOnlySpan{T}"/>. Kept apart from the buffer
+/// family because a library may read a sequence or a memory and not a span; such a library does not
+/// implement this, and its span cells are <c>Unsupported</c>.
+/// </summary>
+internal interface ISpanDeserializer
+{
+    string Name { get; }
+
+    T? Deserialize<T>(ReadOnlySpan<byte> payload);
 }
