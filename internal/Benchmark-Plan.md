@@ -1021,8 +1021,9 @@ Kept accurate at the end of every session, so a session that starts cold knows w
 without reading the history.
 
 ```text
-Track:        the harness, between the two tracks: the graceful stop of Benchmark-Graceful-Stop.md (variant
-              C), on benchmark/graceful-stop. Nothing is measured; the numbers wait for the v1.0.0 tag
+Track:        the harness, between the two tracks, on benchmark/graceful-stop: the graceful stop
+              (committed), then the --track B runner and the Track B report. Nothing is measured; the
+              numbers wait for the v1.0.0 tag
 Stage:        A0–A7 written and unchanged in what they measure. Track B: the seven libraries of §5.2 in 14
               configurations (Adapters/Market/, MarketRoster), one model family per library generated
               from the schema (Models/<library>/, Schema/ModelSchema), the corpus projected into each
@@ -1031,15 +1032,25 @@ Stage:        A0–A7 written and unchanged in what they measure. Track B: the s
               the comparative suites MarketBuffered/Stream/Buffer/Span/EvolutionBenchmarks taking their
               cases only from verified pairs (Verification/MarketCases). --verify writes
               BenchmarkDotNet.Artifacts/market/: capabilities.csv, tiers.csv, market-verification.csv,
-              rationale.csv, model-differences.csv, verified-pairs.tsv
+              rationale.csv, model-differences.csv, verified-pairs.tsv. --track B runs B2's five suites
+              after the market's verification, writing it into the run with roster.csv (§5.2–§5.4),
+              market-datasets.csv and configuration.md (Reporting/MarketArtifacts); on a tag it is a
+              baseline only once Baselines/<tag>/ holds Track A's, and lands beside it in
+              Baselines/<tag>/market/. Its report (Reporting/MarketReport) is written for REP-05, RST-04,
+              RST-06, FAIR-13, FAIR-16, FAIR-20, TIER-01 and TIER-02, which close on the tagged run
 Harness:      frozen? not yet. The freeze takes effect when the publication run starts. A track run stops
               on one Ctrl+C (read as a key, Suites/StopSignal) or a STOP file in its directory after the
               current unit, and writes what it measured as an interrupted measurement; a second Ctrl+C
               stops at once. run.json is kept current while it runs, so --report rebuilds a dead run
               from BenchmarkDotNet's exports (Reporting/ExportRecovery). A baseline is measured under
               Measurements/ and moved to Baselines/<tag>/ only when every unit has run (Q3). The Server
-              GC pass exports under server-gc/ (R-12). --check-stop checks all of it (R-13 found there)
-Last run:     graceful stop, 2026-10-16: --check-stop green (14 committed exports rebuilt value for value,
+              GC pass exports under server-gc/ (R-12). --check-stop checks all of it (R-13 found there);
+              --check-market-report holds the Track B report to its rules over a cell for every case
+Last run:     Track B runner, 2026-10-16: --check-market-report green (104 tables, 23 tier memberships, 2
+              compressed configurations, 1175 cases — the market count of today's --smoke); --track B
+              --short --filter '*Evolution*' wrote a complete run (deleted, its numbers mean nothing); a
+              committed Track A report regenerates unchanged.
+              Graceful stop, 2026-10-16: --check-stop green (14 committed exports rebuilt value for value,
               a STOP after suite 2 and a kill in suite 3 both end as the same interrupted measurement);
               --verify 405 + 304 pairs, 140 probes, 0 failed; --smoke 2477 benchmarks, 0 failed.
               rc.2 P6, 2026-10-14: --verify 405 Viper pairs and 304 market pairs, 140 probes, 0 schema
@@ -1050,10 +1061,10 @@ Last run:     graceful stop, 2026-10-16: --check-stop green (14 committed export
 Baseline:     Baselines/pre-rework/ — 667 cells, the "before" of every rework stage (§25), not a release
               baseline
 Machine:      the one recorded in Baselines/pre-rework/environment.json
-Next action:  a --track B runner and the report's Track B sections (FAIR-13, FAIR-16, FAIR-20, TIER-01, TIER-02, RST-06) —
-              both before the tag. After the release, tag v1.0.0, check the tag out, and take the
+Next action:  none before the tag. After the release, tag v1.0.0, check the tag out, and take the
               publication run there on an idle machine — Track A about 4 hours, of which 40 minutes is the
-              soak — then tick the A-stage boxes against Baselines/v1.0.0/, then Track B on the same tag
+              soak — then tick the A-stage boxes against Baselines/v1.0.0/, then --track B on the same tag
+              (RST-03 the same day) and tick the B items against Baselines/v1.0.0/market/
 ```
 
 ---

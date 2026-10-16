@@ -37,6 +37,33 @@ internal static class ReportWriter
         var document = new Document();
 
         Identity(document, run, directory);
+
+        if (run.Track == MarketReport.Track)
+        {
+            MarketReport.Write(document, directory, results);
+        }
+        else
+        {
+            TrackA(document, run, directory, results, sizes, charts);
+        }
+
+        var markdown = document.ToMarkdown();
+        File.WriteAllText(Path.Combine(directory, "report.md"), markdown);
+        File.WriteAllText(
+            Path.Combine(directory, "report.html"),
+            document.ToHtml($"ViShap.Viper — {run.Label}"));
+
+        return markdown;
+    }
+
+    private static void TrackA(
+        Document document,
+        RunRecord run,
+        string directory,
+        IReadOnlyList<ResultRow> results,
+        IReadOnlyList<SizeRow> sizes,
+        IReadOnlyList<Chart> charts)
+    {
         Caveats(document, run);
         Environment(document, directory);
         Verification(document, directory);
@@ -49,14 +76,6 @@ internal static class ReportWriter
         System(document, directory, results);
         Gallery(document, charts);
         Caution(document, results);
-
-        var markdown = document.ToMarkdown();
-        File.WriteAllText(Path.Combine(directory, "report.md"), markdown);
-        File.WriteAllText(
-            Path.Combine(directory, "report.html"),
-            document.ToHtml($"ViShap.Viper — {run.Label}"));
-
-        return markdown;
     }
 
     /// <summary>
@@ -189,7 +208,7 @@ internal static class ReportWriter
         ]);
     }
 
-    private static void Environment(Document document, string directory)
+    internal static void Environment(Document document, string directory)
     {
         var path = Path.Combine(directory, "environment.json");
 
@@ -392,7 +411,7 @@ internal static class ReportWriter
     /// The cells a reader should not take at face value: one whose margin of error exceeds the ceiling
     /// STAT-04 sets, and one that produced no number at all.
     /// </summary>
-    private static void Caution(Document document, IReadOnlyList<ResultRow> results)
+    internal static void Caution(Document document, IReadOnlyList<ResultRow> results)
     {
         var failed = results.Where(row => row.State != "Supported").ToList();
 
@@ -485,7 +504,7 @@ internal static class ReportWriter
     ];
 
     /// <summary>A duration at the scale it belongs to, so a table does not print 0.000 or 12345678.9.</summary>
-    private static string Time(double nanoseconds) => nanoseconds switch
+    internal static string Time(double nanoseconds) => nanoseconds switch
     {
         0 => "—",
         < 1_000 => $"{nanoseconds.ToString("F2", CultureInfo.InvariantCulture)} ns",
@@ -494,7 +513,7 @@ internal static class ReportWriter
         _ => $"{(nanoseconds / 1_000_000_000).ToString("F3", CultureInfo.InvariantCulture)} s",
     };
 
-    private static string Bytes(double bytes) => bytes switch
+    internal static string Bytes(double bytes) => bytes switch
     {
         0 => "—",
         < 1_024 => $"{bytes.ToString("F0", CultureInfo.InvariantCulture)} B",

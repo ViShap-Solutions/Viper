@@ -47,7 +47,12 @@ internal sealed record RunTarget(
     /// job is the publication job, and no filter narrowed the suites; otherwise it is a measurement,
     /// named after `git describe` and the moment it started so that no two runs can collide.
     /// </summary>
-    internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty)
+    /// <remarks>
+    /// Track B is measured on the tag Track A's baseline already holds, and is kept beside it, in
+    /// <c>Baselines/&lt;tag&gt;/market/</c>, without touching a file of it (Benchmark-Plan §29.2). Until
+    /// that baseline exists a Track B run on the tag is a measurement.
+    /// </remarks>
+    internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty, bool market = false)
     {
         var tag = Shell.Git("describe --tags --exact-match HEAD");
         var describe = Shell.Git("describe --tags --always --long");
@@ -82,13 +87,18 @@ internal sealed record RunTarget(
             blocked.Add($"a filter narrowed the run to '{filter}'");
         }
 
+        if (market && !string.IsNullOrEmpty(tag) && !System.IO.Directory.Exists(Path.Combine(Paths.Baselines, tag)))
+        {
+            blocked.Add($"Track A's baseline of {tag} is not committed yet, and Track B is measured beside it");
+        }
+
         if (blocked.Count == 0)
         {
             return new RunTarget(
                 RunKind.Baseline,
-                Path.Combine(Paths.Baselines, tag),
+                market ? Path.Combine(Paths.Baselines, tag, "market") : Path.Combine(Paths.Baselines, tag),
                 working,
-                tag,
+                market ? $"{tag}/market" : tag,
                 tag,
                 describe,
                 "every suite of the track, on a tagged commit, under the publication job",

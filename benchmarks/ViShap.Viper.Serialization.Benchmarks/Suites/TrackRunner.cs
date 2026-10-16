@@ -16,7 +16,7 @@ using ViShap.Viper.Serialization.Benchmarks.Verification;
 namespace ViShap.Viper.Serialization.Benchmarks.Suites;
 
 /// <summary>
-/// The one command of Benchmark-Plan §29.1: it runs every suite of Track A in order, writes every
+/// The one command of Benchmark-Plan §29.1 and §29.2: it runs every suite of a track in order, writes every
 /// artifact of §23 into the run's own directory, and stops. There is no interactive step and no decision
 /// in the middle.
 /// </summary>
@@ -82,22 +82,32 @@ internal static class TrackRunner
 
     /// <summary>
     /// The comparative suites of Track B (§29.2), which a Track A run never measures. They are named here
-    /// so that a suite registered in neither track still stops a run instead of being left out unseen.
+    /// so that a suite registered in neither track still stops a run instead of being left out unseen. All
+    /// of them are B2, the comparative core.
     /// </summary>
-    private static readonly Type[] TrackB =
+    private static readonly (string Stage, Type Suite)[] TrackB =
     [
-        typeof(MarketBufferedBenchmarks),
-        typeof(MarketStreamBenchmarks),
-        typeof(MarketBufferBenchmarks),
-        typeof(MarketSpanBenchmarks),
-        typeof(MarketEvolutionBenchmarks),
+        ("B2", typeof(MarketBufferedBenchmarks)),
+        ("B2", typeof(MarketStreamBenchmarks)),
+        ("B2", typeof(MarketBufferBenchmarks)),
+        ("B2", typeof(MarketSpanBenchmarks)),
+        ("B2", typeof(MarketEvolutionBenchmarks)),
     ];
 
-    /// <summary>The names of the track's suites, in the order a run measures them.</summary>
-    internal static IReadOnlyList<string> SuiteOrder { get; } = [.. TrackA.Select(entry => entry.Suite.Name)];
+    /// <summary>The names of both tracks' suites, in the order a run measures them.</summary>
+    internal static IReadOnlyList<string> SuiteOrder { get; } = [.. TrackA.Concat(TrackB).Select(entry => entry.Suite.Name)];
 
+    /// <summary>
+    /// Runs one track: <c>--track A</c>, Viper alone, or <c>--track B</c>, the market of §5.2. Track B
+    /// verifies the market — schema, probes, tiers, pairs — where Track A verifies the corpus and records
+    /// its sizes, and it has no process-level step: cold start, first use and the soak belong to Track A.
+    /// </summary>
     internal static int Run(string[] args)
     {
+        bool market = string.Equals(Value(args, "--track"), "B", StringComparison.OrdinalIgnoreCase);
+        var track = market ? TrackB : TrackA;
+        var letter = market ? "B" : "A";
+
         bool shortened = args.Contains("--short", StringComparer.Ordinal);
         bool allowDirty = args.Contains("--allow-dirty", StringComparer.Ordinal);
         string? filter = Value(args, "--filter");
@@ -119,20 +129,20 @@ internal static class TrackRunner
             return 1;
         }
 
-        var target = RunTarget.Decide(shortened, filter, allowDirty);
-        var selected = Select(filter);
+        var target = RunTarget.Decide(shortened, filter, allowDirty, market);
+        var selected = Select(filter, track);
 
         if (selected.Count == 0)
         {
-            Console.Error.WriteLine($"No suite of Track A matches '{filter}'. Nothing was written.");
+            Console.Error.WriteLine($"No suite of Track {letter} matches '{filter}'. Nothing was written.");
             return 1;
         }
 
         if (args.Contains("--list", StringComparer.Ordinal))
         {
-            Console.WriteLine($"{selected.Count} of {TrackA.Length} suite(s) would run:");
+            Console.WriteLine($"{selected.Count} of {track.Length} suite(s) would run:");
 
-            foreach (var entry in TrackA.Where(entry => selected.Contains(entry.Suite)))
+            foreach (var entry in track.Where(entry => selected.Contains(entry.Suite)))
             {
                 Console.WriteLine($"  {entry.Stage}  {entry.Suite.Name}");
             }
@@ -170,13 +180,13 @@ internal static class TrackRunner
         // One command produced this run. Listing every stage as if it had been run separately would
         // describe a session nobody had; the stage equivalents belong in reproduction.md, offered as an
         // alternative rather than as history.
-        var command = $"dotnet run --project {Paths.ProjectName} -c Release -- --track A"
+        var command = $"dotnet run --project {Paths.ProjectName} -c Release -- --track {letter}"
                       + (shortened ? " --short" : string.Empty)
                       + (filter is null ? string.Empty : $" --filter '{filter}'")
-                      + (soakMinutes is > 0 and not 10 ? $" --soak {soakMinutes:F0}" : string.Empty)
+                      + (!market && soakMinutes is > 0 and not 10 ? $" --soak {soakMinutes:F0}" : string.Empty)
                       + (allowDirty ? " --allow-dirty" : string.Empty);
 
-        var notSelected = TrackA.Select(entry => entry.Suite).Except(selected).Select(suite => suite.Name).ToList();
+        var notSelected = track.Select(entry => entry.Suite).Except(selected).Select(suite => suite.Name).ToList();
         var revision = Shell.Git("rev-parse HEAD");
 
         RunRecord Record(
@@ -196,7 +206,7 @@ internal static class TrackRunner
                 Dirty: written.Dirty,
                 AllowDirty: written.AllowDirty,
                 Reason: written.Reason,
-                Track: "A — Viper alone",
+                Track: market ? MarketReport.Track : "A — Viper alone",
                 Job: shortened ? "Shortened" : "Publication",
                 Filter: filter,
                 StartedUtc: startedUtc,
@@ -210,39 +220,28 @@ internal static class TrackRunner
 
         using var stop = StopSignal.Listen(target.WorkingDirectory, () => StopAtOnce(target));
 
-        Announce(target, selected, shortened, filter, soakMinutes, stop);
+        Announce(letter, target, selected, shortened, filter, market ? 0 : soakMinutes, stop);
 
         // §4 — the manifest first, so even a run that fails later says what it ran on.
         Step("manifest", () => EnvironmentManifest.Write(target.File("environment.json")));
 
         // §7.6 — verification before any timing. A failure here stops the run: a timing over an
         // unverified pair is not a measurement.
-        int failedPairs = 0;
-
-        Step("verify", () =>
+        if (market)
         {
-            var results = RoundTripVerifier.VerifyAll();
-            RoundTripVerifier.Write(results, target.File("verification.csv"));
-            failedPairs = results.Count(result => result.State == VerificationState.Failed);
-
-            Console.WriteLine($"{results.Count} pairs, {failedPairs} failed.");
-        });
-
-        if (failedPairs > 0)
+            if (!VerifyMarket(target))
+            {
+                return 1;
+            }
+        }
+        else if (!VerifyCorpus(target))
         {
-            Console.Error.WriteLine(
-                $"{failedPairs} pair(s) did not round-trip. No timing was taken: correctness comes first.");
-
             return 1;
         }
 
-        // §14 — sizes, which carry no timing beside them.
-        Step("sizes", () => SizeReport.Write(SizeReport.Collect(), target.File("payload-sizes.csv")));
-        Step("format sizes", () => FormatSizeReport.Write(FormatSizeReport.Collect(), target.File("format-sizes.csv")));
-
         // Everything timed, in order. A stop is honoured between two units and never inside one.
         var summaries = new List<Summary>();
-        var units = Units(target, selected, shortened, soakMinutes, summaries);
+        var units = Units(target, selected, shortened, market ? 0 : soakMinutes, summaries, processSteps: !market);
         var done = new List<Unit>();
         string? stoppedBy = null;
 
@@ -313,6 +312,77 @@ internal static class TrackRunner
     }
 
     /// <summary>
+    /// Track A's checks before timing: every corpus pair round-trips under every profile (§7.6), and the
+    /// sizes are recorded (§14), with no timing beside them. False when a pair failed.
+    /// </summary>
+    private static bool VerifyCorpus(RunTarget target)
+    {
+        int failedPairs = 0;
+
+        Step("verify", () =>
+        {
+            var results = RoundTripVerifier.VerifyAll();
+            RoundTripVerifier.Write(results, target.File("verification.csv"));
+            failedPairs = results.Count(result => result.State == VerificationState.Failed);
+
+            Console.WriteLine($"{results.Count} pairs, {failedPairs} failed.");
+        });
+
+        if (failedPairs > 0)
+        {
+            Console.Error.WriteLine(
+                $"{failedPairs} pair(s) did not round-trip. No timing was taken: correctness comes first.");
+
+            return false;
+        }
+
+        Step("sizes", () => SizeReport.Write(SizeReport.Collect(), target.File("payload-sizes.csv")));
+        Step("format sizes", () => FormatSizeReport.Write(FormatSizeReport.Collect(), target.File("format-sizes.csv")));
+
+        return true;
+    }
+
+    /// <summary>
+    /// Track B's checks before timing (§7.4–§7.6): the models against the schema, the probes, the tiers
+    /// they place each configuration in and every pair of those tiers. Writes the verification's files,
+    /// the roster, the datasets and the rationales into the run, and records the verified pairs where the
+    /// comparative suites read their cases. False when the schema or a pair failed.
+    /// </summary>
+    private static bool VerifyMarket(RunTarget target)
+    {
+        int failed = 0;
+
+        Step("verify the market", () =>
+        {
+            var verification = MarketVerifier.VerifyAll();
+            MarketVerifier.Write(verification, target.WorkingDirectory);
+            MarketArtifacts.Write(target.WorkingDirectory);
+            MarketCases.Record(verification);
+            File.Copy(MarketCases.RecordPath, target.File(Path.GetFileName(MarketCases.RecordPath)), overwrite: true);
+            failed = verification.Failed;
+
+            foreach (var failure in verification.SchemaFailures)
+            {
+                Console.WriteLine($"schema: {failure}");
+            }
+
+            Console.WriteLine(
+                $"{verification.Pairs.Count} pairs, {verification.Capabilities.Count} probes, " +
+                $"{verification.SchemaFailures.Count} schema failures, {verification.Failed} failed.");
+        });
+
+        if (failed > 0)
+        {
+            Console.Error.WriteLine(
+                $"{failed} schema or pair failure(s). No timing was taken: a timing over an unverified pair is not a measurement.");
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// One thing a run measures between two chances to stop: a suite, the Server GC pass of a suite, or a
     /// process-level step. <c>Suite</c> is set when the unit is one of the track's suites.
     /// </summary>
@@ -320,7 +390,12 @@ internal static class TrackRunner
 
     /// <summary>The timed units of a run, in the order it measures them.</summary>
     private static List<Unit> Units(
-        RunTarget target, IReadOnlyList<Type> selected, bool shortened, double soakMinutes, List<Summary> summaries)
+        RunTarget target,
+        IReadOnlyList<Type> selected,
+        bool shortened,
+        double soakMinutes,
+        List<Summary> summaries,
+        bool processSteps)
     {
         var units = new List<Unit>();
 
@@ -357,6 +432,11 @@ internal static class TrackRunner
                         shortened,
                         serverGc: true)));
             }));
+        }
+
+        if (!processSteps)
+        {
+            return units;
         }
 
         // §18 — the cold half of the member plan, which no repeated-invocation harness can measure.
@@ -526,7 +606,10 @@ internal static class TrackRunner
 
         ResultRow.Write(rows, Path.Combine(directory, "results.csv"));
         ResultRow.WriteMemory(rows, Path.Combine(directory, "memory.csv"));
-        ResultRow.Write([.. rows.Where(row => row.IsComponent)], Path.Combine(directory, "components.csv"));
+        if (record.Track != MarketReport.Track)
+        {
+            ResultRow.Write([.. rows.Where(row => row.IsComponent)], Path.Combine(directory, "components.csv"));
+        }
 
         record.Write(Path.Combine(directory, "run.json"));
         Manifest(directory, record, rows);
@@ -642,9 +725,9 @@ internal static class TrackRunner
     }
 
     private static void Announce(
-        RunTarget target, IReadOnlyList<Type> selected, bool shortened, string? filter, double soakMinutes, StopSignal stop)
+        string letter, RunTarget target, IReadOnlyList<Type> selected, bool shortened, string? filter, double soakMinutes, StopSignal stop)
     {
-        Console.WriteLine($"Track A — {selected.Count} suite(s), job {(shortened ? "Shortened" : "Publication")}");
+        Console.WriteLine($"Track {letter} — {selected.Count} suite(s), job {(shortened ? "Shortened" : "Publication")}");
         Console.WriteLine($"  destination  {target.Directory}");
         Console.WriteLine($"  kind         {target.Kind} — {target.Reason}");
         Console.WriteLine($"  filter       {filter ?? "none"}");
@@ -679,20 +762,21 @@ internal static class TrackRunner
     /// The suites this run covers. A filter is a comma-separated list, and a suite is selected when any
     /// token names it: either a stage — <c>a1</c>, <c>a3</c>, <c>a4</c>, <c>a5</c>, <c>a6</c> — or a glob
     /// over the suite's type name. So <c>a4</c> is the whole component record, <c>a1,*Scaling*</c> is the
-    /// profile matrix plus every curve, and <c>*Header*,*Budget*</c> is two suites.
+    /// profile matrix plus every curve, and <c>*Header*,*Budget*</c> is two suites. Track B's suites are
+    /// all of stage <c>b2</c>.
     /// </summary>
-    private static IReadOnlyList<Type> Select(string? filter)
+    private static IReadOnlyList<Type> Select(string? filter, (string Stage, Type Suite)[] track)
     {
         if (filter is null)
         {
-            return [.. TrackA.Select(entry => entry.Suite)];
+            return [.. track.Select(entry => entry.Suite)];
         }
 
         var tokens = filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         return
         [
-            .. TrackA
+            .. track
                 .Where(entry => tokens.Any(token =>
                     string.Equals(token, entry.Stage, StringComparison.OrdinalIgnoreCase)
                     || Matches(entry.Suite.Name, token)))
@@ -735,7 +819,7 @@ internal static class TrackRunner
         .. typeof(TrackRunner).Assembly.GetTypes()
             .Where(type => type is { IsPublic: true, IsAbstract: false })
             .Where(type => type.GetMethods().Any(method => method.GetCustomAttribute<BenchmarkAttribute>() is not null))
-            .Where(type => !TrackA.Any(entry => entry.Suite == type) && !TrackB.Contains(type))
+            .Where(type => !TrackA.Concat(TrackB).Any(entry => entry.Suite == type))
             .Select(type => type.FullName ?? type.Name)
             .Order(StringComparer.Ordinal),
     ];
@@ -774,6 +858,40 @@ internal static class TrackRunner
         var commands = string.Join(System.Environment.NewLine, record.Commands);
         var folder = record.Kind == nameof(RunKind.Baseline) ? "Baselines" : "Measurements";
         var tagged = record.Tag is null ? string.Empty : $", tag `{record.Tag}`";
+        bool market = record.Track == MarketReport.Track;
+
+        var whole = string.Join('\n', market
+            ? new[]
+            {
+                "The last line is the whole of it: it writes the manifest, verifies the market — the models against",
+                "the schema, the probes, the tiers and every pair — runs the comparative suites in order, and",
+                "generates this directory's report.",
+            }
+            : new[]
+            {
+                "The last line is the whole of it: it writes the manifest, verifies every dataset, records the",
+                "sizes, runs the suites in order, measures cold start and sustained load, and generates this",
+                "directory's report and charts.",
+            });
+
+        var parts = string.Join('\n', market
+            ? new[]
+            {
+                $"{run} --verify --market   # the market's schema, probes, tiers and pairs, no timing",
+                $"{run} --manifest          # the environment",
+                $"{run} --track B --filter '*Evolution*'",
+            }
+            : new[]
+            {
+                $"{run} --verify          # round trips, no timing",
+                $"{run} --sizes           # the size table",
+                $"{run} --manifest        # the environment",
+                $"{run} --contract-cold   # member-plan construction",
+                $"{run} --first-use       # first use of a type, reflected and generated",
+                $"{run} --cold            # cold start",
+                $"{run} --soak 10         # sustained load",
+                $"{run} --track A --filter '*Algorithm*'",
+            });
 
         var text =
             $"""
@@ -798,21 +916,12 @@ internal static class TrackRunner
             {commands}
             ```
 
-            The last line is the whole of it: it writes the manifest, verifies every dataset, records the
-            sizes, runs the suites in order, measures cold start and sustained load, and generates this
-            directory's report and charts.
+            {whole}
 
             ## Re-running one part alone
 
             ```text
-            {run} --verify          # round trips, no timing
-            {run} --sizes           # the size table
-            {run} --manifest        # the environment
-            {run} --contract-cold   # member-plan construction
-            {run} --first-use       # first use of a type, reflected and generated
-            {run} --cold            # cold start
-            {run} --soak 10         # sustained load
-            {run} --track A --filter '*Algorithm*'
+            {parts}
             {run} --report {folder}/{record.Label}
             ```
 

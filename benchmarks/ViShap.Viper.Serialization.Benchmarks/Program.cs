@@ -27,6 +27,11 @@ internal static class Program
             return StopCheck.Run(args);
         }
 
+        if (args.Contains("--check-market-report", StringComparer.Ordinal))
+        {
+            return MarketReportCheck.Run();
+        }
+
         if (args.Contains("--manifest", StringComparer.Ordinal))
         {
             return Manifest();
@@ -95,18 +100,19 @@ internal static class Program
     }
 
     /// <summary>
-    /// §29.1 — one command runs a whole track: every suite in order, every artifact of §23 into the
+    /// §29.1, §29.2 — one command runs a whole track: every suite in order, every artifact of §23 into the
     /// run's own directory, and nothing interactive in the middle.
     /// </summary>
     private static int Track(string[] args)
     {
         var track = Argument(args, "--track");
 
-        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(track, "B", StringComparison.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine(
-                $"Track '{track}' has no runner. Track A measures Viper alone; Track B follows it and needs " +
-                "the competitor roster of the plan's §5.");
+                $"Track '{track}' has no runner. Track A measures Viper alone; Track B measures the market of " +
+                "the plan's §5.2 beside it.");
 
             return 1;
         }
