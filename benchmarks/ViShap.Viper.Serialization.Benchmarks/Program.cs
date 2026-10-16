@@ -22,6 +22,11 @@ internal static class Program
             return args.Contains("--market", StringComparer.Ordinal) ? VerifyMarket() : Verify() | VerifyMarket();
         }
 
+        if (args.Contains("--check-stop", StringComparer.Ordinal))
+        {
+            return StopCheck.Run(args);
+        }
+
         if (args.Contains("--manifest", StringComparer.Ordinal))
         {
             return Manifest();
@@ -111,7 +116,9 @@ internal static class Program
 
     /// <summary>
     /// REP-02 — regenerates the report and the charts of an existing run from its raw files, so a
-    /// baseline committed long ago still produces the report it produced on the day it was taken.
+    /// baseline committed long ago still produces the report it produced on the day it was taken. A run
+    /// whose process ended before it wrote <c>results.csv</c> is rebuilt from BenchmarkDotNet's exports
+    /// first, and recorded as an interrupted measurement.
     /// </summary>
     private static int Report(string[] args)
     {
@@ -121,6 +128,11 @@ internal static class Program
         {
             Console.Error.WriteLine($"No run directory at '{directory}'.");
             return 1;
+        }
+
+        if (!File.Exists(Path.Combine(directory, "results.csv")))
+        {
+            return TrackRunner.Recover(directory);
         }
 
         ReportWriter.Generate(directory);

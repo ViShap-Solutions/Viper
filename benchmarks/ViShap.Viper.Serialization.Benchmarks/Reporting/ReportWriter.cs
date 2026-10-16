@@ -119,6 +119,14 @@ internal static class ReportWriter
             : $"**Not a baseline.** {run.Reason}. It carries only what it measured, and every figure in " +
               "it belongs to this run alone.");
 
+        if (run.Interrupted)
+        {
+            document.Paragraph(
+                $"**Interrupted** by {run.StoppedBy}. {run.SuitesRun.Count} suite(s) finished and are reported " +
+                "below; what did not run, and the suite cut off in the middle if there was one, are listed in " +
+                "`scope.md`.");
+        }
+
         document.Table(
             ["Field", "Value"],
             [
@@ -170,6 +178,14 @@ internal static class ReportWriter
             run.SuitesNotRun.Count == 0
                 ? "**Every suite of the track ran.**"
                 : $"**{run.SuitesNotRun.Count} suite(s) did not run**, listed in `scope.md`.",
+
+            .. run.SuitesUnfinished is { Count: > 0 } unfinished
+                ? new[]
+                {
+                    $"**{string.Join(", ", unfinished)} did not finish.** BenchmarkDotNet exports a suite only " +
+                    "when it ends, so none of its cells is here.",
+                }
+                : [],
         ]);
     }
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using BenchmarkDotNet.Attributes;
@@ -79,6 +80,22 @@ internal static class TrackRunner
         ("A6", typeof(ConcurrencyBenchmarks)),
     ];
 
+    /// <summary>
+    /// The comparative suites of Track B (§29.2), which a Track A run never measures. They are named here
+    /// so that a suite registered in neither track still stops a run instead of being left out unseen.
+    /// </summary>
+    private static readonly Type[] TrackB =
+    [
+        typeof(MarketBufferedBenchmarks),
+        typeof(MarketStreamBenchmarks),
+        typeof(MarketBufferBenchmarks),
+        typeof(MarketSpanBenchmarks),
+        typeof(MarketEvolutionBenchmarks),
+    ];
+
+    /// <summary>The names of the track's suites, in the order a run measures them.</summary>
+    internal static IReadOnlyList<string> SuiteOrder { get; } = [.. TrackA.Select(entry => entry.Suite.Name)];
+
     internal static int Run(string[] args)
     {
         bool shortened = args.Contains("--short", StringComparer.Ordinal);
@@ -148,8 +165,7 @@ internal static class TrackRunner
             return 1;
         }
 
-        var startedUtc = DateTime.UtcNow;
-        var timer = Stopwatch.StartNew();
+        var startedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
         // One command produced this run. Listing every stage as if it had been run separately would
         // describe a session nobody had; the stage equivalents belong in reproduction.md, offered as an
@@ -160,7 +176,41 @@ internal static class TrackRunner
                       + (soakMinutes is > 0 and not 10 ? $" --soak {soakMinutes:F0}" : string.Empty)
                       + (allowDirty ? " --allow-dirty" : string.Empty);
 
-        Announce(target, selected, shortened, filter, soakMinutes);
+        var notSelected = TrackA.Select(entry => entry.Suite).Except(selected).Select(suite => suite.Name).ToList();
+        var revision = Shell.Git("rev-parse HEAD");
+
+        RunRecord Record(
+            RunTarget written,
+            IReadOnlyList<string> run,
+            IReadOnlyList<string> notRun,
+            bool interrupted = false,
+            string? stoppedBy = null,
+            IReadOnlyList<string>? unfinished = null,
+            string finishedUtc = "") =>
+            new(
+                Kind: written.Kind.ToString(),
+                Label: written.Label,
+                Tag: written.Tag,
+                Describe: written.Describe,
+                Revision: revision,
+                Dirty: written.Dirty,
+                AllowDirty: written.AllowDirty,
+                Reason: written.Reason,
+                Track: "A — Viper alone",
+                Job: shortened ? "Shortened" : "Publication",
+                Filter: filter,
+                StartedUtc: startedUtc,
+                FinishedUtc: finishedUtc,
+                Commands: [command],
+                SuitesRun: run,
+                SuitesNotRun: [.. notSelected, .. notRun],
+                Interrupted: interrupted,
+                StoppedBy: stoppedBy,
+                SuitesUnfinished: unfinished);
+
+        using var stop = StopSignal.Listen(target.WorkingDirectory, () => StopAtOnce(target));
+
+        Announce(target, selected, shortened, filter, soakMinutes, stop);
 
         // §4 — the manifest first, so even a run that fails later says what it ran on.
         Step("manifest", () => EnvironmentManifest.Write(target.File("environment.json")));
@@ -190,96 +240,306 @@ internal static class TrackRunner
         Step("sizes", () => SizeReport.Write(SizeReport.Collect(), target.File("payload-sizes.csv")));
         Step("format sizes", () => FormatSizeReport.Write(FormatSizeReport.Collect(), target.File("format-sizes.csv")));
 
-        // §10, §18, §19, §21 — the timed suites, in track order, into the run's own directory.
+        // Everything timed, in order. A stop is honoured between two units and never inside one.
         var summaries = new List<Summary>();
+        var units = Units(target, selected, shortened, soakMinutes, summaries);
+        var done = new List<Unit>();
+        string? stoppedBy = null;
 
+        foreach (var unit in units)
+        {
+            if (stop.Requested)
+            {
+                stoppedBy = stop.How;
+                break;
+            }
+
+            // While a unit runs, the record on disk is the one a process that dies would leave.
+            Record(
+                    target.Interrupted(),
+                    Suites(done),
+                    Names(units.Skip(done.Count + 1)),
+                    interrupted: true,
+                    unfinished: [unit.Name])
+                .Write(target.File("run.json"));
+
+            unit.Work();
+            done.Add(unit);
+        }
+
+        stop.Dispose();
+
+        if (stoppedBy is not null)
+        {
+            var stopped = target.Interrupted();
+
+            Console.WriteLine();
+            Console.WriteLine(
+                $"── Stopped by {stoppedBy} after {done.Count} of {units.Count} unit(s). Writing what was measured.");
+
+            File.Delete(stopped.File("STOP"));
+
+            return Finish(
+                stopped.WorkingDirectory,
+                Record(
+                    stopped,
+                    Suites(done),
+                    Names(units.Skip(done.Count)),
+                    interrupted: true,
+                    stoppedBy: stoppedBy,
+                    unfinished: [],
+                    finishedUtc: DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+                ResultRow.From(summaries));
+        }
+
+        try
+        {
+            target = target.Settle();
+        }
+        catch (InvalidOperationException refusal)
+        {
+            Console.Error.WriteLine(refusal.Message);
+            target = target.Interrupted() with { Reason = "a baseline of the same tag appeared while this run measured" };
+        }
+
+        return Finish(
+            target.WorkingDirectory,
+            Record(
+                target,
+                [.. selected.Select(suite => suite.Name)],
+                [],
+                finishedUtc: DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+            ResultRow.From(summaries));
+    }
+
+    /// <summary>
+    /// One thing a run measures between two chances to stop: a suite, the Server GC pass of a suite, or a
+    /// process-level step. <c>Suite</c> is set when the unit is one of the track's suites.
+    /// </summary>
+    private sealed record Unit(string Name, Type? Suite, Action Work);
+
+    /// <summary>The timed units of a run, in the order it measures them.</summary>
+    private static List<Unit> Units(
+        RunTarget target, IReadOnlyList<Type> selected, bool shortened, double soakMinutes, List<Summary> summaries)
+    {
+        var units = new List<Unit>();
+
+        // §10, §18, §19, §21 — the timed suites, in track order, into the run's own directory.
         for (var index = 0; index < selected.Count; index++)
         {
             var suite = selected[index];
+            var position = $"[{index + 1}/{selected.Count}]";
 
-            Console.WriteLine();
-            Console.WriteLine($"── [{index + 1}/{selected.Count}] {suite.Name}");
+            units.Add(new Unit(suite.Name, suite, () =>
+            {
+                Console.WriteLine();
+                Console.WriteLine($"── {position} {suite.Name}");
 
-            summaries.Add(BenchmarkRunner.Run(
-                suite,
-                new BenchmarkConfig(target.Directory, shortened)));
+                summaries.Add(BenchmarkRunner.Run(suite, new BenchmarkConfig(target.WorkingDirectory, shortened)));
+            }));
         }
 
         // §19 SCALE-09 — the large end of the payload curve again, under Server GC, so both are published
         // and a reader can see what the GC mode is worth. It is the same suite and the same corpus; only
-        // the job differs, and the job id travels with every cell.
+        // the job differs, and the job id travels with every cell. It exports into a directory of its
+        // own, because BenchmarkDotNet names an export after the suite and would overwrite the first pass.
         if (selected.Contains(typeof(PayloadSizeScalingBenchmarks)))
         {
-            Console.WriteLine();
-            Console.WriteLine("── SCALE-09  PayloadSizeScalingBenchmarks under Server GC");
+            units.Add(new Unit(ExportRecovery.ServerGcPass(nameof(PayloadSizeScalingBenchmarks)), null, () =>
+            {
+                Console.WriteLine();
+                Console.WriteLine("── SCALE-09  PayloadSizeScalingBenchmarks under Server GC");
 
-            summaries.Add(BenchmarkRunner.Run(
-                typeof(PayloadSizeScalingBenchmarks),
-                new BenchmarkConfig(target.Directory, shortened, serverGc: true)));
+                summaries.Add(BenchmarkRunner.Run(
+                    typeof(PayloadSizeScalingBenchmarks),
+                    new BenchmarkConfig(
+                        Path.Combine(target.WorkingDirectory, ExportRecovery.ServerGcDirectory),
+                        shortened,
+                        serverGc: true)));
+            }));
         }
 
         // §18 — the cold half of the member plan, which no repeated-invocation harness can measure.
-        Step("member-plan construction", () => ContractColdRunner.Run(target.Directory));
+        units.Add(StepUnit("member-plan construction", () => ContractColdRunner.Run(target.WorkingDirectory)));
 
         // §20 WL-10 — the first use of each type in a warm process, reflected and generated, one process
         // per launch.
-        Step("first use", () => FirstUseRunner.Drive(target.Directory));
+        units.Add(StepUnit("first use", () => FirstUseRunner.Drive(target.WorkingDirectory)));
 
         // §20 — cold start, one process per measurement.
-        Step("cold start", () => ColdStartRunner.Drive(target.Directory));
+        units.Add(StepUnit("cold start", () => ColdStartRunner.Drive(target.WorkingDirectory)));
 
         // §22 — sustained load. Skipped in a shortened run, because ten minutes of soak proves nothing
         // about a pipeline and the shortened run exists to prove the pipeline.
         if (soakMinutes > 0)
         {
-            Step($"soak {soakMinutes:F0} min", () =>
-                SoakRunner.Run(TimeSpan.FromMinutes(soakMinutes), target.Directory));
+            units.Add(StepUnit(
+                $"soak {soakMinutes:F0} min",
+                () => SoakRunner.Run(TimeSpan.FromMinutes(soakMinutes), target.WorkingDirectory)));
         }
 
-        // The BenchmarkDotNet export is 27 MB of per-iteration data for a full run, and nothing reads it
-        // back: the report and the charts are built from results.csv. A baseline is immutable, so a diff
-        // over those files would never be taken either. Archived, it costs a few megabytes per release
-        // instead of tens, and the raw measurements are still there for anyone who wants them.
-        Step("archive the BenchmarkDotNet export", () => Archive(target));
+        return units;
+    }
 
-        var rows = ResultRow.From(summaries);
-        ResultRow.Write(rows, target.File("results.csv"));
-        ResultRow.WriteMemory(rows, target.File("memory.csv"));
-        ResultRow.Write([.. rows.Where(row => row.IsComponent)], target.File("components.csv"));
+    private static Unit StepUnit(string name, Action work) => new(name, null, () => Step(name, work));
 
-        var record = new RunRecord(
-            Kind: target.Kind.ToString(),
-            Label: target.Label,
-            Tag: target.Tag,
-            Describe: target.Describe,
-            Revision: Shell.Git("rev-parse HEAD"),
-            Dirty: target.Dirty,
-            AllowDirty: target.AllowDirty,
-            Reason: target.Reason,
-            Track: "A — Viper alone",
-            Job: shortened ? "Shortened" : "Publication",
-            Filter: filter,
-            StartedUtc: startedUtc.ToString("O", CultureInfo.InvariantCulture),
-            FinishedUtc: DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
-            Commands: [command],
-            SuitesRun: [.. selected.Select(suite => suite.Name)],
-            SuitesNotRun:
-            [
-                .. TrackA.Select(entry => entry.Suite).Except(selected).Select(suite => suite.Name),
-            ]);
+    /// <summary>The track suites among the units that ran.</summary>
+    private static List<string> Suites(IEnumerable<Unit> units) =>
+        [.. units.Where(unit => unit.Suite is not null).Select(unit => unit.Name)];
 
-        record.Write(target.File("run.json"));
-        Manifest(target, record, rows, timer.Elapsed);
-        Reproduction(target, record);
+    /// <summary>Every unit a run did not reach — suites, the Server GC pass and steps alike.</summary>
+    private static List<string> Names(IEnumerable<Unit> units) => [.. units.Select(unit => unit.Name)];
 
-        if (!target.IsBaseline)
+    /// <summary>
+    /// The second Ctrl+C. Nothing more is written: the suites that finished are in BenchmarkDotNet's
+    /// exports, and the record on disk already names the unit that was cut off, so <c>--report</c>
+    /// rebuilds the rest. BenchmarkDotNet ends the child it was measuring with when this process exits.
+    /// </summary>
+    private static void StopAtOnce(RunTarget target)
+    {
+        Console.WriteLine();
+        Console.WriteLine("── Ctrl+C again: stopped at once.");
+        Console.WriteLine(
+            $"   The suites that finished are exported in {target.WorkingDirectory}. To turn them into this " +
+            "run's results and report:");
+        Console.WriteLine($"   dotnet run --project {Paths.ProjectName} -c Release -- --report \"{target.WorkingDirectory}\"");
+
+        System.Environment.Exit(StopSignal.ImmediateExitCode);
+    }
+
+    /// <summary>
+    /// <c>--report</c> on a run with no <c>results.csv</c>: the process ended before it wrote one. The
+    /// cells come back from BenchmarkDotNet's exports, the record is the one the run kept current while
+    /// it worked, and what follows is exactly what a run stopped on request writes — always a
+    /// measurement.
+    /// </summary>
+    internal static int Recover(string directory)
+    {
+        directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        var baselines = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Paths.Baselines)) + Path.DirectorySeparatorChar;
+
+        if (directory.StartsWith(baselines, StringComparison.OrdinalIgnoreCase))
         {
-            Scope(target, record);
+            Console.Error.WriteLine(
+                $"{directory} is under Baselines/ and has no results.csv. A baseline is never rebuilt from " +
+                "its exports: a run that did not finish is not one. Nothing was written.");
+
+            return 1;
+        }
+
+        var order = SuiteOrder.ToList();
+        var exports = ExportRecovery.Read(directory, order);
+        var path = Path.Combine(directory, "run.json");
+        var kept = File.Exists(path) ? RunRecord.Read(path) : Unrecorded(directory, exports);
+
+        // A unit whose export exists finished, whatever the record kept while it ran says: the process
+        // can end between the export and the next update of the record.
+        var exported = exports
+            .Select(export => export.ServerGc ? ExportRecovery.ServerGcPass(export.Suite) : export.Suite)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var suitesRun = kept.SuitesRun
+            .Concat(exports.Where(export => !export.ServerGc).Select(export => export.Suite))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(suite => order.IndexOf(suite) is >= 0 and var index ? index : int.MaxValue)
+            .ToList();
+
+        var finished = exports.Count > 0 ? exports.Max(export => export.WrittenUtc) : Directory.GetLastWriteTimeUtc(directory);
+
+        var record = kept with
+        {
+            Kind = nameof(RunKind.Measurement),
+            Label = Path.GetFileName(directory),
+            Reason = kept.Interrupted
+                ? kept.Reason
+                : kept.IsBaseline
+                    ? "the run was interrupted before every suite of the track ran"
+                    : $"{kept.Reason}; the run was interrupted",
+            FinishedUtc = finished.ToString("O", CultureInfo.InvariantCulture),
+            SuitesRun = suitesRun,
+            SuitesNotRun = [.. kept.SuitesNotRun.Where(name => !exported.Contains(name))],
+            SuitesUnfinished = [.. (kept.SuitesUnfinished ?? []).Where(name => !exported.Contains(name))],
+            Interrupted = true,
+            StoppedBy = kept.StoppedBy ?? "the end of the process, before the run finished",
+        };
+
+        Console.WriteLine($"No results.csv in {directory}: rebuilding it from {exports.Count} BenchmarkDotNet export(s).");
+
+        return Finish(directory, record, [.. exports.SelectMany(export => export.Rows)]);
+    }
+
+    /// <summary>
+    /// The record of a run that left none, because it died before this harness kept one current. What
+    /// the manifest said at its start is all there is to go on.
+    /// </summary>
+    private static RunRecord Unrecorded(string directory, IReadOnlyList<ExportRecovery.SuiteExport> exports)
+    {
+        string revision = "unknown", started = string.Empty;
+        bool dirty = false;
+        var manifest = Path.Combine(directory, "environment.json");
+
+        if (File.Exists(manifest))
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(manifest));
+            var root = json.RootElement;
+            revision = root.TryGetProperty("revision", out var r) ? r.ToString() : revision;
+            started = root.TryGetProperty("capturedUtc", out var c) ? c.ToString() : started;
+            dirty = root.TryGetProperty("dirty", out var d) && d.ValueKind == System.Text.Json.JsonValueKind.True;
+        }
+
+        var label = Path.GetFileName(directory);
+
+        return new RunRecord(
+            Kind: nameof(RunKind.Measurement),
+            Label: label,
+            Tag: null,
+            Describe: label,
+            Revision: revision,
+            Dirty: dirty,
+            AllowDirty: false,
+            Reason: "the run left no record of itself, so its exports and its manifest are all that describe it; " +
+                    "the run was interrupted",
+            Track: "A — Viper alone",
+            Job: exports.SelectMany(export => export.Rows).Select(row => row.Job).FirstOrDefault() ?? "unknown",
+            Filter: null,
+            StartedUtc: started,
+            FinishedUtc: string.Empty,
+            Commands: ["unknown — the run ended before it recorded its command"],
+            SuitesRun: [],
+            SuitesNotRun: [.. TrackA.Select(entry => entry.Suite.Name)],
+            Interrupted: true);
+    }
+
+    /// <summary>
+    /// Writes everything a run leaves behind, from its cells and its record: the archive of the export,
+    /// the tables, <c>run.json</c>, the manifest, the reproduction instructions, the scope of a
+    /// measurement and the report. A run that finished, one stopped on request and one rebuilt by
+    /// <c>--report</c> all end here, so they cannot differ in what they write.
+    /// </summary>
+    private static int Finish(string directory, RunRecord record, IReadOnlyList<ResultRow> rows)
+    {
+        // The BenchmarkDotNet export is 27 MB of per-iteration data for a full run, and only a recovery
+        // reads it back: the report and the charts are built from results.csv. A baseline is immutable,
+        // so a diff over those files would never be taken either. Archived, it costs a few megabytes per
+        // release instead of tens, and the raw measurements are still there for anyone who wants them.
+        Step("archive the BenchmarkDotNet export", () => Archive(directory));
+
+        ResultRow.Write(rows, Path.Combine(directory, "results.csv"));
+        ResultRow.WriteMemory(rows, Path.Combine(directory, "memory.csv"));
+        ResultRow.Write([.. rows.Where(row => row.IsComponent)], Path.Combine(directory, "components.csv"));
+
+        record.Write(Path.Combine(directory, "run.json"));
+        Manifest(directory, record, rows);
+        Reproduction(directory, record);
+
+        if (!record.IsBaseline)
+        {
+            Scope(directory, record);
         }
 
         // The report is generated twice and compared, so a generator that stopped being a pure view over
         // the raw files says so here (REP-02).
-        var drifted = ReportWriter.GenerateAndCheck(target.Directory);
+        var drifted = ReportWriter.GenerateAndCheck(directory);
 
         foreach (var file in drifted)
         {
@@ -291,48 +551,98 @@ internal static class TrackRunner
         int failedCells = rows.Count(row => row.State != "Supported");
 
         Console.WriteLine();
-        Console.WriteLine($"{record.Kind} {target.Label} — {rows.Count} cells, {failedCells} without a number.");
-        Console.WriteLine($"Written to {target.Directory}");
-        Console.WriteLine($"Elapsed {timer.Elapsed:hh\\:mm\\:ss}");
+        Console.WriteLine($"{record.Kind} {record.Label} — {rows.Count} cells, {failedCells} without a number.");
+        Console.WriteLine($"Written to {directory}");
+        Console.WriteLine($"Elapsed {Elapsed(record):hh\\:mm\\:ss}");
 
-        if (!target.IsBaseline)
+        if (!record.IsBaseline)
         {
-            Console.WriteLine($"Not a baseline: {target.Reason}.");
+            Console.WriteLine($"Not a baseline: {record.Reason}.");
+        }
+
+        if (record.Interrupted)
+        {
+            Console.WriteLine(
+                $"Interrupted by {record.StoppedBy}: {record.SuitesRun.Count} suite(s) measured; what did not run " +
+                "is listed in scope.md.");
+
+            return 2;
         }
 
         return failedCells == 0 && drifted.Count == 0 ? 0 : 1;
     }
 
-    /// <summary>
-    /// Packs the BenchmarkDotNet export into one file beside the results it came from. A run that
-    /// produced no export leaves nothing behind.
-    /// </summary>
-    private static void Archive(RunTarget target)
-    {
-        var exported = Path.Combine(target.Directory, "results");
+    private static TimeSpan Elapsed(RunRecord record) =>
+        DateTime.TryParse(record.StartedUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var started)
+        && DateTime.TryParse(record.FinishedUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var finished)
+        && finished >= started
+            ? finished - started
+            : TimeSpan.Zero;
 
-        if (!Directory.Exists(exported))
+    /// <summary>
+    /// Packs the BenchmarkDotNet export into one file beside the results it came from: the suites at the
+    /// root of the archive, the Server GC pass under <c>server-gc/</c>. An archive that already exists
+    /// keeps what it holds, and a run that produced no export leaves nothing behind.
+    /// </summary>
+    private static void Archive(string directory)
+    {
+        var loose = ExportRecovery.LooseFiles(directory).ToList();
+
+        if (loose.Count == 0)
         {
             return;
         }
 
-        var archive = target.File("results.zip");
-        File.Delete(archive);
-        System.IO.Compression.ZipFile.CreateFromDirectory(
-            exported, archive, System.IO.Compression.CompressionLevel.SmallestSize, includeBaseDirectory: false);
+        var archive = Path.Combine(directory, "results.zip");
+        var partial = archive + ".partial";
+        File.Delete(partial);
+
+        using (var zip = ZipFile.Open(partial, ZipArchiveMode.Create))
+        {
+            if (File.Exists(archive))
+            {
+                using var previous = ZipFile.OpenRead(archive);
+
+                foreach (var entry in previous.Entries.Where(entry => loose.All(file => file.Key != entry.FullName)))
+                {
+                    using var source = entry.Open();
+                    using var copy = zip.CreateEntry(entry.FullName, CompressionLevel.SmallestSize).Open();
+                    source.CopyTo(copy);
+                }
+            }
+
+            foreach (var (key, path) in loose)
+            {
+                zip.CreateEntryFromFile(path, key, CompressionLevel.SmallestSize);
+            }
+        }
+
+        // The loose files go only once the archive is whole, so a process that dies here leaves one or
+        // the other intact.
+        File.Move(partial, archive, overwrite: true);
 
         long packed = new FileInfo(archive).Length;
-        long loose = new DirectoryInfo(exported).EnumerateFiles("*", SearchOption.AllDirectories).Sum(file => file.Length);
+        long size = loose.Sum(file => new FileInfo(file.Path).Length);
 
-        Directory.Delete(exported, recursive: true);
+        foreach (var folder in ExportRecovery.ExportDirectories(directory))
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+
+        var serverGc = Path.Combine(directory, ExportRecovery.ServerGcDirectory);
+
+        if (Directory.Exists(serverGc) && !Directory.EnumerateFileSystemEntries(serverGc).Any())
+        {
+            Directory.Delete(serverGc);
+        }
 
         Console.WriteLine(
-            $"   {loose / 1024:N0} KB of export packed into {packed / 1024:N0} KB, " +
-            $"{(loose > 0 ? (double)loose / packed : 0):F1}x");
+            $"   {size / 1024:N0} KB of export packed into {packed / 1024:N0} KB, " +
+            $"{(size > 0 ? (double)size / packed : 0):F1}x");
     }
 
     private static void Announce(
-        RunTarget target, IReadOnlyList<Type> selected, bool shortened, string? filter, double soakMinutes)
+        RunTarget target, IReadOnlyList<Type> selected, bool shortened, string? filter, double soakMinutes, StopSignal stop)
     {
         Console.WriteLine($"Track A — {selected.Count} suite(s), job {(shortened ? "Shortened" : "Publication")}");
         Console.WriteLine($"  destination  {target.Directory}");
@@ -341,6 +651,17 @@ internal static class TrackRunner
         Console.WriteLine($"  soak         {(soakMinutes > 0 ? $"{soakMinutes:F0} min" : "skipped")}");
         Console.WriteLine($"  working tree {(target.Dirty ? "dirty" : "clean")}"
                           + (target.Dirty && target.AllowDirty ? ", allowed by --allow-dirty" : string.Empty));
+
+        if (target.IsBaseline)
+        {
+            Console.WriteLine($"  measured in  {target.WorkingDirectory}, moved to the destination once every suite has run");
+        }
+
+        Console.WriteLine(stop.ReadsControlC
+            ? $"  to stop      Ctrl+C, or a file named STOP in {target.WorkingDirectory}: the current suite finishes " +
+              "and what was measured is written. Ctrl+C twice stops at once."
+            : $"  to stop      a file named STOP in {target.WorkingDirectory}: the current suite finishes and what " +
+              "was measured is written. Standard input is not a console, so Ctrl+C stops at once.");
     }
 
     private static void Step(string name, Action work)
@@ -406,21 +727,20 @@ internal static class TrackRunner
     }
 
     /// <summary>
-    /// Suites that carry benchmarks but are missing from the track order. A run refuses rather than
-    /// quietly measuring less than it claims.
+    /// Suites that carry benchmarks but belong to neither track. A run refuses rather than quietly
+    /// measuring less than it claims.
     /// </summary>
     private static IReadOnlyList<string> Unregistered() =>
     [
         .. typeof(TrackRunner).Assembly.GetTypes()
             .Where(type => type is { IsPublic: true, IsAbstract: false })
             .Where(type => type.GetMethods().Any(method => method.GetCustomAttribute<BenchmarkAttribute>() is not null))
-            .Where(type => !TrackA.Any(entry => entry.Suite == type))
+            .Where(type => !TrackA.Any(entry => entry.Suite == type) && !TrackB.Contains(type))
             .Select(type => type.FullName ?? type.Name)
             .Order(StringComparer.Ordinal),
     ];
 
-    private static void Manifest(
-        RunTarget target, RunRecord record, IReadOnlyList<ResultRow> rows, TimeSpan elapsed)
+    private static void Manifest(string directory, RunRecord record, IReadOnlyList<ResultRow> rows)
     {
         var text = new StringBuilder();
 
@@ -432,7 +752,7 @@ internal static class TrackRunner
         text.Append(CultureInfo.InvariantCulture, $"- revision: {record.Revision}\n");
         text.Append(CultureInfo.InvariantCulture, $"- started (UTC): {record.StartedUtc}\n");
         text.Append(CultureInfo.InvariantCulture, $"- finished (UTC): {record.FinishedUtc}\n");
-        text.Append(CultureInfo.InvariantCulture, $"- elapsed: {elapsed:hh\\:mm\\:ss}\n");
+        text.Append(CultureInfo.InvariantCulture, $"- elapsed: {Elapsed(record):hh\\:mm\\:ss}\n");
         text.Append(CultureInfo.InvariantCulture, $"- suites run: {record.SuitesRun.Count}\n");
         text.Append(CultureInfo.InvariantCulture, $"- timed cells: {rows.Count}\n");
         text.Append(CultureInfo.InvariantCulture,
@@ -440,14 +760,14 @@ internal static class TrackRunner
         text.Append(CultureInfo.InvariantCulture, $"- why this kind: {record.Reason}\n\n");
         text.Append("The machine, the runtime, the GC mode and every pinned package are in `environment.json`.\n");
 
-        File.WriteAllText(target.File("manifest.md"), text.ToString(), Encoding.UTF8);
+        File.WriteAllText(Path.Combine(directory, "manifest.md"), text.ToString(), Encoding.UTF8);
     }
 
     /// <summary>
     /// §26 — the commands that produced this run, in the order they ran, naming only what the repository
     /// contains, because a reader of this directory has the repository and nothing else.
     /// </summary>
-    private static void Reproduction(RunTarget target, RunRecord record)
+    private static void Reproduction(string directory, RunRecord record)
     {
         var checkout = record.Tag ?? record.Revision;
         var run = $"dotnet run --project {Paths.ProjectName} -c Release --";
@@ -513,14 +833,14 @@ internal static class TrackRunner
 
             """;
 
-        File.WriteAllText(target.File("reproduction.md"), text, Encoding.UTF8);
+        File.WriteAllText(Path.Combine(directory, "reproduction.md"), text, Encoding.UTF8);
     }
 
     /// <summary>
     /// What a measurement did not measure. Without it a directory holding half the suites could be read
     /// as a baseline that happens to be small (REP-13).
     /// </summary>
-    private static void Scope(RunTarget target, RunRecord record)
+    private static void Scope(string directory, RunRecord record)
     {
         var text = new StringBuilder();
 
@@ -534,6 +854,19 @@ internal static class TrackRunner
         foreach (var suite in record.SuitesRun)
         {
             text.Append("- ").Append(suite).Append('\n');
+        }
+
+        if (record.Interrupted)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"\n## Interrupted — by {record.StoppedBy}\n\n");
+            text.Append("The run ended before its last suite. It is a measurement whatever its tag and its job, and\n");
+            text.Append("the suites and steps it did not reach are listed below with any a filter left out.\n");
+
+            foreach (var suite in record.SuitesUnfinished ?? [])
+            {
+                text.Append("\n- ").Append(suite).Append(" was cut off in the middle. BenchmarkDotNet exports a suite only\n");
+                text.Append("  when it ends, so none of its cells is in this directory.\n");
+            }
         }
 
         text.Append(CultureInfo.InvariantCulture, $"\n## Not measured — {record.SuitesNotRun.Count} suite(s)\n\n");
@@ -550,7 +883,7 @@ internal static class TrackRunner
             }
         }
 
-        File.WriteAllText(target.File("scope.md"), text.ToString(), Encoding.UTF8);
+        File.WriteAllText(Path.Combine(directory, "scope.md"), text.ToString(), Encoding.UTF8);
     }
 
     private static string? Value(string[] args, string name)
