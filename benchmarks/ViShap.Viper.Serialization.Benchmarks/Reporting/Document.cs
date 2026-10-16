@@ -58,9 +58,12 @@ internal sealed class Document
                     text.Append("| ").Append(string.Join(" | ", table.Headers)).Append(" |\n");
                     text.Append('|').Append(string.Join("|", table.Headers.Select(_ => "---"))).Append("|\n");
 
+                    // A cell is one line, and a pipe inside it is text, not a column boundary.
                     foreach (var row in table.Rows)
                     {
-                        text.Append("| ").Append(string.Join(" | ", row)).Append(" |\n");
+                        text.Append("| ")
+                            .Append(string.Join(" | ", row.Select(cell => cell.ReplaceLineEndings(" ").Replace("|", "\\|", StringComparison.Ordinal))))
+                            .Append(" |\n");
                     }
 
                     text.Append('\n');

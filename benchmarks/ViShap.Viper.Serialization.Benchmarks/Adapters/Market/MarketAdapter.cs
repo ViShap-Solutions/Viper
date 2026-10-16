@@ -106,7 +106,9 @@ internal abstract class MarketAdapter : IBufferedSerializer, IStreamingSerialize
             ?? assembly.GetName().Version?.ToString()
             ?? "unknown";
 
-        int plus = informational.IndexOf('+', StringComparison.Ordinal);
-        return plus < 0 ? informational : informational[..plus];
+        // The version alone: some packages append build metadata after a '+', others a sentence after a
+        // space ("10.4.0. Commit Hash: …").
+        int end = informational.IndexOfAny(['+', ' ']);
+        return (end < 0 ? informational : informational[..end]).TrimEnd('.');
     }
 }

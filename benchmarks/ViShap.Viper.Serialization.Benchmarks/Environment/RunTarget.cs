@@ -23,9 +23,16 @@ internal enum RunKind
 /// Where a run writes, and why. The decision is made from git and from the run's own shape, never from
 /// a flag that names a version: a baseline signed with the wrong version is worse than a missing one.
 /// </summary>
+/// <remarks>
+/// A run writes into <c>WorkingDirectory</c>. A measurement's working directory is its directory; a
+/// baseline is measured under <c>Measurements/</c> and moved to <c>Baselines/</c> only once every suite
+/// has run (<see cref="Settle"/>), so a run that stops early — on request or by dying — never leaves a
+/// partial record where a baseline belongs.
+/// </remarks>
 internal sealed record RunTarget(
     RunKind Kind,
     string Directory,
+    string WorkingDirectory,
     string Label,
     string? Tag,
     string Describe,
@@ -40,7 +47,12 @@ internal sealed record RunTarget(
     /// job is the publication job, and no filter narrowed the suites; otherwise it is a measurement,
     /// named after `git describe` and the moment it started so that no two runs can collide.
     /// </summary>
-    internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty)
+    /// <remarks>
+    /// Track B is measured on the tag Track A's baseline already holds, and is kept beside it, in
+    /// <c>Baselines/&lt;tag&gt;/market/</c>, without touching a file of it (Benchmark-Plan §29.2). Until
+    /// that baseline exists a Track B run on the tag is a measurement.
+    /// </remarks>
+    internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty, bool market = false)
     {
         var tag = Shell.Git("describe --tags --exact-match HEAD");
         var describe = Shell.Git("describe --tags --always --long");
@@ -57,6 +69,8 @@ internal sealed record RunTarget(
         // Every reason, not the first one found: a shortened run on an untagged commit is unusable
         // because of the job, and a reader told only about the missing tag would trust the numbers.
         var blocked = new List<string>();
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
+        var working = Path.Combine(Paths.Measurements, $"{describe}-{stamp}");
 
         if (string.IsNullOrEmpty(tag))
         {
@@ -73,12 +87,18 @@ internal sealed record RunTarget(
             blocked.Add($"a filter narrowed the run to '{filter}'");
         }
 
+        if (market && !string.IsNullOrEmpty(tag) && !System.IO.Directory.Exists(Path.Combine(Paths.Baselines, tag)))
+        {
+            blocked.Add($"Track A's baseline of {tag} is not committed yet, and Track B is measured beside it");
+        }
+
         if (blocked.Count == 0)
         {
             return new RunTarget(
                 RunKind.Baseline,
-                Path.Combine(Paths.Baselines, tag),
-                tag,
+                market ? Path.Combine(Paths.Baselines, tag, "market") : Path.Combine(Paths.Baselines, tag),
+                working,
+                market ? $"{tag}/market" : tag,
                 tag,
                 describe,
                 "every suite of the track, on a tagged commit, under the publication job",
@@ -86,13 +106,11 @@ internal sealed record RunTarget(
                 allowDirty);
         }
 
-        var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
-        var label = $"{describe}-{stamp}";
-
         return new RunTarget(
             RunKind.Measurement,
-            Path.Combine(Paths.Measurements, label),
-            label,
+            working,
+            working,
+            Path.GetFileName(working),
             string.IsNullOrEmpty(tag) ? null : tag,
             describe,
             string.Join("; ", blocked),
@@ -125,8 +143,45 @@ internal sealed record RunTarget(
                 "records the flag in the run. Nothing was written.");
         }
 
-        System.IO.Directory.CreateDirectory(Directory);
+        System.IO.Directory.CreateDirectory(WorkingDirectory);
     }
 
-    internal string File(string name) => Path.Combine(Directory, name);
+    /// <summary>
+    /// What this run is once it stopped before its last suite: a measurement, in the directory it was
+    /// written to, whatever it was meant to be. A baseline is every suite of the track, so a run that
+    /// did not run them all is not one, under any tag.
+    /// </summary>
+    internal RunTarget Interrupted() => this with
+    {
+        Kind = RunKind.Measurement,
+        Directory = WorkingDirectory,
+        Label = Path.GetFileName(WorkingDirectory),
+        Reason = IsBaseline
+            ? "the run was interrupted before every suite of the track ran"
+            : $"{Reason}; the run was interrupted",
+    };
+
+    /// <summary>
+    /// Moves a complete baseline from the directory it was measured in to the one it is kept in, and
+    /// returns the target that writes there. A measurement is already where it belongs.
+    /// </summary>
+    internal RunTarget Settle()
+    {
+        if (!IsBaseline || WorkingDirectory == Directory)
+        {
+            return this;
+        }
+
+        if (System.IO.Directory.Exists(Directory))
+        {
+            throw new InvalidOperationException(
+                $"A baseline appeared at {Directory} while this run was measuring. It is frozen and was left " +
+                $"as it is; this run stays at {WorkingDirectory}.");
+        }
+
+        System.IO.Directory.Move(WorkingDirectory, Directory);
+        return this with { WorkingDirectory = Directory };
+    }
+
+    internal string File(string name) => Path.Combine(WorkingDirectory, name);
 }

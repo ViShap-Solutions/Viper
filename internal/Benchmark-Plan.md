@@ -873,6 +873,7 @@ An experiment that cannot be made fair, a scenario the plan does not say how to 
 |---|---|---|---|
 | **Q1** | The component suites of §18.1 measure internal mechanisms — value primitives, budgets, contracts, header, metered streams — and the benchmark assembly could not see them. Adding the grant is a change in `src/`, which this plan does not make (§1) | Granted by the repository owner on 2026-09-20: `AssemblyInfo.QA.cs` now names `ViShap.Viper.Serialization.Benchmarks`, verified by resolving an internal type from the benchmark project in a Release build. Nothing a consumer sees changes, and v1.0.0 gets the per-component record a later version measures its optimizations against | MICRO-01…MICRO-14, ALLOC-02, ALLOC-03, SEC-04 |
 | **Q2** | PERF-01 showed Contract §5.6 describing `MaxByteBlobBytes` in words that also describe `byte[]`, which no benchmark can correct: the contract and `src/` are outside this plan (§1, §28 *Boundary*) | Decided by the repository owner on 2026-09-21: §5.2, §5.6, §5.7, §6 and a new §21.4 state the wire-form model, the XML docs of three limits repeat it for a consumer on hover, and every `BinaryLimitException` now names the property that governs it. No behavior, no defaults and no bytes changed, and the change is the owner's commit, not this plan's. The boundary box of §28 is therefore evaluated against the benchmark work alone, and this row is what records the exception | PERF-01 closed; PERF-02 opened |
+| **Q3** | REP-08 says a publication run writes "directly into `Baselines/<tag>/`", and the graceful stop decided in `Benchmark-Graceful-Stop.md` says an interrupted run is never a baseline. Written directly, a killed run leaves a partial `Baselines/<tag>/` that REP-09 then refuses to overwrite, and that could be committed as a baseline before `--report` moves it | Decided by the repository owner on 2026-10-16: a publication run is measured in `Measurements/<describe>-<stamp>/` and moved to `Baselines/<tag>/` in one step once every unit has run; a stopped or killed run stays a measurement where it is. REP-08's purpose — nothing outside the commit — holds; its word "directly" is the owner's to restate | REP-08, REP-09 under the graceful stop |
 
 ## 27.3 Results register
 
@@ -891,6 +892,8 @@ The place where an unflattering result is recorded rather than argued with. Each
 | **R-09** | FAIR-16, Nerdbank.MessagePack 1.4.82 | The plan names Nerdbank.MessagePack among the libraries with built-in compression; version 1.4.82 has none — no compression type or option in the assembly | The plan's list predates the version on nuget.org today | FAIR-16 is measured with MessagePack-CSharp's `Lz4BlockArray` against Viper's Deflate profile; Nerdbank.MessagePack appears in the uncompressed comparisons only, and its rationale says so |
 | **R-10** | Track B verification, DATA-12 under MessagePack-CSharp 3.1.12 | With `[Union]` on the schema's concrete `EventBase`, every arm was written and read back as `EventBase`, its own members lost, and no error raised; on an abstract base the same arms round-trip | The library dispatches unions only from an abstract class or an interface | The MessagePack-CSharp model declares `EventBase` abstract, recorded as a structural difference (FAIR-20, `market/model-differences.csv`), as MemoryPack's is; the corpus holds no bare `EventBase`, so no value changes |
 | **R-11** | Track B probes, `market/capabilities.csv`: Cycles and DepthLimiting | Under its defaults MessagePack-CSharp overflows the stack on a value that refers to itself and on a value 100 000 levels deep; Microsoft.Orleans.Serialization on the deep value. MemoryPack, Nerdbank.MessagePack, protobuf-net and System.Text.Json refuse both with an exception, Viper with `BinaryLimitException` or `BinaryTypeException` | MessagePack-CSharp checks depth when it reads — 500 by default, which is why DATA-06/511 is refused — and not when it writes, so the write recurses until the stack runs out; Orleans stopped neither | Recorded as probe results, not as harness defects: the two probes run in a process of their own, so a stack overflow is an outcome. MessagePack-CSharp keeps its default configuration (its rationale says why), and DATA-11 is `Unsupported` for every configuration whose cycle probe is not `Supported` |
+| **R-12** | SCALE-09, the BenchmarkDotNet export of `Baselines/pre-rework/` and `Measurements/1a73c62-20260927T130725Z` | Rebuilt from their `results.zip`, both runs lack the 10 Publication cells of `PayloadSizeScalingBenchmarks`: the export holds 657 of 667 and 513 of 523 cells. Every other cell of all 14 committed runs that kept an export rebuilds value for value (`--check-stop`) | BenchmarkDotNet names an export after the suite, and the Server GC pass of SCALE-09 ran the same suite into the same directory, overwriting the first pass's export. `results.csv` was built from the in-memory summaries, so no published table lost a cell; only the export behind it did | Harness defect, fixed before any publication run: the Server GC pass exports under `server-gc/results/` and is archived under `server-gc/` in `results.zip`. The two committed runs keep their exports as they are |
+| **R-13** | `--track A` at `b0f651e`, after the Track B merge | A Track A run refused to start: the five comparative suites of Track B carry `[Benchmark]` and were not in the track order, so the check for unregistered suites stopped every run before its manifest. `--verify` and `--smoke` do not reach that check, so the rc.2 P6 gates did not show it | The check knew only Track A's list | Harness defect, fixed on `benchmark/graceful-stop`: the Track B suites are listed as Track B's, and a suite in neither list still stops a run |
 
 ## 27.4 Proposals — `internal/performance/`
 
@@ -1018,9 +1021,9 @@ Kept accurate at the end of every session, so a session that starts cold knows w
 without reading the history.
 
 ```text
-Track:        B adapters (rc.2 P6, B1 = a), on benchmark/track-b-adapters. Nothing is measured: the
-              adapters, models, probes, verification and comparative suites exist, verify and run once
-              under --smoke; the numbers wait for the v1.0.0 tag
+Track:        the harness, between the two tracks, on benchmark/graceful-stop: the graceful stop
+              (committed), then the --track B runner and the Track B report. Nothing is measured; the
+              numbers wait for the v1.0.0 tag
 Stage:        A0–A7 written and unchanged in what they measure. Track B: the seven libraries of §5.2 in 14
               configurations (Adapters/Market/, MarketRoster), one model family per library generated
               from the schema (Models/<library>/, Schema/ModelSchema), the corpus projected into each
@@ -1029,9 +1032,28 @@ Stage:        A0–A7 written and unchanged in what they measure. Track B: the s
               the comparative suites MarketBuffered/Stream/Buffer/Span/EvolutionBenchmarks taking their
               cases only from verified pairs (Verification/MarketCases). --verify writes
               BenchmarkDotNet.Artifacts/market/: capabilities.csv, tiers.csv, market-verification.csv,
-              rationale.csv, model-differences.csv, verified-pairs.tsv
-Harness:      frozen? not yet. The freeze takes effect when the publication run starts
-Last run:     rc.2 P6, 2026-10-14: --verify 405 Viper pairs and 304 market pairs, 140 probes, 0 schema
+              rationale.csv, model-differences.csv, verified-pairs.tsv. --track B runs B2's five suites
+              after the market's verification, writing it into the run with roster.csv (§5.2–§5.4),
+              market-datasets.csv and configuration.md (Reporting/MarketArtifacts); on a tag it is a
+              baseline only once Baselines/<tag>/ holds Track A's, and lands beside it in
+              Baselines/<tag>/market/. Its report (Reporting/MarketReport) is written for REP-05, RST-04,
+              RST-06, FAIR-13, FAIR-16, FAIR-20, TIER-01 and TIER-02, which close on the tagged run
+Harness:      frozen? not yet. The freeze takes effect when the publication run starts. A track run stops
+              on one Ctrl+C (read as a key, Suites/StopSignal) or a STOP file in its directory after the
+              current unit, and writes what it measured as an interrupted measurement; a second Ctrl+C
+              stops at once. run.json is kept current while it runs, so --report rebuilds a dead run
+              from BenchmarkDotNet's exports (Reporting/ExportRecovery). A baseline is measured under
+              Measurements/ and moved to Baselines/<tag>/ only when every unit has run (Q3). The Server
+              GC pass exports under server-gc/ (R-12). --check-stop checks all of it (R-13 found there);
+              --check-market-report holds the Track B report to its rules over a cell for every case
+Last run:     Track B runner, 2026-10-16: --check-market-report green (104 tables, 23 tier memberships, 2
+              compressed configurations, 1175 cases — the market count of today's --smoke); --track B
+              --short --filter '*Evolution*' wrote a complete run (deleted, its numbers mean nothing); a
+              committed Track A report regenerates unchanged.
+              Graceful stop, 2026-10-16: --check-stop green (14 committed exports rebuilt value for value,
+              a STOP after suite 2 and a kill in suite 3 both end as the same interrupted measurement);
+              --verify 405 + 304 pairs, 140 probes, 0 failed; --smoke 2477 benchmarks, 0 failed.
+              rc.2 P6, 2026-10-14: --verify 405 Viper pairs and 304 market pairs, 140 probes, 0 schema
               failures, 0 failed; --smoke 2477 benchmarks, 0 failed (1319 of them market cells). Library
               versions as built: MemoryPack 1.21.4, MessagePack-CSharp 3.1.12 (+ ImmutableCollection),
               protobuf-net 3.4.30, Nerdbank.MessagePack 1.4.82, Microsoft.Orleans.Serialization 10.4.0 —
@@ -1039,11 +1061,10 @@ Last run:     rc.2 P6, 2026-10-14: --verify 405 Viper pairs and 304 market pairs
 Baseline:     Baselines/pre-rework/ — 667 cells, the "before" of every rework stage (§25), not a release
               baseline
 Machine:      the one recorded in Baselines/pre-rework/environment.json
-Next action:  benchmark/graceful-stop (variant C of Benchmark-Graceful-Stop.md). Then a --track B runner
-              and the report's Track B sections (FAIR-13, FAIR-16, FAIR-20, TIER-01, TIER-02, RST-06) —
-              both before the tag. After the release, tag v1.0.0, check the tag out, and take the
+Next action:  none before the tag. After the release, tag v1.0.0, check the tag out, and take the
               publication run there on an idle machine — Track A about 4 hours, of which 40 minutes is the
-              soak — then tick the A-stage boxes against Baselines/v1.0.0/, then Track B on the same tag
+              soak — then tick the A-stage boxes against Baselines/v1.0.0/, then --track B on the same tag
+              (RST-03 the same day) and tick the B items against Baselines/v1.0.0/market/
 ```
 
 ---

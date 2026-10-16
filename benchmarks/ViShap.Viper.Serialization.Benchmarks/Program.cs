@@ -22,6 +22,16 @@ internal static class Program
             return args.Contains("--market", StringComparer.Ordinal) ? VerifyMarket() : Verify() | VerifyMarket();
         }
 
+        if (args.Contains("--check-stop", StringComparer.Ordinal))
+        {
+            return StopCheck.Run(args);
+        }
+
+        if (args.Contains("--check-market-report", StringComparer.Ordinal))
+        {
+            return MarketReportCheck.Run();
+        }
+
         if (args.Contains("--manifest", StringComparer.Ordinal))
         {
             return Manifest();
@@ -90,18 +100,19 @@ internal static class Program
     }
 
     /// <summary>
-    /// §29.1 — one command runs a whole track: every suite in order, every artifact of §23 into the
+    /// §29.1, §29.2 — one command runs a whole track: every suite in order, every artifact of §23 into the
     /// run's own directory, and nothing interactive in the middle.
     /// </summary>
     private static int Track(string[] args)
     {
         var track = Argument(args, "--track");
 
-        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(track, "B", StringComparison.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine(
-                $"Track '{track}' has no runner. Track A measures Viper alone; Track B follows it and needs " +
-                "the competitor roster of the plan's §5.");
+                $"Track '{track}' has no runner. Track A measures Viper alone; Track B measures the market of " +
+                "the plan's §5.2 beside it.");
 
             return 1;
         }
@@ -111,7 +122,9 @@ internal static class Program
 
     /// <summary>
     /// REP-02 — regenerates the report and the charts of an existing run from its raw files, so a
-    /// baseline committed long ago still produces the report it produced on the day it was taken.
+    /// baseline committed long ago still produces the report it produced on the day it was taken. A run
+    /// whose process ended before it wrote <c>results.csv</c> is rebuilt from BenchmarkDotNet's exports
+    /// first, and recorded as an interrupted measurement.
     /// </summary>
     private static int Report(string[] args)
     {
@@ -121,6 +134,11 @@ internal static class Program
         {
             Console.Error.WriteLine($"No run directory at '{directory}'.");
             return 1;
+        }
+
+        if (!File.Exists(Path.Combine(directory, "results.csv")))
+        {
+            return TrackRunner.Recover(directory);
         }
 
         ReportWriter.Generate(directory);

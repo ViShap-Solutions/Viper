@@ -41,7 +41,7 @@ internal static class MarketCases
 {
     internal static string Directory { get; } = Path.Combine(Environment.Paths.Artifacts, "market");
 
-    private static string RecordPath => Path.Combine(Directory, "verified-pairs.tsv");
+    internal static string RecordPath => Path.Combine(Directory, "verified-pairs.tsv");
 
     private static readonly Lazy<IReadOnlyList<MarketCase>> Verified = new(Load);
 

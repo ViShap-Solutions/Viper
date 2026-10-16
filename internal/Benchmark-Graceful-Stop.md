@@ -1,9 +1,11 @@
 # Benchmark harness — graceful stop (backlog)
 
-**Class: plan.** A decided backlog item, not started; it gates nothing.
+**Class: plan.** A decided backlog item, done; it gates nothing.
 
-**Status:** decided by the owner on 2026-09-27, variant C; not started. Outside the rework and outside
-every current plan: it gates nothing and is worked on its own branch.
+**Status:** decided by the owner on 2026-09-27, variant C; done on 2026-10-16 as the first item of rc.2
+P6 (`rc2/RC2-Plan.md`). Every line of *Done when* holds and `--check-stop` checks it again on demand. One
+decision was taken on the way: a publication run is measured under `Measurements/` and moved to
+`Baselines/<tag>/` only once every unit has run (`Benchmark-Plan.md` §27.2, Q3).
 **Branch:** `benchmark/graceful-stop`, cut from `release/v1.0.0` after the R3 branch is merged, and
 returned to it through a pull request (`Development-Workflow.md` §2.5).
 
