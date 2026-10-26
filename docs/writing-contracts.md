@@ -277,9 +277,17 @@ supported with the method of `SupportedTypes` named after its entry in the
 [table of supported types](supported-types.md) — `SupportedTypes.List<Line>()`,
 `SupportedTypes.Dictionary<string, int>()`, `SupportedTypes.Enum<Status>()`,
 `SupportedTypes.Nullable<Point>()` — and a member-encoded type with `SupportedTypes.Object<T>()` beside its
-contract. The scalars need nothing. A `[BinaryUnion]` base is made supported with its arms, which are
-supported and given contracts of their own; the base needs no contract, because its values are always one
-of its arms:
+contract. The scalars need nothing.
+
+Each of those methods returns a `SupportedType`: an opaque value that names the type it makes supported in
+its `Type` property and carries how the serializer encodes it. Only `SupportedTypes` creates one, and a
+context adds it from its constructor with `Add(SupportedType)` — once per type, since adding the same type
+twice, or adding after options were built with the context, is a `BinaryConfigurationException`. The
+encoding of a type is the same whichever context supplies it, so the first context of the process that adds
+a type supplies it for every serializer, and a type added by two contexts is encoded alike by both.
+
+A `[BinaryUnion]` base is made supported with its arms, which are supported and given contracts of their
+own; the base needs no contract, because its values are always one of its arms:
 
 ```csharp
 using ViShap.Viper;

@@ -289,7 +289,9 @@ concurrent use or be supplied through a factory that returns a fresh instance ea
 | `IEncryptionAlgorithm` | `Kind`, `CustomName`, `AuthenticatesAssociatedData`, `KeySizeInBytes`, `GetCiphertextLength`, `Encrypt`, `Decrypt` |
 | `IKeyProvider` | `Resolve(keyId)`, returning an owned `SecretKey` |
 
-To use one, set `Kind` to `Custom`, give it a stable `CustomName`, use it for writing with the matching
+`Kind` is a member of the family's enum — `CompressionAlgorithm`, `ChecksumAlgorithm` or
+`EncryptionAlgorithm` — whose other members name the built-in algorithms, which a frame identifies by that
+number alone. To use one of your own, set `Kind` to `Custom`, give it a stable `CustomName`, use it for writing with the matching
 `With…` method, and register the same name on every reading side. The name is what a frame carries; a
 frame that names an algorithm the reader has not registered is a `BinaryFormatNotSupportedException`.
 

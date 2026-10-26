@@ -341,7 +341,7 @@ The configurations a consumer can build, each measured as itself. Built with the
 | **B-P1g** | B-P0g with `PreserveReferences()` | T3 | The same, with reference framing *(added in rc.2 P4a)* |
 
 - [ ] PROF-01 — every profile is measured on every dataset it supports, buffered and streaming
-- [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(Contract §10.2, §22.8)*
+- [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(Contract §10.2, §22.7)*
 - [ ] PROF-03 — keyed models against positional ones of the same shape isolate the keyed layout, under B-P0 and B-P7 alike *(Contract §14.2)*
 - [ ] PROF-04 — B-P1 against B-P0 measures reference framing on a graph with no sharing at all, so the price of the option when it is not needed is visible *(Contract §16)*
 - [ ] PROF-05 — B-P2 against B-P0 shows what limit accounting costs; if the difference is not measurable, that is the result and it is published
@@ -539,7 +539,7 @@ encrypted bytes and the overhead over the plaintext
 ```
 
 - [ ] SIZE-01 — every (adapter, dataset) pair has a size, or a result state explaining its absence
-- [ ] SIZE-02 — the V1 envelope's fixed cost is stated in bytes, measured as B-P0 minus B-P7 on the same value *(Contract §22.6, §22.8)*
+- [ ] SIZE-02 — the V1 envelope's fixed cost is stated in bytes, measured as B-P0 minus B-P7 on the same value *(Contract §22.6, §22.7)*
 - [ ] SIZE-03 — the reference-framing cost is stated in bytes, as B-P1 minus B-P0 on a graph with no sharing, and as the saving on DATA-10 where sharing exists *(Contract §16)*
 - [ ] SIZE-04 — the keyed layout's cost is stated in bytes against the positional layout on the same type, and against the evolution tolerance it buys *(Contract §14.2)*
 - [ ] SIZE-05 — the per-string, per-element and per-null framing costs are derived from DATA-16, DATA-15 and DATA-17 and published as a table
@@ -635,7 +635,7 @@ measured doing the same work to the same wire — a like-for-like comparison, no
 
 The same mechanisms seen from outside, by subtracting two public measurements that differ in one thing alone. They are not a substitute for §18.1 — they are its cross-check, and they are what remains measurable if a grant is ever withdrawn.
 
-- [ ] DIFF-01 — the V1 envelope: B-P0 minus B-P7 on one value, with and without custom algorithm names and a key id *(Contract §11, §22.8)*
+- [ ] DIFF-01 — the V1 envelope: B-P0 minus B-P7 on one value, with and without custom algorithm names and a key id *(Contract §11, §22.7)*
 - [ ] DIFF-02 — each algorithm phase: B-P3, B-P4, B-P5 against B-P0 *(Contract §12, §13)*
 - [ ] DIFF-03 — the member plan: DATA-18 positional against keyed, first use against steady state *(Contract §14)*
 - [ ] DIFF-04 — reference framing: B-P1 against B-P0 by sharing density *(Contract §16, and SCALE-07)*

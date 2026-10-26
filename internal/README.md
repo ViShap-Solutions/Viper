@@ -7,9 +7,9 @@ Every file under `internal/` belongs to one class, and says which at its head.
 | Class | What it means | Where it is |
 |---|---|---|
 | **Normative** | The source of truth. Code and every other document answer to it. | `System-Contract.md` |
-| **Plan** | A checklist of items and gates for work to be done or repeated. It never defines behavior. | `QA-Plan.md`, `Benchmark-Plan.md`, `Benchmark-Graceful-Stop.md`, `rc2/`, `performance/`, `ideas/` |
+| **Plan** | A checklist of items and gates for work to be done or repeated. It never defines behavior. | `QA-Plan.md`, `Benchmark-Plan.md`, `Benchmark-Graceful-Stop.md`, `rc2/RC2-Plan.md`, `rc2/Native-AOT-Design.md`, `rc2/Audit-Brief.md`, `performance/`, `ideas/` |
 | **Operational** | Working instructions that describe the system and the way it is developed as they are now. | `Development-Workflow.md`, this file, `../CLAUDE.md`, `../.claude/skills/`, the package READMEs, `../docs/` |
-| **Historical** | A record of work already done, kept for provenance. Its rules no longer apply, and it is never a reason to change the system. | `Architecture-Audit.md`, `Audit-Closure.md`, `Audit-Future.md`, `Audit-Refactor.md`, `audit/`, `rework/` |
+| **Historical** | A record of work already done, kept for provenance. Its rules no longer apply, and it is never a reason to change the system. | `Architecture-Audit.md`, `Audit-Closure.md`, `Audit-Conformance.md`, `Audit-Future.md`, `Audit-Refactor.md`, `rc2/Audit-Conformance.md`, `audit/`, `rework/` |
 
 | Document | What it is | Class |
 |---|---|---|
@@ -20,11 +20,13 @@ Every file under `internal/` belongs to one class, and says which at its head.
 | [rc2/RC2-Plan.md](rc2/RC2-Plan.md) | **The plan for `v1.0.0-rc.2`**: everything earlier documents deferred to after the release — the generator and the public contract seam, the naming of the contract's read side, executable examples, Track B — with the owner's decisions and the stages that follow them. What it deferred is in `ideas/`. | Plan |
 | [rc2/Native-AOT-Design.md](rc2/Native-AOT-Design.md) | The design of native AOT through the context (P4c), approved by the owner: decisions D1…D12 with their alternatives, and what P4d built (§10). | Plan |
 | [rc2/Audit-Brief.md](rc2/Audit-Brief.md) | The brief of the conformance audit of `rc.2` (P8): what is audited, the sessions and branches, the evidence and its order, the questions, the report and the closure with its CD dry run. The skill `viper_conformance_auditor` runs from it. | Plan |
+| [rc2/Audit-Conformance.md](rc2/Audit-Conformance.md) | The report of the conformance audit of `rc.2` (P8): what was proven on the audited commit, the findings `RC2-01`…`RC2-13`, and the closure. Written in Russian. | Historical |
 | [performance/](performance) | Proposals arising from benchmarking: one file per proposed optimization or extension point, each cited to the measurements behind it and left for the owner to decide. | Plan |
 | [ideas/](ideas) | Features considered and deliberately not built for `v1.0.0`: one file per idea with what it gives, every option with its cost, the open questions and the version it would cost under SemVer. Nothing here is decided. | Plan |
 | [Development-Workflow.md](Development-Workflow.md) | How work moves through the repository: branches, tags, the alpha/beta/rc/stable cycle, SemVer rules, fixture freezing, benchmark baselines, hotfixes. Written in Russian. | Operational |
 | [Architecture-Audit.md](Architecture-Audit.md) | The audit that produced the architecture: the alternatives rejected and the reasons. Written in Russian. | Historical |
 | [Audit-Refactor.md](Audit-Refactor.md), [Audit-Closure.md](Audit-Closure.md), [Audit-Future.md](Audit-Future.md) | The independent audit after the first refactor, the closure of its findings, and the directions it named. Written in Russian. | Historical |
+| [Audit-Conformance.md](Audit-Conformance.md) | The conformance audit of `v1.0.0-rc.1` (R9c) and its closure check (R9e): the findings and how each was closed. Written in Russian. | Historical |
 | [audit/](audit) | The hostile-input audit that drove the rework: the original probes and the first remediation design with its review. | Historical |
 | [rework/](rework) | The pre-release rework: the plan, the owner's decision record, the change files for each governing document, the ledger of what was retired and the brief of the conformance audit. Its rules stop applying when `v1.0.0` is released; until then it is the evidence that the last reconciliation checks the system against. | Historical |
 

@@ -34,6 +34,9 @@ Console.WriteLine(custom.WriteVersion + " " + custom.PreserveReferences);
 
 ## The builder
 
+`BinarySerializerOptions.Configure()` returns a `BinarySerializerOptionsBuilder`. Each `With…`, `Require…`
+and `Register…` method returns the same builder, so the calls chain, and `Build()` turns it into options.
+
 | Method | What it does |
 |---|---|
 | `WithCompression(ICompressionAlgorithm)` | compresses the payloads this serializer writes |

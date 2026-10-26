@@ -163,7 +163,8 @@ payload 70 bytes as Order · depth 4 · 16 nodes
 
 Each node shows its offset in the payload, its name — the member, `[index]`, `{key}` for a map value, or
 the type for the root — its declared type (the runtime type for a union), its kind and its value when it
-is a scalar. The offsets are in hexadecimal, and the members appear in the order the layout writes them,
+is a scalar. The kind is a `BinaryDumpNodeKind`: `Null`, `Scalar`, `Sequence`, `Map`, `Object`,
+`KeyedObject`, `KeyedField`, `UnknownKeyedField`, `Union`, `BackReference` or `Composite`. The offsets are in hexadecimal, and the members appear in the order the layout writes them,
 which for a [positional type](contracts.md#positional-layout) is not the order they are declared in.
 
 `BinaryDump` also reports the format version, the header and payload lengths, whether the checksum was
