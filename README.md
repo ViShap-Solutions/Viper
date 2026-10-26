@@ -197,6 +197,7 @@ The documentation is in [`docs/`](docs/README.md):
 | [Options and limits](docs/options-and-limits.md) | the options builder and every limit |
 | [Formats: V1 and V0](docs/formats.md) | the self-describing frame and the headerless codec |
 | [Contracts and schema evolution](docs/contracts.md) | positional and keyed layouts |
+| [Writing contracts by hand](docs/writing-contracts.md) | a context and its contracts without the generator |
 | [The source generator](docs/generator.md) | generated type contracts and their diagnostics |
 | [References](docs/references.md) | shared and cyclic references |
 | [Polymorphism](docs/polymorphism.md) | `[BinaryUnion]` |

@@ -291,6 +291,9 @@ Filled in by the owner.
 | P4b item 1 | A — kept: the object codec finds its contract once per configuration; its gain is recorded as within the run-to-run drift of R-06, not as a measured number. Items 2 and 3 not made: neither P4a nor a cross-run comparison can show their cost — deferred past `v1.0.0` as `performance/PERF-11` | 2026-10-14 |
 | P4c — native AOT design | `rc2/Native-AOT-Design.md` approved as recommended, D1…D12 (a throughout; D7 a/a; INV-19 and INV-20 to be added by P4d). The façade of D1 is `ViShap.Viper.Contracts.SupportedTypes` and its token `SupportedType` — the term of contract §23 and `docs/supported-types.md`; `KnownTypes` declined as foreign to the system's vocabulary | 2026-10-14 |
 | P4d — the context's instantiation (R-07, PERF-12) | A + C — P4d closes with the regression of that one cell recorded; making the offers lazy waits, with PERF-10, past `v1.0.0` as one internal change | 2026-10-14 |
+| P8 — the auditor | A — `viper_conformance_auditor` generalized, not a new skill: the brief of the release (`internal/<release>/Audit-Brief.md`) is its authority, with the sessions and branches it names; the invariants come from contract §25; the verdict is "rc.N may be tagged". The rework's documents stay binding until `v1.0.0`, with this section after them. Made in P7, with the brief | 2026-10-14 |
+| After `rc.2` — the release | B — `v1.0.0` a few days after `rc.2`, not the same day; the owner checks the published packages, so the plan holds no item and no consumer-project branch for it | 2026-10-14 |
+| P8 — the auditor brief | `rc2/Audit-Brief.md` approved as written: the audit of the delta since `c728c99` and of the whole system, the sessions and branches of its §2, the report `rc2/Audit-Conformance.md` with findings `RC2-nn`, the CD dry run of all four packages with `1.0.0-rc.2` | 2026-10-26 |
 
 ---
 
@@ -549,10 +552,16 @@ line, `CLAUDE.md` if an architectural sentence changes.
 fingerprint, tracing, the contract-authoring page; every `csharp` block compiles and runs (P5f enforces).
 No adjective about performance (`Benchmark-Plan.md` §28) — the performance page waits for the gate (B1).
 
+The algorithm packages, the fingerprint and tracing were deferred with their stages (§3.9), so P7 writes nothing for
+them. The generator page (`docs/generator.md`) and the native AOT page (`docs/aot.md`) came with P3 and P4d. P7 adds
+the contract-authoring page, `docs/writing-contracts.md`, writes the auditor brief of P8 and generalizes
+`viper_conformance_auditor` to run from it (§3.9).
+
 ## P8 — Audit of `rc.2`
 
 A new auditor brief (`internal/rc2/Audit-Brief.md`, written in P7 from the decisions taken and this plan,
-for the owner to approve) and a separate session of `viper_conformance_auditor` per `audit/rc2-conformance`;
+for the owner to approve, its approval recorded in §3.9) and a separate session of `viper_conformance_auditor` per `audit/rc2-conformance`,
+writing `internal/rc2/Audit-Conformance.md`;
 fixes on `bugfix/rc2-audit-<topic>`; a closure session on `audit/rc2-closure`; a CD dry run of **all
 packages** with `-p:Version=1.0.0-rc.2`; then the owner tags `v1.0.0-rc.2` on `release/v1.0.0`. Further
 defects: `bugfix/` and `rc.3`. The release follows the sequence of `Rework-Plan.md` R9, steps 8–11.
@@ -643,9 +652,9 @@ its branch into `release/v1.0.0`.
 | P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
 | P5d LZ4 | — | deferred — `ideas/IDEA-11` | |
 | P5e AES-GCM-SIV | — | deferred — `ideas/IDEA-03` | |
-| P5f Executable examples | `test/docs-examples` | gate holds — awaiting commit | |
-| P6 Benchmarks | `benchmark/graceful-stop`, `benchmark/track-b-adapters` | not started | |
-| P7 Documentation | `docs/rc2-docs` | not started | |
+| P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
+| P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
+| P7 Documentation | `docs/rc2-docs` | gate holds — awaiting commit | |
 | P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | not started | |
 | Tag | the owner tags `v1.0.0-rc.2` | not started | |
 | Release | `release/v1.0.0` → `main` | not started | |
