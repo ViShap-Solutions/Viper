@@ -69,7 +69,12 @@ system). Where a historical document and the contract disagree, the contract is 
   `IDEA-nn-*.md` each: what it gives, every option with its cost, the open questions and the version it
   would cost under SemVer. Nothing here is decided; an idea becomes work only through a plan.
 - `internal/Benchmark-Graceful-Stop.md` — *plan.* A decided backlog item for the benchmark harness,
-  not started.
+  done in `rc.2` (P6).
+- `internal/rc2/` — the work before `v1.0.0`. `RC2-Plan.md`, `Native-AOT-Design.md` and
+  `Audit-Brief.md` — *plan*: the plan of `rc.2` with the owner's decisions and its Progress table, the
+  approved design of native AOT through the context, and the brief of the `rc.2` conformance audit.
+  `Audit-Conformance.md` — *historical* (Russian): the report of that audit, its findings `RC2-nn` and
+  their closure.
 - `internal/Development-Workflow.md` — *operational.* How work moves through the repository (Russian):
   branch kinds and where each is cut from and merged to, the alpha/beta/rc/stable cycle, where and how
   tags are set, SemVer 2 rules for API, wire and behaviour, when fixtures are frozen, when and how
@@ -78,10 +83,10 @@ system). Where a historical document and the contract disagree, the contract is 
   kept clean: it holds no notes, rules or history for a particular agent, skill, rework or stage.
   Those belong to the plan or the skill they concern — for the rework, `internal/rework/`. An agent
   changes this file only when the owner asks for a change to the general workflow itself.
-- `internal/Architecture-Audit.md`, `Audit-Refactor.md`, `Audit-Closure.md`, `Audit-Future.md` —
-  *historical* (Russian). The audit that produced the architecture with the alternatives it rejected,
-  the independent audit after the first refactor, the closure of its findings, and the directions it
-  named.
+- `internal/Architecture-Audit.md`, `Audit-Refactor.md`, `Audit-Closure.md`, `Audit-Future.md`,
+  `Audit-Conformance.md` — *historical* (Russian). The audit that produced the architecture with the
+  alternatives it rejected, the independent audit after the first refactor, the closure of its findings,
+  the directions it named, and the conformance audit of `v1.0.0-rc.1` with its closure (R9c, R9e).
 - `internal/audit/` — *historical.* The hostile-input audit that led to the rework: the original probes
   (`Problems.cs`, superseded, does not compile), the first remediation design and its review. Kept for
   provenance; `Problems.cs` maps each finding to the QA checkpoint that now pins it.
@@ -104,13 +109,14 @@ documentation, the release conformance audit and its closure check (R9e) are don
 tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-contract seam and the
 source generator (P1–P4), the generator profile, the engine fast path and native AOT through the context
 (P4a–P4d), the executable examples (P5f), the Track B adapters and the graceful stop of the harness (P6)
-and the documentation (P7) are done; the audit of `rc.2` (P8) remains, run by `viper_conformance_auditor`
-from its brief `internal/rc2/Audit-Brief.md`, approved by the owner, and writing
-`internal/rc2/Audit-Conformance.md`; the other additive features were deferred past `v1.0.0` into
+and the documentation (P7) are done. The audit of `rc.2` (P8), run by `viper_conformance_auditor` from its
+brief `internal/rc2/Audit-Brief.md`, wrote `internal/rc2/Audit-Conformance.md` with findings RC2-01…RC2-13;
+they are fixed on two `bugfix/rc2-audit-*` branches, and its closure session remains before the `rc.2`
+tag; the other additive features were deferred past `v1.0.0` into
 `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 282 tests, and the generator's 46, green in Debug and Release.
+with the generated XML file. The suite is 2 283 tests, and the generator's 46, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
@@ -256,11 +262,11 @@ name clash, VPR021 for VPR019 when `ViperReflectionEnabled` is false); collects 
 the reflected contract does (each override once at its most derived declaration, attributes inherited
 through overrides, a hidden member as a second member); applies every rejection as a diagnostic; and
 plans access — direct for an accessible member, `[UnsafeAccessor]` otherwise, over the generic definition
-when the declaring type is generic. `Emitter` writes straight-line code with `
-` line endings, one file
+when the declaring type is generic. `Emitter` writes straight-line code with `\n` line endings, one file
 per contract. The pipeline carries only equatable models (`Models.cs`), never a symbol. It emits
 contracts, supported-type registrations and type information, and nothing of the traversal: no loop,
-length, count, limit, frame, tag or byte (GEN-09). A rule changed in
+length, count, limit, frame, tag written or read, or byte; a union's tags appear only as the data of its
+`SupportedTypes.Union<T>` offer, held to its attributes (GEN-09). A rule changed in
 `ReflectedContract` is changed here in the same change, and `ByteIdentityTests` and the second
 conformance run are the arbiter.
 

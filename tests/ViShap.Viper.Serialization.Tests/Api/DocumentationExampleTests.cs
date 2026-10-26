@@ -4,10 +4,11 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins DOC-01…DOC-04: every <c>csharp</c> block of the consumer documentation — <c>docs/</c>, the
+/// Pins DOC-01…DOC-05: every <c>csharp</c> block of the consumer documentation — <c>docs/</c>, the
 /// repository's <c>README.md</c> and the package READMEs — is a complete example that compiles against
 /// the current code, with the source generator running, and a block with top-level statements also
-/// runs. An example that no longer matches the API fails here, at the page and line it sits on.
+/// runs; and every public type of the packages is named on a page of <c>docs/</c>. An example that no
+/// longer matches the API fails here, at the page and line it sits on.
 /// </summary>
 public class DocumentationExampleTests
 {
@@ -84,5 +85,26 @@ public class DocumentationExampleTests
             .ToArray();
 
         Assert.Empty(offenders);
+    }
+
+    // --- DOC-05: every public type is explained ------------------------------------------------
+
+    [Fact]
+    public void Docs_NameEveryPublicTypeOfThePackages()
+    {
+        var docs = string.Join('\n', Directory
+            .EnumerateFiles(Path.Combine(SourceTree.RepositoryRoot, "docs"), "*.md", SearchOption.AllDirectories)
+            .Select(File.ReadAllText));
+
+        var unnamed = new[] { typeof(BinarySerializerException).Assembly, typeof(BinarySerializer).Assembly }
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .Select(type => type.Name.Split('`')[0])
+            .Select(name => name.EndsWith("Attribute", StringComparison.Ordinal) ? name[..^"Attribute".Length] : name)
+            .Distinct(StringComparer.Ordinal)
+            .Where(name => !Regex.IsMatch(docs, $@"(?<![\w.]){Regex.Escape(name)}\b"))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(unnamed.Length == 0, "Named on no page of docs/: " + string.Join(", ", unnamed));
     }
 }

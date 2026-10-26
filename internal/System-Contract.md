@@ -45,8 +45,8 @@ Engine                    typed codecs, one per declared type: null · reference
       │                   cycles · keyed framing · every loop over wire data
       │  WireReader / WireWriter — ref structs over memory, the only access to payload bytes
 Formatters                IScalarFormatter<T> · sequence, map and array shapes · typed composites
-Type contracts            TypeContract<T> — member order, access, construction; ReflectedContract<T>
-      │                   in v1.0, reached only through MemberWriter / MemberReader
+Type contracts            TypeContract<T> — member order, access, construction; supplied by a context
+      │                   or built by reflection, reached only through MemberWriter / MemberReader
 Algorithms                pure mechanics over spans
 ```
 
@@ -1995,8 +1995,9 @@ which hands out owned copies.
 
 ## 14.1 Positional/default mode
 
-The member plan of a type is its type contract, `TypeContract<T>` (§2.4): in v1.0 it is built by
-reflection, as `ReflectedContract<T>`, and it is the one description reader and writer share. Its
+The member plan of a type is its type contract, `TypeContract<T>` (§2.4): supplied by the
+configuration's context (§14.3) — generated or written by hand — and otherwise built by reflection, as
+`ReflectedContract<T>`; it is the one description reader and writer share. Its
 member order is the total order below; a contract built any other way must produce the same plan
 (INV-12).
 
@@ -2174,7 +2175,9 @@ nearest to it, a hidden member as a second member, the total order of INV-12 or 
 directly; a non-public one, an `init` or non-public setter, and a constructor that is not accessible or
 leaves required members unset, through `[UnsafeAccessor]`, declared over the generic definition when the
 declaring type is generic. Nothing generated holds a loop, a length, a count, a limit, a reference frame,
-a union tag or a byte: those stay in the engine (INV-2, INV-5).
+a tag written or read, or a byte: those stay in the engine (INV-2, INV-5). The union map is the one
+place a tag appears, as data: the context offers it as `SupportedTypes.Union<T>((tag, typeof(Arm)), …)`,
+exactly the arms the `[BinaryUnion]` attributes of `T` declare, and the engine writes and reads the tag.
 
 **Byte identity.** A generated contract has exactly the description the reflected contract has, so a
 value writes the same bytes with the context and without it, and each reads the other's payloads, under
@@ -2442,7 +2445,9 @@ RentedBytes              = the pooled output of one pipeline phase, cleared when
 ElementCount             = a count that has been validated and charged
 
 Codec<T>                 = the engine's codec for one declared type: framing, traversal, the loop
-FormatterCache<T>        = the codec of T, resolved once by FormatterRegistry and held in a static field
+FormatterCache<T>        = the codec of T, resolved once and held in a static field: the codec a context
+                           offered, else a built-in codec, else the one FormatterRegistry builds while
+                           the reflection path is on, else one that reports the type unavailable
 GraphState               = the traversal of one payload: reference framing, tables, ancestor stack
 IScalarFormatter<T>      = the encoding of one self-contained value
 ISequenceShape<,,,>      = count, enumerate, build and complete a sequence; no count, no primitive
@@ -3026,7 +3031,7 @@ A box is checked only when source and a test prove it. The checkpoints that prov
 - [x] Populate-in-place rejects non-member-encoded types.
 - [x] No hidden required API exists outside this document (§3 lists the whole surface).
 - [x] Every public member carries XML documentation, and it ships with the package.
-- [x] The reflection path states its requirements: every public entry point that encodes or decodes a caller's type carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, no other public member does, and a consumer built under native AOT analysis is told about exactly those calls (§3).
+- [x] The reflection path states its requirements: the twenty-six public entry points that encode or decode a caller's type without type information carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, their twenty-six counterparts that take a `BinaryTypeInfo<T>` and every other public member carry neither, and a consumer built under native AOT analysis is told about exactly the annotated calls (§3).
 - [x] No public algorithm interface declares a default member (§3, §12, §13).
 
 ## Exceptions
@@ -3116,7 +3121,7 @@ A box is checked only when source and a test prove it. The checkpoints that prov
   build deterministically, publish a `.snupkg` of their symbols, and record
   the repository and the exact commit through Source Link, so a published package can be traced
   back to the source it was built from and stepped into.
-- [x] `dotnet pack` succeeds for all three packages, each with its own non-empty README.
+- [x] `dotnet pack` succeeds for all four packages — `ViShap.Viper.Core`, `ViShap.Viper.Serialization`, `ViShap.Viper.Generator` and the meta-package `ViShap.Viper` — each with its own non-empty README.
 
 ---
 

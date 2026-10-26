@@ -575,9 +575,8 @@ references the generator as an analyzer. *(added in P3–P4 of the rc.2 plan)*
 - [x] GEN-05 — a project without a `[BinaryContext]` gets no source and no diagnostic *(§14.4)* — `Generator.Tests/PipelineTests`
 - [x] GEN-06 — an unrelated edit re-emits no contract; an edit to one type re-emits its contract alone *(§14.4)* — `Generator.Tests/PipelineTests`
 - [x] GEN-07 — the frozen payloads read through generated contracts, with reflection refused, decode to what reflection decodes and write back to exactly the frozen bytes, V1, V1 with references and V0; the protected one decrypts to the same payload *(§14.4, §22)* — `Format/GeneratedCompatibilityTests`
-- [x] GEN-08 — the same sources, in any order, give the same generated files, with `
-` line endings *(§14.4)* — `Generator.Tests/PipelineTests`
-- [x] GEN-09 — the emitted source holds no loop, no length, no count, no limit, no reader or writer, no tag, no reflection *(§14.4, INV-2, INV-5)* — `Generator.Tests/PipelineTests`
+- [x] GEN-08 — the same sources, in any order, give the same generated files, with `\n` line endings *(§14.4)* — `Generator.Tests/PipelineTests`
+- [x] GEN-09 — the emitted source holds no loop, no length, no count, no limit, no reader or writer, no tag written or read, no reflection; a tag appears only as data, in the `SupportedTypes.Union<T>` offer of a union map *(§14.4, INV-2, INV-5)* — `Generator.Tests/PipelineTests`
 - [x] GEN-10 — the generator classifies types by exactly the serializer's tables of scalars (`BuiltInCodecs`) and generic definitions (`TypeRules`), references only Roslyn and the standard library, and no shipped assembly references it *(§14.4, §23)* — `Generator.Tests/PipelineTests`
 - [x] GEN-11 — the conformance suite passes on generated contracts *(§14.1, §14.4)* — `Contracts/GeneratedContractConformanceTests`
 
@@ -1575,7 +1574,7 @@ Checked only when source **and** a test prove it. Mirrors `System-Contract.md` �
 - [x] Every defect in §30.1 and §30.3 is fixed and pinned by its checkpoint. *(D1-01…D6-02, NX-01…NX-11)*
 - [x] No test relies on undocumented project history.
 - [x] `dotnet test` is green with no skipped tests. *(1978 passed, 0 skipped, Debug and Release)*
-- [x] `dotnet pack` succeeds for all three packages, each with its own non-empty README. *(the three `cd.yml` pack commands with `-p:Version=1.0.0-rc.1` produce three `.nupkg` and two `.snupkg`; each `.nupkg` carries its own README, `CORE-README.md`, `SERIALIZATION-README.md` or `METAPACK-README.md`)*
+- [x] `dotnet pack` succeeds for all four packages, each with its own non-empty README. *(the four `cd.yml` pack commands with `-p:Version=1.0.0-rc.2` produce four `.nupkg` and two `.snupkg`; each `.nupkg` carries its own README, `CORE-README.md`, `SERIALIZATION-README.md`, `GENERATOR-README.md` or `METAPACK-README.md`; rc.1 had three)*
 
 ---
 
@@ -1617,3 +1616,4 @@ P5f, `rc2/RC2-Plan.md` I11)*
 - [x] DOC-02 — every block that only declares types compiles as a library with no warning or error — `Api/DocumentationExampleTests`
 - [x] DOC-03 — the pages read are every page of `docs/`, the root `README.md` and the README each of the four packages declares as its `PackageReadmeFile` — `Api/DocumentationExampleTests`
 - [x] DOC-04 — every fence of those pages names its language, and C# only as `csharp`, so no C# block escapes DOC-01 and DOC-02 — `Api/DocumentationExampleTests`
+- [x] DOC-05 — every public type of `ViShap.Viper.Core` and `ViShap.Viper.Serialization` is named on a page of `docs/` — an attribute by its name without `Attribute`, a generic type without its arity — so no public type ships unexplained *(added in rc.2 P8, RC2-13)* — `Api/DocumentationExampleTests`

@@ -4,7 +4,8 @@
 behavior: the contract (`internal/System-Contract.md`) does, and each stage here changes it in the stage
 that makes the change real.
 
-**Status:** drafted 2026-10-09 from the documents; **not approved, not started.** Section 3 holds the
+**Status:** drafted 2026-10-09 from the documents; every decision of §3 taken (§3.9); P0–P7 closed; P8
+in progress — the audit report is merged and its findings are being fixed (§8). Section 3 holds the
 decisions only the owner can take; no stage whose decision is open begins before it is answered.
 **Written against:** `release/v1.0.0` at `c728c99` (the commit `v1.0.0-rc.1` points at), the tree clean,
 2 014 tests green in Release.
@@ -626,7 +627,7 @@ documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living docu
 | P2 | `ViShap.Viper.Engine.Contracts` (static diagnostics class) | `ContractCalls` — the old name would shadow the new namespace | `Contracts.Mismatch`, `Contracts.WrongLayout`, `Contracts.TooManyCalls` | clean |
 | P2 | `StructuralCodec<T>.FoldsNull` (property) | `FoldsNull(ref OperationState)` — an object's null follows the contract in force for the operation | `FoldsNull =>` | clean |
 | P3 | `SourceTree.ProductionFiles` over every file of `src/` | over the shipped runtime assemblies only; the generator is held to its own tests | `ProductionFiles` | the source invariants still cover Core and Serialization |
-| P1 | test `ReadField_APositionalMemberUnderAKeyedLayout_ThrowsType` | `ReadKeyed_AMemberCallPerKnownKey_ReadsEachFieldsMember` — the mistake is no longer expressible | `APositionalMemberUnderAKeyedLayout` | clean |
+| P1 | test `ReadField_APositionalMemberUnderAKeyedLayout_ThrowsType` | `ReadKeyed_AMemberCallPerKnownKey_ReadsEachFieldsMember` — the mistake is no longer expressible | `APositionalMemberUnderAKeyedLayout` | clean of the read side; the one hit is `Contracts/ContractCallTests.Write_APositionalMemberUnderAKeyedLayout_ThrowsType`, the write-side mistake, which is still expressible and pinned |
 | P4d | `FormatterRegistry.Scalars` | `BuiltInCodecs.Scalars`, the one table both the reflection path and a context use | `FormatterRegistry.Scalars`, `registry.GetField("Scalars"` | clean |
 | P4d | `FormatterRegistry.Shapes`, `FormatterRegistry.Closing`, its classification | `TypeRules.Shapes`, `TypeRules.Closing`, `TypeRules.Classify` | `FormatterRegistry.Shapes`, `registry.GetField("Shapes"` | clean |
 | P4d | the marked calls of `tests/ViShap.Viper.AotConsumer/Program.cs`, "compiled, never run" | `AnnotatedEntryPoints.cs`, left out of a publish; `Program.cs` runs `ContextRun` | `AotConsumer/Program.cs`, `never run` | clean |
@@ -637,6 +638,8 @@ documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living docu
 | RC2-01 | "the arms of a union are taken as given; the serializer does not read `[BinaryUnion]` for a type whose union map was supplied" (§14.5, `docs/writing-contracts.md`) | `Union<T>` holds its arms to the attributes | `taken as given`, `does not read` | clean |
 | RC2-01 | test `SupportedTypes_TakesNoTraversalAndReturnsOnlySupportedTypes` | `SupportedTypes_TakesNothingButAUnionsArmsAndReturnsOnlySupportedTypes` | `TakesNoTraversal`, `two operations of a custom collection`, `custom collection's operations` | clean |
 
+| RC2-05 | test `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoTagAndNoReflection`, and "no tag" in §14.4, GEN-09 and `CLAUDE.md` | `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoWireTagAndNoReflection`, which also requires every tag to sit in a `SupportedTypes.Union<T>` offer; "no tag written or read" | `NoCountNoTagAndNoReflection`, `a union tag or a byte`, `frame, tag or byte`, `no tag, no reflection` | clean outside the audit report that names the finding and `rc2/Audit-Brief.md` §4, which quotes the former `CLAUDE.md` wording as the brief the owner approved |
+| RC2-04 | "`dotnet pack` succeeds for all three packages" (§24, QA §32) | all four packages | `all three packages` | clean outside historical documents |
 ---
 
 # 8. Progress
@@ -663,10 +666,10 @@ its branch into `release/v1.0.0`.
 | P5e AES-GCM-SIV | — | deferred — `ideas/IDEA-03` | |
 | P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
 | P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
-| P7 Documentation | `docs/rc2-docs` | gate holds — awaiting commit | |
-| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | in progress — report merged (`57176f3`); fixes, then the closure session | |
-| P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | gate holds — awaiting commit | |
-| P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | not started | |
+| P7 Documentation | `docs/rc2-docs` | closed | `97fba73` |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | in progress — report merged (`57176f3`), engine fixes merged (`1ba774f`); the documents' fixes, then the closure session | |
+| P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | closed | `1ba774f` |
+| P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | gate holds — awaiting commit | |
 | Tag | the owner tags `v1.0.0-rc.2` | not started | |
 | Release | `release/v1.0.0` → `main` | not started | |
 

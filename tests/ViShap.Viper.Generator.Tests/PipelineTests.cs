@@ -95,11 +95,20 @@ public class PipelineTests
     // --- GEN-09: nothing that belongs to the serializer -----------------------------------------------
 
     [Fact]
-    public void TheEmittedSource_HoldsNoLoopNoLengthNoCountNoTagAndNoReflection()
+    public void TheEmittedSource_HoldsNoLoopNoLengthNoCountNoWireTagAndNoReflection()
     {
         var run = Harness.Run(File.ReadAllText(Path.Combine(Repository.Root, "tests", "ViShap.Viper.Generator.Tests", "ByteIdentityTests.cs"))
             .Split("\"\"\"")[1]);
         Assert.NotEmpty(run.Sources);
+
+        var tagged = new Regex(@"\(\s*\d+\s*,\s*typeof\(");
+        var unionOffers = run.Sources
+            .SelectMany(source => source.Value.Split('\n').Select(line => (source.Key, Line: line)))
+            .Where(entry => tagged.IsMatch(entry.Line))
+            .ToArray();
+        Assert.NotEmpty(unionOffers);
+        Assert.All(unionOffers, entry =>
+            Assert.True(entry.Line.Contains("SupportedTypes.Union<", StringComparison.Ordinal), $"{entry.Key} carries a tag outside a union offer: {entry.Line.Trim()}"));
 
         string[] forbidden =
         [
