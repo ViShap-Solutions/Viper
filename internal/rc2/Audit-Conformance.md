@@ -8,19 +8,21 @@
 
 ## 1. Вердикт
 
-**rc.2 может быть помечен тегом после закрытия перечисленных находок** — RC2-14, RC2-15, RC2-16
-(вердикт сессии закрытия на `b0cb4d2`, §12).
+**rc.2 может быть помечен тегом** — после двух условий, которые владелец перенёс на `release/v1.0.0`
+(`RC2-Plan.md` §3.9, «RC2-14…RC2-16 — where they are fixed and closed»): зелёный окончательный `--smoke`
+и зелёное задание CI `native-aot` на merge-коммите `audit/rc2-closure`.
 
 - RC2-01…RC2-13 закрыты на слоях, которые они называли; решения владельца по RC2-01…RC2-03 записаны в
-  `RC2-Plan.md` §3.9 и выполнены.
-- Исправление RC2-01 свело пользовательскую коллекцию к одному правилу и при этом сделало неподдерживаемой
-  коллекцию, чей публичный `Add(T)` возвращает значение (наследник `HashSet<T>`): rc.1 её писал и читал,
-  rc.2 отказывает уже при записи, а сгенерированный контекст падает `TypeInitializationException`
-  (RC2-14, блокирует rc; сторона — код, слой — `CustomCollectionShape`).
-- То же исправление сделало буквально неверными INV-19 контракта (RC2-15) и раздел «As built» D5
-  `Native-AOT-Design.md` (RC2-16). Решения владельца ни одна из трёх не требует.
-- Сборка без предупреждений; 2 283 + 46 тестов зелёные в Debug и Release; `--verify`, `--smoke`, CI
-  `native-aot` и CD dry run — зелёные. Зелёный набор вердикта не определяет.
+  `RC2-Plan.md` §3.9 и выполнены (§12.2).
+- Сессия закрытия нашла RC2-14 (блокировала rc: коллекция с `Add(T)`, возвращающим значение, не читалась),
+  RC2-15 и RC2-16; по решению владельца они исправлены и закрыты в той же сессии, на `audit/rc2-closure`
+  (§12.7). Эта проверка — не независимая, что владелец принял вместо отдельной сессии.
+- Сборка без предупреждений; 2 293 + 46 тестов зелёные в Debug и Release; `--verify` зелёный; локальная
+  публикация native AOT — без предупреждений, вывод равен JIT; пакеты `1.0.0-rc.2` — как требует CD.
+  Зелёный набор вердикта не определяет.
+
+Вердикт сессии закрытия на `b0cb4d2` до исправлений был «rc.2 может быть помечен тегом после закрытия
+RC2-14, RC2-15, RC2-16» (§12.6).
 
 Вердикт аудита на `97fba73` был **«rc.2 не может быть помечен тегом»**, по основаниям ниже; они
 сохранены как были.
@@ -638,3 +640,37 @@ CI на проверенном коммите: `Viper CI`, run `40332765658`, pu
 **rc.2 может быть помечен тегом после закрытия перечисленных находок** — RC2-14 (блокирует rc, код,
 `CustomCollectionShape`), RC2-15 (контракт, INV-19), RC2-16 (`Native-AOT-Design.md` §10, D6). Ни одна не
 требует решения владельца. После исправлений — новая сессия закрытия.
+
+### 12.7 Закрытие RC2-14…RC2-16
+
+Исправлены и проверены в этой же сессии, на `audit/rc2-closure` — коммит `bb88523` поверх `b0cb4d2`, по
+решению владельца (§3.9 «RC2-14 — a custom collection's `Add`», вариант A из трёх, и «RC2-14…RC2-16 —
+where they are fixed and closed»).
+
+| Находка | Закрыта? | Доказательство |
+|---|---|---|
+| RC2-14 | закрыта | `CustomCollectionShape` (`SequenceShapes.cs`): публичный `Add(T)` по-прежнему решает, читается ли коллекция; класс заполняется делегатом над ним для результата `void`, `bool` или ссылки (результат отбрасывается), структура и любой другой результат — через `ICollection<T>.Add` ограниченным вызовом на самом экземпляре; `MethodInfo.Invoke` нет, ничего не боксится. Контракт §14.5 и таблица §23, XML `SupportedTypes.Collection`, `docs/supported-types.md`, D5 `Native-AOT-Design.md`. Тесты: `Collection_WhoseAddReturnsAValue_FillsThroughIt`, `Collection_WhoseAddReturnsAValue_ThroughAGeneratedContext_WritesAndReadsTheReflectedBytes`, `Collection_FillsThroughItsPublicAdd_AndWithoutOneRefusesToRead` (структура `TallyStruct` заполняется на месте) — NAOT-01; `Deserialize_CustomCollectionWhoseAddReturnsAValue_RestoresTheElements`, `Deserialize_ValueTypeCustomCollection_FillsTheInstanceItReturns` во всех вариантах корпуса — RT-70; `ContextRun.Collection` с `Stamps : HashSet<int>` — NAOT-13. Проба `collection-add` на пакетах из исправленного кода: `MySet` — `425345520100000D04010000000200000003000000 -> 1,2,3` через рефлексию и через `SetContext`, `BoolAdd` — `4253455201000009030500000006000000 -> 5,6`, байт в байт как rc.1 (`c728c99`). |
+| RC2-15 | закрыта | INV-19 (§25): при выключенном переключателе ничто не описывается по рефлексии для типа, который не предложил ни один контекст; предложение читает только то, что объявляет его собственный тип (атрибуты union, публичный `Add(T)`) на типе, аннотированном для анализаторов, и не строит кодировки, которой не построили бы правила. Совпадает с §14.5 и с кодом (`SupportedTypes.Union<T>`, `CustomCollectionShape`). |
+| RC2-16 | закрыта | `Native-AOT-Design.md`: D6 — граница переключателя после поправок; §10 D4 — сверка плеч с атрибутами; §10 D5 — один шейп для обоих путей с правилом RC2-14; поправка D5 второго порядка. `its two operations` вне отчёта не найдено. |
+
+**§4.5 по файлам исправлений.** Новые строки ведомости §7 (RC2-14, RC2-15, RC2-16): `Adder()`,
+`handed to it as a copy`, `method.Invoke`, `an invocation of the method`, `its two operations` — вне отчёта
+пусто; `contract or union map is built by reflection` — только `rc2/Audit-Brief.md` §4.2 и
+`Native-AOT-Design.md` §4 (одобренные тексты), как записано в строке.
+
+**§4.9 на исправленном коде.**
+
+| Команда | Результат |
+|---|---|
+| `dotnet build Viper.sln -c Release` / `-c Debug` | 0 предупреждений, 0 ошибок |
+| `dotnet test …Serialization.Tests…` Debug / Release | 2 293 / 2 293, не пройдено 0 |
+| `dotnet test …Generator.Tests…` Debug / Release | 46 / 46, не пройдено 0 |
+| `dotnet run --project benchmarks/… -c Release -- --verify` | `405 pairs, 0 failed`; `Market: 304 pairs, 140 probes, 0 schema failures, 0 failed`; exit 0 |
+| `dotnet run --project benchmarks/… -c Release -- --smoke` | не запускался: по решению владельца окончательный прогон — на `release/v1.0.0` после слияния |
+| `dotnet pack` ×4, `-p:Version=1.0.0-rc.2` | четыре `.nupkg` и два `.snupkg`; `<version>1.0.0-rc.2</version>` в каждом; README у каждого (4 188, 7 045, 4 085, 7 503 байт); генератор — только `analyzers/dotnet/cs`, `lib/` нет; Serialization несёт `buildTransitive/ViShap.Viper.Serialization.targets` |
+| `dotnet publish tests/ViShap.Viper.AotConsumer -c Release -r win-x64` | 0 предупреждений `IL`/`AOT`; вывод нативного файла и `dotnet run … --no-build` идентичен, 51 строка, последняя `all checks passed` |
+
+### 12.8 Окончательный вердикт
+
+**rc.2 может быть помечен тегом** после зелёных окончательного `--smoke` и задания CI `native-aot` на
+merge-коммите `audit/rc2-closure` в `release/v1.0.0` (решение владельца, §3.9). Открытых находок нет.

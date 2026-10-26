@@ -300,7 +300,7 @@ Filled in by the owner.
 | RC2-03 — S5 clarified | the meta-package references the generator with `PrivateAssets="none"`, so one install brings it | 2026-10-26 |
 | RC2 fixes — branches | two branches: `bugfix/rc2-audit-engine` (RC2-01, RC2-02, RC2-06, RC2-12; `viper_builder`, with `viper_generator` for the generator's part), then `bugfix/rc2-audit-documents` (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13; `viper_builder`) | 2026-10-26 |
 | RC2-14 — a custom collection's `Add` | the public `Add(T)` stays the rule for whether a custom collection is read; a class is filled through it when it returns nothing, a `bool` or a reference (the result discarded), and a value-type collection or a class whose `Add(T)` returns another value through `ICollection<T>.Add`, on the instance — no boxing (amends RC2-01 for those cases; option A of three: B, `MethodInfo.Invoke`, would have taken an exception to INV-17; C, refusing them on read, would have narrowed what rc.1 read) | 2026-10-26 |
-| RC2-14…RC2-16 — where they are fixed | on `audit/rc2-closure` itself, no further branch; the closure check of the fixes is a session of `viper_conformance_auditor` that did not make them | 2026-10-26 |
+| RC2-14…RC2-16 — where they are fixed and closed | on `audit/rc2-closure` itself, no further branch; their closure check is made in the same session that fixed them, which the owner accepts in place of an independent session; the final `--smoke` runs on `release/v1.0.0` after `audit/rc2-closure` is merged, and it and the CI job `native-aot` on that merge commit are green before the `rc.2` tag | 2026-10-26 |
 
 ---
 
@@ -672,7 +672,7 @@ its branch into `release/v1.0.0`.
 | P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
 | P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
 | P7 Documentation | `docs/rc2-docs` | closed | `97fba73` |
-| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | in progress — report merged (`57176f3`), engine fixes merged (`1ba774f`), documents' fixes merged (`b0cb4d2`); the closure session found RC2-14…RC2-16, fixed on `audit/rc2-closure`; a second closure session remains | |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | gate holds — awaiting commit: report merged (`57176f3`), engine fixes merged (`1ba774f`), documents' fixes merged (`b0cb4d2`); the closure found RC2-14…RC2-16, fixed and closed on `audit/rc2-closure`; then the final `--smoke` and CI `native-aot` on `release/v1.0.0` (§3.9) | |
 | P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | closed | `1ba774f` |
 | P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | closed | `b0cb4d2` |
 | P8 fixes — closure (RC2-14, RC2-15, RC2-16) | `audit/rc2-closure` | gate holds — awaiting commit | |
