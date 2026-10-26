@@ -35,6 +35,8 @@ changes a default, a byte of an existing frame or a public signature is a major.
 | [IDEA-10 Asynchronous engine](IDEA-10-async-engine.md) | minor | idea |
 | [IDEA-11 Zstandard and LZ4](IDEA-11-zstandard-lz4.md) | minor | idea, partly decided — built-in ids 3 and 4 reserved; waits for an official implementation |
 | [IDEA-12 Error correction (Reed–Solomon)](IDEA-12-reed-solomon.md) | minor (outside the format) | idea |
+| [IDEA-13 Text of a dump's parts](IDEA-13-dump-part-rendering.md) | minor | idea |
+| [IDEA-14 Target frameworks, platforms and Unity](IDEA-14-target-frameworks.md) | patch (documents) to minor (a new target) | idea |
 
 Performance proposals do not belong here: they live in `../performance/` as `PERF-nn`, each cited to the
 measurement behind it.

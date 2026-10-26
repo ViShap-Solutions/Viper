@@ -4,8 +4,9 @@
 behavior: the contract (`internal/System-Contract.md`) does, and each stage here changes it in the stage
 that makes the change real.
 
-**Status:** drafted 2026-10-09 from the documents; every decision of §3 taken (§3.9); P0–P7 closed; P8
-in progress — the audit report is merged and its findings are being fixed (§8). Section 3 holds the
+**Status:** drafted 2026-10-09 from the documents; every decision of §3 taken (§3.9); P0–P8 closed; `v1.0.0-rc.2`
+tagged at `fdd4c30` and published on 2026-10-26; the release — `release/v1.0.0` into `main`, the tag `v1.0.0` —
+is the owner's next step (§8). Section 3 holds the
 decisions only the owner can take; no stage whose decision is open begins before it is answered.
 **Written against:** `release/v1.0.0` at `c728c99` (the commit `v1.0.0-rc.1` points at), the tree clean,
 2 014 tests green in Release.
@@ -672,11 +673,11 @@ its branch into `release/v1.0.0`.
 | P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
 | P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
 | P7 Documentation | `docs/rc2-docs` | closed | `97fba73` |
-| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | gate holds — awaiting commit: report merged (`57176f3`), engine fixes merged (`1ba774f`), documents' fixes merged (`b0cb4d2`); the closure found RC2-14…RC2-16, fixed and closed on `audit/rc2-closure`; then the final `--smoke` and CI `native-aot` on `release/v1.0.0` (§3.9) | |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | closed — report `57176f3`, engine fixes `1ba774f`, documents' fixes `b0cb4d2`, closure RC2-14…RC2-16; the final `--smoke` on `release/v1.0.0` (2 477 benchmarks, 0 failed) and CI with `native-aot` on `fdd4c30` green (§3.9) | `fdd4c30` |
 | P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | closed | `1ba774f` |
 | P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | closed | `b0cb4d2` |
-| P8 fixes — closure (RC2-14, RC2-15, RC2-16) | `audit/rc2-closure` | gate holds — awaiting commit | |
-| Tag | the owner tags `v1.0.0-rc.2` | not started | |
+| P8 fixes — closure (RC2-14, RC2-15, RC2-16) | `audit/rc2-closure` | closed | `fdd4c30` |
+| Tag | the owner tags `v1.0.0-rc.2` | closed — the tag on `fdd4c30`; the four packages published to NuGet on 2026-10-26 | `fdd4c30` |
 | Release | `release/v1.0.0` → `main` | not started | |
 
 Status values: `not started` · `in progress` · `gate holds — awaiting commit` · `closed` · `blocked — <question>`.
