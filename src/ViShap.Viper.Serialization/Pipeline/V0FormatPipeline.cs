@@ -1,4 +1,6 @@
-﻿namespace ViShap.Viper.Pipeline;
+using System.Buffers;
+
+namespace ViShap.Viper.Pipeline;
 
 /// <summary>
 /// The V0 envelope: a headerless payload and nothing else, for callers who want the smallest
@@ -11,10 +13,12 @@
 /// decision rather than an inference from bytes. Without a header there is nowhere to record which
 /// reference framing or which compression, checksum or encryption phase produced the bytes, so V0
 /// has none of them; everything the payload itself can express — the full type set, unions, keyed
-/// contracts, depth, budgets and metering — applies unchanged. Keyed contracts patch each field's
-/// length after writing it, and V0 writes straight to the destination rather than buffering, so a
-/// keyed write needs the destination stream to be seekable. Unlike V1 it may be embedded in a larger
-/// stream, which is why it does not require the source to end with the payload.
+/// contracts, depth, budgets and metering — applies unchanged. The payload is built in the
+/// serializer's own buffer and copied to the destination once, so a keyed contract, whose field
+/// lengths are patched after each field is written, works with any destination, and a failed write
+/// leaves nothing in it. Nothing in the payload says where it ends: a reader finds the end by decoding
+/// the root value, so bytes after it are read only by a caller who asks where the payload ended, and a
+/// stream is read ahead and put back where the root ends, which needs a stream that can seek.
 /// </remarks>
 internal sealed class V0FormatPipeline : IFormatPipeline
 {
@@ -23,50 +27,78 @@ internal sealed class V0FormatPipeline : IFormatPipeline
 
     int IFormatPipeline.Version => Version;
 
-    public void Write<T>(Stream destination, T data, SerializationOperation operation)
+    public EncodedFrame Write<T>(T data, ref OperationState state)
     {
-        ArgumentNullException.ThrowIfNull(destination);
+        var budget = Budget(ref state);
+        var payload = new PayloadBuffer(budget.Maximum, budget.Resource);
+        try
+        {
+            var writer = new WireWriter(payload, ref state);
+            Graph.WriteRoot(ref writer, data, preserveReferences: false);
 
-        var wire = new MeteredWriteStream(destination, operation.Limits.MaxWireBytes, "wire");
-        var payload = new MeteredWriteStream(wire, operation.Limits.MaxPayloadBytes, "payload");
-        var writer = new ValueWriter(payload, operation);
-
-        new GraphWriter(writer, WithoutReferences(operation)).WriteRoot(data);
-
-        writer.Flush();
+            writer.Flush();
+            return EncodedFrame.Of(header: null, payload, state.Limits.MaxWireBytes);
+        }
+        catch
+        {
+            payload.Dispose();
+            throw;
+        }
     }
 
-    public T? Read<T>(Stream source, SerializationOperation operation)
+    /// <summary>
+    /// A V0 payload declares no length: where it ends is known only once its root value has been
+    /// decoded. A source that delivers bytes over time can therefore only read one ahead, within the
+    /// budget, and give back what the root did not use.
+    /// </summary>
+    public FrameExtent Measure(
+        ReadOnlySpan<byte> buffered,
+        bool sourceEnded,
+        long available,
+        ref OperationState state) =>
+        FrameExtent.Undeclared(Budget(ref state).Maximum);
+
+    public T? Read<T>(
+        ReadOnlySpan<byte> source,
+        T? target,
+        ref OperationState state,
+        out long consumed)
     {
-        var reader = OpenReader(source, operation, out var payloadOperation);
-        return new GraphReader(reader, payloadOperation).ReadRoot<T>();
+        var budget = Budget(ref state);
+        var reader = new WireReader(source[..(int)Math.Min(source.Length, budget.Maximum)], ref state, budget);
+
+        return Decode(ref reader, target, out consumed);
     }
 
-    public T Read<T>(Stream source, T existingInstance, SerializationOperation operation)
-        where T : class
+    public T? Read<T>(
+        ReadOnlySequence<byte> source,
+        T? target,
+        ref OperationState state,
+        out long consumed)
     {
-        ArgumentNullException.ThrowIfNull(existingInstance);
+        if (source.IsSingleSegment)
+            return Read(source.FirstSpan, target, ref state, out consumed);
 
-        var reader = OpenReader(source, operation, out var payloadOperation);
-        return (T)new GraphReader(reader, payloadOperation).ReadInto(existingInstance, typeof(T));
+        var budget = Budget(ref state);
+        var reader = new WireReader(source.Slice(0, Math.Min(source.Length, budget.Maximum)), ref state, budget);
+
+        return Decode(ref reader, target, out consumed);
     }
 
-    private static ValueReader OpenReader(
-        Stream source,
-        SerializationOperation operation,
-        out SerializationOperation payloadOperation)
+    /// <summary>No header can record that a payload uses reference framing, so V0 never emits or expects it.</summary>
+    private static T? Decode<T>(ref WireReader reader, T? target, out long consumed)
     {
-        ArgumentNullException.ThrowIfNull(source);
-
-        payloadOperation = WithoutReferences(operation);
-
-        // Both ceilings apply on the way in, exactly as they do on the way out.
-        var wire = new MeteredReadStream(source, operation.Limits.MaxWireBytes, "wire");
-        var payload = new MeteredReadStream(wire, operation.Limits.MaxPayloadBytes, "payload");
-        return new ValueReader(payload, payloadOperation);
+        var result = Graph.ReadRoot(ref reader, target, preserveReferences: false);
+        consumed = reader.Consumed;
+        return result;
     }
 
-    // No header can record that a payload uses reference framing, so V0 never emits or expects it.
-    private static SerializationOperation WithoutReferences(SerializationOperation operation) =>
-        operation.WithPreserveReferences(false);
+    /// <summary>
+    /// Without a header the payload is everything that reaches the wire, so the payload and wire
+    /// budgets bound the same bytes and the tighter of the two applies, in both directions.
+    /// </summary>
+    private static WireBudget Budget(ref OperationState state) =>
+        state.Limits.MaxWireBytes < state.Limits.MaxPayloadBytes
+            ? new WireBudget("wire", state.Limits.MaxWireBytes)
+            : new WireBudget("payload", state.Limits.MaxPayloadBytes);
 }

@@ -37,17 +37,15 @@ internal static class ReportWriter
         var document = new Document();
 
         Identity(document, run, directory);
-        Caveats(document, run);
-        Environment(document, directory);
-        Verification(document, directory);
-        Sizes(document, sizes);
-        Matrix(document, results);
-        Algorithms(document, results);
-        Components(document, results);
-        Scaling(document, results);
-        System(document, directory, results);
-        Gallery(document, charts);
-        Caution(document, results);
+
+        if (run.Track == MarketReport.Track)
+        {
+            MarketReport.Write(document, directory, results);
+        }
+        else
+        {
+            TrackA(document, run, directory, results, sizes, charts);
+        }
 
         var markdown = document.ToMarkdown();
         File.WriteAllText(Path.Combine(directory, "report.md"), markdown);
@@ -56,6 +54,28 @@ internal static class ReportWriter
             document.ToHtml($"ViShap.Viper — {run.Label}"));
 
         return markdown;
+    }
+
+    private static void TrackA(
+        Document document,
+        RunRecord run,
+        string directory,
+        IReadOnlyList<ResultRow> results,
+        IReadOnlyList<SizeRow> sizes,
+        IReadOnlyList<Chart> charts)
+    {
+        Caveats(document, run);
+        Environment(document, directory);
+        Verification(document, directory);
+        Sizes(document, sizes);
+        Matrix(document, results);
+        Generator(document, results);
+        Algorithms(document, results);
+        Components(document, results);
+        Scaling(document, results);
+        System(document, directory, results);
+        Gallery(document, charts);
+        Caution(document, results);
     }
 
     /// <summary>
@@ -118,6 +138,14 @@ internal static class ReportWriter
             : $"**Not a baseline.** {run.Reason}. It carries only what it measured, and every figure in " +
               "it belongs to this run alone.");
 
+        if (run.Interrupted)
+        {
+            document.Paragraph(
+                $"**Interrupted** by {run.StoppedBy}. {run.SuitesRun.Count} suite(s) finished and are reported " +
+                "below; what did not run, and the suite cut off in the middle if there was one, are listed in " +
+                "`scope.md`.");
+        }
+
         document.Table(
             ["Field", "Value"],
             [
@@ -169,10 +197,18 @@ internal static class ReportWriter
             run.SuitesNotRun.Count == 0
                 ? "**Every suite of the track ran.**"
                 : $"**{run.SuitesNotRun.Count} suite(s) did not run**, listed in `scope.md`.",
+
+            .. run.SuitesUnfinished is { Count: > 0 } unfinished
+                ? new[]
+                {
+                    $"**{string.Join(", ", unfinished)} did not finish.** BenchmarkDotNet exports a suite only " +
+                    "when it ends, so none of its cells is here.",
+                }
+                : [],
         ]);
     }
 
-    private static void Environment(Document document, string directory)
+    internal static void Environment(Document document, string directory)
     {
         var path = Path.Combine(directory, "environment.json");
 
@@ -271,6 +307,14 @@ internal static class ReportWriter
             ["ProfileMatrixBenchmarks", "ProfileStreamBenchmarks", "HarnessFloorBenchmarks"]);
     }
 
+    private static void Generator(Document document, IReadOnlyList<ResultRow> results) =>
+        Suite(document, results,
+            "The generator profile",
+            "The contracts of a generated context (B-P0g, B-P1g) beside the reflected ones (B-P0, B-P1), " +
+            "on the same values and the same bytes: positional and keyed, few members and many, one object " +
+            "and a batch. The first use of each type is in the first-use table below.",
+            ["GeneratorProfileBenchmarks"]);
+
     private static void Algorithms(Document document, IReadOnlyList<ResultRow> results) =>
         Suite(document, results,
             "Compression, checksum and encryption",
@@ -319,6 +363,7 @@ internal static class ReportWriter
         {
             ("cold-start.csv", "Cold start", "One process per measurement. A first in-process call after a warm-up is not cold."),
             ("contract-cold.csv", "Member-plan construction", "What a type costs the first time it is seen. The first row of the table also pays the one-time JIT of the construction path."),
+            ("first-use.csv", "First use of a type", "The first serialize and deserialize of each type in a process already warm for another, reflected (B-P0) and generated (B-P0g), one process per launch. The serializer row is its construction, which under B-P0g includes the context."),
             ("soak.csv", "Sustained load", "Throughput and memory sampled throughout a fixed duration."),
         })
         {
@@ -366,7 +411,7 @@ internal static class ReportWriter
     /// The cells a reader should not take at face value: one whose margin of error exceeds the ceiling
     /// STAT-04 sets, and one that produced no number at all.
     /// </summary>
-    private static void Caution(Document document, IReadOnlyList<ResultRow> results)
+    internal static void Caution(Document document, IReadOnlyList<ResultRow> results)
     {
         var failed = results.Where(row => row.State != "Supported").ToList();
 
@@ -459,7 +504,7 @@ internal static class ReportWriter
     ];
 
     /// <summary>A duration at the scale it belongs to, so a table does not print 0.000 or 12345678.9.</summary>
-    private static string Time(double nanoseconds) => nanoseconds switch
+    internal static string Time(double nanoseconds) => nanoseconds switch
     {
         0 => "—",
         < 1_000 => $"{nanoseconds.ToString("F2", CultureInfo.InvariantCulture)} ns",
@@ -468,7 +513,7 @@ internal static class ReportWriter
         _ => $"{(nanoseconds / 1_000_000_000).ToString("F3", CultureInfo.InvariantCulture)} s",
     };
 
-    private static string Bytes(double bytes) => bytes switch
+    internal static string Bytes(double bytes) => bytes switch
     {
         0 => "—",
         < 1_024 => $"{bytes.ToString("F0", CultureInfo.InvariantCulture)} B",

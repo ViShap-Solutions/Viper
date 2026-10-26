@@ -8,6 +8,9 @@ internal readonly struct PhaseBudget(SerializationLimits limits)
 {
     private readonly SerializationLimits _limits = limits;
 
+    /// <summary>Whether <paramref name="length"/> is a payload length <see cref="CheckPayload"/> accepts.</summary>
+    public bool AdmitsPayload(long length) => length >= 0 && length <= _limits.MaxPayloadBytes;
+
     public void CheckPayload(long length, string what) =>
         Check(length, _limits.MaxPayloadBytes, nameof(SerializationLimits.MaxPayloadBytes), what);
 

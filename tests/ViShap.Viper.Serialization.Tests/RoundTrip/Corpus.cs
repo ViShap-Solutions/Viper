@@ -1,4 +1,5 @@
 using ViShap.Viper.Security;
+using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.RoundTrip;
 

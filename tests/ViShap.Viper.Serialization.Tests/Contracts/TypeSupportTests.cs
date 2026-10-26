@@ -1,6 +1,8 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.Reflection;
+using ViShap.Viper.Engine;
 using ViShap.Viper.Formatters;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
@@ -9,7 +11,7 @@ namespace ViShap.Viper.Serialization.Tests.Contracts;
 /// <summary>
 /// Pins CTR-20, CTR-23 and CTR-24: what makes a type supported. A type the reader cannot construct is
 /// refused rather than approximated, a type §23 does not cover never reaches the wire at all, and the
-/// registry resolves a shape or nothing — there is no catch-all formatter shadowing a specific one.
+/// registry resolves a shape or the object codec — there is no catch-all shape shadowing a specific one.
 /// </summary>
 public class TypeSupportTests
 {
@@ -61,14 +63,16 @@ public class TypeSupportTests
         Assert.Throws<BinaryTypeException>(() => _serializer.Deserialize<Type>(payload));
     }
 
-    [Fact]
-    public void Resolve_MemberEncodedType_ReturnsNull()
+    [Theory]
+    [InlineData(typeof(Person))]
+    [InlineData(typeof(Catalogue))]
+    [InlineData(typeof(object))]
+    [InlineData(typeof(PointStruct))]
+    public void Resolve_MemberEncodedType_IsTheObjectCodec(Type type)
     {
-        // A null result is the object shape, and it is the only way to reach member encoding.
-        Assert.Null(FormatterRegistry.Resolve(typeof(Person)));
-        Assert.Null(FormatterRegistry.Resolve(typeof(Catalogue)));
-        Assert.Null(FormatterRegistry.Resolve(typeof(object)));
-        Assert.Null(FormatterRegistry.Resolve(typeof(PointStruct)));
+        // The object codec is reached only when no rule claims the type: it is the only way to
+        // member encoding.
+        Assert.Equal(typeof(ObjectCodec<>), CodecOf(type).GetType().GetGenericTypeDefinition());
     }
 
     [Theory]
@@ -76,9 +80,10 @@ public class TypeSupportTests
     [InlineData(typeof(string))]
     [InlineData(typeof(Guid))]
     [InlineData(typeof(DateTime))]
+    [InlineData(typeof(DayOfWeek))]
     public void Resolve_ScalarType_ReturnsTheScalarShape(Type type)
     {
-        Assert.IsAssignableFrom<IScalarFormatter>(FormatterRegistry.Resolve(type));
+        Assert.Equal(CodecShape.Scalar, ShapeOf(type));
     }
 
     [Theory]
@@ -87,11 +92,12 @@ public class TypeSupportTests
     [InlineData(typeof(HashSet<int>))]
     [InlineData(typeof(ReadOnlyCollection<int>))]
     [InlineData(typeof(ImmutableList<int>))]
+    [InlineData(typeof(ImmutableArray<int>))]
     [InlineData(typeof(FrozenSet<int>))]
     [InlineData(typeof(Bag))]
     public void Resolve_SequenceType_ReturnsTheSequenceShape(Type type)
     {
-        Assert.IsAssignableFrom<ISequenceFormatter>(FormatterRegistry.Resolve(type));
+        Assert.Equal(CodecShape.Sequence, ShapeOf(type));
     }
 
     [Theory]
@@ -100,40 +106,69 @@ public class TypeSupportTests
     [InlineData(typeof(FrozenDictionary<string, int>))]
     public void Resolve_MapType_ReturnsTheMapShape(Type type)
     {
-        Assert.IsAssignableFrom<IMapFormatter>(FormatterRegistry.Resolve(type));
+        Assert.Equal(CodecShape.Map, ShapeOf(type));
     }
 
     [Theory]
     [InlineData(typeof(KeyValuePair<string, int>))]
     [InlineData(typeof(ValueTuple<int, string>))]
     [InlineData(typeof(Lazy<int>))]
-    [InlineData(typeof(ImmutableArray<int>))]
     [InlineData(typeof(int[,]))]
     public void Resolve_CompositeType_ReturnsTheCompositeShape(Type type)
     {
-        Assert.IsAssignableFrom<ICompositeFormatter>(FormatterRegistry.Resolve(type));
+        Assert.Equal(CodecShape.Composite, ShapeOf(type));
+    }
+
+    [Theory]
+    [InlineData(typeof(int?))]
+    [InlineData(typeof(PointStruct?))]
+    public void Resolve_Nullable_TakesTheShapeOfItsUnderlyingType(Type type)
+    {
+        Assert.Equal(typeof(NullableCodec<>), CodecOf(type).GetType().GetGenericTypeDefinition());
+        Assert.Equal(ShapeOf(Nullable.GetUnderlyingType(type)!), ShapeOf(type));
     }
 
     [Fact]
-    public void Resolve_TypeAGeneralFormatterWouldAlsoClaim_PrefersTheSpecificOne()
+    public void Resolve_TypeAGeneralShapeWouldAlsoClaim_PrefersTheSpecificOne()
     {
-        // Bag is reached by the last-resort ICollection<T> shape. List<T>, ObservableCollection<T>
-        // and Stack<T> satisfy that shape too, so each of them resolving to a different formatter is
-        // what proves the general one never ran first.
-        var lastResort = FormatterRegistry.Resolve(typeof(Bag));
-
-        Assert.NotNull(lastResort);
-        Assert.NotSame(lastResort, FormatterRegistry.Resolve(typeof(List<int>)));
-        Assert.NotSame(lastResort, FormatterRegistry.Resolve(typeof(ObservableCollection<int>)));
-        Assert.NotSame(lastResort, FormatterRegistry.Resolve(typeof(Stack<int>)));
+        // Bag is reached by the last-resort ICollection<T> shape. List<T> and ObservableCollection<T>
+        // satisfy that shape too, so each of them driven by a shape of its own is what proves the
+        // general one never ran first.
+        Assert.Equal(typeof(CustomCollectionShape<,>), ShapeObjectOf(typeof(Bag)).GetType().GetGenericTypeDefinition());
+        Assert.Equal(typeof(ListShape<>), ShapeObjectOf(typeof(List<int>)).GetType().GetGenericTypeDefinition());
+        Assert.Equal(
+            typeof(ObservableCollectionShape<>),
+            ShapeObjectOf(typeof(ObservableCollection<int>)).GetType().GetGenericTypeDefinition());
     }
 
     [Fact]
     public void Resolve_Delegate_IsClaimedBeforeAnyOtherShape()
     {
-        // The rejection is a formatter of its own and comes first, so no collection or object shape
-        // can claim a delegate on the way past.
-        Assert.NotNull(FormatterRegistry.Resolve(typeof(Func<int>)));
-        Assert.NotNull(FormatterRegistry.Resolve(typeof(Action)));
+        // The rejection is a codec of its own and comes first, so no collection or object shape can
+        // claim a delegate on the way past.
+        Assert.Equal(typeof(RejectedCodec<>), CodecOf(typeof(Func<int>)).GetType().GetGenericTypeDefinition());
+        Assert.Equal(typeof(RejectedCodec<>), CodecOf(typeof(Action)).GetType().GetGenericTypeDefinition());
+    }
+
+    /// <summary>The codec <see cref="FormatterCache{T}"/> holds for <paramref name="type"/>.</summary>
+    private static object CodecOf(Type type) =>
+        typeof(FormatterCache<>).MakeGenericType(type).GetField(nameof(FormatterCache<int>.Instance))!.GetValue(null)!;
+
+    private static CodecShape ShapeOf(Type type)
+    {
+        var codec = CodecOf(type);
+        return (CodecShape)codec.GetType().GetProperty(nameof(Codec<int>.Shape))!.GetValue(codec)!;
+    }
+
+    /// <summary>The sequence shape a sequence codec drives.</summary>
+    private static object ShapeObjectOf(Type type)
+    {
+        var codec = CodecOf(type);
+        var field = codec.GetType()
+            .GetFields(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single(candidate => candidate.FieldType.IsGenericType &&
+                                 candidate.FieldType.GetGenericTypeDefinition() == typeof(ISequenceShape<,,,>));
+
+        return field.GetValue(codec)!;
     }
 }

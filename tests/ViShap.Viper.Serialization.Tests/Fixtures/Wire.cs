@@ -1,92 +1,172 @@
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Hand-builds V1 frames so a test can present a payload no writer would ever produce, and can assert
-/// the exact bytes a writer does produce. The layout mirrors <c>BinaryFormatHeaderV1</c>.
+/// Hand-builds V1 frames and payloads so a test can present bytes no writer would ever produce, and
+/// can assert the exact bytes a writer does produce. The layout is the one §22 documents, spelled out
+/// here with its own encoder and decoder, so an assertion about the envelope never borrows the code it
+/// is checking.
 /// </summary>
 internal static class Wire
 {
     public const int Magic = 0x52455342;
 
-    /// <summary>Byte offset of the <c>PreserveReferences</c> flag in a header with no optional strings.</summary>
-    public const int PreserveReferencesOffset = 15;
+    /// <summary>Byte offset of the payload mode in a version 1 header: after the magic and the one-byte version.</summary>
+    public const int ModeOffset = 5;
 
-    /// <summary>Length of a header with no optional strings and no checksum.</summary>
-    public const int PlainHeaderLength = 29;
+    /// <summary>Byte offset of the service count in a version 1 header.</summary>
+    public const int ServiceCountOffset = 6;
 
-    /// <summary>Byte offset of <c>UncompressedLength</c> in a header with no optional strings.</summary>
-    public const int UncompressedLengthOffset = 16;
+    /// <summary>The service numbers of §22.6.</summary>
+    public const int ChecksumService = 1;
 
-    /// <summary>Byte offset of <c>CompressedLength</c> in a header with no optional strings.</summary>
-    public const int CompressedLengthOffset = 20;
+    public const int CompressionService = 2;
 
-    /// <summary>Byte offset of <c>OnDiskLength</c> in a header with no optional strings.</summary>
-    public const int OnDiskLengthOffset = 24;
+    public const int EncryptionService = 3;
 
-    /// <summary>Byte offset of <c>checksumLength</c> in a header with no optional strings.</summary>
-    public const int ChecksumLengthOffset = 28;
+    /// <summary>One service record of a decoded header: its number, criticality and where its body lies.</summary>
+    /// <param name="KindOffset">Offset of the record's kind in the frame.</param>
+    /// <param name="BodyOffset">Offset of the record's body in the frame.</param>
+    internal sealed record ParsedService(int Number, bool Critical, int KindOffset, int BodyOffset, int BodyLength);
 
     /// <summary>
-    /// A V1 header decoded by a reader written for the tests alone, so an assertion about the
-    /// envelope never borrows the decoder it is checking.
+    /// A V1 header decoded by a reader written for the tests alone.
     /// </summary>
-    /// <param name="HeaderLength">Bytes the header occupies, so the payload starts at this offset.</param>
+    /// <param name="OnDiskLengthOffset">Offset of the <c>onDiskLength</c> integer in the frame.</param>
+    /// <param name="HeaderLength">Bytes the header occupies, so the stored payload starts at this offset.</param>
     internal sealed record ParsedHeader(
         int Version,
-        byte Compression,
-        string? CustomCompressionName,
+        int Mode,
+        IReadOnlyList<ParsedService> Services,
         byte ChecksumAlgorithm,
         string? CustomChecksumName,
+        byte[] Checksum,
+        byte Compression,
+        string? CustomCompressionName,
+        int? UncompressedLength,
         byte Encryption,
         string? CustomEncryptionName,
         string? KeyId,
-        bool PreserveReferences,
-        int UncompressedLength,
-        int CompressedLength,
         int OnDiskLength,
-        byte[] Checksum,
-        int HeaderLength);
+        int OnDiskLengthOffset,
+        int HeaderLength)
+    {
+        public bool PreserveReferences => (Mode & 1) == 1;
+
+        /// <summary>The record of <paramref name="number"/>, which the header must carry.</summary>
+        public ParsedService Service(int number) => Services.Single(service => service.Number == number);
+    }
 
     /// <summary>Decodes the V1 header at the start of <paramref name="frame"/>.</summary>
     public static ParsedHeader ReadHeader(byte[] frame)
     {
-        using var buffer = new MemoryStream(frame, writable: false);
-        using var reader = new BinaryReader(buffer);
-
-        int magic = reader.ReadInt32();
+        int position = 0;
+        int magic = BitConverter.ToInt32(frame, 0);
         if (magic != Magic)
             throw new InvalidOperationException($"Not a V1 frame: magic {magic:X8}.");
 
-        int version = reader.ReadInt32();
-        byte compression = reader.ReadByte();
-        string? customCompression = ReadOptional(reader);
-        byte checksumAlgorithm = reader.ReadByte();
-        string? customChecksum = ReadOptional(reader);
-        byte encryption = reader.ReadByte();
-        string? customEncryption = ReadOptional(reader);
-        string? keyId = ReadOptional(reader);
-        bool preserveReferences = reader.ReadBoolean();
-        int uncompressedLength = reader.ReadInt32();
-        int compressedLength = reader.ReadInt32();
-        int onDiskLength = reader.ReadInt32();
-        byte[] checksum = reader.ReadBytes(reader.ReadByte());
+        position += 4;
+        int version = ReadVarint(frame, ref position);
+        int mode = ReadVarint(frame, ref position);
+        int count = ReadVarint(frame, ref position);
+
+        var services = new List<ParsedService>();
+        byte checksumAlgorithm = 0, compression = 0, encryption = 0;
+        string? checksumName = null, compressionName = null, encryptionName = null, keyId = null;
+        byte[] checksum = [];
+        int? uncompressed = null;
+
+        for (int record = 0; record < count; record++)
+        {
+            int kindOffset = position;
+            int kind = ReadVarint(frame, ref position);
+            int length = ReadVarint(frame, ref position);
+            int bodyOffset = position;
+            services.Add(new ParsedService(kind >> 1, (kind & 1) == 1, kindOffset, bodyOffset, length));
+
+            int cursor = bodyOffset;
+            switch (kind >> 1)
+            {
+                case ChecksumService:
+                    checksumAlgorithm = (byte)ReadVarint(frame, ref cursor);
+                    checksumName = checksumAlgorithm == 255 ? ReadString(frame, ref cursor) : null;
+                    checksum = frame[cursor..(bodyOffset + length)];
+                    break;
+                case CompressionService:
+                    compression = (byte)ReadVarint(frame, ref cursor);
+                    compressionName = compression == 255 ? ReadString(frame, ref cursor) : null;
+                    uncompressed = ReadVarint(frame, ref cursor);
+                    break;
+                case EncryptionService:
+                    encryption = (byte)ReadVarint(frame, ref cursor);
+                    encryptionName = encryption == 255 ? ReadString(frame, ref cursor) : null;
+                    int folded = ReadVarint(frame, ref cursor);
+                    keyId = folded == 0 ? null : System.Text.Encoding.UTF8.GetString(frame, cursor, folded - 1);
+                    break;
+            }
+
+            position = bodyOffset + length;
+        }
+
+        int onDiskOffset = position;
+        int onDisk = ReadVarint(frame, ref position);
 
         return new ParsedHeader(
-            version, compression, customCompression,
-            checksumAlgorithm, customChecksum,
-            encryption, customEncryption,
-            keyId, preserveReferences,
-            uncompressedLength, compressedLength, onDiskLength,
-            checksum, (int)buffer.Position);
+            version, mode, services,
+            checksumAlgorithm, checksumName, checksum,
+            compression, compressionName, uncompressed,
+            encryption, encryptionName, keyId,
+            onDisk, onDiskOffset, position);
     }
 
-    private static string? ReadOptional(BinaryReader reader) =>
-        reader.ReadBoolean() ? reader.ReadString() : null;
+    /// <summary>The bytes a frame stores after its header.</summary>
+    public static byte[] Body(byte[] frame) => frame[ReadHeader(frame).HeaderLength..];
 
     /// <summary>
-    /// Loads a committed compatibility fixture from <c>Fixtures/Wire</c>. Those files are authored by
-    /// hand from §22 and copied to the output directory, so a reader test never checks the writer
-    /// against bytes the same writer produced.
+    /// <paramref name="frame"/> with its header re-encoded around other declared lengths: the
+    /// compression record's uncompressed length, the on-disk length, or both. Every other record is
+    /// kept byte for byte, and the stored bytes are unchanged.
+    /// </summary>
+    public static byte[] WithLengths(byte[] frame, int? uncompressedLength = null, int? onDiskLength = null)
+    {
+        var header = ReadHeader(frame);
+        var services = header.Services
+            .Select(service =>
+                service.Number == CompressionService && uncompressedLength is { } length
+                    ? CompressionRecord(header.Compression, length, header.CustomCompressionName)
+                    : frame[service.KindOffset..(service.BodyOffset + service.BodyLength)])
+            .ToArray();
+
+        return FrameWith(
+            frame[header.HeaderLength..],
+            header.Version,
+            header.Mode,
+            services,
+            onDiskLength: onDiskLength ?? header.OnDiskLength);
+    }
+
+    private static int ReadVarint(byte[] bytes, ref int position)
+    {
+        int result = 0;
+        for (int shift = 0; ; shift += 7)
+        {
+            byte current = bytes[position++];
+            result |= (current & 0x7F) << shift;
+            if ((current & 0x80) == 0)
+                return result;
+        }
+    }
+
+    private static string ReadString(byte[] bytes, ref int position)
+    {
+        int length = ReadVarint(bytes, ref position);
+        string value = System.Text.Encoding.UTF8.GetString(bytes, position, length);
+        position += length;
+        return value;
+    }
+
+    /// <summary>
+    /// Loads a committed compatibility fixture from <c>Fixtures/Wire</c>. Those files are copied to the
+    /// output directory and read, never rewritten, by the tests.
     /// </summary>
     public static byte[] Fixture(string fileName) =>
         File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Wire", fileName));
@@ -100,154 +180,124 @@ internal static class Wire
         return buffer.ToArray();
     }
 
-    /// <summary>
-    /// A V1 header with no compression, checksum or encryption, declaring
-    /// <paramref name="payloadLength"/> for all three phases.
-    /// </summary>
-    public static byte[] Header(int payloadLength, bool preserveReferences = false) =>
-        Payload(writer =>
-        {
-            writer.Write(Magic);
-            writer.Write(1);
-            writer.Write((byte)0); writer.Write(false);   // compression + custom name
-            writer.Write((byte)0); writer.Write(false);   // checksum + custom name
-            writer.Write((byte)0); writer.Write(false);   // encryption + custom name
-            writer.Write(false);                          // key id
-            writer.Write(preserveReferences);
-            writer.Write(payloadLength);                  // uncompressed
-            writer.Write(payloadLength);                  // compressed
-            writer.Write(payloadLength);                  // on disk
-            writer.Write((byte)0);                        // checksum length
-        });
+    /// <summary>The minimal 7-bit encoding of <paramref name="value"/> (§22.1).</summary>
+    public static byte[] Varint(int value) =>
+        Payload(writer => writer.Write7BitEncodedInt(value));
 
-    /// <summary>Wraps <paramref name="body"/> in a V1 frame, optionally lying about the lengths.</summary>
+    /// <summary>
+    /// A V1 header with no service, declaring <paramref name="onDiskLength"/> bytes after it:
+    /// magic, version 1, the payload mode, a service count of zero, then the length.
+    /// </summary>
+    public static byte[] Header(int onDiskLength, bool preserveReferences = false) =>
+        [.. BitConverter.GetBytes(Magic), 0x01, (byte)(preserveReferences ? 1 : 0), 0x00, .. Varint(onDiskLength)];
+
+    /// <summary>Wraps <paramref name="body"/> in a V1 frame with no service, optionally lying about its length.</summary>
     public static byte[] Frame(byte[] body, int? declaredLength = null, bool preserveReferences = false) =>
         [.. Header(declaredLength ?? body.Length, preserveReferences), .. body];
 
+    /// <summary>A service record: <c>(number &lt;&lt; 1) | critical</c>, the body length, then the body.</summary>
+    public static byte[] Service(int number, bool critical, byte[] body, int? declaredLength = null) =>
+        [.. Varint((number << 1) | (critical ? 1 : 0)), .. Varint(declaredLength ?? body.Length), .. body];
+
+    /// <summary>An algorithm's id and, for <c>Custom</c> (255), its name.</summary>
+    public static byte[] Algorithm(byte id, string? name = null) =>
+        id == 255
+            ? [.. Varint(id), .. Varint(System.Text.Encoding.UTF8.GetByteCount(name ?? string.Empty)), .. System.Text.Encoding.UTF8.GetBytes(name ?? string.Empty)]
+            : Varint(id);
+
+    /// <summary>The checksum record: <c>id · [name] · hash</c>.</summary>
+    public static byte[] ChecksumRecord(byte id, byte[] hash, string? name = null) =>
+        Service(ChecksumService, critical: true, [.. Algorithm(id, name), .. hash]);
+
+    /// <summary>The compression record: <c>id · [name] · uncompressedLength</c>.</summary>
+    public static byte[] CompressionRecord(byte id, int uncompressedLength, string? name = null) =>
+        Service(CompressionService, critical: true, [.. Algorithm(id, name), .. Varint(uncompressedLength)]);
+
+    /// <summary>The encryption record: <c>id · [name] · keyId</c>, the key id folded with its null.</summary>
+    public static byte[] EncryptionRecord(byte id, string? keyId = null, string? name = null) =>
+        Service(EncryptionService, critical: true, [.. Algorithm(id, name), .. OptionalString(keyId)]);
+
+    /// <summary>A string that may be absent: zero, or its UTF-8 length plus one, then the bytes.</summary>
+    public static byte[] OptionalString(string? value) =>
+        value is null
+            ? [0]
+            : [.. Varint(System.Text.Encoding.UTF8.GetByteCount(value) + 1), .. System.Text.Encoding.UTF8.GetBytes(value)];
+
     /// <summary>
-    /// A V1 frame with every header field chosen by the caller, for the cases the convenience
-    /// builders above cannot express: a declared algorithm the body does not honour, a checksum that
-    /// does not match, or a version this build does not know.
+    /// A V1 frame with every header field chosen by the caller: the version, the payload mode, the
+    /// service records as raw bytes and how many the header claims, and the declared length.
     /// </summary>
     public static byte[] FrameWith(
         byte[] body,
         int version = 1,
-        byte compression = 0,
-        string? customCompressionName = null,
-        byte checksumAlgorithm = 0,
-        string? customChecksumName = null,
-        byte encryption = 0,
-        string? customEncryptionName = null,
-        string? keyId = null,
-        bool preserveReferences = false,
-        int? uncompressedLength = null,
-        int? compressedLength = null,
-        int? onDiskLength = null,
-        byte[]? checksum = null)
+        int mode = 0,
+        byte[][]? services = null,
+        int? serviceCount = null,
+        int? onDiskLength = null)
     {
-        byte[] checksumBytes = checksum ?? [];
-
-        return Payload(writer =>
-        {
-            writer.Write(Magic);
-            writer.Write(version);
-            writer.Write(compression); WriteOptional(writer, customCompressionName);
-            writer.Write(checksumAlgorithm); WriteOptional(writer, customChecksumName);
-            writer.Write(encryption); WriteOptional(writer, customEncryptionName);
-            WriteOptional(writer, keyId);
-
-            writer.Write(preserveReferences);
-            writer.Write(uncompressedLength ?? body.Length);
-            writer.Write(compressedLength ?? body.Length);
-            writer.Write(onDiskLength ?? body.Length);
-            writer.Write((byte)checksumBytes.Length);
-            writer.Write(checksumBytes);
-            writer.Write(body);
-        });
+        services ??= [];
+        return
+        [
+            .. BitConverter.GetBytes(Magic),
+            .. Varint(version),
+            .. Varint(mode),
+            .. Varint(serviceCount ?? services.Length),
+            .. services.SelectMany(service => service),
+            .. Varint(onDiskLength ?? body.Length),
+            .. body
+        ];
     }
 
     /// <summary>
-    /// Writes an optional header string: a present flag, then the string when present. An empty
-    /// string is written as present with a zero length, which no writer produces but a reader must
-    /// still handle.
-    /// </summary>
-    private static void WriteOptional(BinaryWriter writer, string? value)
-    {
-        writer.Write(value is not null);
-        if (value is not null)
-            writer.Write(value);
-    }
-
-    /// <summary>
-    /// A frame holding one non-null container: the declared <c>int32</c> count, then
-    /// <paramref name="int32Values"/> four-byte values as its body. A dictionary entry carries two of
-    /// them, which is why the body is measured in values rather than in elements.
+    /// A frame holding one non-null container: the count plus one, which carries the container's null,
+    /// then <paramref name="int32Values"/> four-byte values as its body. A dictionary entry carries two
+    /// of them, which is why the body is measured in values rather than in elements.
     /// </summary>
     public static byte[] Container(int declaredCount, int int32Values) =>
         Frame(Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(declaredCount);
+            writer.Write7BitEncodedInt(declaredCount + 1);
             for (int value = 0; value < int32Values; value++)
                 writer.Write(value);
         }));
 
     /// <summary>
     /// A frame holding one non-null string that declares <paramref name="declaredByteLength"/> UTF-8
-    /// bytes while only <paramref name="content"/> follows.
+    /// bytes, written as that length plus one, while only <paramref name="content"/> follows.
     /// </summary>
     public static byte[] StringValue(int declaredByteLength, params byte[] content) =>
-        Frame(Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write7BitEncodedInt(declaredByteLength);
-            writer.Write(content);
-        }));
+        Frame([.. Varint(declaredByteLength + 1), .. content]);
 
     /// <summary>
-    /// A frame holding one non-null <see cref="System.Collections.BitArray"/>: the <c>int32</c> bit
-    /// count, then a blob of <paramref name="dataBytes"/> bytes (§22.4).
+    /// A frame holding one non-null <see cref="System.Collections.BitArray"/>: the bit count plus one,
+    /// then a blob of <paramref name="dataBytes"/> bytes (§22.4).
     /// </summary>
     public static byte[] BitArrayValue(int declaredBits, int dataBytes) =>
-        Frame(Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write(declaredBits);
-            writer.Write7BitEncodedInt(dataBytes);
-            writer.Write(new byte[dataBytes]);
-        }));
+        Frame([.. Varint(declaredBits + 1), .. Varint(dataBytes), .. new byte[dataBytes]]);
 
     /// <summary>
-    /// A frame holding one non-null array of rank greater than one: the <c>int32</c> rank, one
-    /// <c>int32</c> per dimension, then <paramref name="int32Elements"/> elements in row-major order.
+    /// A frame holding one non-null array of rank greater than one: the rank plus one, one length per
+    /// dimension, then <paramref name="int32Elements"/> elements in row-major order.
     /// </summary>
     public static byte[] MultiDimensionalArray(int[] lengths, int int32Elements, int? declaredRank = null) =>
         Frame(Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(declaredRank ?? lengths.Length);
+            writer.Write7BitEncodedInt((declaredRank ?? lengths.Length) + 1);
             foreach (int length in lengths)
-                writer.Write(length);
+                writer.Write7BitEncodedInt(length);
 
             for (int element = 0; element < int32Elements; element++)
                 writer.Write(element);
         }));
 
-    /// <summary>A payload of <paramref name="depth"/> nested single-element collections.</summary>
+    /// <summary>
+    /// A payload of <paramref name="depth"/> nested single-element collections: each count is one,
+    /// written as two because it carries the collection's null, and the innermost is empty.
+    /// </summary>
     public static byte[] NestedCollections(int depth) =>
-        Frame(Payload(writer =>
-        {
-            writer.Write(true);
-            for (int i = 0; i < depth; i++)
-            {
-                writer.Write(1);        // collection count
-                writer.Write(true);     // child is non-null
-            }
+        Frame([.. Enumerable.Repeat((byte)0x02, depth), 0x01]);
 
-            writer.Write(0);            // innermost collection is empty
-        }));
-
-    /// <summary>The one-byte "value is present" flag every nullable value carries (§22.2).</summary>
+    /// <summary>The flag byte a positional object, a union or a <see cref="Nullable{T}"/> carries when present (§22.2).</summary>
     public static readonly byte[] NotNull = [1];
 
     /// <summary>One field of a hand-built keyed object.</summary>
@@ -257,16 +307,17 @@ internal static class Wire
     internal readonly record struct KeyedField(int Key, byte[] Payload, int? DeclaredLength = null);
 
     /// <summary>
-    /// The body of a keyed object: a 7-bit field count, then each field as key, <c>int32</c> declared
-    /// length and payload. Both counts can lie, which is why the builder takes them separately.
+    /// The body of a keyed object: the field count — plus one when it carries the object's null, as it
+    /// does for a keyed class that is not reference-framed — then each field as key, <c>int32</c>
+    /// declared length and payload. Both counts can lie, which is why the builder takes them separately.
     /// </summary>
-    public static byte[] KeyedBody(IEnumerable<KeyedField> fields, int? declaredFieldCount = null)
+    public static byte[] KeyedBody(IEnumerable<KeyedField> fields, int? declaredFieldCount = null, bool nullFolded = true)
     {
         var materialized = fields.ToArray();
 
         return Payload(writer =>
         {
-            writer.Write7BitEncodedInt(declaredFieldCount ?? materialized.Length);
+            writer.Write7BitEncodedInt((declaredFieldCount ?? materialized.Length) + (nullFolded ? 1 : 0));
             foreach (var field in materialized)
             {
                 writer.Write7BitEncodedInt(field.Key);
@@ -276,20 +327,21 @@ internal static class Wire
         });
     }
 
-    /// <summary>A reference frame: the marker byte, then the object id (§22.2).</summary>
-    public static byte[] ReferenceFrame(byte marker, int id) =>
-        Payload(writer =>
-        {
-            writer.Write(marker);
-            writer.Write(id);
-        });
+    /// <summary>
+    /// A reference frame (§22.2): <c>((id &lt;&lt; 1) | back) + 1</c> — a first occurrence when
+    /// <paramref name="back"/> is false, a back reference otherwise.
+    /// </summary>
+    public static byte[] ReferenceFrame(int id, bool back) =>
+        Varint(((id << 1) | (back ? 1 : 0)) + 1);
 
-    /// <summary>A keyed object declaring <paramref name="fieldCount"/> fields of one <c>int32</c> each.</summary>
+    /// <summary>The reference frame of null: a single zero.</summary>
+    public static readonly byte[] NullReference = [0];
+
+    /// <summary>A keyed class declaring <paramref name="fieldCount"/> fields of one <c>int32</c> each.</summary>
     public static byte[] KeyedFields(int fieldCount) =>
         Frame(Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write7BitEncodedInt(fieldCount);
+            writer.Write7BitEncodedInt(fieldCount + 1);
             for (int key = 0; key < fieldCount; key++)
             {
                 writer.Write7BitEncodedInt(key);
@@ -303,33 +355,13 @@ internal static class Wire
     /// while only <paramref name="actualBytes"/> of it are present. Nothing after the name is
     /// written, because no conforming reader should get that far.
     /// </summary>
-    public static byte[] FrameWithOversizedCustomName(int declaredLength, int actualBytes) =>
-        Payload(writer =>
-        {
-            writer.Write(Magic);
-            writer.Write(1);
-            writer.Write((byte)255);              // CompressionAlgorithm.Custom
-            writer.Write(true);                   // the custom name is present
-            writer.Write7BitEncodedInt(declaredLength);
-            writer.Write(new byte[actualBytes]);
-        });
-
-    /// <summary>
-    /// A complete V1 header declaring <paramref name="declaredChecksumLength"/> checksum bytes while
-    /// only <paramref name="actualBytes"/> follow.
-    /// </summary>
-    public static byte[] FrameWithOversizedChecksum(int declaredChecksumLength, int actualBytes) =>
-        Payload(writer =>
-        {
-            writer.Write(Magic);
-            writer.Write(1);
-            writer.Write((byte)0); writer.Write(false);
-            writer.Write((byte)0); writer.Write(false);
-            writer.Write((byte)0); writer.Write(false);
-            writer.Write(false);                  // key id
-            writer.Write(false);                  // preserve references
-            writer.Write(0); writer.Write(0); writer.Write(0);
-            writer.Write((byte)declaredChecksumLength);
-            writer.Write(new byte[actualBytes]);
-        });
+    public static byte[] FrameWithOversizedCustomName(int declaredLength, int actualBytes)
+    {
+        byte[] body = [.. Varint(255), .. Varint(declaredLength), .. new byte[actualBytes]];
+        return
+        [
+            .. BitConverter.GetBytes(Magic), 0x01, 0x00, 0x01,
+            .. Varint((CompressionService << 1) | 1), .. Varint(body.Length), .. body
+        ];
+    }
 }

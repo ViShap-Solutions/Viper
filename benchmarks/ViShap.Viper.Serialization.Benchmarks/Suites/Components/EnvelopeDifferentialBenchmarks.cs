@@ -95,19 +95,19 @@ public class EnvelopeDifferentialBenchmarks
 
             EnvelopeConfiguration.Encrypted =>
                 BinarySerializerOptions.Configure()
-                    .WithEncryption(new Aes256Gcm(), Key)
+                    .WithEncryption(new Aes256GcmEncryption(), Key)
                     .Build(),
 
             EnvelopeConfiguration.EncryptedWithKeyId =>
                 BinarySerializerOptions.Configure()
-                    .WithEncryption(new Aes256Gcm(), Key, KeyId)
+                    .WithEncryption(new Aes256GcmEncryption(), Key, KeyId)
                     .Build(),
 
             EnvelopeConfiguration.Protected =>
                 BinarySerializerOptions.Configure()
-                    .WithCompression(new Deflate())
-                    .WithChecksum(new Crc32())
-                    .WithEncryption(new Aes256Gcm(), Key, KeyId)
+                    .WithCompression(new DeflateCompression())
+                    .WithChecksum(new Crc32Checksum())
+                    .WithEncryption(new Aes256GcmEncryption(), Key, KeyId)
                     .Build(),
 
             EnvelopeConfiguration.ProtectedCustomNames =>

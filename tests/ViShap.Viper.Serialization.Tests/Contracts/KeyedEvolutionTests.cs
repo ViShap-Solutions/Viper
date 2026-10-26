@@ -18,7 +18,7 @@ public class KeyedEvolutionTests
         new(BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build());
 
     private static byte[] KeyedFrame(params Wire.KeyedField[] fields) =>
-        Wire.Frame([.. Wire.NotNull, .. Wire.KeyedBody(fields)]);
+        Wire.Frame(Wire.KeyedBody(fields));
 
     private static byte[] Int32Field(int value) => Wire.Payload(writer => writer.Write(value));
 
@@ -62,7 +62,7 @@ public class KeyedEvolutionTests
         const int fieldLength = 4 * 1024 * 1024;
 
         byte[] payload =
-            [.. Wire.NotNull, .. Wire.KeyedBody([new Wire.KeyedField(2, new byte[fieldLength])])];
+            [.. Wire.KeyedBody([new Wire.KeyedField(2, new byte[fieldLength])])];
         var serializer = Compact();
 
         AssertEx.AllocatesLessThan(64 * 1024, () => serializer.Deserialize<OuterKeys>(payload));
@@ -76,8 +76,7 @@ public class KeyedEvolutionTests
         // that vanished with the field.
         byte[] hostileField = Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(int.MaxValue);
+            writer.Write7BitEncodedInt(int.MaxValue);   // the count, plus one
         });
 
         byte[] payload = KeyedFrame(
@@ -155,8 +154,7 @@ public class KeyedEvolutionTests
         // Five continuation bytes: the encoding never admits a sixth.
         byte[] payload = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write7BitEncodedInt(1);
+            writer.Write7BitEncodedInt(2);          // one field, plus one
             writer.Write(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF });
         }));
 
@@ -185,8 +183,7 @@ public class KeyedEvolutionTests
 
         byte[] expected = Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write7BitEncodedInt(4);
+            writer.Write7BitEncodedInt(5);          // four fields, plus one
             writer.Write7BitEncodedInt(0); writer.Write(4); writer.Write(1);
             writer.Write7BitEncodedInt(127); writer.Write(4); writer.Write(2);
             writer.Write7BitEncodedInt(128); writer.Write(4); writer.Write(3);
@@ -238,8 +235,7 @@ public class KeyedEvolutionTests
 
         static byte[] ListOfThree() => Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(3);
+            writer.Write7BitEncodedInt(4);          // three elements, plus one
             writer.Write(1); writer.Write(2); writer.Write(3);
         });
     }

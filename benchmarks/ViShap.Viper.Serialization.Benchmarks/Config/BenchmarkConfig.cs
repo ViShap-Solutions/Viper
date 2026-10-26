@@ -19,7 +19,7 @@ namespace ViShap.Viper.Serialization.Benchmarks.Config;
 /// <remarks>
 /// A shortened job exists for one purpose: proving that the whole pipeline produces every artifact
 /// without spending hours on it. Its cells are real measurements of too few iterations, so a run that
-/// uses it is a partial run by construction and can never become a baseline (RunTarget.Decide).
+/// uses it is a measurement by construction and can never become a baseline (RunTarget.Decide).
 /// </remarks>
 internal sealed class BenchmarkConfig : ManualConfig
 {

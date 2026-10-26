@@ -1,5 +1,7 @@
+using ViShap.Viper.Engine;
 using ViShap.Viper.Io;
 using ViShap.Viper.Security;
+using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Limits;
 
@@ -10,9 +12,7 @@ namespace ViShap.Viper.Serialization.Tests.Limits;
 /// </summary>
 public class BudgetAccountingTests
 {
-    private static SerializationOperation Operation(SerializationLimits limits) =>
-        new(limits, keys: null, preserveReferences: false, requireEncryption: false,
-            requireChecksum: false);
+    private static OperationBox Operation(SerializationLimits limits) => new(limits);
 
     // --- LIM-16: one validated count, one charge -------------------------------------------------
 
@@ -21,9 +21,9 @@ public class BudgetAccountingTests
     {
         var operation = Operation(SerializationLimits.Default);
 
-        ElementCount.Validate(5, CountKind.Collection, operation, "Collection count");
+        ElementCount.Validate(5, CountKind.Collection, ref operation.State, "Collection count");
 
-        Assert.Equal(5, operation.Budget.TotalElements);
+        Assert.Equal(5, operation.State.Budget.TotalElements);
     }
 
     [Fact]
@@ -31,10 +31,10 @@ public class BudgetAccountingTests
     {
         var operation = Operation(SerializationLimits.Default);
 
-        ElementCount.Validate(5, CountKind.Collection, operation, "Collection count");
-        ElementCount.Validate(3, CountKind.Array, operation, "Array length");
+        ElementCount.Validate(5, CountKind.Collection, ref operation.State, "Collection count");
+        ElementCount.Validate(3, CountKind.Array, ref operation.State, "Array length");
 
-        Assert.Equal(8, operation.Budget.TotalElements);
+        Assert.Equal(8, operation.State.Budget.TotalElements);
     }
 
     [Fact]
@@ -44,9 +44,9 @@ public class BudgetAccountingTests
         var operation = Operation(SerializationLimits.Default with { MaxCollectionLength = 4 });
 
         Assert.Throws<BinaryLimitException>(
-            () => ElementCount.Validate(5, CountKind.Collection, operation, "Collection count"));
+            () => ElementCount.Validate(5, CountKind.Collection, ref operation.State, "Collection count"));
 
-        Assert.Equal(0, operation.Budget.TotalElements);
+        Assert.Equal(0, operation.State.Budget.TotalElements);
     }
 
     [Fact]
@@ -54,9 +54,9 @@ public class BudgetAccountingTests
     {
         var operation = Operation(SerializationLimits.Default);
 
-        ElementCount.ValidateShape([2, 3], operation, "Multi-dimensional array");
+        ElementCount.ValidateShape([2, 3], ref operation.State, "Multi-dimensional array");
 
-        Assert.Equal(6, operation.Budget.TotalElements);
+        Assert.Equal(6, operation.State.Budget.TotalElements);
     }
 
     [Fact]
@@ -136,24 +136,48 @@ public class BudgetAccountingTests
     // --- LIM-25: a reference-mode switch keeps the budget ----------------------------------------
 
     [Fact]
-    public void WithPreserveReferences_KeepsTheSameBudgetAndPhasePolicy()
+    public void ReadRoot_WithReferenceFraming_ChargesTheSameBudget()
     {
+        // The payload's reference mode is a property of its traversal, not a second operation: the
+        // budget charged before the payload is the one the payload keeps charging.
+        byte[] payload = PayloadOf(new List<int> { 1, 2, 3, 4 }, preserveReferences: true);
         var operation = Operation(SerializationLimits.Default);
-        operation.Budget.ConsumeElements(7);
+        operation.State.Budget.ConsumeElements(7);
 
-        var following = operation.WithPreserveReferences(true);
+        var reader = new WireReader(payload, ref operation.State);
+        var list = Graph.ReadRoot<List<int>>(ref reader, target: null, preserveReferences: true);
 
-        Assert.Same(operation.Budget, following.Budget);
-        Assert.Equal(7, following.Budget.TotalElements);
-        Assert.True(following.PreserveReferences);
+        Assert.Equal([1, 2, 3, 4], list);
+        Assert.Equal(11, operation.State.Budget.TotalElements);
+        Assert.Equal(1, operation.State.Budget.ObjectGraphNodes);
     }
 
     [Fact]
-    public void WithPreserveReferences_ForTheSameMode_ReturnsTheSameOperation()
+    public void ReadRoot_WithReferenceFraming_ClosesItsTraversalWhenItEnds()
     {
+        byte[] payload = PayloadOf(new List<int> { 1 }, preserveReferences: true);
         var operation = Operation(SerializationLimits.Default);
 
-        Assert.Same(operation, operation.WithPreserveReferences(false));
+        var reader = new WireReader(payload, ref operation.State);
+        Graph.ReadRoot<List<int>>(ref reader, target: null, preserveReferences: true);
+
+        Assert.Null(operation.State.Graph.Read);
+        Assert.Null(operation.State.Graph.Written);
+        Assert.False(operation.State.PreserveReferences);
+    }
+
+    /// <summary>The payload of <paramref name="value"/> alone, as the engine writes it.</summary>
+    private static byte[] PayloadOf<T>(T value, bool preserveReferences)
+    {
+        var operation = Operation(SerializationLimits.Default);
+        using var buffer = new PayloadBuffer(1024, "payload");
+        var writer = new WireWriter(buffer, ref operation.State);
+        Graph.WriteRoot(ref writer, value, preserveReferences);
+        writer.Flush();
+
+        byte[] bytes = new byte[buffer.Length];
+        buffer.CopyTo(bytes);
+        return bytes;
     }
 
     [Fact]
@@ -181,9 +205,9 @@ public class BudgetAccountingTests
         var operation = Operation(SerializationLimits.Default with { MaxArrayLength = 2 });
 
         Assert.Throws<BinaryLimitException>(
-            () => ElementCount.Validate(3, CountKind.Array, operation, "Array length"));
+            () => ElementCount.Validate(3, CountKind.Array, ref operation.State, "Array length"));
 
-        Assert.Equal(3, ElementCount.Validate(3, CountKind.Collection, operation, "Collection count").Value);
+        Assert.Equal(3, ElementCount.Validate(3, CountKind.Collection, ref operation.State, "Collection count").Value);
     }
 
     [Fact]
@@ -192,9 +216,9 @@ public class BudgetAccountingTests
         var operation = Operation(SerializationLimits.Default with { MaxCollectionLength = 2 });
 
         Assert.Throws<BinaryLimitException>(
-            () => ElementCount.Validate(3, CountKind.Collection, operation, "Collection count"));
+            () => ElementCount.Validate(3, CountKind.Collection, ref operation.State, "Collection count"));
 
-        Assert.Equal(3, ElementCount.Validate(3, CountKind.Array, operation, "Array length").Value);
+        Assert.Equal(3, ElementCount.Validate(3, CountKind.Array, ref operation.State, "Array length").Value);
     }
 
     [Fact]
@@ -203,9 +227,9 @@ public class BudgetAccountingTests
         var operation = Operation(SerializationLimits.Default with { MaxDictionaryEntries = 2 });
 
         Assert.Throws<BinaryLimitException>(
-            () => ElementCount.Validate(3, CountKind.Dictionary, operation, "Dictionary entry count"));
+            () => ElementCount.Validate(3, CountKind.Dictionary, ref operation.State, "Dictionary entry count"));
 
-        Assert.Equal(3, ElementCount.Validate(3, CountKind.Collection, operation, "Collection count").Value);
+        Assert.Equal(3, ElementCount.Validate(3, CountKind.Collection, ref operation.State, "Collection count").Value);
     }
 
     // --- LIM-42: a declared count does not size the first allocation ------------------------------
@@ -215,7 +239,7 @@ public class BudgetAccountingTests
     {
         var operation = Operation(SerializationLimits.Default);
 
-        var count = ElementCount.Validate(1_000_000, CountKind.Collection, operation, "Collection count");
+        var count = ElementCount.Validate(1_000_000, CountKind.Collection, ref operation.State, "Collection count");
 
         Assert.Equal(1_024, count.CapacityHint);
     }
@@ -225,7 +249,7 @@ public class BudgetAccountingTests
     {
         var operation = Operation(SerializationLimits.Default);
 
-        var count = ElementCount.Validate(7, CountKind.Collection, operation, "Collection count");
+        var count = ElementCount.Validate(7, CountKind.Collection, ref operation.State, "Collection count");
 
         Assert.Equal(7, count.CapacityHint);
     }

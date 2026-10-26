@@ -1,3 +1,4 @@
+using System.Buffers;
 using ViShap.Viper.Compression;
 
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
@@ -13,7 +14,12 @@ internal sealed class IdentityCompression : ICompressionAlgorithm
 
     public CompressionAlgorithm Kind => CompressionAlgorithm.Custom;
 
-    public string? CustomName => RegisteredName;
+    private readonly string _name;
+
+    /// <summary>A pass-through compression registered under <paramref name="name"/>.</summary>
+    public IdentityCompression(string name = RegisteredName) => _name = name;
+
+    public string? CustomName => _name;
 
     /// <summary>How many times this instance compressed, so a test can prove what ran before it.</summary>
     public int CompressCalls { get; private set; }
@@ -21,24 +27,20 @@ internal sealed class IdentityCompression : ICompressionAlgorithm
     /// <summary>How many times this instance decompressed.</summary>
     public int DecompressCalls { get; private set; }
 
-    public int GetMaxCompressedLength(int uncompressedLength) => uncompressedLength;
-
-    public int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
+    public void Compress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination)
     {
         CompressCalls++;
-        source.CopyTo(destination);
-        return source.Length;
+        destination.Write(source);
     }
 
-    public int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
+    public void Decompress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination, int expectedLength)
     {
         DecompressCalls++;
-        if (source.Length != destination.Length)
+        if (source.Length != expectedLength)
             throw new BinaryFormatException(
-                $"Identity compression received {source.Length} byte(s) for a {destination.Length} " +
-                "byte output buffer.");
+                $"Identity compression received {source.Length} byte(s) for a declared {expectedLength} " +
+                "byte output.");
 
-        source.CopyTo(destination);
-        return destination.Length;
+        destination.Write(source);
     }
 }

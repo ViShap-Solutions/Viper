@@ -1,5 +1,7 @@
 # ViShap.Viper — System Contract
 
+**Class: normative.** The source of truth for what the library does. Where it and the code disagree, one of them is defective; behavior changes update it in the same change.
+
 **Target release:** v1.0.0  
 **Status:** Normative product contract  
 **Scope:** `src/` production behavior only  
@@ -29,17 +31,22 @@ A successful `Serialize → Deserialize` round trip is not sufficient proof of c
 The system is layered, and each rule has exactly one owner:
 
 ```text
-Public API            BinarySerializer · StreamExtensions · attributes · exceptions
+Public API            BinarySerializer · PooledPayload · attributes · exceptions
                       SerializationLimits · I*Algorithm · IKeyProvider · SecretKey
-      │ creates exactly one operation per public call
-SerializationOperation    Limits snapshot · Budget · PhaseBudget · Keys · policies
+                      write: IBufferWriter<byte> · byte[] · PooledPayload · Stream · PipeWriter
+                      read:  ReadOnlySpan<byte> · ReadOnlySequence<byte> · Stream · PipeReader
+      │ creates exactly one OperationState per public call, passed by reference
+OperationState            Limits snapshot · Budget · PhaseBudget · Keys · policies · the graph traversal
       │
 FormatPipeline (V0|V1)    framing · phase order · header + AAD · phase sizes
-      │  MeteredReadStream / MeteredWriteStream · WindowReadStream
-PayloadEngine             traversal · depth · graph nodes · references · TypeContract
-      │  ValueReader / ValueWriter — the only access to payload bytes
-Formatters                type encoding only
-      │
+      │  a stream or pipe buffered exactly as far as the frame extends · phases as transforms
+      │  over pooled buffers · the whole frame built in PayloadBuffer, then copied out once
+Engine                    typed codecs, one per declared type: null · references · depth · graph nodes ·
+      │                   cycles · keyed framing · every loop over wire data
+      │  WireReader / WireWriter — ref structs over memory, the only access to payload bytes
+Formatters                IScalarFormatter<T> · sequence, map and array shapes · typed composites
+Type contracts            TypeContract<T> — member order, access, construction; supplied by a context
+      │                   or built by reflection, reached only through MemberWriter / MemberReader
 Algorithms                pure mechanics over spans
 ```
 
@@ -63,9 +70,12 @@ validates once. Invalid configuration fails with `BinaryConfigurationException`.
 
 ## 2.2 Operation boundary
 
-`SerializationOperation` is internal state created **exactly once per public call** by
-`BinarySerializer` and passed down. No layer below constructs limits, a budget or a key provider of
-its own.
+`OperationState` is internal state created **exactly once per public call** by
+`BinarySerializer` and passed down **by reference** (INV-1). It is a `struct`: a copy would account for
+the call twice, so every member below the public edge takes it by `ref`, and an asynchronous method,
+which cannot take a reference, takes the one copy it then owns. `WireReader` and `WireWriter` hold a
+reference to it, so every count, depth scope and node charged through them lands in the one budget of
+the call. No layer below constructs limits, a budget or a key provider of its own.
 
 It carries:
 
@@ -73,47 +83,126 @@ It carries:
 - `Budget` — cumulative `TotalElements`, `ObjectGraphNodes`, `KeyedFields` and current `Depth`;
 - `Phases` — payload/compressed/encrypted size policy;
 - `Keys` — the key provider, if any;
-- policies — `PreserveReferences`, `RequireEncryption`, `RequireChecksum`.
+- policies — `PreserveReferences`, `RequireEncryption`, `RequireChecksum`;
+- `Graph` — the traversal of the payload being read or written: its reference framing, its pooled
+  reference table and the ancestor stack. The pipeline opens it for one payload and closes it after,
+  returning every pooled part cleared.
 
 A budget is never shared between independent public calls. When a V1 header declares a different
-reference mode than the local configuration, the engine continues with the same budget object, so
-accounting stays cumulative for the whole call.
+reference mode than the local configuration, the pipeline opens the payload's traversal with the
+header's mode on the same state, so accounting stays cumulative for the whole call.
 
 `SerializationLimits` answers **"what is allowed?"**.
 `SerializationBudget` answers **"what has this operation already consumed?"**.
 
 ## 2.3 The byte boundary
 
-`ValueReader` and `ValueWriter` are the only types that touch payload bytes. They expose checked
-primitives: fixed-size reads that fail with `BinaryFormatException` instead of a framework exception,
-length-prefixed strings and blobs bounded by their limits, and counts that can only be obtained as a
-validated `ElementCount`.
+`WireReader` and `WireWriter` are the only types that parse or produce payload bytes. The phases
+(checksum, compression, encryption), the finished frame and the diagnostic hex view carry those bytes
+as opaque spans and never interpret one. Both are `ref struct`s
+over memory, never over a stream: `WireReader` reads a span or a `ReadOnlySequence<byte>` and always
+knows exactly how many bytes remain; `WireWriter` writes into the serializer's own `PayloadBuffer`.
+They expose checked primitives: fixed-size reads that fail with `BinaryFormatException` instead of a
+framework exception, length-prefixed strings and blobs bounded by their limits, every declared length
+compared with the bytes that remain before it drives an allocation, and counts that can only be
+obtained as a validated `ElementCount`.
 
-There is no raw escape hatch. A formatter holds a `ValueReader`/`ValueWriter` and nothing else, so
-"read a length and allocate it" is not expressible.
+There is no raw escape hatch and no stream under the engine. A scalar formatter is handed a
+`WireReader`/`WireWriter` by reference and nothing else, and reads no count: its only data-driven
+lengths are a string's and a blob's, which the reader bounds by their limit and by the bytes that
+remain, and a `BitArray`'s bit count, bounded by `MaxByteBlobBytes` × 8. Every loop the engine runs
+over wire data — the elements of a container and the fields of a keyed object — is bounded by an
+`ElementCount`. The header's service records are counted below the engine, inside a header the
+format bounds to 4 096 bytes (§11). So "read a length and allocate it" is not expressible, and a reader or writer cannot outlive the call it was handed to. A type contract is
+handed less: a `MemberWriter` or a `MemberReader`, which expose no bytes, no counts and no position —
+only one member's value per call (INV-2).
 
 ## 2.4 The traversal boundary
 
-`GraphReader`/`GraphWriter` are the only recursion over an object graph. They own:
+The engine's **codecs** are the only recursion over an object graph. There is one per declared type,
+built once and found through `FormatterCache<T>` — a static field read — and together they own:
 
+- null — folded into the value's first number, or a flag — and the reference frame (§22.2);
 - depth accounting and unwinding;
 - object-graph node accounting;
 - reference identity and its scopes;
 - cycle detection;
-- the keyed-contract layout;
-- element loops for every sequence and map.
+- the union tag;
+- the keyed-contract layout: the field count, keys and field lengths, the field window, the loop over
+  the fields on the wire, skipping unknown keys and requiring a field to be read exactly;
+- the element loop of every sequence, map and array.
 
-A formatter describes a **shape** — scalar, sequence, map or composite — and supplies a builder. It
-never owns a loop over attacker-controlled data, so it cannot omit an accounting step.
+A formatter describes a **shape** (INV-5). A scalar formatter encodes one value through the checked
+primitives. A sequence, map or array shape counts, enumerates, builds and completes; it receives no
+count read from the wire and no primitive. A composite formatter reads and writes its fixed children
+through a surface that offers no raw integer, and the elements behind an array shape are read by the
+engine's loop. No formatter owns a loop over attacker-controlled data, so none can omit an
+accounting step.
+
+A member-encoded type is described by its **type contract**, `TypeContract<T>`: member order, member
+access, instance creation and the response to a known key, and nothing else. It implements four
+methods: `Create`; `Write`, which makes one `MemberWriter.Member(value)` call per member in plan order
+under a positional layout, and one `Member(key, value)` call per member in ascending key order under a
+keyed one; `ReadPositional`, which makes one `MemberReader.Member<TMember>()` call per member in plan
+order; and `ReadKeyed`, which the engine calls once for each field on the wire with that field's key —
+a known key reads its member with one `Member<TMember>()` call and answers `true`, an unknown one
+answers `false` and the engine skips the field. A layout's member is always a `Member` call; "field"
+names only what the engine puts on the wire around it. The engine checks every
+call a contract makes against the contract's own description — the member each call names, its type,
+its key, and the number of calls; under a keyed layout, that an accepted field was read exactly once
+and a declined one not at all. A mismatch is `BinaryTypeException` naming the type and the member,
+never a distorted wire. The engine creates an instance and registers its identity **before** its
+members are read, so a cycle back to it resolves; populate-in-place supplies the instance instead.
+
+**Boxing happens only in a polymorphic slot** (INV-17): a value whose runtime type differs from its
+declared one — a `[BinaryUnion]` arm, an interface, `object` — is written and read through the
+contract of its runtime type, and that is the one place a value type is boxed. Every other value
+travels as its own type from the caller to the wire and back, enums included.
+
+**The trace seam.** One observer can watch a read: `OperationState.Trace`, internal, `null` for
+every serializer call and set only by the diagnostics of §19. Only the engine's codecs — the entry of
+every value, the sequence, map, array and composite loops, the member surface and the keyed field
+loop — report to it: where a value begins and ends, its declared type, its kind and count, its null,
+its reference frame and union tag, a keyed field's key and length, and a scalar's value through a
+generic call, so nothing is boxed to report it (INV-17). The observer receives no reader and no byte
+(INV-2), and it changes nothing a read does. Formatters and type contracts do not see it (INV-5).
+
+**The engine never awaits** (INV-16). Waiting for bytes happens only at the frame edge, in the
+pipeline's source readers: an asynchronous read awaits a whole frame and then decodes it
+synchronously, and an asynchronous write builds the frame and then awaits the output (§3.5). No
+method below the pipeline — in the engine or the formatters — is asynchronous, so a traversal never
+holds a budget, a depth scope or a reference table across a suspension.
 
 ## 2.5 Phase-specific components
 
 `PhaseBudget` inside the pipeline is the single place that checks payload, compressed and encrypted
-sizes. `CompressionService`, `ChecksumService` and `EncryptionService` are internal and receive no
-limits: they are called **inside** the barrier, never instead of it.
+sizes. `CompressionService`, `ChecksumService` and `EncryptionService` are internal and are called
+**inside** the barrier, never instead of it; the one ceiling that reaches a service is the size of the
+writer compression fills, which refuses space past `MaxCompressedBytes`. The services also hold each
+algorithm to what it states — its checksum size, its ciphertext length, its key size, and output of
+exactly the declared length (§12, §13).
 
 Public algorithm contracts (`ICompressionAlgorithm`, `IChecksumAlgorithm`, `IEncryptionAlgorithm`)
 contain no serializer policy, so an external implementation cannot weaken a limit.
+
+Each phase reads one pooled buffer and writes the next; the input of a phase is cleared and returned
+to its pool as soon as its output exists. A V1 payload with no phase goes out as the engine wrote it.
+Under any phase the payload is made contiguous once, because each phase works on a single span.
+Encryption is the last phase and the one exception: its output is not a pooled buffer but the
+destination itself (§13).
+
+## 2.6 Atomic writes
+
+A data or graph error leaves no byte in the destination (INV-15). A pipeline builds the whole frame
+— header and body — in the serializer's own pooled buffers, checks it against `MaxWireBytes`, and
+only then copies it to the destination. A type error, a limit breach or an algorithm failure
+therefore raises before the destination is touched, whatever the destination is: a stream, seekable
+or not, or a buffer writer. Only a failure of the destination itself, while the finished bytes are
+being copied, can leave part of a frame behind (§20). Encryption starts only after the whole payload
+is in the serializer's buffer. An encrypted frame is sized, checked against `MaxWireBytes` and given
+its key before the destination is touched, and its ciphertext is then produced in the destination
+itself; a buffer writer is advanced only once the whole frame is in it, so a cipher that fails leaves
+nothing committed there either (§13).
 
 ---
 
@@ -123,29 +212,49 @@ This is the whole public surface. Anything not listed is internal, and adding to
 change that belongs in a release note.
 
 **`ViShap.Viper`** — `BinarySerializer`, `BinarySerializerOptions`, `BinarySerializerOptionsBuilder`,
-`StreamExtensions`, and the attributes `[BinaryContract]`, `[BinaryKey]`, `[BinaryIgnore]`,
-`[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`.
+`PooledPayload`, `BinarySerializerContext`, `BinaryTypeInfo<T>` (§14.5), and the attributes
+`[BinaryContract]`, `[BinaryKey]`, `[BinaryIgnore]`, `[BinaryInclude]`, `[BinaryOrder]`, `[BinaryUnion]`,
+`[BinaryContext]`.
+
+**`ViShap.Viper.Contracts`** — the type-contract seam of §14.3: `TypeContract<T>`, `MemberWriter`,
+`MemberReader`, `MemberDescription`, `MemberLayout`; and the supported types of §14.5:
+`SupportedTypes`, `SupportedType`.
 
 **`ViShap.Viper.Security`** — `SerializationLimits`.
 
 **`ViShap.Viper.Compression`** — `CompressionAlgorithm`, `ICompressionAlgorithm`, `NoCompression`,
-`Deflate`, `Brotli`.
+`DeflateCompression`, `BrotliCompression`.
 
-**`ViShap.Viper.Checksum`** — `ChecksumAlgorithm`, `IChecksumAlgorithm`, `NoChecksum`, `Crc32`.
+**`ViShap.Viper.Checksum`** — `ChecksumAlgorithm`, `IChecksumAlgorithm`, `NoChecksum`,
+`Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`.
 
 **`ViShap.Viper.Crypto`** — `EncryptionAlgorithm`, `IEncryptionAlgorithm`, `NoEncryption`,
-`Aes256Gcm`, `SecretKey`, `IKeyProvider`, `StaticKeyProvider`, `DelegateKeyProvider`.
+`Aes256GcmEncryption`, `ChaCha20Poly1305Encryption`, `SecretKey`, `IKeyProvider`,
+`StaticKeyProvider`, `DelegateKeyProvider`, `HkdfKeyProvider`.
+
+Every built-in algorithm carries its family as a suffix — `…Compression`, `…Checksum`,
+`…Encryption` — so that no public type shares its simple name with a type of the .NET libraries the
+packages build on (`System.IO.Hashing.Crc32`, `System.Security.Cryptography.ChaCha20Poly1305`, …): a
+consumer who imports both namespaces never meets an ambiguous name. The algorithm interfaces declare
+no default members; a member added after the release comes with a default implementation, which is
+the only additive path.
 
 **`ViShap.Viper.Metadata`** — `BinaryHeaderInfo`, `BinaryFormatInspector`.
 
-**`ViShap.Viper.Diagnostics`** — `BinaryFormatDumper`.
+**`ViShap.Viper.Diagnostics`** — `BinaryFormatDumper`, `BinaryDump`, `BinaryDumpNode`,
+`BinaryDumpNodeKind`, `BinaryDumpDifference` (§19).
 
 **`ViShap.Viper.Exceptions`** — the hierarchy of §8.
 
 Deliberately **not** public: the payload engine, the value primitives, the format pipelines, the
 formatter contracts, the algorithm orchestrators, and the operation and budget types. Every one of
 them enforces part of the resource policy or the traversal protocol, and publishing any of them would
-let a caller step around it.
+let a caller step around it. The type-contract seam is public because it carries none of that: a
+contract sees one member value per call and nothing that reaches a byte, a count or a position, and
+every call it makes is checked (§14.3, INV-2, INV-5). `SupportedTypes` is public for the same reason:
+each of its methods names one entry of the table of supported types (§23) closed over a caller's
+types and returns an opaque `SupportedType` that exposes its declared type and nothing else — no codec,
+shape, count or loop reaches the caller (§14.5, INV-5).
 
 Every public type and member carries XML documentation. Both packages build with
 `GenerateDocumentationFile`, so the documentation ships beside the assembly and a consumer sees it on
@@ -154,81 +263,692 @@ written for that consumer: what the member does, what it takes, what it returns 
 it raises. It does not cite this document, and it does not record how the code came to look the way
 it does.
 
+**The reflection path states its requirements.** The codec of a type is found in one of three
+places, in order: the codec a context offered for it (§14.5); the built-in codec of a scalar or a
+delegate, created by statically typed code; and otherwise the codec the **reflection path** builds on
+first use, finding members, constructors and generic definitions at run time and closing the engine's
+generic codecs and shapes over the types they encode. The type contract of a member-encoded type
+comes from the configuration's context, and otherwise from the reflection path too (§14.3). The
+reflection path is behind one switch, `ViShap.Viper.ReflectionPath.IsEnabled` (§14.5), which the
+trimming and AOT analysers treat as the guard of both requirements: the library suppresses no
+analysis warning, and an application that turns the switch off has the path removed from its build.
+
+Every public entry point that encodes or decodes a value of the caller's type **without** type
+information therefore carries `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` — the twenty-two
+generic methods of `BinarySerializer` (§3.1–§3.5) and the four of `BinaryFormatDumper` (`Dump<T>` over
+a span and over a sequence, `DumpValue<T>`, `Compare<T>`): with the switch on they reach the reflection
+path for any type no context offered. An application built with trimming or native AOT analysis is
+warned at each call, where the decision is its own. Each of those twenty-six has a counterpart that
+takes a `BinaryTypeInfo<T>` and carries neither attribute (§3.1, §14.5): the type information states
+that a context describes the type, and whatever the context does not describe is
+`BinaryConfigurationException` with the switch off, never reflection. No other public member carries
+either attribute: the options and their builder, the algorithms, the keys, `PooledPayload`,
+`BinaryFormatInspector`, `DumpHeader`, the untyped `Dump`, the context and `SupportedTypes` never build
+a codec by reflection. Both packages build with `IsAotCompatible`, so the analysis reports nothing
+inside them. `Api/AotAnalysisTests` holds the line three times: by reflection over the exported
+surface; by building `tests/ViShap.Viper.AotConsumer` under native AOT analysis, where the calls of
+its `AnnotatedEntryPoints` must report the annotated entry points and nothing else; and by running that
+consumer with the switch off, every entry point that takes type information, the frozen payloads of
+§22 read and written back through generated contexts. The CI job `native-aot` publishes the same
+consumer with native AOT — with no trimming or AOT warning — runs it, and requires its output to equal
+the JIT run's line for line.
+
 ## 3.1 Serializer
 
-The public `BinarySerializer` surface includes:
+The public `BinarySerializer` surface is exactly:
 
 ```csharp
 BinarySerializer(BinarySerializerOptions? options = null);
 
-void Serialize<T>(Stream destination, T data);
-byte[] Serialize<T>(T data);
+// write
+void          Serialize<T>(IBufferWriter<byte> destination, T value);
+byte[]        Serialize<T>(T value);
+PooledPayload SerializePooled<T>(T value);
+void          Serialize<T>(Stream destination, T value);
+ValueTask     SerializeAsync<T>(Stream destination, T value, CancellationToken cancellationToken = default);
+ValueTask     SerializeAsync<T>(PipeWriter destination, T value, CancellationToken cancellationToken = default);
 
-T? Deserialize<T>(Stream source);
-T? Deserialize<T>(byte[] bytes);
+// read
+T?            Deserialize<T>(ReadOnlySpan<byte> source);
+T?            Deserialize<T>(ReadOnlySpan<byte> source, out int bytesConsumed);
+T?            Deserialize<T>(ReadOnlySequence<byte> source);
+T?            Deserialize<T>(ReadOnlySequence<byte> source, out SequencePosition consumed);
+T?            Deserialize<T>(Stream source);
+ValueTask<T?> DeserializeAsync<T>(Stream source, CancellationToken cancellationToken = default);
+ValueTask<T?> DeserializeAsync<T>(PipeReader source, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, CancellationToken cancellationToken = default);
 
-T? Deserialize<T>(Stream source, T existingInstance) where T : class;
-T? Deserialize<T>(byte[] bytes, T existingInstance) where T : class;
+// populate an existing instance
+void          Populate<T>(ReadOnlySpan<byte> source, T target) where T : class;
+void          Populate<T>(ReadOnlySpan<byte> source, T target, out int bytesConsumed) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target, out SequencePosition consumed) where T : class;
+void          Populate<T>(Stream source, T target) where T : class;
+ValueTask     PopulateAsync<T>(Stream source, T target, CancellationToken cancellationToken = default) where T : class;
+ValueTask     PopulateAsync<T>(PipeReader source, T target, CancellationToken cancellationToken = default) where T : class;
 
-void Deserialize<T>(Stream source, ref T existingInstance) where T : struct;
-void Deserialize<T>(byte[] bytes, ref T existingInstance) where T : struct;
+// the same, with the type information of a context (§14.5)
+void          Serialize<T>(IBufferWriter<byte> destination, T value, BinaryTypeInfo<T> typeInfo);
+byte[]        Serialize<T>(T value, BinaryTypeInfo<T> typeInfo);
+PooledPayload SerializePooled<T>(T value, BinaryTypeInfo<T> typeInfo);
+void          Serialize<T>(Stream destination, T value, BinaryTypeInfo<T> typeInfo);
+ValueTask     SerializeAsync<T>(Stream destination, T value, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+ValueTask     SerializeAsync<T>(PipeWriter destination, T value, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+T?            Deserialize<T>(ReadOnlySpan<byte> source, BinaryTypeInfo<T> typeInfo);
+T?            Deserialize<T>(ReadOnlySpan<byte> source, BinaryTypeInfo<T> typeInfo, out int bytesConsumed);
+T?            Deserialize<T>(ReadOnlySequence<byte> source, BinaryTypeInfo<T> typeInfo);
+T?            Deserialize<T>(ReadOnlySequence<byte> source, BinaryTypeInfo<T> typeInfo, out SequencePosition consumed);
+T?            Deserialize<T>(Stream source, BinaryTypeInfo<T> typeInfo);
+ValueTask<T?> DeserializeAsync<T>(Stream source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+ValueTask<T?> DeserializeAsync<T>(PipeReader source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(Stream source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+IAsyncEnumerable<T?> DeserializeAsyncEnumerable<T>(PipeReader source, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default);
+void          Populate<T>(ReadOnlySpan<byte> source, T target, BinaryTypeInfo<T> typeInfo) where T : class;
+void          Populate<T>(ReadOnlySpan<byte> source, T target, BinaryTypeInfo<T> typeInfo, out int bytesConsumed) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target, BinaryTypeInfo<T> typeInfo) where T : class;
+void          Populate<T>(ReadOnlySequence<byte> source, T target, BinaryTypeInfo<T> typeInfo, out SequencePosition consumed) where T : class;
+void          Populate<T>(Stream source, T target, BinaryTypeInfo<T> typeInfo) where T : class;
+ValueTask     PopulateAsync<T>(Stream source, T target, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default) where T : class;
+ValueTask     PopulateAsync<T>(PipeReader source, T target, BinaryTypeInfo<T> typeInfo, CancellationToken cancellationToken = default) where T : class;
 ```
 
-Exact overloads exposed by the compiled public assembly are authoritative.
+`Api/PublicSurfaceTests` compares this list with the compiled assembly member by member, and the
+builder's list of §4.1 likewise.
 
-`byte[]` inputs are caller-owned. Serializer-created temporary streams remain internal.
+A method that takes type information does exactly what its counterpart without it does, with one
+check first: the serializer's options must have been built with the context the type information
+belongs to (`WithContracts`), and otherwise the call is `BinaryConfigurationException` before the
+destination is touched; a `null` type information is `ArgumentNullException`.
 
-Caller-provided streams are never disposed, never rewound, and are read only as far as the payload
-extends.
+Every write builds the whole frame in the serializer's own pooled buffers before the first byte
+reaches the destination (§2.6), so no destination is asked to seek. A buffer writer is advanced but
+not flushed; a stream is flushed; a pipe is flushed and not completed. The frame is copied into a
+buffer writer in as many spans as it hands out, shorter ones included; a writer that hands out an
+empty span, which the `IBufferWriter<T>` contract does not allow, is `BinaryStreamException` rather
+than a copy that never ends (§8.8). Caller-provided streams and
+pipes are never disposed or completed, and a stream is never rewound.
 
-An **empty `byte[]` is not a payload**: no wire version encodes a value in zero bytes, not even a
-null root, which costs one byte. Every byte-array read overload therefore rejects it with
-`BinaryFormatException` before any routing happens, and the existing instance or `ref` target is left
-untouched. A zero-length array is never silently read as `default(T)`.
+Rules for every read and populate entry point:
 
-Populate-in-place semantics:
+- **An empty input is not a payload.** No wire version encodes a value in zero bytes, not even a
+  null root, which costs one byte. An empty span, an empty sequence, a stream that ends before its
+  first byte and a pipe that completes empty are `BinaryFormatException`, and a populate target is
+  left untouched. A zero-length input is never silently read as `default(T)`.
+- **There is no `byte[]` read overload.** An array converts to `ReadOnlySpan<byte>`, so
+  `Deserialize<T>(bytes)` and `Populate(bytes, target)` compile against the span forms. A `null`
+  array becomes an empty span and is rejected as an empty payload — `BinaryFormatException`, not
+  `ArgumentNullException`.
+- **Without a bytes-consumed form, a span or a sequence is exactly one frame**: one V1 frame, or one
+  V0 payload up to the end of its root value. Bytes after it are `BinaryFormatException` (§3.4).
+- **A stream or a pipe is read exactly as far as one frame extends** (§20): a V1 frame declares its
+  length, so it is read without seeking and nothing past it is taken. A V0 payload declares none,
+  so a synchronous read of a stream reads ahead and moves back, which needs a seekable stream (§10.2).
+- **Asynchronous reads accept V1 only** (§3.5).
 
-- `Deserialize<T>(…, T existingInstance)` is defined only for **member-encoded** types. A type
-  claimed by a dedicated formatter (collection, dictionary, array, string, …) is rejected with
-  `BinaryTypeException`; it must not be reinterpreted through that type's member plan.
-- `Deserialize<T>(…, ref T existingInstance)` reads the root exactly as the writer framed it and
-  assigns the result. A struct is copied by value, so this is observationally identical to populating
-  in place, and it stays correct under every framing the writer may add.
+## 3.2 `PooledPayload`
 
-## 3.2 Stream extensions
+`SerializePooled` returns a `PooledPayload`, a sealed class implementing `IDisposable` that owns an
+array rented from `ArrayPool<byte>.Shared` holding exactly the bytes `Serialize<T>(T)` would return.
+`Memory` (`ReadOnlyMemory<byte>`) and `Span` (`ReadOnlySpan<byte>`) are valid until `Dispose`.
+`Dispose` clears the bytes and returns the array to the pool; it is idempotent, and safe to call
+concurrently, so the array is returned exactly once. Reading `Memory` or `Span` after `Dispose` is
+`ObjectDisposedException`.
 
-`StreamExtensions` builds a serializer per call, for occasional use and for payloads that describe
-their own configuration. The surface is:
+The owner is a class, not a struct: a copy of a struct would be a second owner, a double `Dispose`
+would return the array to the pool twice, and two later operations would share it.
 
 ```csharp
-void Serialize<T>(this Stream destination, T data, BinarySerializerOptions? options = null);
-
-T? Deserialize<T>(this Stream source, BinarySerializerOptions options);
-T? Deserialize<T>(this Stream source, SerializationLimits? limits = null);
-T? Deserialize<T>(this Stream source, byte[]? key, SerializationLimits? limits = null);
-T? Deserialize<T>(this Stream source, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null);
-
-T? Deserialize<T>(this Stream source, T existingInstance, BinarySerializerOptions options) where T : class;
-T? Deserialize<T>(this Stream source, T existingInstance, SerializationLimits? limits = null) where T : class;
-T? Deserialize<T>(this Stream source, T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : class;
-T? Deserialize<T>(this Stream source, T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : class;
-
-void Deserialize<T>(this Stream source, ref T existingInstance, BinarySerializerOptions options) where T : struct;
-void Deserialize<T>(this Stream source, ref T existingInstance, SerializationLimits? limits = null) where T : struct;
-void Deserialize<T>(this Stream source, ref T existingInstance, byte[]? key, SerializationLimits? limits = null) where T : struct;
-void Deserialize<T>(this Stream source, ref T existingInstance, Func<string?, byte[]?> keyResolver, SerializationLimits? limits = null) where T : struct;
+using PooledPayload payload = serializer.SerializePooled(order);
+await socket.SendAsync(payload.Memory, cancellationToken);
 ```
 
-The overloads that take a key, a key resolver, or neither configure themselves from the payload's
-header through `BinarySerializerOptions.FromStream` and therefore require a seekable stream.
+## 3.3 Populate-in-place
 
-**The header supplies algorithms, never policy.** It says how the payload was wrapped — compression,
-checksum, encryption, key id — and nothing it contains can raise a resource ceiling. The limits
-applied are the caller's `limits` argument, or `SerializationLimits.Default` when it is omitted. An
-application reading untrusted data through these overloads passes its own policy exactly as it would
-through `BinarySerializerOptions`.
+`Populate` reads a payload into a class the caller already holds.
 
-Every overload leaves the caller's stream open.
+- It is defined only for **member-encoded** classes. A type claimed by a dedicated formatter
+  (collection, dictionary, array, string, …) is `BinaryTypeException`; its payload is not
+  reinterpreted through a member plan. A struct is read with `value = serializer.Deserialize<T>(…)`,
+  which is observationally the same, so there is no struct form.
+- Only the **root** is populated: its members are overwritten with the payload's values, and every
+  object below it is created afresh. Under a keyed contract (§14.2) a member whose key the payload
+  does not carry keeps its current value.
+- A **null root** or a root that is a **back reference** is `BinaryFormatException`: neither is an
+  instance's member layout.
+- A `[BinaryUnion]` payload whose runtime type differs from the target's is `BinaryTypeException`; an
+  instance cannot be reused for another type. Without a union map the target's type must be the
+  declared type.
+- An empty input leaves the target untouched (§3.1). A null target is `ArgumentNullException`.
+
+## 3.4 Bytes consumed
+
+Each source reports where a frame ended in its native position type: `out int bytesConsumed` for a
+span, `out SequencePosition consumed` for a sequence, which goes straight to
+`PipeReader.AdvanceTo`. With the form, reading stops at the end of the V1 frame or of the V0 root
+and reports where, so frames and payloads placed back to back are read one after another; bytes
+after the frame are not read. Without it, trailing bytes are `BinaryFormatException`. The rule is the
+same for V0 and V1.
+
+## 3.5 Asynchrony
+
+**The engine never awaits** (§2.4). An asynchronous read awaits one whole V1 frame — the header gives
+its length — and then decodes it synchronously; an asynchronous write builds the frame synchronously
+in the serializer's buffer and awaits only the output. The asynchronous methods use
+`PoolingAsyncValueTaskMethodBuilder`.
+
+```text
+cancellation token   observed while bytes are awaited; decoding a frame already in memory is not
+                     interrupted — it is bounded by the limits
+PipeReader           exactly the frame is consumed; on cancellation or failure nothing is consumed:
+                     AdvanceTo(frame start, examined end)
+Stream (read)        exactly the frame is taken; bytes taken are not given back, so after a cancellation
+                     or a failure the position is undefined and the stream is unusable for further
+                     framing
+write                a cancellation before the output starts leaves nothing (the buffer is atomic); one
+                     during WriteAsync, FlushAsync or the pipe's flush may leave part of a frame, or a
+                     frame written but not flushed — a property of the destination
+OperationCanceledException   standard .NET, outside the taxonomy of §8
+```
+
+A pending pipe read cancelled with `CancelPendingRead` is reported as `OperationCanceledException` as
+well, and consumes nothing.
+
+**V0 is read synchronously, from the caller's frame.** An asynchronous read or populate that meets V0
+(`AllowV0Fallback` on, no magic) is `NotSupportedException` naming the rule. Asynchronous V0 *writes*
+are allowed.
+
+> V0 carries neither a magic number nor a length: it is a codec for protocols that already frame their
+> messages — a length prefix, a message type, a channel. The protocol knows where a message ends, so
+> the caller already holds one message's bytes and reads them synchronously. Waiting asynchronously
+> is for a reader that does not know where the message ends; with V0 the protocol knows, not Viper.
+
+```csharp
+// V1 from a socket: Viper knows the frame boundary — the header carries the length
+Order? order = await serializer.DeserializeAsync<Order>(networkStream, cancellationToken);
+
+// V0 inside your own protocol: the protocol knows the frame boundary
+var compact = new BinarySerializer(BinarySerializerOptions.Configure()
+    .WithVersion(0).AllowV0Fallback().Build());
+
+while (true)
+{
+    ReadResult read = await pipe.ReadAsync(cancellationToken);
+    ReadOnlySequence<byte> buffer = read.Buffer;
+
+    // the protocol: a 4-byte little-endian length, then the V0 payload
+    while (TryReadFrame(ref buffer, out ReadOnlySequence<byte> frame))
+    {
+        Order? message = compact.Deserialize<Order>(frame);   // synchronous: the frame is in memory
+        Handle(message);
+    }
+
+    pipe.AdvanceTo(buffer.Start, buffer.End);
+    if (read.IsCompleted) break;
+}
+
+static bool TryReadFrame(ref ReadOnlySequence<byte> buffer, out ReadOnlySequence<byte> frame)
+{
+    var reader = new SequenceReader<byte>(buffer);
+    if (!reader.TryReadLittleEndian(out int length) || reader.Remaining < length)
+    {
+        frame = default;
+        return false;
+    }
+
+    frame = buffer.Slice(reader.Position, length);
+    buffer = buffer.Slice(frame.End);
+    return true;
+}
+```
+
+**Reading a stream of frames.** `DeserializeAsyncEnumerable<T>` reads V1 frames until the source
+ends. Each frame is its own operation — its own limits and budgets — so a stream of frames is
+unbounded while every frame stays bounded; limits apply per frame, never per connection. The source
+ending exactly between frames completes the enumeration; ending inside a frame is
+`BinaryFormatException`, raised once the complete frames before it have been yielded. V0 is
+`NotSupportedException`, for the reason above. Cancellation behaves as for `DeserializeAsync`; a
+`PipeReader` does not consume a frame it has started. A single message above 2 GiB, or a single value
+that never ends, is out of scope by design: messages are materialised object graphs, and large or
+endless data is sent as many frames.
+
+```csharp
+await foreach (Order? order in serializer.DeserializeAsyncEnumerable<Order>(networkStream, cancellationToken))
+    Handle(order);
+```
+
+## 3.6 Member surface
+
+Every public member of every public type, one per line, as `Namespace.Type :: member`: constructors,
+properties with their accessors, fields, methods with simple type names, and an enum's values with
+their numbers. A protected member of a public type a consumer can derive from is part of the surface
+too and is listed with `protected`; an `in` parameter is spelled `in`. Records list the equality and
+printing members the compiler gives them, because a consumer calls them. `Api/MemberSurfaceTests`
+reads this block and compares it with the assemblies in both directions, so a member added, removed or
+re-typed fails the suite until this list says so.
+
+```text
+ViShap.Viper.BinaryContextAttribute :: .ctor(Type[])
+ViShap.Viper.BinaryContextAttribute :: Types : IReadOnlyList<Type> { get; }
+ViShap.Viper.BinaryContractAttribute :: .ctor()
+ViShap.Viper.BinaryIgnoreAttribute :: .ctor()
+ViShap.Viper.BinaryIncludeAttribute :: .ctor()
+ViShap.Viper.BinaryKeyAttribute :: .ctor(Int32)
+ViShap.Viper.BinaryKeyAttribute :: Key : Int32 { get; }
+ViShap.Viper.BinaryOrderAttribute :: .ctor(Int32)
+ViShap.Viper.BinaryOrderAttribute :: Order : Int32 { get; }
+ViShap.Viper.BinarySerializer :: .ctor(BinarySerializerOptions)
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, out SequencePosition) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, out SequencePosition) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, out Int32) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, out Int32) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(Stream) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(Stream, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(PipeReader, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(Stream, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(PipeReader, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(Stream, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>, out SequencePosition) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, out SequencePosition) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>, out Int32) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, out Int32) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(Stream, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(Stream, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(PipeReader, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(PipeReader, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(Stream, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: Serialize<T>(IBufferWriter<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(IBufferWriter<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(Stream, T) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(Stream, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(T) : Byte[]
+ViShap.Viper.BinarySerializer :: Serialize<T>(T, BinaryTypeInfo<T>) : Byte[]
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializePooled<T>(T) : PooledPayload
+ViShap.Viper.BinarySerializer :: SerializePooled<T>(T, BinaryTypeInfo<T>) : PooledPayload
+ViShap.Viper.BinarySerializerContext :: TryGetTypeInfo<T>() : BinaryTypeInfo<T>
+ViShap.Viper.BinarySerializerContext :: protected .ctor()
+ViShap.Viper.BinarySerializerContext :: protected Add(SupportedType) : Void
+ViShap.Viper.BinarySerializerContext :: protected Add<T>(TypeContract<T>) : Void
+ViShap.Viper.BinarySerializerContext :: protected TypeInfo<T>() : BinaryTypeInfo<T>
+ViShap.Viper.BinarySerializerOptions :: AllowV0Fallback : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: Checksum : IChecksumAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Compression : ICompressionAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Contracts : BinarySerializerContext { get; }
+ViShap.Viper.BinarySerializerOptions :: Encryption : IEncryptionAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Equals(BinarySerializerOptions) : Boolean
+ViShap.Viper.BinarySerializerOptions :: Equals(Object) : Boolean
+ViShap.Viper.BinarySerializerOptions :: GetHashCode() : Int32
+ViShap.Viper.BinarySerializerOptions :: KeyId : String { get; }
+ViShap.Viper.BinarySerializerOptions :: Keys : IKeyProvider { get; }
+ViShap.Viper.BinarySerializerOptions :: Limits : SerializationLimits { get; }
+ViShap.Viper.BinarySerializerOptions :: PreserveReferences : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireChecksum : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireEncryption : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireGeneratedContracts : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: ToString() : String
+ViShap.Viper.BinarySerializerOptions :: WriteVersion : Int32 { get; }
+ViShap.Viper.BinarySerializerOptions :: static Configure() : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptions :: static Default : BinarySerializerOptions { get; }
+ViShap.Viper.BinarySerializerOptions :: static op_Equality(BinarySerializerOptions, BinarySerializerOptions) : Boolean
+ViShap.Viper.BinarySerializerOptions :: static op_Inequality(BinarySerializerOptions, BinarySerializerOptions) : Boolean
+ViShap.Viper.BinarySerializerOptionsBuilder :: AllowV0Fallback(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: Build() : BinarySerializerOptions
+ViShap.Viper.BinarySerializerOptionsBuilder :: PreserveReferences(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomChecksum(String, Func<IChecksumAlgorithm>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomCompression(String, Func<ICompressionAlgorithm>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomEncryption(String, Func<IEncryptionAlgorithm>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireChecksum(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireEncryption(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireGeneratedContracts(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithChecksum(IChecksumAlgorithm) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithCompression(ICompressionAlgorithm) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithContracts(BinarySerializerContext) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, Func<String, Byte[]>, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, IKeyProvider, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(Func<String, Byte[]>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(IKeyProvider) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithLimits(SerializationLimits) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithVersion(Int32) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinaryTypeInfo`1 :: Context : BinarySerializerContext { get; }
+ViShap.Viper.BinaryTypeInfo`1 :: Type : Type { get; }
+ViShap.Viper.BinaryUnionAttribute :: .ctor(Int32, Type)
+ViShap.Viper.BinaryUnionAttribute :: DerivedType : Type { get; }
+ViShap.Viper.BinaryUnionAttribute :: Tag : Int32 { get; }
+ViShap.Viper.Checksum.ChecksumAlgorithm :: Crc32 = 1
+ViShap.Viper.Checksum.ChecksumAlgorithm :: Custom = 255
+ViShap.Viper.Checksum.ChecksumAlgorithm :: None = 0
+ViShap.Viper.Checksum.ChecksumAlgorithm :: XxHash128 = 3
+ViShap.Viper.Checksum.ChecksumAlgorithm :: XxHash3 = 2
+ViShap.Viper.Checksum.Crc32Checksum :: .ctor()
+ViShap.Viper.Checksum.Crc32Checksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.Crc32Checksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.Crc32Checksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.Crc32Checksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.IChecksumAlgorithm :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.IChecksumAlgorithm :: CustomName : String { get; }
+ViShap.Viper.Checksum.IChecksumAlgorithm :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.IChecksumAlgorithm :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.NoChecksum :: .ctor()
+ViShap.Viper.Checksum.NoChecksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.NoChecksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.NoChecksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.NoChecksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.XxHash128Checksum :: .ctor()
+ViShap.Viper.Checksum.XxHash128Checksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.XxHash128Checksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.XxHash128Checksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.XxHash128Checksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.XxHash3Checksum :: .ctor()
+ViShap.Viper.Checksum.XxHash3Checksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.XxHash3Checksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.XxHash3Checksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.XxHash3Checksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Compression.BrotliCompression :: .ctor(CompressionLevel)
+ViShap.Viper.Compression.BrotliCompression :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.BrotliCompression :: CustomName : String { get; }
+ViShap.Viper.Compression.BrotliCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.BrotliCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Compression.CompressionAlgorithm :: Brotli = 2
+ViShap.Viper.Compression.CompressionAlgorithm :: Custom = 255
+ViShap.Viper.Compression.CompressionAlgorithm :: Deflate = 1
+ViShap.Viper.Compression.CompressionAlgorithm :: None = 0
+ViShap.Viper.Compression.DeflateCompression :: .ctor(CompressionLevel)
+ViShap.Viper.Compression.DeflateCompression :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.DeflateCompression :: CustomName : String { get; }
+ViShap.Viper.Compression.DeflateCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.DeflateCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Compression.ICompressionAlgorithm :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.ICompressionAlgorithm :: CustomName : String { get; }
+ViShap.Viper.Compression.ICompressionAlgorithm :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.ICompressionAlgorithm :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Compression.NoCompression :: .ctor()
+ViShap.Viper.Compression.NoCompression :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.NoCompression :: CustomName : String { get; }
+ViShap.Viper.Compression.NoCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.NoCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Contracts.MemberDescription :: .ctor(String, Type, Int32?)
+ViShap.Viper.Contracts.MemberDescription :: Key : Int32? { get; }
+ViShap.Viper.Contracts.MemberDescription :: MemberType : Type { get; }
+ViShap.Viper.Contracts.MemberDescription :: Name : String { get; }
+ViShap.Viper.Contracts.MemberLayout :: Keyed = 1
+ViShap.Viper.Contracts.MemberLayout :: Positional = 0
+ViShap.Viper.Contracts.MemberReader :: Member<TMember>() : TMember
+ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(Int32, TMember) : Void
+ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(TMember) : Void
+ViShap.Viper.Contracts.SupportedType :: Type : Type { get; }
+ViShap.Viper.Contracts.SupportedTypes :: static Array<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ArraySegment<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Collection<TCollection, T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentBag<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Dictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Enum<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static FrozenDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static FrozenSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static HashSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ICollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IEnumerable<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ISet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableArray<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableHashSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableSortedDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableSortedSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static KeyValuePair<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Lazy<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static LinkedList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static List<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Memory<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static MultiDimensionalArray<TArray, TElement>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Nullable<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Object<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ObservableCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static PriorityQueue<TElement, TPriority>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Queue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyMemory<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyObservableCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlySequence<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedList<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Stack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6, T7, TRest>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6, T7>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Union<T>(ValueTuple<Int32, Type>[]) : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6, T7>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1>() : SupportedType
+ViShap.Viper.Contracts.TypeContract`1 :: CanBeConstructed : Boolean { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: Create() : T
+ViShap.Viper.Contracts.TypeContract`1 :: Layout : MemberLayout { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: Members : IReadOnlyList<MemberDescription> { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: ReadKeyed(ref MemberReader, Int32, ref T) : Boolean
+ViShap.Viper.Contracts.TypeContract`1 :: ReadPositional(ref MemberReader, ref T) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: Write(ref MemberWriter, in T) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: protected .ctor(MemberLayout, MemberDescription[], Boolean)
+ViShap.Viper.Crypto.Aes256GcmEncryption :: .ctor()
+ViShap.Viper.Crypto.Aes256GcmEncryption :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.Aes256GcmEncryption :: CustomName : String { get; }
+ViShap.Viper.Crypto.Aes256GcmEncryption :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.Aes256GcmEncryption :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.Aes256GcmEncryption :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.Aes256GcmEncryption :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.Aes256GcmEncryption :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: .ctor()
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: CustomName : String { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.DelegateKeyProvider :: .ctor(Func<String, Byte[]>)
+ViShap.Viper.Crypto.DelegateKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Crypto.EncryptionAlgorithm :: Aes256Gcm = 1
+ViShap.Viper.Crypto.EncryptionAlgorithm :: ChaCha20Poly1305 = 2
+ViShap.Viper.Crypto.EncryptionAlgorithm :: Custom = 255
+ViShap.Viper.Crypto.EncryptionAlgorithm :: None = 0
+ViShap.Viper.Crypto.HkdfKeyProvider :: .ctor(ReadOnlySpan<Byte>, Int32, ReadOnlySpan<Byte>)
+ViShap.Viper.Crypto.HkdfKeyProvider :: Dispose() : Void
+ViShap.Viper.Crypto.HkdfKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: CustomName : String { get; }
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.IKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Crypto.NoEncryption :: .ctor()
+ViShap.Viper.Crypto.NoEncryption :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.NoEncryption :: CustomName : String { get; }
+ViShap.Viper.Crypto.NoEncryption :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.NoEncryption :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.NoEncryption :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.NoEncryption :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.NoEncryption :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.SecretKey :: Dispose() : Void
+ViShap.Viper.Crypto.SecretKey :: Length : Int32 { get; }
+ViShap.Viper.Crypto.SecretKey :: Span : ReadOnlySpan<Byte> { get; }
+ViShap.Viper.Crypto.SecretKey :: static CopyFrom(ReadOnlySpan<Byte>) : SecretKey
+ViShap.Viper.Crypto.StaticKeyProvider :: .ctor(ReadOnlySpan<Byte>, String)
+ViShap.Viper.Crypto.StaticKeyProvider :: Dispose() : Void
+ViShap.Viper.Crypto.StaticKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Diagnostics.BinaryDump :: ChecksumVerified : Boolean? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Decrypted : Boolean? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Failure : BinarySerializerException { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: FailureOffset : Int64? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: FailurePath : String { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: FormatVersion : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Header : BinaryHeaderInfo? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: HeaderLength : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: MaxDepth : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: NodeCount : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: PayloadLength : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Root : BinaryDumpNode { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: ToHex() : String
+ViShap.Viper.Diagnostics.BinaryDump :: ToJson() : String
+ViShap.Viper.Diagnostics.BinaryDump :: ToString() : String
+ViShap.Viper.Diagnostics.BinaryDump :: ToXml() : String
+ViShap.Viper.Diagnostics.BinaryDumpDifference :: Actual : BinaryDumpNode { get; }
+ViShap.Viper.Diagnostics.BinaryDumpDifference :: Expected : BinaryDumpNode { get; }
+ViShap.Viper.Diagnostics.BinaryDumpDifference :: Path : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Children : IReadOnlyList<BinaryDumpNode> { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Key : Int32? { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Kind : BinaryDumpNodeKind { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Length : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Name : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Offset : Int64 { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: ReferenceId : Int32? { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: ReferenceTarget : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: TypeName : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: UnionTag : Byte? { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Value : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: BackReference = 9
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Composite = 10
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: KeyedField = 6
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: KeyedObject = 5
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Map = 3
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Null = 0
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Object = 4
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Scalar = 1
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Sequence = 2
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Union = 8
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: UnknownKeyedField = 7
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Compare<T>(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDumpDifference
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Compare<T>(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDumpDifference
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump(ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySequence<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(ReadOnlySequence<Byte>) : String
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(ReadOnlySpan<Byte>) : String
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(Stream) : String
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpValue<T>(T, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpValue<T>(T, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Exceptions.BinaryConfigurationException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryConfigurationException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryEncryptionException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryEncryptionException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryEncryptionKeyException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryEncryptionKeyException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryFormatException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryFormatException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryFormatNotSupportedException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryFormatNotSupportedException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryIntegrityException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryIntegrityException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryLimitException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryLimitException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinarySerializerException :: protected .ctor(String)
+ViShap.Viper.Exceptions.BinarySerializerException :: protected .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryStreamException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryStreamException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryTypeException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryTypeException :: .ctor(String, Exception)
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySequence<Byte>) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySequence<Byte>, SerializationLimits) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySpan<Byte>) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySpan<Byte>, SerializationLimits) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(Stream) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(Stream, SerializationLimits) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryHeaderInfo :: .ctor(Int32, Boolean, CompressionAlgorithm, String, Int32?, ChecksumAlgorithm, String, ReadOnlyMemory<Byte>, EncryptionAlgorithm, String, String, Int32, Int32)
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Checksum : ReadOnlyMemory<Byte> { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: ChecksumAlgorithm : ChecksumAlgorithm { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Compression : CompressionAlgorithm { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: CustomChecksumName : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: CustomCompressionName : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: CustomEncryptionName : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Deconstruct(out Int32, out Boolean, out CompressionAlgorithm, out String, out Int32?, out ChecksumAlgorithm, out String, out ReadOnlyMemory<Byte>, out EncryptionAlgorithm, out String, out String, out Int32, out Int32) : Void
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Encryption : EncryptionAlgorithm { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Equals(BinaryHeaderInfo) : Boolean
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Equals(Object) : Boolean
+ViShap.Viper.Metadata.BinaryHeaderInfo :: FormatVersion : Int32 { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: GetHashCode() : Int32
+ViShap.Viper.Metadata.BinaryHeaderInfo :: HeaderLength : Int32 { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: KeyId : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: OnDiskLength : Int32 { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: PreserveReferences : Boolean { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: ToString() : String
+ViShap.Viper.Metadata.BinaryHeaderInfo :: UncompressedLength : Int32? { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: static op_Equality(BinaryHeaderInfo, BinaryHeaderInfo) : Boolean
+ViShap.Viper.Metadata.BinaryHeaderInfo :: static op_Inequality(BinaryHeaderInfo, BinaryHeaderInfo) : Boolean
+ViShap.Viper.PooledPayload :: Dispose() : Void
+ViShap.Viper.PooledPayload :: Memory : ReadOnlyMemory<Byte> { get; }
+ViShap.Viper.PooledPayload :: Span : ReadOnlySpan<Byte> { get; }
+ViShap.Viper.Security.SerializationLimits :: .ctor()
+ViShap.Viper.Security.SerializationLimits :: Equals(Object) : Boolean
+ViShap.Viper.Security.SerializationLimits :: Equals(SerializationLimits) : Boolean
+ViShap.Viper.Security.SerializationLimits :: GetHashCode() : Int32
+ViShap.Viper.Security.SerializationLimits :: MaxArrayLength : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxByteBlobBytes : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxCollectionLength : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxCompressedBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxDecompressionRatio : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxDepth : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxDictionaryEntries : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxEncryptedBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxKeyedFields : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxObjectGraphNodes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxPayloadBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxStringBytes : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxTotalElements : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxTotalKeyedFields : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxWireBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: ToString() : String
+ViShap.Viper.Security.SerializationLimits :: Validate() : Void
+ViShap.Viper.Security.SerializationLimits :: static Default : SerializationLimits { get; }
+ViShap.Viper.Security.SerializationLimits :: static op_Equality(SerializationLimits, SerializationLimits) : Boolean
+ViShap.Viper.Security.SerializationLimits :: static op_Inequality(SerializationLimits, SerializationLimits) : Boolean
+```
 
 ---
 
@@ -250,12 +970,17 @@ WithChecksum(IChecksumAlgorithm)
 WithEncryption(IEncryptionAlgorithm, ReadOnlySpan<byte> key, string? keyId)
 WithEncryption(IEncryptionAlgorithm, Func<string?, byte[]?> keyResolver, string? keyId)
 WithEncryption(IEncryptionAlgorithm, IKeyProvider, string? keyId)
+WithKeys(ReadOnlySpan<byte> key, string? keyId)
+WithKeys(Func<string?, byte[]?> keyResolver)
+WithKeys(IKeyProvider)
 WithVersion(int)
 PreserveReferences(bool)
 WithLimits(SerializationLimits)
 AllowV0Fallback(bool)
 RequireEncryption(bool)
 RequireChecksum(bool)
+WithContracts(BinarySerializerContext)
+RequireGeneratedContracts(bool)
 RegisterCustomCompression(string, Func<ICompressionAlgorithm>)
 RegisterCustomChecksum(string, Func<IChecksumAlgorithm>)
 RegisterCustomEncryption(string, Func<IEncryptionAlgorithm>)
@@ -278,16 +1003,38 @@ propagates unchanged, since wrapping it would add nothing the caller could not a
 the read-side counterpart of the rule for a `Lazy<T>` factory (§23), which propagates unwrapped
 because it runs on the write path, over the caller's own value, at a point the caller chose.
 
+**Keys for reading.** Reading V1 takes its algorithms from the header, so a reader needs no
+algorithm of its own — only a key. `WithKeys` supplies one — a fixed key, a resolver by key id, or a
+provider — without choosing encryption for writing. `WithEncryption` still supplies keys too, for
+reading as well as writing, so keys have one place: supplying them through both is rejected at
+`Build()`.
+
+```csharp
+var reader = new BinarySerializer(BinarySerializerOptions.Configure()
+    .WithKeys(keyId => vault.Get(keyId))
+    .Build());
+Order? order = reader.Deserialize<Order>(stream);   // any V1 frame, encrypted or not
+```
+
 `Build()` rejects contradictory configuration with `BinaryConfigurationException`:
 
 - a write version that is not a supported wire format;
+- keys supplied both through `WithEncryption` and through `WithKeys`;
 - `RequireEncryption` without an encryption algorithm;
 - `RequireEncryption` with an algorithm that does not authenticate associated data;
 - `RequireChecksum` without a checksum algorithm;
 - `RequireEncryption` or `RequireChecksum` together with `WithVersion(0)`;
-- `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`.
+- `RequireEncryption` or `RequireChecksum` together with `AllowV0Fallback`;
+- a fixed key given to `WithEncryption` whose length is not the algorithm's `KeySizeInBytes` (§13.2).
+  The check applies only to a fixed key: a key from a resolver or a provider exists only once it is
+  resolved, and is checked then;
+- `RequireGeneratedContracts` without `WithContracts` (§14.3).
 
-The last two close both directions of the same contradiction: a headerless payload carries no
+`Build()` also refuses options that encrypt with `ChaCha20Poly1305Encryption` on a platform whose
+cryptography library does not provide it, with `BinaryFormatNotSupportedException` naming the
+algorithm (§13).
+
+The two version rules close both directions of the same contradiction: a headerless payload carries no
 protection, so a policy demanding protection could be satisfied neither when writing one nor when
 reading one (§10.2, §21.1). A configured algorithm without a policy is a capability, not a demand,
 and stays legal under version 0 — it simply does not apply to what version 0 writes.
@@ -297,11 +1044,12 @@ the same call as the algorithm and rejects a null one with `ArgumentNullExceptio
 holding an algorithm without key material is not a state a caller can produce. `Build()` keeps the
 guard as an invariant over the options it constructs, but no configuration reaches it.
 
-Options derived from a payload rather than built — `FromHeader` and `FromStream` (§4.3) — may well
-name an encryption algorithm the caller supplied no key for. That is a reader missing a key, not a
-contradictory configuration: it is diagnosed when the payload is read, as
-`BinaryEncryptionKeyException` (§8.7), alongside a key provider that resolves to nothing and a key
-that does not match the header's `keyId`.
+A payload may well name an encryption algorithm the reader was given no key for — the header
+chooses the algorithm, not the reader. That is a reader missing a key, not a contradictory
+configuration: it is diagnosed when the payload is read, as `BinaryEncryptionKeyException` (§8.7),
+alongside a key provider that resolves to nothing and a key that does not match the header's
+`keyId`. `KeyId` is metadata used to select the key; it is not key material and is never treated as a
+secret. A key resolver receives the header's `keyId`.
 
 `WithVersion(n)` selects the format used for **writing** only, and is validated here rather than at
 the first `Serialize`. `AllowV0Fallback` is the separate, **read-side** choice of whether a stream
@@ -324,21 +1072,22 @@ AllowV0Fallback    = false
 
 The exact default algorithm instances are implementation details; the observable default semantics are part of this contract.
 
-## 4.3 `FromHeader` and `FromStream`
+## 4.3 Reading a header without reading the payload
 
-`BinarySerializerOptions.FromHeader(...)` constructs options from V1 header metadata and caller-supplied key material or key resolver.
-
-`KeyId` is metadata used to select the key. It is not key material and is never treated as a secret.
-
-A key resolver receives the header `keyId`.
-
-`BinarySerializerOptions.FromStream(...)` uses `BinaryFormatInspector.Peek(...)` and therefore requires a seekable stream.
-
-Invalid supplied limits fail with `BinaryConfigurationException`.
+`BinaryFormatInspector.Peek` (§19) reads a V1 header's metadata — payload mode, algorithms, custom
+names, key id, checksum, lengths —
+without decoding the payload, for diagnostics and for choosing a key before committing to a read.
+Options are never derived from a header: reading V1 already takes its algorithms from it, and keys
+come from `WithKeys` (§4.1).
 
 ---
 
 # 5. Serialization limits
+
+`SerializationLimits` is an immutable record: `SerializationLimits.Default with { … }` derives a policy,
+and record equality compares every limit. `Validate()` checks that every limit is positive and raises
+`BinaryConfigurationException` naming the first that is not; `Build()` calls it once, and so does
+every `BinaryFormatInspector.Peek` that takes a policy (§19), so a caller rarely needs it.
 
 The canonical default limits are:
 
@@ -371,10 +1120,14 @@ A binary value of zero is not inherently invalid. For example, an empty collecti
 The distinction is:
 
 ```text
-configuration value <= 0 → BinaryConfigurationException
-wire count/length < 0    → BinaryFormatException
-wire count/length > max  → BinaryLimitException
+configuration value <= 0                    → BinaryConfigurationException
+wire count/length not a non-negative Int32 → BinaryFormatException
+wire count/length > max                    → BinaryLimitException
 ```
+
+A count, a length, a reference id and a dimension are varints (§22.1), which cannot express a negative
+number, so "not a non-negative `Int32`" means a varint beyond `Int32.MaxValue`; the one fixed-width
+number, a keyed field's length, is negative when its sign bit is set.
 
 ## 5.1 `MaxDepth`
 
@@ -452,7 +1205,9 @@ This limit is distinct from `MaxTotalElements` and `MaxDepth`.
 
 ## 5.9 `MaxKeyedFields`
 
-Limits the number of fields in **one** keyed object.
+Limits the number of fields in **one** keyed object. The field count is read as a validated
+`ElementCount` of its own kind, which checks it against this limit and charges `MaxTotalKeyedFields`
+in one step, so the loop over the fields has no other bound (INV-4).
 
 It is a structural field-count limit, not a replacement for the cumulative element budget.
 
@@ -473,25 +1228,52 @@ are data.
 
 `MaxPayloadBytes` bounds logical uncompressed payload.
 
-`MaxCompressedBytes` bounds the compressed representation.
+`MaxCompressedBytes` bounds the compressed representation — the payload itself when there is no
+compression.
 
 `MaxDecompressionRatio` bounds how far a payload may declare that it expands: the declared
-uncompressed length may not exceed the declared compressed length by more than this factor. It is the
-only phase bound that relates a declared size to the bytes that carry it, and it exists because
+uncompressed length may not exceed the compressed length by more than this factor. It is the only
+phase bound that relates a declared size to the bytes that carry it, and it exists because
 compression is the only phase whose output may legitimately exceed its input — and therefore the only
-one where the remaining-bytes rule of §17 cannot apply on its own. It is evaluated while the header is
-read, before any buffer exists, and only when compression is not `None`; with `None` the two lengths
-are already required to be equal.
+one where the remaining-bytes rule of §17 cannot apply on its own. It applies only to a frame with a
+compression record; without one there is no uncompressed length to measure.
 
 `MaxEncryptedBytes` bounds the encrypted/on-disk representation.
 
-`MaxWireBytes` bounds physical stream bytes consumed/produced by one operation.
+The header declares only `onDiskLength` and, with compression, `uncompressedLength`; the plaintext
+length of an encrypted frame is not declared. The checks therefore run in this order, each before the
+buffer it protects exists:
+
+```text
+1. header          onDiskLength ≤ MaxEncryptedBytes and ≤ the bytes that can still arrive;
+                   without encryption, onDiskLength is the compressed payload: ≤ MaxCompressedBytes,
+                     and without compression as well, the payload: ≤ MaxPayloadBytes;
+                   with compression, uncompressedLength ≤ MaxPayloadBytes and
+                     uncompressedLength ≤ onDiskLength × MaxDecompressionRatio — exact without
+                     encryption, an upper bound with it (a ciphertext is never shorter than its plaintext)
+2. decryption      into a buffer no longer than onDiskLength: memory follows the delivered bytes
+3. after it        the plaintext as step 1 checks onDiskLength without encryption:
+                     ≤ MaxCompressedBytes; without compression ≤ MaxPayloadBytes; with compression
+                     uncompressedLength ≤ plaintext length × MaxDecompressionRatio, exactly
+4. decompression   the one allocation the ratio protects — only after step 3
+5. checksum        verified over the raw payload before the engine reads a byte of it
+```
+
+The V1 header itself is at most **4 096 bytes**, from the first byte of the magic to the last byte of
+`onDiskLength`. That is a fixed bound of the format, not a policy limit: a header that would exceed
+it is `BinaryFormatException` (§11).
+
+`MaxWireBytes` bounds the bytes one operation takes from its source and the bytes it emits to its
+destination, each counted from where the operation starts. On read, the pipeline never buffers more
+than this from the source (§7.1). On write, a finished frame longer than this is refused with
+`BinaryLimitException` before any byte is copied out (§7.2).
 
 ---
 
 # 6. Resource accounting rules
 
-`SerializationBudget` is cumulative within one operation and monotonic.
+`SerializationBudget` lives in the operation's `OperationState` and is cumulative within one
+operation and monotonic.
 
 `ConsumeElements(n)`:
 
@@ -513,61 +1295,82 @@ using a count.
 
 A charge is per element, never per byte, and the element type does not change it (§5.7).
 
+A declared count decides how memory is taken for it (INV-3): a collection whose count the bytes that
+remain could hold — at the element's fewest bytes on the wire — is created at that capacity, and one
+whose count they could not hold starts at a capacity of at most 1 024 and grows as elements arrive.
+Arrays follow the same rule (§17).
+
 ---
 
-# 7. Security stream mechanisms
+# 7. Metering and windowing over buffers
 
-There are two mechanisms, in three types.
+There are two mechanisms: metering and windowing. Neither is a stream: on the read side both are
+properties of `WireReader`, which reads memory; on the write side metering is a property of the
+serializer's `PayloadBuffer` and of the finished frame, which is checked before it is copied out.
 
 **Metering** — counting what one operation consumes or produces, relative to where it started.
 
-## 7.1 `MeteredReadStream`
+## 7.1 Metering on read
 
 > Caps the bytes this operation reads from a caller-owned stream.
 
-- counts from zero regardless of the caller stream's absolute position;
-- exposes `RemainingBytes` — the lesser of the remaining budget and the bytes the source can still
-  physically deliver — so a declared length is rejected before it drives an allocation. A chain of
-  meters propagates the physical truth, because each one answers for itself;
-- classifies a declaration it cannot satisfy by which bound it broke: beyond the configured ceiling
-  is `BinaryLimitException`, while within the ceiling but beyond the remaining bytes means the
-  payload is shorter than it claims, which is `BinaryFormatException`;
-- bounds a *read* by the budget alone, so an ordinary short read stays a truncation for the caller
-  to report rather than being reclassified as a limit violation;
-- wraps underlying `IOException` as `BinaryStreamException`;
-- never disposes the caller's stream.
+- the pipeline reads the source ahead into memory, from the caller stream's position, and never more
+  than the operation's budget: V1 reads its header (at most the largest header the format admits)
+  and then exactly the declared on-disk length; V0, which has no header, reads up to the tighter of
+  `MaxWireBytes` and `MaxPayloadBytes`, so `MaxPayloadBytes` applies symmetrically to reading and
+  writing. A byte array is already in memory and is decoded where it lies, cut to the same budget;
+- a phased V1 payload is decrypted and decompressed into pooled buffers, each cleared when the value
+  has been read; an unphased one is decoded straight from the bytes read;
+- the `WireReader` over those bytes knows exactly how many remain, so a declared length is rejected
+  before it drives an allocation;
+- a declaration the bytes cannot satisfy is classified by which bound it broke: beyond the budget is
+  `BinaryLimitException`, while within the budget but beyond the bytes the source delivered means the
+  payload is shorter than it claims, which is `BinaryFormatException`. A declared length the budget
+  admits is therefore never reclassified as a limit violation;
+- after a successful read the source's position is where the decoded bytes end — the end of a V1
+  frame, or the end of a V0 root value;
+- underlying `IOException` is wrapped as `BinaryStreamException`;
+- the caller's stream is never disposed.
 
-Read paths compose it: V1 meters the wire; V0 meters the wire and the payload independently, so
-`MaxPayloadBytes` applies symmetrically to reading and writing.
-
-## 7.2 `MeteredWriteStream`
+## 7.2 Metering on write
 
 > Caps the bytes this operation produces.
 
-- the budget is relative to the destination's starting position, so appending to a stream that
+- the payload is written into the serializer's `PayloadBuffer`, which never hands out space past
+  its budget — `MaxPayloadBytes`, and under V0, where the payload is the whole frame, the tighter of
+  `MaxPayloadBytes` and `MaxWireBytes` — so a graph that would exceed it fails with
+  `BinaryLimitException` while it is being written;
+- the budget counts only the bytes this operation produces, so appending to a destination that
   already holds data costs the operation nothing;
-- rewinds used for keyed-field length patching do not double-charge: the budget follows the
-  high-water mark;
-- tracks its own cursor rather than polling the underlying stream on every write;
-- wraps underlying `IOException` as `BinaryStreamException`;
-- never disposes the caller's stream.
+- a keyed field's length is patched in place in the buffer, over bytes already counted, so a patch
+  is never charged twice: the budget follows the high-water mark;
+- the finished frame is checked against `MaxWireBytes` before it leaves; a frame longer than the
+  budget is `BinaryLimitException`, and the destination receives nothing (§2.6);
+- the frame is then copied to the destination once, in order. A destination is never asked to seek,
+  to report its position or its length, so any writable stream and any buffer writer will do;
+- an `IOException` from a stream destination, while writing or flushing, is wrapped as
+  `BinaryStreamException` with the original preserved;
+- the caller's stream is never disposed.
 
 **Windowing** — exposing exactly one declared subrange.
 
-## 7.3 `WindowReadStream`
+## 7.3 The field window
 
-> Exposes exactly one declared subrange of an already metered stream.
+> `WireReader.Slice(length)`: a reader over exactly one declared subrange of the payload.
 
 Used for known keyed-field payloads. If a field declares `N` bytes, its decoder may consume at most
-`N` bytes through the window and cannot read into the next field. The window knows its
-`RemainingBytes` and classifies an over-read as `BinaryFormatException`, because running past a
-declared window means the payload is shorter than it claims.
+`N` bytes through the window and cannot read into the next field. The window knows exactly how many
+bytes remain and classifies an over-read as `BinaryFormatException`, because running past a declared
+window means the payload is shorter than it claims.
 
-A window never materializes the field payload merely to enforce the boundary, and a known field is
-decoded through it while sharing the parent operation's budget and reference state.
+A window never copies the field payload merely to enforce the boundary, and a known field is decoded
+through it while sharing the parent operation's budget and reference state.
 
-Unknown keyed fields are skipped in bounded chunks rather than copied into a single attacker-sized
-byte array.
+Unknown keyed fields are skipped by moving past their declared length, never copied into an
+attacker-sized byte array.
+
+---
+
 # 8. Exception taxonomy
 
 The exception hierarchy is part of the public API contract:
@@ -592,8 +1395,16 @@ Invalid serializer/provider/security configuration.
 Examples:
 
 - invalid `SerializationLimits`;
-- invalid configuration combinations;
-- unusable configured provider state.
+- invalid configuration combinations, keys supplied both through `WithEncryption` and `WithKeys`
+  among them;
+- a fixed key of a length the configured algorithm does not take (§13.2);
+- unusable configured provider state;
+- an algorithm that breaks its own statement (§12, §13): a ciphertext length below the plaintext
+  length, an encryption that writes other than the length it stated, a decryption reporting a
+  plaintext outside `0…ciphertext.Length`, a destination refused with `ArgumentException`, a checksum
+  size outside `1…255`;
+- a key id or a custom algorithm name that the header must carry holding a lone surrogate, which
+  UTF-8 cannot encode; it is refused on write, before anything reaches the destination.
 
 Not for null public arguments.
 
@@ -604,10 +1415,15 @@ Malformed or structurally invalid binary input.
 Examples:
 
 - truncated header/payload;
-- malformed 7-bit integers;
-- negative wire counts/lengths;
-- invalid markers;
-- inconsistent header lengths;
+- malformed 7-bit integers: truncated, longer than five bytes, beyond Int32, or not minimally encoded,
+  in every structural position — count, length, reference frame, key, version, payload mode, service
+  kind, service length, `onDiskLength` (§22.1);
+- a negative keyed field length (the one structural number that is a fixed-width `int32`);
+- a zero where a value's first number cannot carry null (§22.2);
+- the header rules of §11: service records out of order or repeated, service number 0, a critical bit
+  that does not match a known service, a record naming the algorithm `None`, an empty custom name, a
+  body not read exactly, a header beyond its 4 096-byte bound, a checksum of the wrong length for its
+  algorithm;
 - malformed keyed payload structure;
 - a duplicate key or element, or a null dictionary key, inside a container that admits neither (§23).
 
@@ -642,7 +1458,11 @@ Examples:
 
 - unsupported format version;
 - unknown built-in algorithm enum;
-- missing custom registration.
+- missing custom registration;
+- an unknown service record marked critical (§11);
+- a reserved payload-mode bit that is set (§11);
+- `ChaCha20Poly1305Encryption` on a platform that does not provide it — when options that encrypt
+  with it are built, and when a payload that names it is read (§13).
 
 ## 8.5 `BinaryIntegrityException`
 
@@ -655,6 +1475,9 @@ Examples:
 - cryptographic tag failure.
 
 A wrong AES key that causes authenticated-decryption failure is an integrity failure when the payload reaches the cryptographic authentication boundary.
+
+The associated data of an encrypted frame is the header itself (§13.1), so any edit of any header byte
+— `onDiskLength` included — that still parses fails the tag and is an integrity failure here.
 
 ## 8.6 `BinaryEncryptionException`
 
@@ -669,15 +1492,26 @@ Examples:
 - no key;
 - resolver returns no key;
 - configured key identity mismatch;
-- key provider cannot supply usable material.
+- key provider cannot supply usable material, a resolved key of a length the algorithm does not take
+  among it (§13.2);
+- `HkdfKeyProvider` asked for the key of a payload that names no key id, or of a key id holding a
+  lone surrogate, which has no UTF-8 bytes to derive from.
 
 `KeyId` is a selector; the header never supplies secret key bytes.
 
 ## 8.8 `BinaryStreamException`
 
-Underlying caller-stream I/O failure.
+Underlying caller-stream or caller-pipe I/O failure: an `IOException` from a `Stream` read, write,
+flush, position or length, from `PipeReader.ReadAsync` — a pipe whose writer completed with one, a
+connection reset — or from `PipeWriter.FlushAsync`, a pipe whose reader completed with one.
 
-The original `IOException` is preserved as `InnerException`.
+A caller's `IBufferWriter<byte>` — a `PipeWriter` among them — that hands out an empty span while the
+frame is being copied into it is a failed destination as well, and is `BinaryStreamException`; there
+is no inner exception, because the writer raised none. Part of the frame may already be in it (§2.6).
+
+The original `IOException` is preserved as `InnerException`. Anything else a stream or a pipe raises —
+`NotSupportedException` from a stream that cannot read or write, `InvalidOperationException` from a
+completed pipe — keeps its normal BCL semantics and is not wrapped.
 
 `BinarySerializer` must not globally catch `IOException` around the complete router/codec operation. Stream ownership and attribution are handled at stream boundaries.
 
@@ -699,9 +1533,17 @@ These remain intentionally outside `BinarySerializerException`:
 
 - `ArgumentNullException` — required public argument is null;
 - `ArgumentException` — invalid direct caller argument;
-- `NotSupportedException` — unsupported API capability, e.g. required seekability: reading, which
-  must detect the format version before consuming anything, and writing a keyed contract under a
-  format that does not buffer the payload (§10.2, §14.2).
+- `NotSupportedException` — an unsupported capability: a V0 payload read from a stream that cannot
+  seek, since it carries no length and is read ahead and moved back (§10.2); and an asynchronous
+  read that meets V0, since only V1 declares the length an asynchronous read awaits (§3.5). No read
+  requires seekability otherwise;
+- `ObjectDisposedException` — a `PooledPayload` read after it was disposed (§3.2);
+- `OperationCanceledException` — a cancelled asynchronous call (§3.5). It is standard .NET and
+  outside the taxonomy.
+
+An exception thrown by the caller's own code that an operation runs — a `Lazy<T>` factory (§23), a
+supplied type contract (§14.3) — is the caller's and propagates unchanged; it is not a framework
+exception the taxonomy maps (INV-10).
 
 Do not wrap every exception merely to force taxonomy symmetry.
 
@@ -757,13 +1599,17 @@ that was not configured by the writer.
 
 Beyond the payload itself it provides:
 
-- V1 header metadata;
-- compression selection;
-- checksum selection;
-- encryption selection;
-- `KeyId`;
-- `PreserveReferences` metadata and reference framing;
-- logical/physical length metadata.
+- the V1 header: a list of service records (§11);
+- compression, checksum and encryption, each a service record naming its algorithm;
+- `KeyId`, inside the encryption record;
+- the payload mode, which says whether the payload carries reference frames;
+- the length of the stored bytes, and with compression the uncompressed length.
+
+A new capability is a new service number. A reader refuses a service it does not know when the
+record marks it critical, with `BinaryFormatNotSupportedException`, and skips it by its length when it
+does not. Whether the payload uses reference frames is a property of the frame, not of the reader's
+configuration: `PreserveReferences()` decides what a writer produces, and a reader follows the payload
+mode.
 
 The type system, `[BinaryUnion]` polymorphism, keyed contracts and the configurable resource limits
 are not V1 features — they belong to the payload and to the engine, and apply to every format
@@ -803,16 +1649,13 @@ What V0 does not have:
 What V0 keeps is everything that lives below the envelope: the whole type system of §23,
 `[BinaryUnion]` polymorphism, keyed contracts, the limits and budgets of §5–6, and metering on both
 directions (§7.1). V0 is not a reduced engine — it is the same engine without a header, and for one
-value under one layout the payload bytes are identical in both formats (§22.8).
+value under one layout the payload bytes are identical in both formats (§22.7).
 
 Keyed contracts are a property of the type, not of the format, so a `[BinaryContract]` type encodes
-identically under both. One consequence is visible to the caller: a keyed field's length is written
-ahead of the field and patched once the field's size is known, so the payload stream must be
-seekable. V1 buffers the payload and always satisfies this; under V0, which writes straight to the
-destination, the requirement falls on the caller's destination stream, and one that cannot seek is
-`NotSupportedException` (§8.10). The `byte[]` entry points of §3 buffer into memory, so they are
-always seekable and are never affected. Positional writing carries no such requirement under either
-format.
+identically under both. A keyed field's length is written ahead of the field and patched once the
+field's size is known; under both formats that happens in the serializer's own buffer, and the
+finished bytes are copied to the destination once. A keyed write therefore works with any
+destination, seekable or not, and a write that fails leaves nothing in the destination.
 
 V0 and V1 must remain distinct wire formats. V1-specific behavior must not be accidentally required to parse valid V0 payloads.
 
@@ -833,12 +1676,36 @@ therefore an explicit decision and never an inference: `AllowV0Fallback` is what
 deliberate compact payload from unrelated bytes, and without it a stream that does not present the
 V1 magic number is rejected rather than parsed (§10.3). The name is read-side only.
 
-Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether a stream
+Writing V0 is selected by `WithVersion(0)` alone. `AllowV0Fallback` governs only whether bytes
 without the magic number may be *read* as V0, so the two choices are independent in both directions.
+
+**Where a V0 payload ends when read.** Nothing in the payload declares its length; the reader finds
+the end by decoding the root value:
+
+```text
+span / sequence       by default exactly one payload; trailing bytes → BinaryFormatException
+bytes-consumed forms  stop at the end of the root and report where (§3.4) — for payloads back to back
+seekable Stream       read ahead within the budget, then the position is restored to the end of the root
+non-seekable Stream   not readable without a length → NotSupportedException
+asynchronous read     not supported for V0 → NotSupportedException (§3.5)
+```
+
+V0 is read synchronously, from the caller's frame; asynchronous V0 *writes* are allowed.
+
+> V0 carries neither a magic number nor a length: it is a codec for protocols that already frame their
+> messages — a length prefix, a message type, a channel. The protocol knows where a message ends, so
+> the caller already holds one message's bytes and reads them synchronously. Waiting asynchronously
+> is for a reader that does not know where the message ends; with V0 the protocol knows, not Viper.
+
+The example of §3.5 shows both: a V1 frame awaited from a socket, and V0 payloads cut out of a pipe by
+the caller's own length prefix and read synchronously.
 
 ## 10.3 Routing
 
-Format routing first identifies the version from a seekable source.
+Format routing identifies the version from the first bytes the source has delivered: the magic
+number and the version are decoded from the buffered frame, so nothing is read twice and no source is
+asked to rewind. A versioned frame is identified by the magic followed by a complete varint version —
+five bytes for version 1, at most nine for any — and fewer bytes identify nothing.
 
 If V1 magic/version is recognized, V1 is selected.
 
@@ -849,52 +1716,73 @@ the caller knows that this channel carries headerless payloads.
 
 Unsupported recognized versions produce `BinaryFormatNotSupportedException`.
 
-Routing code may map an `IOException` raised by the version-detection probe to `BinaryStreamException`, but must not blanket-wrap the entire codec operation.
+An `IOException` while the identifying bytes are read is `BinaryStreamException`, raised where the
+source is read (§8.8); routing itself touches no source, and nothing blanket-wraps the codec
+operation.
 
 ---
 
 # 11. V1 header fields
 
-The V1 header carries:
+The V1 header is a list of service records between a fixed prefix and the length of what follows:
 
 ```text
-Compression
-CustomCompressionName
-ChecksumAlgorithm
-CustomChecksumName
-Encryption
-CustomEncryptionName
-KeyId
-PreserveReferences
-UncompressedLength
-CompressedLength
-OnDiskLength
-Checksum
+magic          4 bytes   0x52455342, little-endian
+version        varint    1
+payload mode   varint    bit 0: references; bits 1 and up reserved and zero
+service count  varint    the number of service records
+services       records   kind varint · length varint · body
+onDiskLength   varint    the bytes after the header; always present
+payload        onDiskLength bytes
 ```
 
-Phase consistency rules include:
+A service record's `kind` is `(number << 1) | critical`. The numbers, in the order their phases apply
+on write:
 
-```text
-Compression == None  → CompressedLength == UncompressedLength
-Compression != None  → UncompressedLength <= CompressedLength × MaxDecompressionRatio
-Encryption == None   → OnDiskLength == CompressedLength
-```
+| Number | Service | Class | Kind | Body |
+|---|---|---|---|---|
+| 0 | — | — | `00` / `01` | reserved: `BinaryFormatException`, so zeroed memory is never read as a service |
+| 1 | checksum | annotation, critical | `03` | `id · [name] · hash` — the hash is the rest of the body, 1…255 bytes |
+| 2 | compression | transform, critical | `05` | `id · [name] · uncompressedLength varint` |
+| 3 | encryption | transform, critical | `07` | `id · [name] · keyId` — `keyId` is 0 for none, otherwise its UTF-8 length + 1 and the bytes |
 
-The expansion rule is a configured limit rather than a property of the format, so breaking it is
-`BinaryLimitException` while the other two are `BinaryFormatException`.
+`id` is the algorithm enum value as a varint; `name` is present only when `id` is `Custom` (255, the
+varint `FF 01`): a varint length and 1…256 UTF-8 bytes. An absent phase is an absent record. The order
+of the transforms is fixed by the format, not by the records: serialize, checksum the raw payload,
+compress, encrypt; reading reverses it.
 
-Lengths must be non-negative and within their corresponding phase limits.
+Rules, each `BinaryFormatException` unless noted:
 
-Checksum length must fit the header representation.
+- the magic must match;
+- an unknown version is `BinaryFormatNotSupportedException`;
+- a set reserved payload-mode bit is `BinaryFormatNotSupportedException`;
+- records appear in strictly ascending number: a repeated or out-of-order number is malformed;
+- number 0 is malformed;
+- a known number whose critical bit is not the one this table gives is malformed;
+- an unknown number marked critical is `BinaryFormatNotSupportedException`; one marked skippable is
+  skipped by its length;
+- a body is read exactly: bytes left over or read past are malformed;
+- a record naming the algorithm id `None` is malformed; an id this build does not define is
+  `BinaryFormatNotSupportedException`;
+- a custom algorithm's name is 1…256 UTF-8 bytes: an empty one is malformed;
+- a checksum's hash is as long as the named algorithm's `HashSizeInBytes`;
+- the whole header is at most **4 096 bytes**, checked before each body is read: a body must fit what
+  is left of the bound;
+- every varint is minimally encoded (§22.1);
+- the declared lengths are checked against the limits in the order of §5.10, a breach being
+  `BinaryLimitException`;
+- header truncation is malformed.
 
-Each header string — `CustomCompressionName`, `CustomChecksumName`, `CustomEncryptionName` and
-`KeyId` — is limited to **256 UTF-8 bytes**. The ceiling is fixed by the format, not configured:
-these fields name an algorithm or select a key, so `MaxStringBytes`, which bounds payload data, does
-not apply to them. A declared header string above the ceiling is `BinaryFormatException`, because a
-fixed format bound describes malformed input rather than a policy breach; a configured value too
-large to write is `BinaryConfigurationException`.
+Each header string — a custom algorithm name and `KeyId` — is limited to **256 UTF-8 bytes**. The
+ceiling is fixed by the format, not configured: these fields name an algorithm or select a key, so
+`MaxStringBytes`, which bounds payload data, does not apply to them. A declared header string above
+the ceiling is `BinaryFormatException`, because a fixed format bound describes malformed input rather
+than a policy breach; a configured value too large to write is `BinaryConfigurationException`, as is a
+checksum whose hash is not 1…255 bytes.
 
-Header truncation is `BinaryFormatException`.
+`RequireChecksum` and `RequireEncryption` are satisfied by the presence of the record — and for
+encryption by an algorithm that reports `AuthenticatesAssociatedData` — and a missing one is
+`BinaryIntegrityException`.
 
 ---
 
@@ -913,6 +1801,25 @@ expected decompressed output ≤ compressed input × MaxDecompressionRatio
 Phase sizes are checked by the pipeline, not by the algorithm: `ICompressionAlgorithm` implementations
 receive no limits and are invoked inside the barrier.
 
+```csharp
+public interface ICompressionAlgorithm
+{
+    CompressionAlgorithm Kind { get; }
+    string? CustomName { get; }
+
+    void Compress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination);
+
+    // Writes exactly expectedLength bytes; more, fewer or an unterminated stream is BinaryFormatException.
+    void Decompress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination, int expectedLength);
+}
+```
+
+One method per direction, and no default members (§3). Both directions write into an
+`IBufferWriter<byte>` the serializer supplies: on the way out it refuses space past
+`MaxCompressedBytes`, which is `BinaryLimitException`; on the way in it refuses space past the
+declared length, which is `BinaryFormatException`. The built-ins are `DeflateCompression` and
+`BrotliCompression`; neither goes through a `MemoryStream`.
+
 Decompression produces **exactly** the declared uncompressed length. Producing fewer bytes and
 producing more are both rejected, so a payload cannot declare a size that hides part of its own
 content.
@@ -928,24 +1835,23 @@ a declared size is not backed by bytes that must physically arrive. Two rules re
 and both are needed:
 
 - **The declared expansion is bounded against the delivered bytes.** `MaxDecompressionRatio` (§5.10)
-  relates `UncompressedLength` to `CompressedLength`, and `CompressedLength` bytes are metered and
-  physically present before anything is decompressed. The buffer a payload can ask for is therefore
+  relates the declared uncompressed length to the compressed bytes — `onDiskLength` without
+  encryption, the plaintext after decryption with it — and those bytes are metered and physically
+  present before anything is decompressed (§5.10). The buffer a payload can ask for is therefore
   proportional to the payload it actually delivered, not to the number it wrote in its header.
-- **The buffer follows the output, not the declaration.** An algorithm that reports
-  `SupportsIncrementalDecompression` is driven through a writer that starts at 64 KiB and grows to
-  the declared length only once that much output exists. A payload that declares a large expansion
-  and then produces nothing therefore costs the probe and nothing more.
+- **The buffer follows the output, not the declaration.** Every algorithm, built-in or custom,
+  decompresses into a writer that starts at 64 KiB and grows to the declared length only once that
+  much output exists. A payload that declares a large expansion and then produces nothing therefore
+  costs the probe and nothing more. There is no other mode.
 
-The first rule alone leaves the ratio as the residual amplification; the second alone leaves an
-algorithm without an incremental path unbounded. Together the allocation is at most
-`min(MaxPayloadBytes, delivered × MaxDecompressionRatio)`, and never more than 64 KiB until the
-payload has genuinely produced that much.
+The first rule bounds the declaration; the second keeps the allocation behind the output. Together
+the allocation is at most `min(MaxPayloadBytes, delivered × MaxDecompressionRatio)`, and never more
+than 64 KiB until the payload has genuinely produced that much.
 
-`ICompressionAlgorithm` exposes the incremental overload with a default implementation and the
-`SupportsIncrementalDecompression` flag beside it, exactly as `IEncryptionAlgorithm` exposes its
-associated-data overloads (§13.1). The serializer calls the incremental overload when, and only when,
-the flag says it exists; an algorithm that offers only the span overload is decompressed into a
-buffer of the declared size, still bounded by the first rule.
+The service holds every algorithm to the declared length whatever the algorithm reports: output that
+stops short is `BinaryFormatException` once the algorithm returns, and output that runs past it is
+refused by the writer before a byte lands. A framework `InvalidDataException` from an algorithm is
+`BinaryFormatException` with the cause preserved.
 
 ---
 
@@ -954,33 +1860,92 @@ buffer of the declared size, still bounded by the first rule.
 The encryption layer enforces:
 
 ```text
-plaintext input ≤ MaxCompressedBytes
-ciphertext output ≤ MaxEncryptedBytes
-ciphertext input ≤ MaxEncryptedBytes
-expected plaintext length ≤ MaxCompressedBytes
+plaintext input ≤ MaxCompressedBytes          on write
+ciphertext output ≤ MaxEncryptedBytes         on write, from the exact ciphertext length, before encrypting
+ciphertext input ≤ MaxEncryptedBytes          on read, from onDiskLength, before the buffer exists
+plaintext output ≤ MaxCompressedBytes         on read, after decryption (§5.10)
 ```
 
-The declared plaintext length may never exceed the ciphertext actually delivered, so a short frame
-cannot force a large allocation by claiming one.
+An encrypted frame does not declare its plaintext length. Decryption works in a buffer no longer than
+the ciphertext actually delivered, so a short frame cannot force a large allocation by claiming one;
+the plaintext is measured against its limits only after it exists (§5.10).
+
+```csharp
+public interface IEncryptionAlgorithm
+{
+    EncryptionAlgorithm Kind { get; }
+    string? CustomName { get; }
+    bool AuthenticatesAssociatedData { get; }
+    int KeySizeInBytes { get; }
+
+    int GetCiphertextLength(int plaintextLength);                        // exact, and ≥ plaintextLength
+
+    // destination.Length == GetCiphertextLength(plaintext.Length); filled completely;
+    // returns the number of bytes written.
+    int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
+
+    // destination.Length == ciphertext.Length; returns the plaintext length.
+    int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
+}
+```
+
+One method per direction, always with associated data, and no default members (§3). The ciphertext
+length is a function of the plaintext length: `Aes256GcmEncryption` and `ChaCha20Poly1305Encryption`
+both state `plaintextLength + 28` (a 12-byte nonce and a 16-byte tag). An algorithm that cannot state
+its ciphertext length before encrypting — one that adds random padding, say — cannot be plugged in.
+
+The service holds an algorithm to what it states, and every breach is a fault of the algorithm, not
+of the data:
+
+```text
+GetCiphertextLength   negative or below the plaintext length   → BinaryConfigurationException
+Encrypt               returns other than destination.Length,
+                      or refuses the destination with ArgumentException → BinaryConfigurationException
+Decrypt               returns outside 0…ciphertext.Length,
+                      or refuses the destination with ArgumentException → BinaryConfigurationException
+KeySizeInBytes        a fixed key given to WithEncryption      → BinaryConfigurationException at Build()
+                      a key obtained from a provider           → BinaryEncryptionKeyException when resolved
+```
+
+A `CryptographicException` is `BinaryEncryptionException` on the way out and
+`BinaryIntegrityException` on the way in, the cause preserved.
+
+Because the length is exact, an encrypted frame is sized before anything is encrypted: the ciphertext
+length is checked against `MaxEncryptedBytes`, the key is resolved and checked, the header is written
+with its final `OnDiskLength`, and the whole frame is checked against `MaxWireBytes` — all before the
+destination is touched. The algorithm then encrypts straight into the destination: into the span an
+`IBufferWriter<byte>` hands out for the whole frame, which is advanced once the frame is complete; into
+the new array for `Serialize` and `SerializePooled`; into one pooled buffer written to a stream in one
+call. A writer that hands out less than the whole frame receives it through a pooled buffer instead.
+A cipher that fails therefore leaves nothing committed in any destination (§2.6). The associated data
+— a copy of the header's bytes — is held only when the payload is encrypted, in memory the serializer
+owns, and is cleared once the frame is written or dropped; so is the plaintext on the way in and on
+the way out.
+
+`ChaCha20Poly1305Encryption` comes from the platform's cryptography library, and not every platform
+provides it. Where it is missing, `Build()` refuses options that encrypt with it, and a payload that
+names it is refused when read, both with `BinaryFormatNotSupportedException` naming the algorithm.
 
 ## 13.1 Authenticated metadata
 
-The V1 header is bound to authenticated encryption as associated data. The canonical image covers the
-format version, the algorithm kinds and custom names, the key id, `PreserveReferences`,
-`UncompressedLength`, `CompressedLength` and the checksum bytes.
+The V1 header is bound to authenticated encryption as associated data, and the associated data is
+the header itself: the exact bytes on the wire from the first byte of the magic to the last byte of
+`onDiskLength`. There is no separate image to recompute. Because the ciphertext length is exact
+(§13), `onDiskLength` is known before encryption, so the header is written first and its bytes are
+handed to the algorithm; a reader hands over the same bytes it parsed. The associated data is never
+longer than the 4 096-byte header bound.
 
-`OnDiskLength` is excluded because it is only known after encryption; it is self-verifying, since a
-wrong value either truncates the read or fails the authentication tag.
+Altering any header byte — the version, the payload mode, a service record, `onDiskLength` — either
+breaks the header's own rules (§11) or fails the tag with `BinaryIntegrityException`.
 
-Altering any authenticated header byte fails with `BinaryIntegrityException`.
-
-`IEncryptionAlgorithm` exposes AAD-aware overloads with default implementations that ignore the
-associated data, together with `AuthenticatesAssociatedData`. The pipeline always builds the image
-and always hands it to the AAD-aware overload, whatever the flag says, so the flag is a declaration
-about the algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's
-undertaking that the associated data takes part in the authentication tag; the engine cannot verify
-it. An algorithm that reports `false` — including one that simply does not implement the AAD-aware
-overloads — leaves the V1 header as unauthenticated metadata.
+`IEncryptionAlgorithm` has no method without associated data and no default for
+`AuthenticatesAssociatedData`: every algorithm states it. The pipeline always hands the header over,
+whatever the property says, so the property is a declaration about the
+algorithm rather than a switch over the pipeline. Reporting `true` is the implementer's undertaking
+that the associated data takes part in the authentication tag; the engine cannot verify it. An
+algorithm that reports `false` leaves the V1 header as unauthenticated metadata.
 
 `RequireEncryption` refuses such an algorithm from both sides, and the two sides are different
 failures:
@@ -1011,15 +1976,41 @@ which hands out owned copies.
 - Disposing a provider clears only its own copy; the caller's array is untouched.
 - Using a disposed provider throws `ObjectDisposedException`.
 - Temporary cryptographic buffers owned by the serializer are cleared when their lifetime ends.
-- Key material the configured algorithm cannot use — a wrong length, or none at all — is
-  `BinaryEncryptionKeyException` (§8.7), raised where the algorithm is used rather than where the key
-  was supplied: a key size belongs to the algorithm, so no entry point validates it on the way in.
+- Every algorithm states `KeySizeInBytes`. A fixed key given to `WithEncryption` is checked against
+  it by `Build()`, with `BinaryConfigurationException`; a key a provider resolves — for writing, or
+  for reading a payload whose algorithm the reader learns only from the header — is checked when it
+  is resolved, with `BinaryEncryptionKeyException` (§8.7), and a refused key is disposed at once. A
+  missing key is `BinaryEncryptionKeyException` too.
+- `HkdfKeyProvider` derives the key for an id as HKDF-SHA-256 over its root key, with the strict UTF-8
+  bytes of the key id as info — an id holding a lone surrogate is `BinaryEncryptionKeyException`, so
+  two ids never share a key through a substituted character — and an optional salt; the key size is a constructor argument, 32 by default.
+  The same id always yields the same key and different ids independent ones. The root key is copied
+  when the provider is built and is never exposed — the provider's only members are `Resolve` and
+  `Dispose` — and every derived key is an owned `SecretKey`. A payload that names no key id has
+  nothing to derive from: `Resolve(null)` is `BinaryEncryptionKeyException`.
 
 ---
 
 # 14. Contracts and members
 
 ## 14.1 Positional/default mode
+
+The member plan of a type is its type contract, `TypeContract<T>` (§2.4): supplied by the
+configuration's context (§14.3) — generated or written by hand — and otherwise built by reflection, as
+`ReflectedContract<T>`; it is the one description reader and writer share. Its
+member order is the total order below; a contract built any other way must produce the same plan
+(INV-12).
+
+The type contract is the unit a supplied contract replaces, and nothing else is replaced. A contract
+given to the serializer through a `BinarySerializerContext` (§14.3) — generated, or written by hand —
+implements `TypeContract<T>` for a type: the same description and the same member calls, in
+straight-line code instead of compiled accessors, while the engine, its call checks, the codecs and
+the wire stay as they are. What a contract must produce is fixed by the
+conformance suite (`Contracts/ConformanceTests`): for every object shape — positional, keyed,
+inherited, shadowed, overridden, union, struct — the layout, the members in order with their types
+and keys, construction, and the exact bytes the engine writes around the contract's calls and reads
+back through them. The suite reaches the contract through one seam, so it runs unchanged against any
+implementation it is handed.
 
 Eligible members include public fields/properties according to the accessor rules.
 
@@ -1083,6 +2074,14 @@ Keys are ordered numerically and encoded with 7-bit variable-length integers. On
 appear in strictly ascending order; a payload that repeats a key or lists one out of order is
 malformed (§22.3).
 
+Each field is `varint key · int32 length · payload`. The length is a fixed-width little-endian `int32`
+because it is patched after the field is written: a varint would need either a non-minimal spelling
+or a move of the field's bytes, quadratic in the nesting depth. The keyed field count that precedes
+the fields is the object's first number, so for a keyed class that is not reference-framed it
+carries the object's null: zero is null, and any other value is the count plus one (§22.2). A keyed
+struct, a keyed type behind a union tag, and a keyed class after a reference frame write the count as
+it is.
+
 `[BinaryContract]` is **inherited**. A type extending a contract type is itself a contract type, and
 every member it adds needs its own `[BinaryKey]` or `[BinaryIgnore]`; an unmarked one is
 `BinaryTypeException` naming it. The hierarchy shares one key space, so a key the base claims cannot
@@ -1093,10 +2092,208 @@ declared length, exactly as it skips any other key it does not know.
 Unknown keyed fields are skipped according to their declared payload length and do not invoke a formatter for an unavailable/unknown member type.
 
 Keyed mode is independent of the wire format version: the encoding lives in the payload, so it
-applies under V0 and V1 alike. It does require a seekable payload stream, because each field's length
-is patched after the field is written. V1 buffers the payload, so the requirement never reaches the
-caller; under V0 it falls on the caller's destination stream, and one that cannot seek is
-`NotSupportedException` (§10.2, §8.10).
+applies under V0 and V1 alike. Each field's length is patched after the field is written, in the
+serializer's own buffer, so keyed mode places no requirement on the caller's destination (§10.2).
+
+## 14.3 Supplied contracts
+
+The type contract is public, in `ViShap.Viper.Contracts`, so that a contract can be supplied instead of
+built by reflection: `TypeContract<T>`, the `MemberWriter` and `MemberReader` it is handed,
+`MemberDescription` and `MemberLayout`. What a contract implements, and what the engine checks each
+of its calls against, is §2.4; nothing in the seam reaches a byte, a count, a position or a limit
+(INV-2, INV-5).
+
+**The description.** The protected constructor of `TypeContract<T>` takes the layout, the members in
+the order the contract writes them and whether `Create` produces an instance. It copies the member
+array and refuses, with `BinaryConfigurationException`:
+
+```text
+an undefined layout, a null member array or a null member
+a positional member with a key, a keyed member without one
+keys that are not strictly ascending — a repeated key included
+```
+
+`MemberDescription` refuses an empty or null name, a null member type and a negative key, likewise.
+
+**The context.** A `BinarySerializerContext` holds at most one contract per type. A derived class adds
+them from its constructor with the protected `Add<T>(TypeContract<T>)`; a null contract is
+`ArgumentNullException`, a second contract for a type and a contract added after options were built
+with the context are `BinaryConfigurationException`. `[BinaryContext(typeof(…), …)]` on a `partial`
+context lists root types for the source generator and has no effect at run time. A context holds no
+other state, so one context serves any number of options and threads; a contract is shared the same
+way and holds no state of an operation.
+
+**The options.** `WithContracts(context)` gives a configuration a context; `Build()` takes a snapshot
+of it, frozen on first use and shared by every later build. For each member-encoded type an operation
+meets — a declared type, a union arm, the runtime type in a polymorphic slot — the engine uses the
+context's contract when it holds one, and otherwise builds the contract by reflection, as without a
+context, while the reflection path is on (§14.5). `RequireGeneratedContracts()` turns that fallback into
+`BinaryConfigurationException` naming the type, raised when an operation first needs the type's
+contract; `Build()` refuses it without `WithContracts`. With the reflection path off, the fallback is
+that error whatever the options say. A union base whose values are always one of its arms needs no contract, because the
+engine never encodes its members itself; a contract held for a type the engine encodes by a formatter
+— a collection, a string, a scalar — is never consulted. The diagnostics of §19 read with the
+contracts of the options they are given.
+
+**What the engine trusts.** The engine checks every call against the supplied contract's own
+description, not against the one reflection would build: a supplied contract decides the layout and
+the member list of its type. Whether a value carries its null in a flag or in its keyed field count
+(§22.2) follows the layout of the contract in force for that operation. A contract that describes its
+type as reflection does writes exactly the bytes reflection writes; that is the guarantee a generated
+contract gives, and the conformance suite (§14.1) and the byte-identity tests hold it.
+
+**The contract's own code.** `Create`, `Write`, `ReadPositional` and `ReadKeyed` are the caller's code,
+run at points the payload and the caller's value decide. An exception one of them throws propagates
+unchanged — wrapped, it would add nothing the caller could not already catch, as for a `Lazy<T>`
+factory (§23) — and a write it interrupts leaves nothing in its destination, as no failed write does
+(§2.6, INV-15). A `Create` of a reference type that returns `null` is `BinaryTypeException` naming the
+type, raised before the instance would be registered for a reference or its members read: the engine
+has no instance to read into, and a null instance never reaches the reference table.
+
+**Misuse of the seam.** A `MemberWriter` or `MemberReader` is used through the reference it is handed.
+A copy — passed to a helper by value, or assigned to a local — or a default instance is refused with
+`BinaryTypeException` the moment either copy is used after the other, and the operation leaves
+nothing in its destination. The engine counts every member call of the operation, and each writer and
+reader remembers the count after its own last call, so no copy can write or read past the checks.
+
+## 14.4 The source generator
+
+`ViShap.Viper.Generator` is a Roslyn incremental source generator, shipped as its own package and
+packed as an analyzer (`analyzers/dotnet/cs`); it runs only in the compiler, and no shipped assembly
+references it. The meta-package `ViShap.Viper` depends on it, so one install brings it; it is inert in a
+project with no `[BinaryContext]` class.
+
+**What it generates.** For each `partial` class deriving from `BinarySerializerContext` and marked
+`[BinaryContext(typeof(…), …)]`: a contract (§14.3) for each listed type and for every member-encoded
+type those reach — through member types, array elements, the arguments of the supported generic
+definitions, the elements of concrete collections, nullable values and `[BinaryUnion]` arms, classified
+by the serializer's own rules (§23) — and, in the context, a public parameterless constructor that adds
+them and a static `Default` instance. Each contract is the description of §14.1/§14.2 — the members of
+every level of the hierarchy, each override once at its most derived declaration with the attributes
+nearest to it, a hidden member as a second member, the total order of INV-12 or ascending keys — with
+`Create`, `Write`, `ReadPositional` and `ReadKeyed` as straight-line code. A public member is reached
+directly; a non-public one, an `init` or non-public setter, and a constructor that is not accessible or
+leaves required members unset, through `[UnsafeAccessor]`, declared over the generic definition when the
+declaring type is generic. Nothing generated holds a loop, a length, a count, a limit, a reference frame,
+a tag written or read, or a byte: those stay in the engine (INV-2, INV-5). The union map is the one
+place a tag appears, as data: the context offers it as `SupportedTypes.Union<T>((tag, typeof(Arm)), …)`,
+exactly the arms the `[BinaryUnion]` attributes of `T` declare, and the engine writes and reads the tag.
+
+**Byte identity.** A generated contract has exactly the description the reflected contract has, so a
+value writes the same bytes with the context and without it, and each reads the other's payloads, under
+every version and option. The conformance suite runs a second time against generated contracts, the
+frozen fixtures are read and written back through them, and a corpus of every rule is compared byte for
+byte with reflection.
+
+**What it leaves to reflection.** A type declared in another assembly (whose non-public members the
+compiler cannot see), deriving from one, not accessible from the context, open generic, static, a ref
+struct, or with a member the generated code cannot name (an explicit interface implementation, a fixed
+buffer, a type not accessible from the context) gets no contract; warning `VPR019` names it, and
+`RequireGeneratedContracts` makes its use a `BinaryConfigurationException` (§14.3).
+
+**Diagnostics.** Every rejection the serializer makes when it builds a contract by reflection is a
+compiler error with its own id, reported for a type the context reaches; the serializer keeps rejecting
+the same things at run time for a type without a generated contract:
+
+```text
+VPR001  error    [BinaryContext] class not partial (nor every type it is nested in)
+VPR002  error    [BinaryContext] class generic, abstract, static, or not deriving from BinarySerializerContext
+VPR003  error    [BinaryContext] class declares a parameterless constructor or a member named Default
+VPR004  error    [BinaryKey] without [BinaryContract]
+VPR005  error    [BinaryInclude] with [BinaryIgnore]
+VPR006  error    duplicate [BinaryOrder]
+VPR007  error    [BinaryInclude] on a contract member
+VPR008  error    [BinaryOrder] on a contract member
+VPR009  error    [BinaryKey] with [BinaryIgnore]
+VPR010  error    contract member with neither [BinaryKey] nor [BinaryIgnore]
+VPR011  error    negative [BinaryKey]
+VPR012  error    duplicate [BinaryKey]
+VPR013  error    delegate member
+VPR014  error    member type with no representation on the wire (pointer, ref struct)
+VPR015  error    [BinaryUnion] tag outside 0-255
+VPR016  error    duplicate [BinaryUnion] tag
+VPR017  error    [BinaryUnion] type not assignable to the base
+VPR018  warning  abstract type or interface without [BinaryUnion], whose values cannot be read back
+VPR019  warning  type described by reflection, with the reason
+VPR020  error    two listed types, or a listed type and a member of the context, share the name of a type information property
+VPR021  error    VPR019 where the application turns the reflection path off (ViperReflectionEnabled is false)
+```
+
+`VPR018` is a warning because the reflected contract of such a type builds: the serializer refuses a
+value of it only when one is read, and writes a null of it. `VPR021` replaces `VPR019` when the build
+property `ViperReflectionEnabled` is `false` (§14.5): the type would have no description at run time.
+
+**Supported types and type information.** Besides the contracts, the constructor makes every type the
+walk reaches supported (§14.5) — each container, array, nullable value, enum and member-encoded type,
+with the union map its `[BinaryUnion]` attributes declare when they are sound, and a custom collection
+by its type and element type alone — in ordinal order of the types'
+names, and assigns one public property of type information per type the attribute lists that it makes
+supported or that is a scalar: `BinaryTypeInfo<Order> Order`, named after the type's simple name, a
+generic type's arguments each after an underscore (`List_Order`), an array's element followed by
+`_Array` and its rank above one (`Int32_Array2`), a nullable value as `Nullable_` and its underlying
+type. A type the generated code cannot name gets no entry.
+
+**Trimming and native AOT.** A context whose walk reaches every type of a value describes it entirely:
+its contracts remove the member reflection of each type, and its supported types the construction of
+every codec. The entry points that take its type information (§3.1) carry no requirement; those without
+it keep `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` (§3).
+
+## 14.5 Supported types and type information
+
+**Supported types.** `ViShap.Viper.Contracts.SupportedTypes` has one static method per entry of the
+table of §23 that a caller's types close: one per supported generic definition, named after it
+(`List<T>()`, `IDictionary<TKey, TValue>()`, `Tuple<T1, …, T7, TRest>()`, `ImmutableArray<T>()`, …),
+and `Array<T>()` for `T[]`, `MultiDimensionalArray<TArray, TElement>()` for an array of rank 2 or more,
+`Nullable<T>()`, `Enum<T>()`, `Collection<TCollection, T>()` for a concrete collection no
+definition claims, `Object<T>()` for a member-encoded type and `Union<T>(params (int Tag, Type Type)[])`
+for one with a union map. The scalars have no method: their codecs are built by statically typed code
+in every configuration. Each method returns a `SupportedType` naming its declared type, which a context
+adds with `protected Add(SupportedType)` from its constructor; the encoding is the one the reflection
+path builds for the same type — the same codec over the same shape, so a supported type never changes
+a byte (INV-20).
+
+A method refuses what its entry does not claim, with `BinaryConfigurationException`: `Object<T>` and
+`Union<T>` a type another entry claims (a scalar, an enum, an array, a collection, a supported generic
+type, a nullable value, a delegate), and `Object<T>` a type that declares `[BinaryUnion]`;
+`Collection<TCollection, T>` a type another entry claims or whose `ICollection<T>` element the rules of
+§23 take to be another; `MultiDimensionalArray` anything but an array of `TElement` of rank 2 or more;
+`Union<T>` a tag outside 0–255, a tag or a type given twice, a `null` type, a type not assignable to
+`T`, a `T` that declares no `[BinaryUnion]` arm or arms the serializer refuses (§15), and arms that differ
+from the ones its `[BinaryUnion]` attributes declare — another tag for an arm, an arm missing or one
+more. The arms are compared as a set, so their order is free; the union map offered is the one the
+reflection path reads from the attributes, which `Union<T>` reads to compare. `Collection<TCollection, T>`
+takes no operation: `TCollection` is constrained to `new()`, and the shape creates it with that
+constructor. It reads a collection only when the collection has a public instance `Add(T)`, declared on it
+or inherited, found by the rule the reflection path uses; without one it writes the collection and refuses
+to read one with `BinaryTypeException`. A class is filled through that `Add(T)` when it returns nothing, a
+`bool` or a reference, whatever it returns being discarded; a value-type collection, and a class whose
+`Add(T)` returns another value, through its `ICollection<T>.Add`, on the instance being read, so no element
+and no collection is boxed (INV-17). No method of `SupportedTypes`
+takes anything an offer could be made to differ by, so every offer is the reflection path's encoding by
+construction (INV-20).
+
+**Where a supported type takes effect.** Adding one makes its codec the one the serializer uses for that
+type in the process, unless the type was already used before any context added it: the first offer of a
+type is kept, and an offer after the type's first use is ignored. Every offer of a type is the codec the
+rules give that type, so which context offers it, and when, changes nothing an operation writes or reads;
+an offer is not a registry through which behaviour can be changed (§18, INV-7). A context refuses the
+same type twice and any type after options were built with it, as it refuses contracts (§14.3).
+
+**Type information.** `BinaryTypeInfo<T>` states that a context describes `T`: a context creates it with
+`protected TypeInfo<T>()` for a type it made supported, or a scalar, and refuses any other with
+`BinaryConfigurationException`; `TryGetTypeInfo<T>()` returns it, or `null`. It exposes `Type` and
+`Context`. The entry points of §3.1 and the dumper's of §19 that take it require the options to have been
+built with that context.
+
+**The reflection path.** The runtime switch `ViShap.Viper.ReflectionPath.IsEnabled` — a feature switch
+the trimming and AOT analysers understand, `true` unless set — decides whether a type no context offered
+may be described by reflection: its codec (§2), its contract (§14.3), the contract of a runtime type in
+a polymorphic slot (§15). With it off, each of those is `BinaryConfigurationException` naming the type,
+raised where the type is first used and before the destination is touched; never reflection (INV-19).
+The package `ViShap.Viper.Serialization` sets the switch from the MSBuild property
+`ViperReflectionEnabled`, which defaults to `false` for an application published trimmed or with native
+AOT (`PublishTrimmed`, `PublishAot`) — also in its JIT runs — and to `true` otherwise, and makes the
+property visible to the source generator (§14.4, `VPR021`).
 
 ---
 
@@ -1124,11 +2321,24 @@ degenerate case is a value written through `object`.
 Only registered tags appear on the wire. Type names never do, so a payload cannot name a type to
 construct.
 
+The polymorphic slot is the only place the engine boxes (INV-17): a value whose runtime type is not
+its declared type is written and read through the contract of its runtime type, found by that type.
+A value type in such a slot is boxed once, and on read its identity is registered and its members
+are read into that same box.
+
 ---
 
 # 16. References and cycles
 
-`PreserveReferences` changes wire interpretation through explicit reference markers/IDs.
+`PreserveReferences` changes wire interpretation through explicit reference frames. The frame is one
+7-bit integer before the value's shape: `0` is null, `((id << 1) | 0) + 1` is the first occurrence of
+`id`, whose shape follows, and `((id << 1) | 1) + 1` a back reference to `id`, which ends the value —
+the first occurrence of id 0 is `01`, a back reference to it `02`, the first occurrence of id 5 `0B`.
+The frame carries the value's null, so a count or a keyed field count after it is written as it is.
+
+Ids are explicit on the wire, not implied by the order of first occurrences. A reader that skips an
+unknown keyed field never sees the ids the writer assigned inside it, so a counter each side kept on
+its own would drift apart; an explicit id cannot.
 
 Rules:
 
@@ -1137,13 +2347,24 @@ Rules:
   shared; scalars, including strings, are not framed either;
 - first occurrence of a tracked object establishes identity;
 - later references point to the existing ID;
-- invalid marker values are `BinaryFormatException`;
 - an ID is declared **once**: a second first-occurrence under an ID already visible is
   `BinaryFormatException`, not an overwrite. Allowing it would give one graph a second spelling on
   the wire and would silently move the object that earlier references resolve to;
 - unknown reference IDs are rejected deterministically;
+- a back reference that resolves to an object the declared type cannot hold is
+  `BinaryFormatException`;
 - cycles without permitted reference preservation are rejected as graph/type errors;
 - the reader and writer use reference identity, not overridden `Equals`.
+
+Without `PreserveReferences`, a cycle is found by searching the path from the root to the value being
+written: an ancestor stack, never deeper than the depth budget admits, searched by reference for
+every structural reference-typed value. A value already on that path is a cycle and is
+`BinaryTypeException`, with the same diagnostic at every depth. A value that appears more than once
+without being its own ancestor — shared between siblings, or reachable along two paths — is not a
+cycle and is simply written again.
+
+The reference tables of one operation, and its ancestor stack, come from pools and go back to them
+cleared when the operation ends, so no object of one call is reachable from the next.
 
 ## 16.1 Registration order
 
@@ -1184,7 +2405,11 @@ used to allocate — the read source reports its remaining bytes, and a source t
 declaration is rejected first. Exceeding a configured ceiling is `BinaryLimitException`; exceeding
 what the payload physically contains is `BinaryFormatException`.
 
-For deserialization, variable-size arrays are built incrementally through a bounded-capacity growth path so a declared count alone does not force immediate maximum-size array allocation.
+For deserialization, an array whose count is backed by bytes — the array itself, at its size in
+memory, fits in the bytes that remain — is allocated at its final length and read into. Otherwise its
+elements are gathered in a pooled buffer as they arrive and one array of the final length is created
+at the end, so a declared count alone never forces an allocation in proportion to it. A collection's
+initial capacity follows the same rule, at the element's fewest bytes on the wire (§6).
 
 On the write path, a sequence with no O(1) count is materialized lazily and abandoned as soon as it
 crosses its limit, so an oversized or infinite `IEnumerable<T>` is rejected instead of enumerated.
@@ -1198,7 +2423,9 @@ Multidimensional arrays require:
 - product within `MaxArrayLength`;
 - zero-dimension behavior explicitly covered.
 
-`ImmutableArray<T>` serialization must obtain its backing array through `ImmutableCollectionsMarshal.AsArray<T>` rather than reflective invocation of an unavailable instance `ToArray` member.
+`ImmutableArray<T>` is written from its backing array in place and read into an array that becomes
+its backing array through `ImmutableCollectionsMarshal.AsImmutableArray<T>`; neither direction copies
+it or reaches it by reflection.
 
 The final writer path validates the resulting element count before encoding it.
 
@@ -1210,22 +2437,61 @@ The final writer path validates the resulting element count before encoding it.
 SerializationLimits      = immutable configuration
 SerializationBudget      = per-operation mutable accounting
 PhaseBudget              = per-phase size policy
-SerializationOperation   = everything one public call may consume
+OperationState           = everything one public call may consume: a struct passed by reference
 
-ValueReader              = read-side checked primitives   (the only byte access)
-ValueWriter              = write-side checked primitives  (the only byte access)
+WireReader               = read-side checked primitives over memory   (the only byte access)
+WireWriter               = write-side checked primitives into PayloadBuffer (the only byte access)
+PayloadBuffer            = the serializer's pooled write buffer: one byte budget, patching in place
+EncodedFrame             = one finished frame in pooled buffers, checked against the wire budget,
+                           copied to its destination once
+RentedBytes              = the pooled output of one pipeline phase, cleared when it is released
 ElementCount             = a count that has been validated and charged
 
-GraphReader / GraphWriter = graph traversal, depth, nodes, identity, keyed layout
-CompositeReader / Writer  = what a composite formatter may do: child values, a flag, a validated
-                            ElementCount, a validated ArrayShape — and no raw integer
-TypeContract              = members, keys, layout mode for one concrete type
-UnionMap                  = tag ↔ type map for one declared type
+Codec<T>                 = the engine's codec for one declared type: framing, traversal, the loop
+FormatterCache<T>        = the codec of T, resolved once and held in a static field: the codec a context
+                           offered, else a built-in codec, else the one FormatterRegistry builds while
+                           the reflection path is on, else one that reports the type unavailable
+GraphState               = the traversal of one payload: reference framing, tables, ancestor stack
+IScalarFormatter<T>      = the encoding of one self-contained value
+ISequenceShape<,,,>      = count, enumerate, build and complete a sequence; no count, no primitive
+IMapShape<,,,,>          = the same for key/value entries
+IArrayShape<,>           = a sequence whose elements lie in one array: exposed as a span, wrapped back
+ICompositeFormatter<T>   = a fixed child layout, through CompositeReader / CompositeWriter
+TypeContract<T>          = member order, access, construction, the response to a known key
+ReflectedContract<T>     = the type contract built by reflection, used when the configuration supplies none
+BinarySerializerContext  = the contracts a configuration supplies instead (§14.3); ContractSet is its snapshot
+MemberWriter / Reader    = what a type contract writes and reads its members through
+CompositeReader / Writer = what a composite formatter may do: child values, a validated ArrayShape
+                           and the elements behind it, read by the engine — and no raw integer
+ITypeContract            = the description of a TypeContract<T>: members, keys, layout mode,
+                           constructibility; what the engine checks every contract call against
+UnionMap                 = tag ↔ type map for one declared type
 ```
 
 There is exactly one read-side and one write-side primitive surface, and exactly one traversal
-owner. A formatter never has to decide which validation helper applies: the primitive it is given
-has already applied it.
+owner, the engine's codecs. A formatter never has to decide which validation helper applies: the
+primitive it is given has already applied it.
+
+**What is cached.** Three things, each built once, on first use, for the life of the process, and
+each safe when several threads use a type for the first time at once:
+
+- the codec of each declared type, in the static field of `FormatterCache<T>`: the codec a context
+  offered for the type before its first use (§14.5) — kept in a write-once static field per type, the
+  first offer winning — else the built-in codec of a scalar or a delegate, else the one the reflection
+  path builds while it is on, else one that reports the type unavailable. The shapes of the generic
+  definitions are a fixed table, closed once per type. Every offer of a type is the codec the rules give
+  it, so which of these fills the cache, and in which order, changes nothing an operation observes;
+- the reflected type contract of each member-encoded type, found by type, which is what the
+  polymorphic slot needs — a contract a context supplies is held by the options, not cached; the
+  codec of a member-encoded type remembers the contract the last snapshot it met gives its type,
+  paired with that snapshot and published with it in one write, so under another configuration it
+  looks the type up again and never answers with a contract that configuration does not hold;
+- the union map of each declared type.
+
+Nothing request-local takes part in building an entry, and an entry that fails to build — a delegate
+member, a duplicate key, a duplicate tag — is not kept, so every later use reports the same failure.
+There is no cache of reflective accessors: a shape calls a collection's own members, and a contract's
+accessors are compiled once per member.
 
 `Serialization*` names refer to the operation as a whole and are used for both directions;
 direction-specific types say `Read` or `Write` in the name.
@@ -1234,16 +2500,81 @@ direction-specific types say `Read` or `Write` in the name.
 
 # 19. Format inspection and diagnostics
 
-`BinaryFormatInspector.Peek(Stream)` requires a seekable stream and must restore the original stream position.
+`BinaryFormatInspector.Peek` reads the header of a span, a sequence or a stream. Over a span or a
+sequence it reads the bytes in place. The stream overload requires a seekable stream and must restore
+the original stream position, on success and on failure. It reports `BinaryHeaderInfo`: the format
+version, the payload mode (`PreserveReferences`), each algorithm with its custom name, the uncompressed
+length when the frame is compressed, the checksum the header records, the key id, and the lengths of
+the header and of the bytes after it. An unknown service marked skippable is skipped and not reported.
+
+Every overload has a second form that takes a `SerializationLimits`; the form without one uses
+`SerializationLimits.Default`. The limits are validated first — an invalid policy is
+`BinaryConfigurationException` — and bound what the header may declare: a declared length beyond them
+is `BinaryLimitException`, exactly as on a read (§5.10). A stream that cannot seek is
+`NotSupportedException`.
 
 Underlying stream I/O failure becomes `BinaryStreamException`.
 
 Returning `null` is reserved for data that is simply not recognized as a supported inspectable format; malformed recognized data is represented by the documented format exception.
 
-`BinaryFormatDumper.DumpHeader` renders the envelope of a payload as text. It is diagnostic tooling:
-it reports a failure as output instead of propagating it, which production serializer code must never
-do. It catches only `BinarySerializerException`; nothing in `src/` uses a broad catch as generic
-exception normalization.
+**Diagnostics.** A binary frame cannot be read by eye the way JSON or XML can. `BinaryFormatDumper`
+closes that gap: it turns a frame into something a person reads — what was written, where, and why it
+does not read back.
+
+```text
+DumpHeader(span | sequence | Stream)   the header as text: version, payload mode, each service,
+                                       the declared lengths, the checksum in hex; the stream seekable,
+                                       its position restored
+Dump(span, options?)                   without a type: the header, each phase undone with the options'
+                                       keys and verified, then the payload as annotated hex; bytes
+                                       without the magic are shown as a version 0 payload
+Dump<T>(span | sequence, options?)     with T as the schema: the payload as a tree of BinaryDumpNode
+DumpValue<T>(value, options?)          writes the value with the options and dumps what was written
+Compare<T>(expected, actual, options?) the first node at which two frames of T differ, or null
+Dump / DumpValue / Compare             each also takes the type information of a context before the
+  (…, BinaryTypeInfo<T>, options)      options, which must have been built with that context; those
+                                       forms build nothing by reflection (§14.5)
+```
+
+`BinaryDump` reports the format version, the header, the header and payload lengths, whether the
+checksum was verified and whether the frame was decrypted (each `null` when it does not apply), the
+tree, the failure with the offset and the path of the failing value, the depth and the number of
+nodes. `BinaryDumpNode` is one value: its name — the member, `[index]`, `{key}` of a map value, or the
+type for the root — its declared type (the runtime type for a union), its `BinaryDumpNodeKind`, its
+offset and its length in the payload — every byte of it, its framing and its children included — its
+value when it is a scalar, a keyed field's key, a union tag, a reference id, and for a back reference
+the path it points to. `ToString()` renders the report a person reads, `ToJson()` the same as JSON,
+`ToXml()` the same as XML with one element per node, and `ToHex()` every byte of the payload sixteen to a line, each line labelled with its node.
+
+```text
+Viper V1 frame · 1 069 bytes · header 41 bytes
+  compression  Brotli         4 096 → 1 000 bytes (×4.1)
+  checksum     XxHash3        9F 2C 71 04 BE 55 03 3A   verified
+  encryption   Aes256Gcm      key id "2026-q3"   decrypted, header authenticated
+payload 4 096 bytes as Order · depth 4 · 38 nodes
+@0000  Order                                           object · 5 members
+@0001  ├─ Id                        Int64            42
+…
+failure at @0F3A (3898) in Order.Lines[2].Note
+```
+
+Rules:
+
+- The dumper never throws for a malformed or hostile frame: it catches only `BinarySerializerException`
+  and keeps it in `BinaryDump.Failure`, with `FailureOffset` and `FailurePath` pointing at the value
+  that failed and the tree read up to it. It throws `ArgumentNullException` for a null stream and
+  `NotSupportedException` for a stream that cannot seek; a write that `DumpValue` cannot perform raises
+  what `Serialize` raises. It is diagnostic tooling: production serializer code never reports a failure
+  as output, and nothing in `src/` uses a broad catch as generic exception normalization.
+- It reads under the options' limits — `SerializationLimits.Default` when none are given — through the
+  ordinary read, with the engine's trace seam (§2.4) switched on; a hostile frame costs a dump what it
+  costs a read. String values are cut at 256 characters and bit arrays at 64 bytes in the tree.
+- It decrypts only with the options' keys. Without a key the phases stop at the ciphertext, `Decrypted`
+  is `false`, `Failure` is the key failure, and the report says so. Key material is never rendered; a
+  decrypted dump shows plaintext.
+- Values render with the invariant culture and times in UTC, so a dump reads the same on every machine.
+- `Compare<T>` walks both trees in order and reports the first node whose kind, type, value, key, tag or
+  number of children differs; offsets are not compared, so two encryptions of one value are equal.
 
 ---
 
@@ -1253,7 +2584,19 @@ Serializer-created readers/writers use `leaveOpen: true` where caller-owned stre
 
 `BinarySerializer` never disposes the caller's stream.
 
-A failed operation may leave the stream position at the point where the failure occurred unless a specific inspection API promises position restoration.
+Any readable stream is accepted, seekable or not. A V1 frame declares its length, so exactly one
+frame is read and nothing past it: the stream is asked for the identifying bytes, then for as much of
+the header as the bytes so far say it holds, then for the rest of the frame — never for a byte
+beyond it. A V0 payload declares no length, so it is read ahead and a seekable stream is left at the
+end of the root; from a stream that cannot seek it is `NotSupportedException` (§10.2). Bytes a
+declared length has not yet delivered are buffered as they arrive, so what a stream that cannot tell
+its length costs follows what it delivered, never what a header declared.
+
+A successful read leaves the stream positioned where the frame, or the V0 root, ends. After a failed
+or cancelled read the position is undefined — anywhere up to the furthest byte read — unless a
+specific inspection API promises position restoration.
+
+A write that fails before its frame is complete writes nothing to the stream (§2.6).
 
 Inspection APIs that promise non-consuming behavior must restore position even on failure.
 
@@ -1271,7 +2614,7 @@ Requiring encrypted input is an explicit policy:
 
 ```csharp
 BinarySerializerOptions.Configure()
-    .WithEncryption(new Aes256Gcm(), key)
+    .WithEncryption(new Aes256GcmEncryption(), key)
     .RequireEncryption()
     .Build();
 ```
@@ -1302,38 +2645,43 @@ are schema metadata, element counts are data. The cumulative metadata ceiling is
 
 ## 21.3 Audit findings
 
-The hostile-audit campaign recorded in `audit/Problems.cs` and the architecture audit in
-`Architecture-Audit.md` are closed by the layered design described in §2. Each finding is pinned by a
-test in `tests/.../Security` and `tests/.../Correctness`:
+The hostile-input audit that preceded the release, and the architecture audit in
+`Architecture-Audit.md`, are closed by the layered design described in §2. Each finding is pinned by
+the QA checkpoint named beside it, in `QA-Plan.md`:
 
 ```text
-S01 encryption capability vs policy          → RequireEncryption / RequireChecksum (§21.1)
-S02 authenticated V1 header metadata         → header AAD (§13.1)
-S03 graph-wide depth coverage                → engine-owned traversal (§2.4, §5.1)
-S04 graph-wide container-node accounting     → engine-owned traversal (§5.8)
-S05 V0 payload read boundary                 → metered payload on both directions (§7.1)
-S06 allocation ordering vs wire budget       → remaining-byte check before allocation (§17)
-S07 key-resolver buffer ownership            → SecretKey / IKeyProvider (§13.2)
-S08 disposal and ownership                   → SecretKey / IKeyProvider (§13.2)
-S09 exact decompression output               → exact-output contract (§12)
-S10 trailing typed-payload bytes             → root canonicity (§10.1)
-S11 eager IEnumerable materialization        → bounded materialization (§17)
-S12 cumulative keyed-field budget            → MaxTotalKeyedFields (§5.9a)
-C01 ref-struct value restoration             → ref overload reads the root (§3)
-C02 collection reference identity            → identity covers containers (§16)
-C03 unknown keyed fields + reference table   → ancestor-visible scopes (§16.2)
-C04 implicit positional polymorphism         → write-side rejection (§15)
-C05 BinaryKey/BinaryIgnore contradiction     → contract validation (§14.2)
-C06 operation-relative write budget          → MeteredWriteStream origin (§7.2)
-C07 primitive truncation exceptions          → checked fixed-size reads (§2.3)
-A01 populate-in-place on non-member types    → explicit rejection (§3)
-A02 ref-struct framing under references      → ref overload reads the root (§3)
-A03 object-declared values                   → write-side rejection (§15)
+S01 encryption capability vs policy          → RequireEncryption / RequireChecksum (§21.1)          ENC-20
+S02 authenticated V1 header metadata         → the header is the associated data (§13.1, §22.6)     ENC-05, ENC-06
+S03 graph-wide depth coverage                → engine-owned traversal (§2.4, §5.1)                  LIM-32
+S04 graph-wide container-node accounting     → engine-owned traversal (§5.8)                        LIM-18
+S05 V0 payload read boundary                 → metering on read (§7.1)                              V0-07
+S06 allocation ordering vs wire budget       → remaining-byte check before allocation (§17)         LIM-38
+S07 key-resolver buffer ownership            → SecretKey / IKeyProvider (§13.2)                     ENC-12
+S08 disposal and ownership                   → SecretKey / IKeyProvider (§13.2)                     ENC-14
+S09 exact decompression output               → exact-output contract (§12)                          CMP-10, CMP-11
+S10 trailing typed-payload bytes             → a frame or a root is consumed exactly (§3.4, §10.1)  ENV-03, API-22
+S11 eager IEnumerable materialization        → bounded materialization (§17)                        HST-26
+S12 cumulative keyed-field budget            → MaxTotalKeyedFields (§5.9a)                          LIM-21
+C01 ref-struct value restoration             → no ref overload exists; a struct is read with
+                                               Deserialize<T> and a struct owner is populated
+                                               in place by its contract (§3.3, §14.1)               CTR-32
+C02 collection reference identity            → identity covers containers (§16)                     REF-04
+C03 unknown keyed fields + reference table   → ancestor-visible scopes (§16.2)                      KEY-17
+C04 implicit positional polymorphism         → write-side rejection (§15)                           PM-08
+C05 BinaryKey/BinaryIgnore contradiction     → contract validation (§14.2)                          CTR-18
+C06 operation-relative write budget          → PayloadBuffer budget and frame check (§7.2)          STR-09
+C07 primitive truncation exceptions          → checked fixed-size reads (§2.3)                      HST-11
+A01 populate-in-place on non-member types    → explicit rejection (§3.3)                            API-24
+A02 ref-struct framing under references      → no ref overload exists (§3.3)                        CTR-32
+A03 object-declared values                   → write-side rejection (§15)                           PM-09
 ```
 
-Deferred by design, and **not** claimed by this contract: a public formatter contract, an async API,
-streaming (non-buffered) payloads, a V2 codec, constant-time checksum comparison, and source
-generators in place of expression-tree accessors.
+Deferred by design, and **not** claimed by this contract: a public formatter contract, an
+asynchronous engine (the engine never awaits, §2.4; asynchrony lives at the frame edge, §3.5), a V2
+codec, constant-time checksum comparison, and a generated codec graph — the source generator of
+§14.4 writes type contracts and names the supported types a context reaches (§14.5); the codecs stay the
+engine's, built by its own statically typed code. Native AOT without warnings is claimed for an
+application that reaches the serializer through the type information of its contexts (§3, §14.5).
 
 ## 21.4 Array length vs blob length
 
@@ -1355,14 +2703,21 @@ than a table of exceptions. Its consequence is that the default ceiling on a `by
 images or compressed blobs raises `MaxArrayLength` and `MaxTotalElements` deliberately, as a policy
 decision about untrusted input.
 
+---
+
 # 22. Wire format
 
 This section is normative and complete: a conforming reader can be written from it alone. All
-multi-byte integers are little-endian. "7-bit int" is the LEB128-style encoding used by
+multi-byte integers are little-endian. "varint" is the LEB128-style encoding used by
 `BinaryWriter.Write7BitEncodedInt`: seven bits per byte, high bit set while more bytes follow,
-restricted to non-negative `Int32`.
+restricted to non-negative `Int32`, and minimally encoded. All bytes in examples are hexadecimal.
 
 ## 22.1 Primitives
+
+**Structural numbers** — counts, lengths, reference frames, keys, array ranks and dimensions, bit
+counts, and the numbers of the header — are varints; a negative count cannot be expressed. **Data** —
+`int`, `double` and every other value of §22.4 — is fixed-width little-endian. The union tag is one
+byte. The one structural number that is fixed-width is a keyed field's length (§22.3).
 
 | Element | Encoding |
 |---|---|
@@ -1372,51 +2727,72 @@ restricted to non-negative `Int32`.
 | `int`, `uint`, `float` | 4 bytes |
 | `long`, `ulong`, `double` | 8 bytes |
 | `decimal` | 16 bytes: four `int32` in `decimal.GetBits` order (lo, mid, hi, flags) |
-| string | 7-bit int UTF-8 byte length, then the bytes |
-| blob | 7-bit int byte length, then the bytes |
-| count | `int32` |
-| optional string | `bool` present flag, then the string when present |
+| string | varint UTF-8 byte length + 1, then the bytes (§22.2) |
+| blob | varint byte length, then the bytes |
+| count | varint, plus one when it carries the value's null (§22.2) |
 
-A count is read as an `int32` and is immediately validated against its limit and charged to the
-element budget; a negative count is `BinaryFormatException`.
+A count is validated against its limit and charged to the element budget as soon as it is read.
 
-A 7-bit int is minimally encoded: when it spans more than one byte, its last byte is not zero. A
-reader rejects any longer spelling of the same value — `85 00` or `85 80 00` for 5 — with
-`BinaryFormatException`, so every 7-bit int has exactly one encoding. The rule covers every place
-the encoding appears: string and blob lengths, the keyed field count and keys, and the lengths of
-the header strings. Without it a header string length could be respelled without changing the
-decoded field, and therefore without changing the associated data the authentication tag covers.
+A varint is minimally encoded: when it spans more than one byte, its last byte is not zero. A reader
+rejects any longer spelling of the same value — `85 00` or `85 80 00` for 5 — with
+`BinaryFormatException`, so every varint has exactly one encoding. The rule covers every structural
+number of the payload and of the header. A varint of more than five bytes, or above `Int32.MaxValue`,
+is `BinaryFormatException` too.
 
 A boolean admits exactly the two encodings above. A reader rejects any other byte with
 `BinaryFormatException` rather than treating it as a second spelling of `true`, so the encoding is
-canonical. This is what keeps every header flag unforgeable: authenticated encryption binds the
-header's decoded fields (§13.1), so a non-canonical flag byte would otherwise be an edit the tag
-does not cover.
+canonical.
 
 A string is canonical for the same reason. Its bytes must be valid UTF-8, and a reader that meets a
 sequence which is not rejects it with `BinaryFormatException` instead of substituting U+FFFD. Lenient
 decoding would map an unbounded set of byte sequences onto one string — `C3 28`, `E0 80 28` and
-`F0 80 80 28` all become `�(` — and since the tag is computed over the decoded field, every one
-of those sequences would carry the same tag. The rule applies to every string read off the wire,
-payload and header alike, and costs no valid payload anything: no writer has ever produced a byte
-sequence that is not valid UTF-8.
+`F0 80 80 28` all become `�(`. The rule applies to every string read off the wire, payload and header
+alike, and costs no valid payload anything.
+
+The writer is as strict. A .NET string that is not well-formed UTF-16 — one holding a lone surrogate —
+has no UTF-8 encoding, and a lenient encoder would write U+FFFD in its place, so the value read back
+would differ from the value written. Writing such a string is `BinaryFormatException`, raised before
+anything reaches the destination (§2.6).
 
 ## 22.2 Value framing
 
-Every value is written as:
+Null is written exactly once, in the first number the value begins with: `0` is null, and any other
+value is the number plus one. This applies only when the declared type can be null — any reference
+type, or `Nullable<T>`. A value that begins with no number carries its null in a flag byte instead.
+
+| Declared type | References off | References on |
+|---|---|---|
+| string, and the scalars that travel as one: `Uri`, `Version`, `StringBuilder`, `CultureInfo`, `TimeZoneInfo` | varint UTF-8 length + 1 | same — never framed |
+| `BitArray` | varint bit count + 1, then the blob | same — never framed |
+| sequence (`byte[]` and every other one-dimensional array included), map | varint count + 1 | reference frame, then the count as it is |
+| array of rank > 1 | varint rank + 1, then the dimensions | reference frame, then the rank as it is |
+| keyed object, no union map | varint field count + 1 | reference frame, then the field count as it is |
+| positional object; `Tuple<…>`; `Lazy<T>` | flag byte `00` / `01` | reference frame |
+| a type with a union map | flag byte, then the tag byte | reference frame, then the tag byte |
+| `Nullable<T>` (`T` a value type) | flag byte `00` / `01`, then `T` | same — value types are never framed |
+| a type that cannot be null | nothing | nothing |
+
+A null is always the single byte `00`. A minimally encoded varint above zero never begins with `00`,
+so a reader tells null from a value by that byte alone.
 
 ```text
-[null flag]  [reference frame]  [shape payload]
+null (string)                          00
+""                                     01
+"hello"                                06 68 65 6C 6C 6F
+List<int> of 3, references off         04 <int32> <int32> <int32>
+List<int> of 3, references on          01 03 <int32> <int32> <int32>
+keyed struct with 2 fields             02 ...                            cannot be null: the count as it is
+int? = 5                               01 05 00 00 00
+int? = null                            00
 ```
 
-- **Null flag** — one `bool`, present only when the declared type can be null: any reference type, or
-  `Nullable<T>`. `false` ends the value. A non-nullable value type has no flag.
-- **Reference frame** — present only when the payload header says `PreserveReferences` and the
-  declared type is a structural **reference** type. One marker byte followed by an `int32` id:
-  marker `0` means first occurrence and the shape payload follows; marker `1` means back reference
-  and the value ends there. Any other marker is `BinaryFormatException`. Scalars, including strings,
-  and all value types are never framed.
-- **Shape payload** — per §22.3.
+**Reference frame** — present only when the payload mode says the payload uses references and the
+declared type is a structural **reference** type (§16). One varint: `0` is null;
+`((id << 1) | 0) + 1` is the first occurrence of `id`, and the shape follows;
+`((id << 1) | 1) + 1` is a back reference to `id`, and the value ends there. The first occurrence of
+id 0 is `01`, a back reference to it `02`, the first occurrence of id 5 `0B`. Scalars, including
+strings, and all value types are never framed. The number after a frame carries no `+ 1`, because the
+frame already carries null.
 
 ## 22.3 Shapes
 
@@ -1426,7 +2802,7 @@ Every value is written as:
 | sequence | count, then each element as a framed value |
 | map | entry count, then each entry as key value, both framed |
 | object, positional | each member as a framed value, in plan order |
-| object, keyed | 7-bit int field count, then each field: 7-bit int key, `int32` payload length, payload |
+| object, keyed | varint field count, then each field: varint key, `int32` payload length, payload |
 | union | one tag byte, then the member layout of the tagged type |
 
 Member plan order for the positional layout: members carrying `[BinaryOrder]` first, ascending by
@@ -1438,7 +2814,8 @@ the one before it with `BinaryFormatException` — a repeated key and an out-of-
 the reader knows the key or would skip it — so a keyed object has exactly one encoding. A field
 payload is exactly as long as its declared length; reading one consumes it exactly, and trailing
 bytes inside a field are `BinaryFormatException`. A reader skips a key it does not know by its
-declared length.
+declared length. The field length is a fixed-width `int32` because it is patched after the field is
+written (§14.2); a negative one is `BinaryFormatException`.
 
 ## 22.4 Scalar encodings
 
@@ -1451,7 +2828,7 @@ declared length.
 | `Int128`, `UInt128` | 16 bytes |
 | `IntPtr`, `UIntPtr` | `int64` / `uint64` |
 | `Rune` | `int32` scalar value; an invalid scalar is `BinaryFormatException` |
-| `BigInteger` | blob, as produced by `BigInteger.TryWriteBytes` |
+| `BigInteger` | blob, as produced by `BigInteger.TryWriteBytes`: the shortest two's complement, little-endian; any other blob — empty, or with a redundant sign byte — is `BinaryFormatException` |
 | `DateTime` | `int64` of `ToBinary()`, which carries the kind |
 | `DateTimeOffset` | `int64` ticks, then `int64` offset ticks |
 | `TimeSpan` | `int64` ticks |
@@ -1460,16 +2837,21 @@ declared length.
 | `TimeZoneInfo` | string of `ToSerializedString()` |
 | `Guid` | 16 bytes, `Guid.TryWriteBytes` layout |
 | `Uri` | string of `OriginalString` |
-| `Version` | string of `ToString()` |
+| `Version` | string of `ToString()`; a string that parses but is not that spelling (`01.2`, ` 1.2`) is `BinaryFormatException` |
 | `StringBuilder` | string |
-| `CultureInfo` | string of `Name` |
-| `BitArray` | `int32` bit count, then a blob of `ceil(bits / 8)` bytes |
+| `CultureInfo` | string of `Name`; a name the runtime resolves to a culture whose `Name` differs (`EN-us`) is `BinaryFormatException` |
+| `BitArray` | varint bit count + 1, then a blob of `ceil(bits / 8)` bytes whose bits past the count are zero; a set padding bit is `BinaryFormatException` |
 | `Complex` | 2 × `double`: real, imaginary |
 | `Vector2`, `Vector3`, `Vector4` | 2 / 3 / 4 × `float` |
 | `Quaternion` | 4 × `float`: X, Y, Z, W |
 | `Plane` | 4 × `float`: normal X, Y, Z, then D |
 | `Matrix3x2` | 6 × `float`: M11, M12, M21, M22, M31, M32 |
 | `Matrix4x4` | 16 × `float`, row-major |
+
+```text
+Uri "a"                  02 61
+BitArray of 9 bits       0A 02 8D 01
+```
 
 ## 22.5 Composite encodings
 
@@ -1478,90 +2860,90 @@ declared length.
 | `KeyValuePair<K,V>` | key, then value |
 | `Tuple<…>`, `ValueTuple<…>` | items in declaration order |
 | `Lazy<T>` | the materialized value |
-| `ImmutableArray<T>` | `bool` present flag; when true, count then elements. A default instance writes `false`, which is how it stays distinct from empty |
-| array, rank > 1 | `int32` rank, then one `int32` per dimension, then elements in row-major order |
+| `ImmutableArray<T>` | a struct with two empty states: `0` is `default`, any other value is the count + 1, then the elements |
+| array, rank > 1 | varint rank, then one varint per dimension, then elements in row-major order |
+
+```text
+ImmutableArray<T> default          00
+ImmutableArray<T> Empty            01
+ImmutableArray<T> of 3             04 <elements>
+ImmutableArray<T>? = null          00          the Nullable flag
+ImmutableArray<T>? = default       01 00       the Nullable flag, then the fold
+ImmutableArray<T>? = Empty         01 01
+int[2,3]                           03 02 03 <6 × int32>
+Tuple<int,string>                  01 <int32> <string>
+```
+
+Writing `default` as `Empty` is not an option: it would change the value across a round trip.
 
 ## 22.6 V1 envelope
 
 ```text
-magic            int32   0x52455342
-version          int32   1
-compression      byte    CompressionAlgorithm
-customCompression        optional string, <= 256 UTF-8 bytes
-checksum         byte    ChecksumAlgorithm
-customChecksum           optional string, <= 256 UTF-8 bytes
-encryption       byte    EncryptionAlgorithm
-customEncryption         optional string, <= 256 UTF-8 bytes
-keyId                    optional string, <= 256 UTF-8 bytes
-preserveReferences bool
-uncompressedLength int32
-compressedLength   int32
-onDiskLength       int32
-checksumLength     byte
-checksum           checksumLength bytes
-payload            onDiskLength bytes
+magic          4 bytes   42 53 45 52      int32 0x52455342, little-endian
+version        varint    01
+payload mode   varint    00 — no references, 01 — references
+service count  varint
+services       records   §11
+onDiskLength   varint    length of the bytes after the header
+payload        onDiskLength bytes
 ```
 
-Phase order when writing: serialize the payload, checksum the raw payload, compress, build the
-associated data, encrypt, then write the header followed by the ciphertext. Reading reverses it.
-
-Header invariants, each `BinaryFormatException` unless noted:
-
-- the magic must match, otherwise the stream is not a Viper payload;
-- an unknown version is `BinaryFormatNotSupportedException`;
-- an undefined algorithm identifier is `BinaryFormatNotSupportedException`;
-- every optional header string is at most 256 UTF-8 bytes;
-- all three lengths are non-negative and within their phase limits, otherwise `BinaryLimitException`;
-- `uncompressedLength` exceeds `compressedLength` by at most `MaxDecompressionRatio`, otherwise
-  `BinaryLimitException`;
-- `Compression = None` implies `compressedLength = uncompressedLength`;
-- `Encryption = None` implies `onDiskLength = compressedLength`;
-- the declared plaintext length never exceeds the ciphertext actually present;
-- the payload is consumed exactly: trailing bytes after the root value are an error.
-
-## 22.7 Associated data
-
-When the encryption algorithm authenticates associated data, the following image is bound to the
-ciphertext. It is never stored — both sides recompute it — and every field in it is therefore
-unforgeable:
+Smallest frame — no service, no references, payload `01` (the empty string):
 
 ```text
-version            int32
-compression        byte
-customCompression  string   (empty when absent)
-checksum           byte
-customChecksum     string
-encryption         byte
-customEncryption   string
-keyId              string
-preserveReferences bool
-uncompressedLength int32
-compressedLength   int32
-checksumLength     byte
-checksum           bytes
+42 53 45 52   magic
+01            version
+00            payload mode
+00            no service
+01            onDiskLength = 1
+01            payload
 ```
 
-`onDiskLength` is excluded: it is only known after encryption, and it is self-verifying, because a
-wrong value either truncates the read or fails the tag.
+Full frame — Brotli and AES-256-GCM, `KeyId = "k7"`, no references, no checksum:
 
-## 22.8 V0 envelope
+```text
+42 53 45 52              magic
+01                       version
+00                       payload mode
+02                       two service records
+05 03 02 E8 07           compression: Brotli (id 2), uncompressed 1000
+07 04 01 03 6B 37        encryption: AES-256-GCM (id 1), KeyId "k7"
+<onDiskLength varint>    = GetCiphertextLength(compressed length)
+<ciphertext>             nonce 12 · ciphertext · tag 16
+```
+
+Service record examples: a CRC-32 checksum (id 1, four hash bytes) is `03 05 01 9A 3B C1 07`; a custom
+compression named "lz4x" with 1 000 uncompressed bytes is `05 09 FF 01 04 6C 7A 34 78 E8 07`.
+
+Phase order when writing: serialize the payload, checksum the raw payload, compress, write the header
+with its final `onDiskLength`, then encrypt with the header's bytes as associated data. Reading
+reverses it. The header rules are those of §11, and the length checks run in the order of §5.10. The
+payload is consumed exactly: trailing bytes after the root value are `BinaryFormatException`.
+
+The associated data of an encrypted frame is the header: the exact bytes from the first byte of the
+magic to the last byte of `onDiskLength` (§13.1). No other image exists.
+
+## 22.7 V0 envelope
 
 No envelope at all: the payload of §22.1–22.5 is written as-is, with no magic number and no leading
-or trailing bytes of any kind. A V0 payload is therefore byte-identical to the payload a V1 frame
-carries for the same value under the same member layout, positional or keyed, when that frame uses
-no compression, checksum, encryption or reference framing — the four things V0 does not have.
-Nothing identifies those bytes, so reading them as V0 requires the caller to opt in (§10.2).
+or trailing bytes of any kind. V0 differs from V1 only in what needs metadata — the service records and
+the payload mode — so a V0 payload is byte-identical to the payload a V1 frame carries for the same
+value under the same member layout, positional or keyed, when that frame uses no service and no
+reference framing. Nothing identifies those bytes, so reading them as V0 requires the caller to opt in
+(§10.2).
 
 Having no header, V0 encodes no reference frames and no compression, checksum or encryption phase.
 The keyed object layout of §22.3 is payload-level and appears under V0 unchanged.
 
-Because the payload is not length-delimited by an envelope, a V0 payload may be embedded in a larger
-stream: the reader stops when the root value is complete and does not require the source to end
-there. Root canonicity (§10.1) is a V1 rule and does not apply. A keyed field's declared length is
-still checked against the bytes that can physically arrive before anything is allocated (§17), but
-for an embedded payload those bytes are the remainder of the containing stream rather than of a
-declared payload, so the check is weaker under V0 than under V1. The field window (§7.3) bounds what
-the field's decoder may actually consume in both cases.
+Because the payload is not length-delimited by an envelope, the reader stops when the root value is
+complete. A span or a sequence read without a bytes-consumed form is exactly one payload, and bytes
+after the root are `BinaryFormatException`; a bytes-consumed form reports where the root ended, for
+payloads placed back to back; a seekable stream is read ahead and left where the root ends; a stream
+that cannot seek is `NotSupportedException`, and every asynchronous read refuses V0 (§3.4, §10.2). A
+keyed field's declared length is still checked against the bytes that can physically arrive before
+anything is allocated (§17); for an embedded payload those bytes are the remainder of the containing
+stream rather than of a declared payload, so the check is weaker under V0 than under V1. The field
+window (§7.3) bounds what the field's decoder may actually consume in both cases.
 
 ---
 
@@ -1583,8 +2965,13 @@ A type is supported when a formatter claims it, or when it is member-encoded. An
 | Dictionaries | `Dictionary<,>`, `IDictionary<,>`, `IReadOnlyDictionary<,>`, `ReadOnlyDictionary<,>`, `SortedDictionary<,>`, `SortedList<,>`, `PriorityQueue<,>` |
 | Immutable | `ImmutableList<>`, `IImmutableList<>`, `ImmutableHashSet<>`, `IImmutableSet<>`, `ImmutableSortedSet<>`, `ImmutableQueue<>`, `IImmutableQueue<>`, `ImmutableStack<>`, `IImmutableStack<>`, `ImmutableDictionary<,>`, `IImmutableDictionary<,>`, `ImmutableSortedDictionary<,>` |
 | Frozen | `FrozenSet<>`, `FrozenDictionary<,>` |
-| Custom collections | any concrete non-abstract type implementing `ICollection<T>` with a public parameterless constructor and an `Add` method |
+| Custom collections | any concrete non-abstract type implementing `ICollection<T>` with a public parameterless constructor; it is read when it also has a public instance `Add(T)`, filled as §14.5 states |
 | Objects | any other type with a parameterless constructor, encoded member by member |
+
+Every entry a caller's types close — each generic definition, `T[]`, an array of rank above one,
+`Nullable<T>`, an enum, a custom collection, an object and an object with a union map — has the method of
+`SupportedTypes` named after it (§14.5), which a context adds so the type needs no reflection; the
+scalars of the first four rows need none.
 
 Notes that belong to the contract:
 
@@ -1630,33 +3017,38 @@ Notes that belong to the contract:
   `DateTimeOffset`, or `DateTimeKind.Utc`, when the value must compare equal on both ends.
 - **`ImmutableArray<T>`** distinguishes default from empty; every other container does not.
 
+---
+
 # 24. Release checklist
 
-A box is checked only when source and a test prove it.
+A box is checked only when source and a test prove it. The checkpoints that prove each group are in
+`QA-Plan.md` §32, which mirrors this list.
 
 ## Contract and API
 
 - [x] Public `BinarySerializer` overloads match this contract.
 - [x] Default/options construction paths are stable; `Configure()...Build()` is the only path.
 - [x] Stream ownership behavior is verified.
-- [x] `FromHeader` / `FromStream` semantics are verified.
+- [x] Keys for reading are supplied with `WithKeys`, in one place with `WithEncryption`.
+- [x] Every entry point reads a non-seekable source it can read (§3.1, §20); the two refusals — a V0 payload from a stream that cannot seek, and any asynchronous V0 read — are `NotSupportedException` (§8.10).
 - [x] Populate-in-place rejects non-member-encoded types.
 - [x] No hidden required API exists outside this document (§3 lists the whole surface).
 - [x] Every public member carries XML documentation, and it ships with the package.
+- [x] The reflection path states its requirements: the twenty-six public entry points that encode or decode a caller's type without type information carry `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`, their twenty-six counterparts that take a `BinaryTypeInfo<T>` and every other public member carry neither, and a consumer built under native AOT analysis is told about exactly the annotated calls (§3).
+- [x] No public algorithm interface declares a default member (§3, §12, §13).
 
 ## Exceptions
 
 - [x] Exception hierarchy matches exactly.
 - [x] Limit violations are `BinaryLimitException`.
-- [x] Negative wire counts/lengths are `BinaryFormatException`.
+- [x] A count, length or id beyond `Int32` is `BinaryFormatException`.
 - [x] Configuration errors are `BinaryConfigurationException`.
 - [x] Unsupported recognized versions/algorithms are `BinaryFormatNotSupportedException`.
 - [x] Integrity failures are `BinaryIntegrityException`.
 - [x] Key-selection failures are `BinaryEncryptionKeyException`.
-- [x] Underlying stream I/O is `BinaryStreamException`.
+- [x] Underlying stream and pipe I/O is `BinaryStreamException`.
 - [x] CLR/contract/reference semantics use `BinaryTypeException`.
-- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`) do not escape, and neither
-  does an exception raised by a registered algorithm factory that a payload selected.
+- [x] Raw parser exceptions (`EndOfStreamException`, `ArgumentException`, `InvalidCastException`) do not escape, and neither does an exception raised by a registered algorithm factory that a payload selected.
 - [x] No generic exception normalization exists in production.
 
 ## Limits and resources
@@ -1671,18 +3063,21 @@ A box is checked only when source and a test prove it.
 - [x] Wire/payload/compressed/encrypted boundaries are enforced in both directions.
 - [x] A declared decompression expansion is bounded against the compressed bytes delivered.
 - [x] The write budget is relative to the operation's starting position.
+- [x] A declared count that the remaining bytes back is materialized at once, and one they do not back grows as elements arrive (§17).
+- [x] The allocation targets that a test can pin hold: a buffer-writer write of a record adds nothing beyond the frame, `Serialize<T>` allocates the returned array, `SerializePooled` one `PooledPayload`, a span read the record, a graph read exactly the graph, `PreserveReferences` costs nothing extra, and the asynchronous methods add nothing per value. The targets that concern a phase — an allocation-free Brotli write, one `DeflateStream`, one cipher instance per operation, the first use of a type — are open: they are measured by `Benchmark-Plan.md` ALLOC-02 and ALLOC-03 after the release, and no claim is made until they are.
 
 ## Formats
 
 - [x] V0 positional contract remains stable.
-- [x] V0 carries the same payload encoding as V1, keyed contracts included.
-- [x] V1 header validation is deterministic.
+- [x] V0 carries the same payload encoding as V1, keyed contracts included, byte for byte (§22.7).
+- [x] V1 header validation is deterministic and ordered.
 - [x] Header lengths are validated before phase allocation.
-- [x] V0/V1 routing is deterministic.
-- [x] Inspection preserves stream position.
+- [x] V0/V1 routing is deterministic and never selects V0 without the caller's opt-in.
+- [x] Inspecting a header from a seekable stream restores its position.
 - [x] A V1 payload is consumed exactly; trailing bytes are rejected.
 - [x] Decompression output matches the declared length exactly.
 - [x] The member plan is a total order and covers the whole inheritance chain.
+- [x] The v1.0.0 wire fixtures decode and none is regenerated by the code under test.
 
 ## Security
 
@@ -1691,38 +3086,73 @@ A box is checked only when source and a test prove it.
   that cannot be — the uncompressed length — is bounded against them by ratio while the buffer that
   receives it grows with the output rather than with the declaration.
 - [x] Unknown keyed payloads are skipped without whole-payload allocation.
-- [x] Reference markers/IDs are validated, declared once, and ancestor-scoped.
+- [x] Reference frames are validated, declared once, and ancestor-scoped.
 - [x] A duplicate key or element is malformed input, decided by the engine rather than by whichever
   container happens to receive it.
-- [x] The V1 header is authenticated when an AEAD algorithm is used.
-- [x] Every field the tag covers has one encoding only: a boolean admits two bytes and a string
-  admits valid UTF-8, so no field can be rewritten into a second spelling of itself.
+- [x] The whole V1 header is authenticated when an AEAD algorithm is used: the associated data is its exact bytes.
+- [x] Every wire field has one encoding only, so no field can be rewritten into a second spelling of itself (INV-9).
 - [x] `RequireEncryption` / `RequireChecksum` reject protection downgrades, and are refused at
   configuration time against a format that cannot carry protection.
-- [x] Temporary crypto buffers are cleared.
+- [x] Temporary crypto buffers and pooled buffers that held payload bytes are cleared.
 - [x] Caller-owned key buffers are never destroyed by serializer-owned cleanup.
 - [x] Disposed crypto components cannot continue using invalid internal state.
 - [x] No global mutable state can substitute a built-in algorithm.
 - [x] A hostile deeply nested payload fails as a limit violation, not a stack overflow.
+- [x] A data or graph error leaves no byte in any destination (§2.6).
 
 ## Architecture invariants
 
+- [x] Every invariant of §25 is held by the structural test it names.
 - [x] No type below the pipeline references `SerializationLimits`.
-- [x] Payload bytes are reachable only through `ValueReader`/`ValueWriter`.
+- [x] Payload bytes are reachable only through `WireReader`/`WireWriter`, `ref struct`s over memory.
 - [x] A loop bound over wire data exists only as a validated `ElementCount`.
 - [x] Recursion, depth, node and identity accounting live only in the payload engine.
 - [x] No public contract participates in enforcing a limit.
+- [x] No `MemoryStream` lies on the payload path.
+- [x] A contract built any other way than by reflection must pass the conformance suite; the suite passes on the reflected contract.
 
 ## Quality gate
 
-- [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test.
+- [x] Audit findings S01–S12, C01–C07 and A01–A03 are each pinned by a test (§21.3).
 - [x] Round-trip corpus covers every supported type family in V0 and V1.
 - [x] The byte-level wire format of §22 is pinned by tests.
-- [x] `QA-Plan.md` mandatory cases pass — M0 through M8 are closed and every checkpoint in the plan is proven.
+- [x] `QA-Plan.md` mandatory cases pass — every checkpoint in the plan is proven, blocked with a named question, or struck through as retired.
 - [x] Performance is deliberately outside this gate. `Benchmark-Plan.md` is a post-release baseline,
   captured against the `v1.0.0` tag rather than before it, and re-run per v1.x release; until its
   cells exist, the project states nothing about its own performance.
-- [x] Release artifact includes reproducible environment/version metadata — both packages that
-  carry code build deterministically, publish a `.snupkg` of their symbols, and record the
-  repository and the exact commit through Source Link, so a published package can be traced
+- [x] Release artifact includes reproducible environment/version metadata — the packages
+  build deterministically, publish a `.snupkg` of their symbols, and record
+  the repository and the exact commit through Source Link, so a published package can be traced
   back to the source it was built from and stepped into.
+- [x] `dotnet pack` succeeds for all four packages — `ViShap.Viper.Core`, `ViShap.Viper.Serialization`, `ViShap.Viper.Generator` and the meta-package `ViShap.Viper` — each with its own non-empty README.
+
+---
+
+# 25. Invariants
+
+Twenty rules hold at every point of the system, each by construction and each pinned by a structural
+test that inspects the code rather than a behaviour. A change that would break one is a change to this
+contract first.
+
+| # | The rule | Where it is stated | Held by |
+|---|---|---|---|
+| INV-1 | One `OperationState`, a struct passed by reference, is created per public call; nothing below the pipeline builds limits, a budget or keys. | §2.2 | LIM-51 |
+| INV-2 | `WireReader` and `WireWriter` are the only access to payload bytes; a type contract receives only `MemberWriter` / `MemberReader`, which expose no bytes, no counts and no position. | §2.3 | LIM-44, LIM-47, LIM-49 |
+| INV-3 | A declared length or count is compared with the bytes that can still arrive before it drives an allocation; the same rule decides whether an array is allocated at its final length and what capacity a collection receives. | §6, §17 | TYP-03, SRC-10, LIM-42 |
+| INV-4 | A loop the engine runs over wire data — container elements and keyed fields — is bounded only by a validated `ElementCount`; a formatter reads no count; header service records are bounded by the 4 096-byte header. | §2.3, §5.9, §6, §17 | LIM-40, LIM-52 |
+| INV-5 | One traversal owner: a formatter describes a shape and the engine's codec owns the loop; a type contract, reflected or generated, supplies only member order, member access, construction and the response to a known key; a supported type names an entry of §23 and exposes no codec, shape, count or loop. | §2.4, §14.1, §14.5 | LIM-49, NAOT-14 |
+| INV-6 | Algorithms are pure mechanics, called inside the phase barrier, and never see a limit. | §2.5, §12, §13 | CMP-12 |
+| INV-7 | No process-wide mutable registry can change what an algorithm is. | §4.1 | CAT-06, LIM-53 |
+| INV-8 | Only tags travel, never type names. | §15 | PM-14, LIM-54 |
+| INV-9 | Every wire field has exactly one encoding: a bool is 0 or 1, UTF-8 is strict, varints are minimal, keyed field keys are strictly ascending, header service records are in ascending number, each number at most once and number 0 invalid, a known service's critical bit matches the contract, null is written once in the first number of the value, no service record carries id `None`, reserved payload-mode bits are zero, a duplicate in a collection is malformed, a `BigInteger` is its shortest two's complement, a `BitArray`'s padding bits are zero, a `Version` or a `CultureInfo` is the text its writer produces, and a string that UTF-8 cannot encode is refused on write. | §11, §22 | the WF and HDR checkpoints that are not retired, KEY-23, HST-40, HST-42…HST-45, WF-38, LIM-55 |
+| INV-10 | The exception taxonomy is complete: nothing on a payload path leaves under a framework name; only an exception of the caller's own code — a `Lazy<T>` factory, a supplied type contract — propagates as it was thrown. | §8, §9, §14.3 | EXC-14…EXC-20, REF-19, LIM-56, CTX-09 |
+| INV-11 | Key material is always an owned copy; the serializer clears only what it owns. | §13.2 | ENC-12, ENC-14, LIM-57 |
+| INV-12 | The member plan is a total order over the whole inheritance chain, identical for the reflected contract and for any generated contract. | §14.1 | CONF-01…CONF-07 |
+| INV-13 | Limits are policy, validated once; a payload can never raise them. | §5 | CFG-09, OPT-08 |
+| INV-14 | The header is authenticated whole: the associated data is the exact header bytes, from the first byte of the magic to the last byte of `onDiskLength`. | §13.1 | ENC-05, ENC-06, LIM-58 |
+| INV-15 | A data or graph error leaves no byte in the destination; encryption starts only after the whole payload is in the serializer's buffer. | §2.6 | STR-30, LIM-58 |
+| INV-16 | The engine never awaits: `await` exists only at the frame edge, and the engine and the formatters contain no asynchronous method. | §2.4, §3.5 | LIM-50 |
+| INV-17 | Boxing happens only in a polymorphic slot (`[BinaryUnion]`, an interface, `object`), verified by a counting test double. | §2.4, §15 | TYP-02 |
+| INV-18 | A V0 payload is byte-identical to the V1 payload of the same value written without references. | §10.2, §22.7 | V0-19, V0-21, KEY-18, LIM-59 |
+| INV-19 | With the reflection path switched off, nothing is described by reflection for a type no context offered — no codec, contract, union map or runtime contract of a polymorphic slot: such a type is `BinaryConfigurationException` where it is first used. An offer reads only what its own type declares, on a type annotated for the trimming analysers — `Union<T>` the `[BinaryUnion]` attributes it compares its arms with, `Collection<TCollection, T>` the public `Add(T)` — and never builds an encoding the rules would not. | §3, §14.5 | NAOT-12, NAOT-13 |
+| INV-20 | A codec or union map a context offers through `SupportedTypes` is the one the reflection path builds for the same type — no method takes anything an offer could differ by, and `Union<T>` refuses arms its attributes do not declare — and a generated context offers exactly the types the engine reaches from those it lists. | §14.5 | NAOT-01, NAOT-02, NAOT-03, NAOT-06 |

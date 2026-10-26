@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace ViShap.Viper.Compression;
 
 /// <summary>
@@ -13,19 +15,23 @@ public sealed class NoCompression : ICompressionAlgorithm
     public string? CustomName => null;
 
     /// <inheritdoc />
-    public int GetMaxCompressedLength(int uncompressedLength) => uncompressedLength;
-
-    /// <inheritdoc />
-    public int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
+    public void Compress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination)
     {
-        source.CopyTo(destination);
-        return source.Length;
+        ArgumentNullException.ThrowIfNull(destination);
+
+        destination.Write(source);
     }
 
     /// <inheritdoc />
-    public int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
+    public void Decompress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination, int expectedLength)
     {
-        source.CopyTo(destination);
-        return source.Length;
+        ArgumentNullException.ThrowIfNull(destination);
+
+        if (source.Length != expectedLength)
+            throw new BinaryFormatException(
+                $"Stored payload length {source.Length} does not match the declared uncompressed " +
+                $"length {expectedLength}.");
+
+        destination.Write(source);
     }
 }

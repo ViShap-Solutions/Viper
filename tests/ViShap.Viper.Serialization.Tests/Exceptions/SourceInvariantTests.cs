@@ -40,12 +40,9 @@ public class SourceInvariantTests
         // relabel a format or limit failure as a stream failure.
         string[] allowed =
         [
-            "ViShap.Viper.Serialization/Security/MeteredReadStream.cs",
-            "ViShap.Viper.Serialization/Security/MeteredWriteStream.cs",
-            "ViShap.Viper.Serialization/Security/WindowReadStream.cs",
-            "ViShap.Viper.Serialization/Io/ValueReader.cs",
-            "ViShap.Viper.Serialization/Io/ValueWriter.cs",
+            "ViShap.Viper.Serialization/Pipeline/EncodedFrame.cs",
             "ViShap.Viper.Serialization/Pipeline/FormatRouter.cs",
+            "ViShap.Viper.Serialization/Pipeline/StreamSource.cs",
             "ViShap.Viper.Serialization/Metadata/BinaryFormatInspector.cs"
         ];
 
@@ -99,7 +96,7 @@ public class SourceInvariantTests
     [Fact]
     public void NoTypeBelowThePipelineReferencesSerializationLimits()
     {
-        string[] below = ["Engine/", "Formatters/", "Io/", "Cache/", "Compression/", "Checksum/", "Crypto/"];
+        string[] below = ["Engine/", "Formatters/", "Io/", "Compression/", "Checksum/", "Crypto/"];
 
         var offenders = SourceTree.ProductionFiles
             .Where(file => below.Any(folder =>

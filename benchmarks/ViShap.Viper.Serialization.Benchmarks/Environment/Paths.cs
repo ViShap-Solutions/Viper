@@ -18,7 +18,7 @@ internal static class Paths
     /// <summary>Frozen baseline packages, one directory per tag.</summary>
     internal static string Baselines { get; } = Path.Combine(ProjectDirectory, "Baselines");
 
-    /// <summary>Partial runs, one directory per run.</summary>
+    /// <summary>Measurements, one directory per run.</summary>
     internal static string Measurements { get; } = Path.Combine(ProjectDirectory, "Measurements");
 
     private static string FindProjectDirectory()

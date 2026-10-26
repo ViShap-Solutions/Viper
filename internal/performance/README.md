@@ -1,5 +1,7 @@
 # Performance findings and proposals
 
+**Class: plan.** The index of the performance findings and proposals; it defines no behavior.
+
 Where a measurement becomes a suggestion, and stops.
 
 Everything the benchmark work discovers lands here as its own file: an observation about behavior, a
@@ -71,3 +73,16 @@ Filled in by the repository owner.
 |---|---|---|
 | [PERF-01](PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | Resolved — §5, the XML docs and the limit messages now say so; the wire is unchanged |
 | [PERF-02](PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | Open |
+| [PERF-03](PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream it replaced | Open |
+| [PERF-04](PERF-04-pooled-phase-buffers.md) | The pooled write path of R2 is slower on a large unphased blob and on some compressed cells | Open |
+| [PERF-05](PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth, and eats most of R2's gain at depth 500 | Open |
+| [PERF-06](PERF-06-typed-engine-first-use.md) | The typed engine's first operation in a process is ×1.34–1.69 slower (+20–35 ms); steady state is about twice as fast | Open |
+| [PERF-07](PERF-07-frame-fixed-allocations.md) | The frame still allocates 136–272 B per write and 72 B per read, outside the engine | Open |
+| [PERF-08](PERF-08-algorithm-primitives-after-port.md) | The algorithm primitives after their port to the R5 interfaces: every pipeline cell faster, 28 primitive cells slower | Open |
+| [PERF-09](PERF-09-final-format-and-trace-seam.md) | The final format: sizes, the header of service records, and the cost of the trace seam | Open — the seam's cost accepted for v1.0 |
+| [PERF-10](PERF-10-generated-context-first-use.md) | A generated context creates all its contracts on first read of `Default` (21 ms for 34), and a generated contract's methods compile on first call, moving cost from the first write to the first read | Open |
+| [PERF-12](PERF-12-context-offers-at-construction.md) | A generated context builds the codec of every type it reaches in its constructor: instantiation ×2.1 (+21 ms for 34 contracts), first uses cheaper, ≈ +6 ms per corpus | Open — deferred past `v1.0.0` with PERF-10 |
+| [PERF-11](PERF-11-member-call-dispatch.md) | A scalar member pays an interface call and a reference-typed member a generic-dictionary lookup on every call, under reflection and the generator alike; not isolated by any measurement yet | Open — deferred past `v1.0.0` |
+$r
+| [PERF-08](PERF-08-algorithm-primitives-after-port.md) | MICRO-10 slower after the R5 port (Brotli ×1.04–1.22, one Deflate cell ×1.57, a control ×1.05–1.10); ALLOC-12 +56 B; the pipeline faster in every cell | Open |
+| [PERF-09](PERF-09-final-format-and-trace-seam.md) | R6: every payload smaller (envelope 29 → 8 bytes, references framing ≈ free); the widest header parses ×1.39 slower; the switched-off trace seam costs ≈ 1.5 % on reads (2–3 % on record batches) — the owner's decision | Open |

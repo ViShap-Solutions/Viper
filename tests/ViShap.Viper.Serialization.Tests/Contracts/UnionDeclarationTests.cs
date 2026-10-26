@@ -73,8 +73,9 @@ public class UnionDeclarationTests
 
         Assert.Equal(1, Assert.IsType<TagZero>(result[0]).Value);
         Assert.Equal(2, Assert.IsType<TagMax>(result[1]).Value);
-        Assert.Equal(0, payload[6]);
-        Assert.Equal(255, payload[12]);
+        // The count, then each element's flag, tag and four-byte value.
+        Assert.Equal(0, payload[2]);
+        Assert.Equal(255, payload[8]);
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 # ViShap.Viper — Benchmark Plan
 
+**Class: plan.** The post-release measurement checklist. It gates no release and defines no behavior.
+
 **Baseline target:** the `v1.0.0` tag, measured after the release, then re-run per v1.x
 **Status:** Realigned with the reworked architecture — B0 open, nothing measured yet
 **Framework:** BenchmarkDotNet 0.15.8 · `net10.0`
@@ -38,7 +40,7 @@ Measurement layers used below:
 |---|---|
 | **L1** | **Comparative.** Viper against another library, inside one capability tier (§6). |
 | **L2** | **Configuration.** Viper against Viper: format version, profile, options, member layout. |
-| **L3** | **Component.** One mechanism measured on its own: directly, below the public API through an `InternalsVisibleTo` grant — formatters, value primitives, contracts, budgets, header, metered streams — or, where no grant exists, by subtracting two public measurements that differ in that mechanism alone. |
+| **L3** | **Component.** One mechanism measured on its own: directly, below the public API through an `InternalsVisibleTo` grant — formatters, value primitives, contracts, budgets, header, metering — or, where no grant exists, by subtracting two public measurements that differ in that mechanism alone. |
 | **L4** | **System.** Process-level: cold start, parallel throughput, sustained load, working set. |
 
 Result states, used in every published cell:
@@ -75,6 +77,9 @@ benchmarks/ViShap.Viper.Serialization.Benchmarks/
   Adapters/
     IBufferedSerializer.cs      byte[] in, byte[] out
     IStreamingSerializer.cs     Stream in, Stream out
+    IBufferWriterSerializer     IBufferWriter<byte> in; ReadOnlySpan<byte> and ReadOnlySequence<byte> out
+                                (declared in ISerializerAdapter.cs with the two above; an adapter without
+                                buffer entry points does not implement it and is Unsupported in the family)
     ICapabilityProbe.cs         what an adapter can actually do, proven at run time
     <one file per library>
   Capabilities/                 the probes that produce the capability matrix
@@ -82,8 +87,8 @@ benchmarks/ViShap.Viper.Serialization.Benchmarks/
   Suites/                       the benchmark classes of §10
     Components/                 the §18.1 component suites, kept apart from every market table
   Reporting/                    raw results → published report and charts
-  Baselines/                    frozen baseline packages, one per release
-  Measurements/                 partial runs, one directory per run
+  Baselines/                    frozen baseline packages, one per measured tag
+  Measurements/                 measurements, one directory per run
   reproduction/                 the containerised check of §26, run from a base image
 ```
 
@@ -185,8 +190,8 @@ Versions verified against nuget.org on 2026-09-20. The latest publication date i
 
 This set of seven was approved on 2026-09-20 and is the one the publication gate measures. A library joins or leaves it only by the owner's decision, recorded here.
 
-- [ ] RST-01 — every mandatory library has an adapter that passes verification (§7.6) on every dataset of its tiers
-- [ ] RST-02 — every mandatory library runs in its own documented best production mode, recorded per §7.3
+- [x] RST-01 — every mandatory library has an adapter that passes verification (§7.6) on every dataset of its tiers — `Adapters/Market/`, `--verify`: 14 configurations of the seven libraries over the datasets of their tiers, 304 pairs, 0 failed; every pair a library cannot express is `Unsupported` with the reason its adapter declares and verification observed
+- [x] RST-02 — every mandatory library runs in its own documented best production mode, recorded per §7.3 — each adapter's `Rationale`, written to `market/rationale.csv` by `--verify`
 - [ ] RST-03 — the version and publication date of every mandatory library is re-verified on the day of the publication run
 
 ## 5.3 Second circle — measured where it adds information, never gating
@@ -243,12 +248,12 @@ Viper appears in every tier, in the configuration that belongs to that tier.
 | **T1** | **Self-describing envelope.** The payload states how it was produced — algorithms, lengths, flags — and a reader the writer never configured can act on it | V1 default (B-P0) | Orleans, System.Text.Json. A format that describes its values but not its production — MessagePack signals its own LZ4 compression and nothing else, MemoryPack signals nothing — is placed by its probe, and the cell names exactly what the payload does and does not carry |
 | **T2** | **Schema evolution.** A field added, removed or reordered on one side is tolerated by the other, and unknown data is skipped rather than fatal | V1 and V0 over keyed models (B-P0, B-P7) | protobuf-net, MessagePack keyed, Nerdbank.MessagePack, Orleans, System.Text.Json |
 | **T3** | **Graph fidelity.** Shared references survive as identity, cycles are representable, polymorphic values restore their runtime type | V1 + `PreserveReferences` + `[BinaryUnion]` (B-P1) | Orleans, Nerdbank.MessagePack, System.Text.Json (`ReferenceHandler.Preserve`), and from §5.3 Newtonsoft.Json, Hyperion, DataContractSerializer |
-| **T4** | **Protected envelope.** Integrity and confidentiality bound to the metadata rather than bolted on beside it | V1 + Crc32 + AES-256-GCM (B-P6) | No library peer. Measured against the **composed baselines** of §17 |
+| **T4** | **Protected envelope.** Integrity and confidentiality bound to the metadata rather than bolted on beside it | V1 + CRC-32 + AES-256-GCM (B-P6) | No library peer. Measured against the **composed baselines** of §17 |
 
 - [ ] TIER-01 — every published comparative table names its tier and contains only serializers whose probes place them in it
 - [ ] TIER-02 — a T0 number is never shown against a T1–T4 number without the tier visible in the same view
-- [ ] TIER-03 — Viper's tier configurations are the ones a consumer would use for that job, not a stripped configuration chosen to win
-- [ ] TIER-04 — tier membership is produced by the §7.5 probes and regenerated on every run, never edited by hand
+- [x] TIER-03 — Viper's tier configurations are the ones a consumer would use for that job, not a stripped configuration chosen to win — `ViperMarketAdapter`: V0 for T0, V1 for T1 and T2, V1 + `PreserveReferences()` for T3, V1 + Deflate for the compressed comparison, all through the generated context with type information and the default limits
+- [x] TIER-04 — tier membership is produced by the §7.5 probes and regenerated on every run, never edited by hand — `MarketVerifier.Place`, `market/tiers.csv`, regenerated by every `--verify`
 
 ---
 
@@ -264,13 +269,13 @@ These define the experiment. A number produced outside them is not publishable.
 - [ ] FAIR-04 — the payload a deserialize benchmark consumes is produced in `GlobalSetup` by that same adapter, never inside the timed method
 - [ ] FAIR-05 — every timed method returns its result or feeds a `Consumer`, so no adapter benefits from dead-code elimination another does not get
 - [ ] FAIR-06 — no logging, console output, assertion or verification runs inside a timed region
-- [ ] FAIR-07 — the output buffer strategy is equal in kind: every adapter returns a fresh `byte[]`, or every adapter writes into an equivalently pre-sized stream. A pooled or reused buffer is a separate, labelled family, and Viper's lack of an `IBufferWriter` entry point is reported as a fact rather than hidden by comparing against one
+- [ ] FAIR-07 — the output buffer strategy is equal in kind, family by family: in the `byte[]` family every adapter returns a fresh `byte[]`; in the streaming family every adapter writes into an equivalently pre-sized stream; in the buffer family every adapter writes into the same reset `IBufferWriter<byte>` and reads from a span or a sequence, which makes Viper directly comparable with the buffer entry points of MemoryPack and MessagePack-CSharp. A pooled or reused result — Viper's `PooledPayload` among them — is a separate, labelled family and never competes against an allocating one *(Contract §3.1, §3.2; rewritten in R3, when the buffer entry points arrived)*
 
 ## 7.2 The same data
 
-- [ ] FAIR-08 — one logical schema per dataset, in `Schema/`; every library's model variant is derived from it
-- [ ] FAIR-09 — no field is removed, retyped or narrowed to make a library succeed; a library that cannot express the shape is `Unsupported` for that dataset
-- [ ] FAIR-10 — collection semantics are preserved: a set stays a set, a dictionary stays a dictionary, and an ordering guarantee is not quietly dropped
+- [x] FAIR-08 — one logical schema per dataset, in `Schema/`; every library's model variant is derived from it — `Schema/ModelSchema`: the Viper models every dataset is generated in are the schema, read by reflection; the six other families are derived from it under the same names (`Models/<library>/`) and each dataset is projected into them by `DataSets/Projection`
+- [x] FAIR-09 — no field is removed, retyped or narrowed to make a library succeed; a library that cannot express the shape is `Unsupported` for that dataset — `MarketVerifier.SchemaFailures` refuses a removed, added or retyped member, 0 failures; DATA-19 and DATA-20 stay whole and are `Unsupported` where a library cannot express them
+- [x] FAIR-10 — collection semantics are preserved: a set stays a set, a dictionary stays a dictionary, and an ordering guarantee is not quietly dropped — every family uses the schema's own container types, checked member by member by FAIR-19
 - [ ] FAIR-11 — in T3 shared instances stay shared; a library that duplicates them is `Partial` with the duplication named, and its payload size is published with the duplication visible
 - [ ] FAIR-12 — datasets are generated from a fixed seed and contain no wall-clock value, no machine culture and no environment dependency, so the same bytes are generated on every machine
 
@@ -287,28 +292,28 @@ A known faster mode not used, and why it was not
 ```
 
 - [ ] FAIR-13 — every adapter carries a rationale and the report prints it
-- [ ] FAIR-14 — where a library ships a source generator or a compiled path as its recommended production mode, that mode is used: MessagePack and Nerdbank.MessagePack generated resolvers and shapes, MemoryPack generated formatters, protobuf-net a compiled `RuntimeTypeModel`, Orleans its generated codecs, System.Text.Json a `JsonSerializerContext`
-- [ ] FAIR-15 — no competitor runs with a diagnostic, debug or validation feature its own documentation does not recommend for production
+- [x] FAIR-14 — where a library ships a source generator or a compiled path as its recommended production mode, that mode is used: MessagePack and Nerdbank.MessagePack generated resolvers and shapes, MemoryPack generated formatters, protobuf-net a compiled `RuntimeTypeModel`, Orleans its generated codecs, System.Text.Json a `JsonSerializerContext` — `Adapters/Market/`: MemoryPack, MessagePack-CSharp, Nerdbank.MessagePack (PolyType), Orleans and System.Text.Json through their source generators, protobuf-net through a `RuntimeTypeModel` compiled per type with `CompileInPlace()` — one type it cannot express refuses `Compile()` for the whole model (`market/rationale.csv`)
+- [x] FAIR-15 — no competitor runs with a diagnostic, debug or validation feature its own documentation does not recommend for production — `market/rationale.csv` states what each adapter left off; nothing beyond the libraries' defaults is enabled but what a tier needs
 - [ ] FAIR-16 — where a library offers built-in compression (MessagePack LZ4, Nerdbank.MessagePack), it is measured both off and on, and the compressed variant is compared only against Viper's compressed profiles
 - [ ] FAIR-17 — a result that contradicts the library's own published benchmarks by an order of magnitude is treated as a harness defect until it is explained in §27, never published as a finding
 - [ ] FAIR-18 — Viper is held to the same rule: no profile a consumer would not use, and no limit relaxed below the shipping default to gain speed
 
 ## 7.4 Model equivalence
 
-- [ ] FAIR-19 — a harness check proves, per dataset, that every library's model variant carries the same member set, member types and nesting as the schema; a mismatch fails the run before any benchmark executes
+- [x] FAIR-19 — a harness check proves, per dataset, that every library's model variant carries the same member set, member types and nesting as the schema; a mismatch fails the run before any benchmark executes — `MarketVerifier.SchemaFailures`, run by `--verify` before any probe: every schema type in every family with the same members of the same types, and every projected dataset equal to its source member by member — 0 failures
 - [ ] FAIR-20 — where a model must differ structurally — a `.proto` message, a surrogate, a required `partial` — the difference is recorded per member and published beside the dataset
 
 ## 7.5 Capability probes
 
 The tier table of §6 is generated, not asserted.
 
-- [ ] FAIR-21 — each adapter implements probes for: envelope self-description, unknown-field tolerance, field removal, field reordering, reference identity, cycles, polymorphic dispatch, depth limiting, stream support, in-place population
-- [ ] FAIR-22 — each probe is a real round trip whose outcome is `Supported`, `Partial` (with the difference named) or `Unsupported`; a documentation claim never sets a probe result
-- [ ] FAIR-23 — `capabilities.csv` is regenerated on every run and is the only source of the §6 membership the report uses
+- [x] FAIR-21 — each adapter implements probes for: envelope self-description, unknown-field tolerance, field removal, field reordering, reference identity, cycles, polymorphic dispatch, depth limiting, stream support, in-place population — `Capabilities/Probes`, ten probes per configuration, 140 in all
+- [x] FAIR-22 — each probe is a real round trip whose outcome is `Supported`, `Partial` (with the difference named) or `Unsupported`; a documentation claim never sets a probe result — `Capabilities/Probes`; the cycle and depth probes run in a process of their own, so a library without a guard is recorded (`the process terminated (stack overflow)`) rather than fatal
+- [x] FAIR-23 — `capabilities.csv` is regenerated on every run and is the only source of the §6 membership the report uses — `market/capabilities.csv`, written by every `--verify` and read by TIER-04
 
 ## 7.6 Verification before timing
 
-- [x] FAIR-24 — before any suite runs, every (adapter, dataset) pair round-trips and the result is compared with the source by a structural comparison, not by reference equality — `Verification/`, `--verify`: 270 pairs, 0 failed
+- [x] FAIR-24 — before any suite runs, every (adapter, dataset) pair round-trips and the result is compared with the source by a structural comparison, not by reference equality — `Verification/`, `--verify`: 405 Viper pairs and 304 market pairs, 0 failed
 - [x] FAIR-25 — a pair that fails verification is marked `Failed` and produces no timing at all; a cycle without reference framing is `Unsupported` and a lost identity is `Partial`, never `Failed`
 - [ ] FAIR-26 — verification is re-run after the suites, so a benchmark that corrupted shared state is caught
 - [ ] FAIR-27 — the payload sizes recorded in §14 come from the same verified serialization, so size and timing can never describe different bytes
@@ -324,20 +329,35 @@ The configurations a consumer can build, each measured as itself. Built with the
 | **B-P0** | `new BinarySerializer()` — V1, no algorithms | T1 | The default a consumer gets |
 | **B-P1** | `Configure().PreserveReferences()` | T3 | The cost of reference framing |
 | **B-P2** | `Configure().WithLimits(tight)` | — | The cost of accounting near a ceiling; not a performance mode |
-| **B-P3** | `Configure().WithCompression(Deflate)` and `Brotli` | — | §15 |
-| **B-P4** | `Configure().WithChecksum(Crc32)` | — | §16 |
-| **B-P5** | `Configure().WithEncryption(Aes256Gcm, key)` | — | §16 |
-| **B-P6** | Brotli + Crc32 + Aes256Gcm, and Deflate + Crc32 + Aes256Gcm | T4 | The full protected envelope |
+| **B-P3** | `Configure().WithCompression(DeflateCompression)` (B-P3d) and `BrotliCompression` (B-P3b) | — | §15 |
+| **B-P4** | `Configure().WithChecksum(Crc32Checksum)` | — | §16 |
+| **B-P4x3** | `Configure().WithChecksum(XxHash3Checksum)` | — | §16 *(added in R5)* |
+| **B-P4x128** | `Configure().WithChecksum(XxHash128Checksum)` | — | §16 *(added in R5)* |
+| **B-P5** | `Configure().WithEncryption(Aes256GcmEncryption, key)` | — | §16 |
+| **B-P5c** | `Configure().WithEncryption(ChaCha20Poly1305Encryption, key)` | — | §16 *(added in R5)* |
+| **B-P6** | `BrotliCompression` + `Crc32Checksum` + `Aes256GcmEncryption` (B-P6b), and the same with `DeflateCompression` (B-P6d) | T4 | The full protected envelope |
 | **B-P7** | `Configure().WithVersion(0).AllowV0Fallback()` | T0 | The compact codec |
+| **B-P0g** | `Configure().WithContracts(context).RequireGeneratedContracts()` | T1 | The generated contracts of a context in place of reflection *(Contract §14.4; added in rc.2 P4a)* |
+| **B-P1g** | B-P0g with `PreserveReferences()` | T3 | The same, with reference framing *(added in rc.2 P4a)* |
 
 - [ ] PROF-01 — every profile is measured on every dataset it supports, buffered and streaming
-- [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(Contract §10.2, §22.8)*
+- [ ] PROF-02 — B-P0 against B-P7 isolates the V1 envelope from the payload, on one value under one layout *(Contract §10.2, §22.7)*
 - [ ] PROF-03 — keyed models against positional ones of the same shape isolate the keyed layout, under B-P0 and B-P7 alike *(Contract §14.2)*
 - [ ] PROF-04 — B-P1 against B-P0 measures reference framing on a graph with no sharing at all, so the price of the option when it is not needed is visible *(Contract §16)*
 - [ ] PROF-05 — B-P2 against B-P0 shows what limit accounting costs; if the difference is not measurable, that is the result and it is published
-- [ ] PROF-06 — the existing-instance and `ref` entry points are measured against their allocating counterparts *(Contract §3.1)*
-- [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so the per-call `StreamExtensions` path has a number *(Contract §3.2)*
+- [ ] PROF-06 — `Populate` into an existing instance is measured against `Deserialize` of the same payload, which allocates the root; there is no `ref` form left to measure — a struct is read with the ordinary overload *(Contract §3.3; rewritten in R3)*
+- [ ] PROF-07 — a serializer reused across operations is measured against one constructed per operation, so what the per-type caches and a fresh serializer cost has a number *(Contract §3; rewritten in R3 — the per-call `StreamExtensions` path it once priced is gone)*
 - [ ] PROF-08 — a union-typed dataset is measured against the same shape written under its concrete type, so the discriminator's cost is separated from polymorphic dispatch *(Contract §15)*
+The built-ins were renamed in R5 to carry their family as a suffix; the plan IDs of the profiles did
+not change, and neither did the members of the harness's `ViperProfile` enum — `Deflate`, `Brotli`,
+`Crc32`, `Aes256Gcm` — which name profiles, not types, and which are what a cell's parameters record.
+A cell therefore keeps its identity across the rename, and BASE-02 still matches it with
+`pre-rework`. The three profiles R5 added have no `pre-rework` cell.
+
+- [x] PROF-09 — the same profile set is measured on the `pre-rework` commit, so the matrices of every rework stage compare with it cell by cell — `Baselines/pre-rework/`, 667 cells, none without a number
+- [ ] PROF-10 — B-P0g and B-P1g against B-P0 and B-P1 in steady state, on the same values and the same bytes: positional and keyed, five members and two hundred, one object and a batch, union arms; a generated profile that writes other bytes than its reflected twin is refused before timing *(Contract §14.4; added in rc.2 P4a)* — `GeneratorProfileBenchmarks`
+- [ ] PROF-11 — the first use of each member-encoded type of the corpus in a process warm for another type, under B-P0 and B-P0g, one process per launch, with the context's instantiation and the serializer's construction as rows of their own *(WL-10, COLD-04; added in rc.2 P4a)* — `FirstUseRunner`, `first-use.csv`
+- [ ] PROF-12 — cold start of B-P0g beside B-P0, and of the keyed DATA-13 under both *(COLD-01, COLD-02; added in rc.2 P4a)* — `ColdStartRunner`, `cold-start.csv`
 
 ---
 
@@ -355,7 +375,7 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 | **DATA-06** | DeepGraph | nesting at depths 5, 10, 25, 50, 200, 511 | small | T0–T3 | Depth accounting and recursion cost up to just below `MaxDepth` *(Contract §5.1)* |
 | **DATA-07** | UnicodeHeavy | multi-byte, CJK, emoji, combining sequences, with an ASCII twin | ~100 KB | T0–T2 | String encoding cost, and the honest ASCII-versus-UTF-8 difference |
 | **DATA-08** | Incompressible | high-entropy strings and blobs | ~1 MB | T0, T4 | Compression's worst case, and what the phase costs when it buys nothing |
-| **DATA-09** | HighlyCompressible | heavily repeated structure | ~1 MB | T0, T4 | Compression's best case |
+| **DATA-09** | HighlyCompressible | heavily repeated structure | ~0.35 MB | T0, T4 | Compression's best case. The size follows `MaxDecompressionRatio` rather than the 1 MB of its neighbours — see R-02 in §27.3 |
 | **DATA-10** | SharedReferenceDAG | one instance reachable by many paths | ~100 KB | T3 | Identity preservation, in time and in size |
 | **DATA-11** | CyclicGraph | parent/child cycles | ~50 KB | T3 | The scenario that is impossible without reference support |
 | **DATA-12** | PolymorphicBatch | a base type with 6–8 derived shapes | ~100 KB | T2, T3 | Discriminator cost and polymorphic dispatch |
@@ -372,7 +392,7 @@ Every dataset is deterministic, generated from a fixed seed, and belongs to the 
 - [ ] DATA-21 — every dataset is generated, verified through every adapter of its tiers, and its actual size published beside its target
 - [ ] DATA-22 — a dataset that misses its target by more than 2× is resized, or its target is corrected
 - [ ] DATA-23 — no dataset requires a limit above `SerializationLimits.Default`; one that would is split *(Contract §5)*
-- [ ] DATA-24 — a dataset that a mandatory library cannot express is recorded as `Unsupported` for that library with the reason, and is not removed from the corpus
+- [x] DATA-24 — a dataset that a mandatory library cannot express is recorded as `Unsupported` for that library with the reason, and is not removed from the corpus — `market/market-verification.csv`: each such pair `Unsupported` with the library's reason and the observed difference; no dataset removed
 
 ---
 
@@ -384,11 +404,11 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 |---|---|---|---|
 | **WL-01** | Serialize to a new `byte[]` | L1, L2 | The primary comparative family |
 | **WL-02** | Serialize to a pre-sized `MemoryStream` | L1, L2 | The streaming family; the stream is reset, never reallocated, inside the timed region |
-| **WL-03** | Serialize to a non-seekable stream | L2 | Viper-specific: V0 with a keyed contract requires a seekable destination, which is measured as a supported refusal rather than a timing *(Contract §10.2)* |
+| **WL-03** | Serialize to a non-seekable stream | L2 | Viper-specific: every profile, V0 and keyed contracts included, writes to a destination that cannot seek, so it is a timed workload — `ProfileStreamBenchmarks` *(Contract §7.2; rewritten in R2)* |
 | **WL-04** | Deserialize from `byte[]` | L1, L2 | Payload produced in setup by the same adapter |
 | **WL-05** | Deserialize from `MemoryStream` | L1, L2 | |
 | **WL-06** | Round trip | L1, L2 | Serialize and deserialize in one timed operation |
-| **WL-07** | Deserialize into an existing instance | L2 | `Unsupported` for most libraries; the cell says so *(Contract §3.1)* |
+| **WL-07** | Populate an existing instance | L2 | `Populate` against `Deserialize` of the same payload (PROF-06); `Unsupported` for most libraries, and the cell says so *(Contract §3.3; rewritten in R3)* |
 | **WL-08** | Steady state over one serializer instance | L1, L2 | The default for every comparative suite |
 | **WL-09** | First operation in a fresh process | L4 | §20 |
 | **WL-10** | First operation for a type not seen before | L4 | Type-plan and formatter-cache construction, measured in a fresh process per type family |
@@ -397,8 +417,21 @@ The operations measured. Every workload runs per (adapter, dataset, profile) tri
 | **WL-13** | Sustained load over a fixed duration | L4 | §22 |
 | **WL-14** | Serialize the same graph with reference framing on and off | L2 | DATA-10, DATA-11 |
 | **WL-15** | Read a payload whose schema differs from the model | L1 | DATA-13; the skipping side of evolution |
+| **WL-18** | Deserialize from a non-seekable stream | L2 | The V1 profiles of the representative set below: a frame declares its length, so it is read without seeking — the path that did not exist before; V0 is refused there by design — `ProfileFramedReadBenchmarks` *(Contract §20; added in R3)* |
+| **WL-19** | An encrypted frame written to an `IBufferWriter<byte>`, against the same frame to `byte[]` | L2 | WL-21 under B-P5 and B-P6 against WL-01 of the same profile. Since R5 the encryption writes straight into the writer's span, sized from the exact ciphertext length the algorithm states, and the difference is the copy saved *(Contract §13; added in R3, path in place since R5)* |
+| **WL-20** | A long stream of small frames read with `DeserializeAsyncEnumerable` | L2 | 1 000 frames of DATA-01 from a pipe and from a stream, under B-P0 and B-P6b; throughput and allocation per frame, each frame its own operation — `FrameStreamBenchmarks` *(Contract §3.5; added in R3)* |
+| **WL-21** | Serialize to an `IBufferWriter<byte>` | L1, L2 | The buffer family: a reset `ArrayBufferWriter<byte>`, over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.1; added in R3)* |
+| **WL-22** | Deserialize from a `ReadOnlySpan<byte>` and from a `ReadOnlySequence<byte>` of four segments | L1, L2 | The buffer family's read side, over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.1; added in R3)* |
+| **WL-23** | Serialize to a `PooledPayload` | L2 | The pooled family, labelled and never compared with an allocating one (FAIR-07), over B-P0, B-P1, B-P5, B-P6b and B-P7 — `ProfileBufferBenchmarks` *(Contract §3.2; added in R3)* |
+| **WL-24** | The asynchronous family: serialize to a `Stream` and a `PipeWriter`, deserialize from a `Stream` and a `PipeReader`, awaited | L2 | Writes over B-P0, B-P1, B-P5, B-P6b and B-P7, V0 included; reads over the four V1 profiles among them, since V0 is read synchronously — `ProfileAsyncWriteBenchmarks`, `ProfileFramedReadBenchmarks` *(Contract §3.5; added in R3)* |
 
-- [ ] WL-00 — every workload above has a suite, and every suite states which of WL-01…WL-15 it implements
+WL-18 and WL-21…WL-24 measure an entry point, not a configuration. What a profile costs is measured
+over all ten profiles by WL-01…WL-06 (`ProfileMatrixBenchmarks`, `ProfileStreamBenchmarks`), so the
+entry-point suites run over a representative set — the default frame, reference framing, one
+encryption, the full envelope and V0 — which covers every kind of path a frame can take through them
+(PROF-01 is carried by the matrix). *(Owner's decision of 2026-09-27, `rework/Owner-Review.md` log 56.)*
+
+- [ ] WL-00 — every workload above has a suite, and every suite states which of WL-01…WL-24 it implements
 - [ ] WL-16 — no suite mixes two workloads in one timed method
 - [ ] WL-17 — every suite's parameterization is visible in the exported results as columns, not encoded in the method name
 
@@ -462,13 +495,30 @@ The failure modes that silently produce wrong benchmarks. Each is closed by cons
 Allocation is a first-class result here, not a footnote: the engine's structural barriers exist to bound allocation, so what they cost and what they prevent both belong in the report.
 
 - [ ] ALLOC-01 — every comparative suite runs with `MemoryDiagnoser`, and allocation is published per operation
-- [ ] ALLOC-02 — Viper's write allocation is attributed by phase — payload write, checksum, compression, encryption, header, final `byte[]` assembly — from the §18.1 component measurements, and cross-checked against the profile differentials of §18.2, never inferred from a total
-- [ ] ALLOC-03 — the read path is attributed the same way: routing, header, decryption, decompression, payload read, materialization
-- [ ] ALLOC-04 — allocation is reported for the streaming family separately from the `byte[]` family, because the `byte[]` entry point's copy is part of what it costs *(Contract §3.1)*
-- [ ] ALLOC-05 — the buffering V1 performs on write is measured against V0's straight-through write, so what the envelope costs in memory is visible *(Contract §10.2)*
-- [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named
+- [ ] ALLOC-02 — Viper's write allocation is attributed by phase — payload write into `PayloadBuffer`, the one linearisation a phased payload needs, checksum, compression and encryption into pooled buffers, header, and the one copy into the destination or the returned `byte[]` — from the §18.1 component measurements, and cross-checked against the profile differentials of §18.2, never inferred from a total *(re-attributed in R2: no `MemoryStream` or intermediate `ToArray` remains on the path)*
+- [ ] ALLOC-03 — the read path is attributed the same way: routing, header, the read-ahead or the array decoded where it lies, decryption and decompression into pooled buffers, payload read, materialization *(re-attributed in R2)*
+- [ ] ALLOC-04 — allocation is reported per family — `byte[]`, streaming, buffer (`IBufferWriter<byte>` in, span and sequence out), pooled and asynchronous — and never summed across them, because the `byte[]` entry point's copy is part of what it costs, a buffer writer's growth belongs to the caller, a pooled payload rents instead of allocating, and an awaited call adds a state machine only when it truly suspends *(Contract §3.1, §3.2, §3.5; rewritten in R3)*
+- [ ] ALLOC-05 — V1 and V0 buffer alike on write — the whole frame in the serializer's pooled buffers, then one copy — so what is measured is what the header and the phases add to V0's frame *(Contract §2.6, §10.2; rewritten in R2)*
+- [ ] ALLOC-06 — a large-payload suite reports Gen2 and LOH behavior, and the payload sizes at which allocations cross the LOH threshold are named; re-measured from R2, where pooled phase buffers should remove most crossings for payloads under the pool's largest bucket
 - [ ] ALLOC-07 — the tight-limits profile B-P2 is measured for allocation as well as time, so the accounting structures have a number
 - [ ] ALLOC-08 — no allocation number is published from a run that also produced a timing in the same iteration when the diagnoser is known to perturb it; where it does, the timing comes from a separate run and the report says so
+- [ ] ALLOC-10…ALLOC-21 — the allocation targets of `Rework-Plan.md` §11, one per line of its table, each with its target and its measured value, bytes per operation after warm-up, from `AllocationTargetBenchmarks` in `Measurements/48c7bf5-20260928T082209Z` *(added in R4)*. A target not met stays open with its number:
+
+  | | Line of §11 | Target | Measured | State |
+  |---|---|---|---|---|
+  | ALLOC-10 | write to `IBufferWriter`, V1, a record of primitives and strings | 0 | 272 | open — two `PayloadBuffer` objects (PERF-07); the engine adds 0 (ALC-01) |
+  | ALLOC-11 | the same, V0 | 0 | 136 | open — one `PayloadBuffer` (PERF-07) |
+  | ALLOC-12 | the same with Brotli | 0 managed | 352 (R4: 296) | open — the buffers and the `CompressionBuffer` object (PERF-07, PERF-08) |
+  | ALLOC-13 | the same with Deflate | one `DeflateStream` | 552 (R4: 840) | open — the buffers (PERF-07); the phase is the `DeflateStream`, its adapter stream and the `CompressionBuffer` |
+  | ALLOC-14 | the same with encryption | one `AesGcm` | 432 (R4: 432) | open — the ciphertext now goes straight to the destination (a copy saved, not an allocation); the buffers remain (PERF-07) |
+  | ALLOC-15 | `Serialize<T>(T)` → `byte[]` | the array | 384 (array alone 112) | open — the buffers (PERF-07); exactly the array beyond them (ALC-02) |
+  | ALLOC-16 | `SerializePooled` | one `PooledPayload` | 304 | open — the buffers; exactly one `PooledPayload` beyond them (ALC-03) |
+  | ALLOC-17 | read from a span, a record of primitives | the record | 152 (record alone 80) | open — 72 B of algorithm objects per read (PERF-07); exactly the record beyond them (ALC-04) |
+  | ALLOC-18 | read a graph | the graph | 22 659 (graph alone 22 584) | met but for the same 72 B — no copy, no reallocation (ALC-05) |
+  | ALLOC-19 | with `PreserveReferences` | as without | read 22 659 = 22 659; write 512 against 368 | read met; write +144 B: the reference frames make the payload 1.3 KB longer, so the payload buffer's segment list grows once more (PERF-07); the tables themselves are pooled (ALC-06) |
+  | ALLOC-20 | asynchronous methods | as the synchronous ones | `SerializeAsync` 368 = 368; `DeserializeAsync` 22 659 = 22 659 | met |
+  | ALLOC-21 | first use of a type | its codec and contract, once | contract: 137 KB for eight members (`contract-cold.csv`) | met in kind — nothing per type after first use (ALC-01, ALC-04); the cost itself is PERF-06 |
+- [ ] ALLOC-09 — cycle detection without references: the engine's ancestor stack against a per-operation `HashSet` by reference over the same path, at depths 4, 32 and 500; the depth-500 engine cell also against SCALE-03 of `Baselines/pre-rework/` *(Contract §16; added in R2)* — `CycleDetectionBenchmarks`
 
 ---
 
@@ -489,13 +539,15 @@ encrypted bytes and the overhead over the plaintext
 ```
 
 - [ ] SIZE-01 — every (adapter, dataset) pair has a size, or a result state explaining its absence
-- [ ] SIZE-02 — the V1 envelope's fixed cost is stated in bytes, measured as B-P0 minus B-P7 on the same value *(Contract §22.6, §22.8)*
+- [ ] SIZE-02 — the V1 envelope's fixed cost is stated in bytes, measured as B-P0 minus B-P7 on the same value *(Contract §22.6, §22.7)*
 - [ ] SIZE-03 — the reference-framing cost is stated in bytes, as B-P1 minus B-P0 on a graph with no sharing, and as the saving on DATA-10 where sharing exists *(Contract §16)*
 - [ ] SIZE-04 — the keyed layout's cost is stated in bytes against the positional layout on the same type, and against the evolution tolerance it buys *(Contract §14.2)*
 - [ ] SIZE-05 — the per-string, per-element and per-null framing costs are derived from DATA-16, DATA-15 and DATA-17 and published as a table
 - [ ] SIZE-06 — a size comparison against a self-describing text format states that the comparison is between formats of different kinds
 - [ ] SIZE-07 — compressed sizes are only compared with compressed sizes, and the algorithm is named in the cell
 - [ ] SIZE-08 — encrypted sizes name the tag and nonce overhead separately from the ciphertext *(Contract §13)*
+- [ ] SIZE-09 — the V1 header of service records, in bytes, for no service, a checksum, a checksum and compression, and all three with a key id, beside the fixed header it replaced (29 bytes plus its strings and checksum) — `format-sizes.csv` *(Contract §11; added in R6)*
+- [ ] SIZE-10 — the null fold, in bytes, on a wide nullable record of sixteen members all null and all set, and on a list of 1 000 strings and of 1 000 nulls — `format-sizes.csv` *(Contract §22.2; added in R6)*
 
 ---
 
@@ -503,25 +555,29 @@ encrypted bytes and the overhead over the plaintext
 
 Layer L2, over DATA-08, DATA-09, DATA-04, DATA-14 and DATA-16.
 
-- [ ] CMP-01 — `Deflate` compress and decompress: time, ratio, allocation, at every corpus size *(Contract §12)*
-- [ ] CMP-02 — `Brotli` compress and decompress: the same *(Contract §12)*
+- [ ] CMP-01 — `DeflateCompression` compress and decompress: time, ratio, allocation, at every corpus size *(Contract §12)*
+- [ ] CMP-02 — `BrotliCompression` compress and decompress: the same *(Contract §12)*
 - [ ] CMP-03 — the no-compression path is measured on the same datasets, so the phase's cost is a difference rather than an estimate
 - [ ] CMP-04 — the incompressible dataset shows what compression costs when it saves nothing, including the case where output exceeds input *(Contract §12)*
 - [ ] CMP-05 — compression throughput is published in MB/s of input, on both directions
 - [ ] CMP-06 — decompression is measured against its declared uncompressed length, since the exact-length rule is part of the read path *(Contract §12)*
 - [ ] CMP-07 — where a competitor offers built-in compression, it appears in this section and nowhere else *(FAIR-16)*
 - [ ] CMP-08 — a custom registered algorithm is measured once, so the extension path's overhead over a built-in is known *(Contract §4.1)*
+- [ ] CMP-09 — incremental decompression for `DeflateCompression` and `BrotliCompression`: time and allocation against the previous single-buffer path, at every corpus size. NX-01 replaced the path, so its cost on a legitimate payload is unknown, and a 64 KiB probe promoted once is a copy on every payload above 64 KiB. Since R5 it is the only path, for every algorithm, so the comparison is with `pre-rework`
+- [ ] CMP-10 — the `MaxDecompressionRatio` check, isolated: expected to be negligible, and a number makes it a fact
 
 ---
 
 # 16. Checksum and encryption
 
-- [ ] SEC-01 — `Crc32` over each corpus size: time, throughput, allocation *(§11)*
+- [ ] SEC-01 — `Crc32Checksum` over each corpus size: time, throughput, allocation *(§11)*
 - [ ] SEC-02 — the checksum's share of a full V1 write and read, as a difference against B-P0
-- [ ] SEC-03 — `Aes256Gcm` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(Contract §13)*
-- [ ] SEC-04 — the AAD image build, measured on its own (MICRO-08) and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(Contract §13.1)*
+- [ ] SEC-03 — `Aes256GcmEncryption` encrypt and decrypt: time, throughput MB/s, allocation, at every corpus size *(Contract §13)*
+- [ ] SEC-04 — the associated data is the header bytes, so its cost is the header's own: measured through MICRO-08 on the narrowest and the widest header, and as the difference between a payload carrying long custom algorithm names and a key id and one carrying none *(Contract §13.1; rewritten in R6 — there is no separate image to build)*
 - [ ] SEC-05 — key resolution through `IKeyProvider` measured against a static key, including the per-operation copy `SecretKey` makes *(Contract §13.2)*
 - [ ] SEC-06 — the full protected envelope B-P6 against B-P0, per dataset, so the price of protection is one number a reader can act on
+- [ ] SEC-09 — `XxHash3Checksum` and `XxHash128Checksum` over each corpus size, beside `Crc32Checksum`: time, throughput, allocation; and B-P4x3, B-P4x128 against B-P0 as SEC-02 does for B-P4 *(Contract §3; added in R5)*
+- [ ] SEC-10 — `ChaCha20Poly1305Encryption` encrypt and decrypt beside `Aes256GcmEncryption`, and B-P5c against B-P5. Which one is faster depends on whether the processor has AES instructions: the manifest records the CPU, and a published result names it together with SEC-08's AES flag *(Contract §13; added in R5)*
 - [ ] SEC-07 — the order of phases is the contract's, and no benchmark measures a reordered pipeline *(Contract §10.1)*
 - [ ] SEC-08 — hardware-accelerated AES is reported as present or absent in the environment manifest, since it moves this section by an order of magnitude
 
@@ -556,16 +612,22 @@ Diagnostic, never a market comparison. They exist for two readers: the engineer 
 
 Measured directly on the internal type that owns the mechanism, through the grant of §18.3.
 
-- [ ] MICRO-01 — `ValueWriter`/`ValueReader` primitives: varint, fixed-width, string, blob, on both directions *(Contract §22.1)*
-- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop *(Contract §6)*
-- [ ] MICRO-03 — depth scope entry and exit, and the unwind on the exceptional path *(Contract §5.1)*
-- [ ] MICRO-04 — `TypeContract` construction for a cold type, and lookup once cached, positional and keyed *(Contract §14)*
-- [ ] MICRO-05 — `FormatterRegistry.Resolve` for a claimed type and for a member-encoded one
-- [ ] MICRO-06 — one formatter per shape family: scalar, sequence, map, composite
-- [ ] MICRO-07 — reference identity tracking: registration, lookup, scope exit, at several sharing densities *(Contract §16)*
-- [ ] MICRO-08 — V1 header write and parse, including the AAD image build *(Contract §11, §13.1)*
-- [ ] MICRO-09 — `MeteredReadStream`, `MeteredWriteStream` and `WindowReadStream` against the bare stream *(Contract §7)*
-- [ ] MICRO-10 — the algorithm primitives over spans, outside the pipeline: `Deflate`, `Brotli`, `Crc32`, `Aes256Gcm` *(Contract §12, §13)*
+MICRO-04 measures the reflected contract, the only one v1.0 has. The conformance suite of the test
+plan (`QA-Plan.md` §15.1, CONF-01…CONF-07) fixes, for every object shape, the description and the
+bytes any `TypeContract<T>` must produce, so a generated contract measured later against MICRO-04 is
+measured doing the same work to the same wire — a like-for-like comparison, not a new workload.
+*(added in R8)*
+
+- [ ] MICRO-01 — `WireWriter`/`WireReader` primitives: varint, fixed-width, string, blob, on both directions, compared cell by cell with the `ValueWriter`/`ValueReader` cells of `Baselines/pre-rework/`; a write cell includes filling the `PayloadBuffer` from empty and returning it, as one serialization does *(Contract §22.1; rewritten in R1)*
+- [ ] MICRO-02 — `ElementCount` validation and budget charging over a hot loop, on the budget inside the `OperationState` the pipeline creates, reached by reference as the codecs reach it *(Contract §6; rewritten in R4)* — `BudgetBenchmarks`
+- [ ] MICRO-03 — depth scope entry and exit over the state's budget, and the unwind on the exceptional path *(Contract §5.1; rewritten in R4)* — `DepthScopeBenchmarks`
+- [ ] MICRO-04 — `ReflectedContract<T>` construction for a cold type, and the lookup by runtime type the polymorphic slot makes once cached, positional and keyed; a value of its declared type pays no lookup *(Contract §14, §15; rewritten in R4)* — `ContractLookupBenchmarks`, `ContractColdRunner`
+- [ ] MICRO-05 — the codec of a claimed type and of a member-encoded one, read from the static field of `FormatterCache<T>` *(Contract §18; rewritten in R4)* — `FormatterResolutionBenchmarks`
+- [ ] MICRO-06 — one codec per shape family: scalar, sequence, map, composite, the containers through the engine's entry for a payload *(Contract §2.4; rewritten in R4)* — `FormatterShapeBenchmarks`
+- [ ] MICRO-07 — reference identity tracking through the pooled reference tables the payload's traversal rents and returns: rent, registration, lookup, scope exit and return, at several sharing densities *(Contract §16; rewritten in R2; re-read in R4, where the tables moved into `GraphState` unchanged)* — `ReferenceIdentityBenchmarks`
+- [ ] MICRO-08 — V1 header write and parse over service records, for no service and for all three with custom names, a key id and a checksum *(Contract §11, §13.1; rewritten in R6 — the image build is gone)*
+- [ ] MICRO-09 — metering and windowing over buffers against a bare copy: the `PayloadBuffer` budget on write, the `WireReader` budget on read, the `WireReader.Slice` window read and skip, and the copy of a finished buffer to a stream *(Contract §7; rewritten in R2, where the three stream decorators were removed)* — `MeteringBenchmarks`
+- [ ] MICRO-10 — the algorithm primitives outside the pipeline, every built-in: `DeflateCompression` and `BrotliCompression` into a reused buffer writer, `Crc32Checksum`, `XxHash3Checksum`, `XxHash128Checksum`, `Aes256GcmEncryption` and `ChaCha20Poly1305Encryption` *(Contract §12, §13; extended in R5)* — `CompressionPrimitiveBenchmarks`, `ProtectionPrimitiveBenchmarks`
 - [x] MICRO-11 — allocation is recorded for every microbenchmark above, not only time, since the per-component allocation record is what a later version compares against
 - [x] MICRO-12 — every microbenchmark names the end-to-end measurement it explains; one that explains nothing is deleted
 
@@ -573,7 +635,7 @@ Measured directly on the internal type that owns the mechanism, through the gran
 
 The same mechanisms seen from outside, by subtracting two public measurements that differ in one thing alone. They are not a substitute for §18.1 — they are its cross-check, and they are what remains measurable if a grant is ever withdrawn.
 
-- [ ] DIFF-01 — the V1 envelope: B-P0 minus B-P7 on one value, with and without custom algorithm names and a key id *(Contract §11, §22.8)*
+- [ ] DIFF-01 — the V1 envelope: B-P0 minus B-P7 on one value, with and without custom algorithm names and a key id *(Contract §11, §22.7)*
 - [ ] DIFF-02 — each algorithm phase: B-P3, B-P4, B-P5 against B-P0 *(Contract §12, §13)*
 - [ ] DIFF-03 — the member plan: DATA-18 positional against keyed, first use against steady state *(Contract §14)*
 - [ ] DIFF-04 — reference framing: B-P1 against B-P0 by sharing density *(Contract §16, and SCALE-07)*
@@ -587,6 +649,11 @@ The component suites see internals through `src/ViShap.Viper.Serialization/Prope
 
 - [x] MICRO-13 — the grant exists for `ViShap.Viper.Serialization.Benchmarks`, added by the repository owner on 2026-09-20, and an internal type resolves from the benchmark project in a Release build *(Q1)*
 - [x] MICRO-14 — the grant is the only thing the component suites need from `src/`; nothing else is added, made public, or made `internal` for their sake, and a measurement that would need more is a proposal in `internal/performance/` (§27.4)
+- [ ] MICRO-15 — the count a sequence shape reports on write, and the write path it enables for sets, frozen and immutable sets, against the gathering path a sequence without an O(1) count takes. NX-02 removed an intermediate list per set written; it may be the largest incidental gain of the NX changes and nothing records it *(rewritten in R4: `CollectionCountCache` is deleted, each shape counts its own collection)*
+- [ ] MICRO-16 — the duplicate check after `Complete`, the count read on every container read that NX-02 put on the read path of every collection
+- [ ] MICRO-17 — a positional record of sixteen booleans, eight bytes and eight 16-bit integers, written and read through the engine: the shape where a call per byte dominates, so the gain of the primitives moving off `Stream` is visible rather than averaged away *(Contract §2.3, §22.1; added in R1)* — `SmallFieldBenchmarks`
+- [ ] MICRO-18 — a primitive array read into an array of its final length against the pooled path a count the bytes do not back takes, at 16, 4 096 and 1 000 000 elements *(Contract §17; added in R4)* — `ArrayMaterializationBenchmarks`
+- [ ] MICRO-19 — the dumper, informational: `Dump<T>` of DATA-01, DATA-04 and DATA-08, time and allocation per node; it gates nothing, but states what a dump of a large frame costs and catches an accidental quadratic rendering *(Contract §19; added in R6)*
 
 ---
 
@@ -700,9 +767,9 @@ Measurements/<git describe>-<UTC timestamp>/
 - [ ] REP-09 — a publication run refuses to start when `Baselines/<tag>/` already exists; a re-measurement of the same tag goes to a new directory and the difference between the two is recorded in §27.3
 - [x] REP-10 — `BenchmarkDotNet.Artifacts/` is the working directory of ad-hoc and exploratory runs, is ignored by git, and is never the source of a published figure
 - [x] REP-11 — every baseline is readable on its own: no artifact in it refers to another baseline, to the working directory, or to a file outside the repository
-- [x] REP-12 — a partial run writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no partial run can overwrite another
-- [x] REP-13 — a partial run carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
-- [ ] REP-14 — a partial run is never the source of a published figure about anything it did not measure, and a delta against a baseline covers only the cells both contain
+- [x] REP-12 — a measurement writes to `Measurements/<git describe>-<UTC timestamp>/`, needs no tag, and never writes into `Baselines/`; the timestamp makes every run its own directory, so no measurement can overwrite another
+- [x] REP-13 — a measurement carries `scope.md` naming every suite it ran and every suite of §10 and §18 it did not, so it can never be read as a baseline
+- [ ] REP-14 — a measurement is never the source of a published figure about anything it did not measure, and a delta against a baseline covers only the cells both contain
 
 ---
 
@@ -736,8 +803,10 @@ The run against the `v1.0.0` tag becomes the frozen baseline, whenever it happen
 
 Every later v1.x that changes `src/` is measured the same way, against its own tag, and published as a delta against the baseline it is compatible with. That is what this plan is for once v1.0.0 has shipped: not a gate in front of a release, a record behind each one.
 
+The rework before `v1.0.0` has a baseline of its own: `Baselines/pre-rework/`, taken once on the commit the rework started from. A rework stage is compared against `pre-rework`; a release is compared against the previous release. The two never mix: a rework stage is not a release, and `pre-rework` is never the baseline of one.
+
 - [ ] BASE-01 — the baseline package is committed under `Baselines/v1.0.0/` with every artifact of §23, produced from a checkout of the `v1.0.0` tag
-- [ ] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error
+- [x] BASE-02 — a comparison tool reports the delta of a new run against a baseline, cell by cell, with margins of error — `--compare <baseline> <run>` (`Reporting/BaselineComparison`): every cell of `results.csv`, `components.csv`, `contract-cold.csv` and `cold-start.csv`, faster or slower only when the intervals do not overlap, a suite the run did not measure reported once, a cell on one side only listed *(built in R4)*
 - [ ] BASE-03 — a comparison against an incompatible environment is refused rather than printed
 - [ ] BASE-04 — review thresholds, as triggers for investigation and not automatic failures:
   - a throughput regression beyond 10% that is stable across two runs;
@@ -749,7 +818,7 @@ Every later v1.x that changes `src/` is measured the same way, against its own t
 - [ ] BASE-06 — each subsequent v1.x run is committed under its own `Baselines/<tag>/`, with the delta against the previous one and an entry in §27.3 for every threshold it crosses
 - [ ] BASE-07 — every cell of a baseline carries the tag it belongs to, so two baselines can be read in one table without either being modified
 - [x] BASE-08 — the directory name of a full baseline is the tag `git describe --tags --exact-match HEAD` reports and nothing else; on a commit that carries no tag no baseline directory is created at all and the run is recorded under `Measurements/` instead (REP-12), because a baseline signed with the wrong version is worse than a missing one
-- [ ] BASE-09 — a full baseline is taken deliberately, not once per tag: a release that did not change `src/` records that the previous baseline still applies, and anything examined between baselines is a partial run of §23
+- [ ] BASE-09 — a full baseline is taken deliberately, not once per tag: a release that did not change `src/` records that the previous baseline still applies, and anything examined between baselines is a measurement of §23
 
 ---
 
@@ -781,6 +850,16 @@ can be recorded against it.
 |---|---|---|---|
 | [PERF-01](performance/PERF-01-byte-array-limits.md) | A `byte[]` is bounded by `MaxArrayLength`, not by the blob limit its name suggests, and spends the element budget per byte | B0 verification, DATA-08 and DATA-14 | Resolved by the owner, as a clarification of Contract §5; no behavior and no bytes changed |
 | [PERF-02](performance/PERF-02-bulk-binary-accounting.md) | Should bulk binary data spend the structural element budget, a byte budget, or both? | A5, SCALE-02 and SCALE-09 | Open |
+| [PERF-03](performance/PERF-03-write-buffer-lifecycle.md) | The write buffer's rent, clear and return cost a small blob write more than the pre-sized stream the old MICRO-01 cell used | MICRO-01, rework R1 | Open |
+| [PERF-04](performance/PERF-04-pooled-phase-buffers.md) | The pooled write path is slower on a large unphased blob (×1.15) and on a few compressed cells (×1.05–1.07), while the rest of the matrix is ×0.43–0.99 | ALLOC-02, ALLOC-03, ALLOC-06, rework R2 | Open |
+| [PERF-05](performance/PERF-05-ancestor-stack-depth.md) | The ancestor-stack cycle search is quadratic in depth; SCALE-03 goes from ×0.56 at depth 1 to ×0.94 at depth 500 | ALLOC-09, SCALE-03, rework R2 | Open |
+| [PERF-06](performance/PERF-06-typed-engine-first-use.md) | The first operation of a process is ×1.34–1.69 slower after the typed engine (+20–35 ms), and one member plan ×1.3–1.5; the steady state is ×0.41–0.51 | COLD against pre-rework, MICRO-04, rework R4 | Open |
+| [PERF-07](performance/PERF-07-frame-fixed-allocations.md) | The frame allocates 136 B per payload buffer on write and 72 B of algorithm objects per read; the engine adds nothing | ALLOC-10…ALLOC-17, rework R4 | Open |
+| [PERF-08](performance/PERF-08-algorithm-primitives-after-port.md) | Every pipeline cell of the algorithm phases is faster after R5, while 28 MICRO-10 primitive cells are slower (×1.01–1.57) | MICRO-10, ALLOC-12…ALLOC-14, rework R5 | Open |
+| [PERF-09](performance/PERF-09-final-format-and-trace-seam.md) | The final format's sizes and header parse, and the trace seam's cost on every read (≈ 1.5 %) | SIZE-02…SIZE-10, MICRO-08, MICRO-19, rework R6 | Open — the seam's cost accepted for v1.0 |
+| [PERF-10](performance/PERF-10-generated-context-first-use.md) | A generated context creates all 34 contracts on the first read of `Default` (20.8 ms), and a generated contract compiles on its first call: first writes ×0.11–0.59 of reflection, first reads up to ×23; per corpus ≈ 177 ms against 352 ms | PROF-11, PROF-12, rc.2 P4a | Open |
+| [PERF-11](performance/PERF-11-member-call-dispatch.md) | Scalar members through an interface call and reference-typed members through a generic-dictionary lookup on every call, on both contract paths; invisible to PROF-10 by design and to a cross-run comparison by R-06, so a component suite measures it first | rc.2 P4b, R-05, R-06 | Open — deferred past `v1.0.0` |
+| [PERF-12](performance/PERF-12-context-offers-at-construction.md) | A generated context builds the codec of every type it reaches in its constructor: instantiation 18.7 → 39.5 ms (×2.1, 61 → 109 KB), first uses cheaper, ≈ +6 ms (×1.04) for the whole corpus | PROF-11, PROF-12, rc.2 P4d, R-07 | Open — deferred past `v1.0.0` with PERF-10 |
 
 ## 27.2 Open questions
 
@@ -794,6 +873,7 @@ An experiment that cannot be made fair, a scenario the plan does not say how to 
 |---|---|---|---|
 | **Q1** | The component suites of §18.1 measure internal mechanisms — value primitives, budgets, contracts, header, metered streams — and the benchmark assembly could not see them. Adding the grant is a change in `src/`, which this plan does not make (§1) | Granted by the repository owner on 2026-09-20: `AssemblyInfo.QA.cs` now names `ViShap.Viper.Serialization.Benchmarks`, verified by resolving an internal type from the benchmark project in a Release build. Nothing a consumer sees changes, and v1.0.0 gets the per-component record a later version measures its optimizations against | MICRO-01…MICRO-14, ALLOC-02, ALLOC-03, SEC-04 |
 | **Q2** | PERF-01 showed Contract §5.6 describing `MaxByteBlobBytes` in words that also describe `byte[]`, which no benchmark can correct: the contract and `src/` are outside this plan (§1, §28 *Boundary*) | Decided by the repository owner on 2026-09-21: §5.2, §5.6, §5.7, §6 and a new §21.4 state the wire-form model, the XML docs of three limits repeat it for a consumer on hover, and every `BinaryLimitException` now names the property that governs it. No behavior, no defaults and no bytes changed, and the change is the owner's commit, not this plan's. The boundary box of §28 is therefore evaluated against the benchmark work alone, and this row is what records the exception | PERF-01 closed; PERF-02 opened |
+| **Q3** | REP-08 says a publication run writes "directly into `Baselines/<tag>/`", and the graceful stop decided in `Benchmark-Graceful-Stop.md` says an interrupted run is never a baseline. Written directly, a killed run leaves a partial `Baselines/<tag>/` that REP-09 then refuses to overwrite, and that could be committed as a baseline before `--report` moves it | Decided by the repository owner on 2026-10-16: a publication run is measured in `Measurements/<describe>-<stamp>/` and moved to `Baselines/<tag>/` in one step once every unit has run; a stopped or killed run stays a measurement where it is. REP-08's purpose — nothing outside the commit — holds; its word "directly" is the owner's to restate | REP-08, REP-09 under the graceful stop |
 
 ## 27.3 Results register
 
@@ -802,6 +882,18 @@ The place where an unflattering result is recorded rather than argued with. Each
 | | Cell | What was seen | Cause | Resolution |
 |---|---|---|---|---|
 | **R-01** | §14 sizes, DATA-19 under B-P3d, B-P3b, B-P6b, B-P6d | The compressed size of one dataset moved between runs of `--sizes` — 12088, 12087, 12085, 12084 bytes — while its uncompressed size stayed at 18733. Nothing in the harness had changed between the runs | `CollectionZoo` held an `ImmutableDictionary<string, int>`. An immutable dictionary enumerates in hash order and .NET randomizes string hash codes per process, so the payload carried the same lengths in a different order in every run, and the compressor answered differently | Harness defect, fixed before any publication run: the member is keyed by an integer, which keeps the container family in the corpus and makes its order deterministic. Three consecutive `--sizes` runs now produce a byte-identical 270-row table. DATA-00 still asks for byte-identical data on **two machines**, which one machine cannot show, so it stays open |
+| **R-02** | B0 verification, DATA-09 under B-P3b and B-P6b | The Track A run for the `pre-rework` baseline stopped at verification: 2 of 270 pairs failed with `BinaryLimitException` — Brotli wrote 20 000 identical strings, 1 440 005 bytes, as 64, and the reader refused an expansion of 22 500 against the default `MaxDecompressionRatio` of 10 000. Deflate wrote the same payload as 8 496 bytes and passed | The ratio check arrived with the NX fixes after the corpus was sized. Brotli compresses this payload to a few dozen bytes at any count — 76 to 77 bytes anywhere from 2 000 to 10 000 strings — so the ratio grows with the count alone, and at 20 000 the dataset required a limit above `SerializationLimits.Default`, which DATA-23 forbids | Harness defect, fixed by the repository owner's decision of 2026-09-26 before the baseline: DATA-09 holds 5 000 strings, 360 005 bytes, an expansion of about 4 700 under Brotli. It stays compression's best case and needs no relaxed limit, as FAIR-18 requires. Raising the limit in the Brotli profiles, varying the strings and recording the refusal as a result were rejected. `--verify` passes 270 of 270 pairs |
+| **R-03** | Rework R4 against `pre-rework`, `Measurements/48c7bf5-20260928T082209Z`, `comparison-pre-rework.md` | Of 220 matched timed cells of `results.csv`, 211 are faster and 8 slower. The slower are six nanosecond-scale component cells — MICRO-02 `validate array count` 1.3 → 1.7 ns, `charge graph node` 0.9 → 1.0 ns, `charge keyed field` ×1.05; MICRO-03 `descend and return` at depth 64 and `descend and unwind` ×1.02–1.03 — one profile cell, WL-01 B-P3b DATA-01 13 381 ± 47 → 14 412 ± 74 ns (×1.08, with allocation 2 336 → 448 B), and one cell within error. All 18 cold-start cells and both generic contract rows are slower | The budget is reached through a `ref` to the state instead of a class field, which the JIT keeps in a register less often; the Brotli cell is the phase, which R5 rewrites; the cold cells are PERF-06 | Micro cells accepted as the cost of one operation state per call (INV-1), a few tenths of a nanosecond per charge. The cold cells are PERF-06, open. The Brotli cell is re-measured in R5 |
+| **R-04** | Rework R5 against `pre-rework`, `Measurements/c215131-20260928T131001Z`, `comparison-pre-rework.md` | All 70 matched `AlgorithmBenchmarks` cells are faster (×0.05–×0.88). Of the MICRO-10 primitives 28 cells are slower: `Crc32Checksum` ×1.05–1.10 and AES-GCM ×1.01–1.15 though their code did not change, Brotli ×1.04–1.22 with 32 B per call, Deflate decompress of 1 MB compressible ×1.57. ALLOC-12 296 → 352 B, ALLOC-13 840 → 552 B, ALLOC-14 432 B unchanged | The unchanged primitives set the run's own drift at up to ~15 %; the soak took 40 minutes of wall time for 10. Brotli moved from the one-shot calls to a stepped encoder and decoder over the buffer writer; Deflate copies its input for the stream it reads through; compression writes into a `CompressionBuffer` object | PERF-08, open: re-measure MICRO-10 on an idle machine first, then the one-shot Brotli path, a Deflate profile and a reused `CompressionBuffer` |
+| **R-05** | rc.2 P4a, PROF-10, `Measurements/v1.0.0-rc.1-8-g7da99ba-20261009T204932Z`, `GeneratorProfileBenchmarks` | B-P0g is slower than B-P0 in steady state where many objects pass through one operation without reference framing: DATA-04 write 3.57 ± 0.01 → 4.50 ± 0.02 ms (×1.26), read 7.22 ± 0.02 → 10.05 ± 0.18 ms (×1.39); DATA-12 ×1.26 / ×1.12; DATA-13 ×1.22 / ×1.27; the five-member types ×1.04–1.14 under both B-P0g and B-P1g, one write within error. With reference framing DATA-04 narrows to ×1.03–1.05, DATA-13 to ×0.99–1.05, and DATA-12 turns faster, ×0.91–0.95. Faster: the 200-member keyed type ×0.79–0.94, DATA-02 ×0.94–0.99, DATA-18 ×0.86–0.92 except its B-P0g write (×1.13). Same bytes in every pair (§7.6 check) | Most likely the contract lookup, not yet isolated: under a context `ObjectCodec.Contract` looks the type up in the `ContractSet` dictionary per value — twice per value of a class without reference framing (`FoldsNull` and the body), once with it — where the reflected path reads a cached field. The gap follows the lookup count — largest on batches without framing, smallest on wide single objects — though DATA-12 with framing, where both paths look an arm up by runtime type, does not fit it | Re-measured at rc.2 P4b (R-06): **not reproduced on the same code.** A control run of the unchanged tree (`e9a00bd`, `Measurements/v1.0.0-rc.1-10-ge9a00bd-20261014T105458Z`) puts B-P0g at ×0.87 of B-P0 for the DATA-04 write and ×0.99 for its read, DATA-12 ×0.92 / ×0.87, DATA-13 ×0.96 / ×1.05 — the gap belonged to that run, not to the lookup. Item 1 of P4b was made as the plan required; its gain is not separable from the drift R-06 records. The allocation cell is the same drift: a +0.7–0.9 MB DATA-04 write appeared in P4a under B-P0, in neither profile of the control, and under B-P0g and B-P1g of the P4b run, while a smoke run of the P4b tree allocates 1 720 152 B under both B-P0 and B-P0g |
+| **R-06** | rc.2 P4b, PROF-10, `GeneratorProfileBenchmarks`: the P4a run (`v1.0.0-rc.1-8-g7da99ba-20261009T204932Z`), a control of the unchanged tree and the P4b tree (`v1.0.0-rc.1-10-ge9a00bd-20261014T102807Z`), the last two on the same day, one after the other | Between two runs, a cell moves by more than BenchmarkDotNet's error interval on code it does not exercise differently. P4a → control, the same code: ×0.72 (B-P0g DATA-04 read) to ×1.07 (B-P0 DATA-18 write); the reflected profiles alone ×0.88–1.07. Control → P4b, whose change does not reach a configuration without a context: the reflected profiles ×0.95–1.18 (B-P0 DATA-13 read, 75.9 → 89.8 µs); every profile ×0.93–1.25 (B-P1g DATA-04 read). `--compare` calls 41 of 72 cells `slower` and 22 `faster` between the two same-day runs | The interval of a cell describes the iterations of one run; the state of the machine between runs — frequency, other load, the GC's view of the pool — is not in it. R-04 saw the same order of drift on unchanged primitives | Open. Until the harness measures two trees under one machine state — interleaved runs, or both builds in one BenchmarkDotNet session — a `faster`/`slower` verdict between two runs is not evidence of a change below ~20 % on a single cell; a ratio between two profiles of one run (B-P0g ÷ B-P0) is the steadier reading and is what R-05's re-measurement used |
+| **R-07** | rc.2 P4d against P4b, the same day one after the other: `Measurements/v1.0.0-rc.1-14-g146f03a-20261014T131828Z` (P4b tree) and `…T134616Z` (P4d tree), `GeneratorProfileBenchmarks`, `first-use.csv`, `cold-start.csv` | Steady state: every cell ×0.87–1.12, the reflected profiles, whose code P4d does not change, ×0.92–1.06; the generated ÷ reflected ratios of each run agree within the same spread; allocations equal but for DATA-04's pool rounding (±400 B on 1.7–5.3 MB). First use: the context's instantiation 18 695 → 39 546 µs and 61 248 → 108 992 B; the serializer's construction 6 238 → 3 564 µs; first writes over the corpus 76.1 → 66.5 ms, first reads 58.5 → 56.2 ms; per corpus 159.5 → 165.8 ms. Cold start: B-P0g DATA-01 and DATA-02 faster, DATA-03 slower, B-P0 drifting by as much | The context's constructor builds and JIT-compiles the codec of every type it reaches, which the reflection path did on each type's first use | The steady state shows no change beyond R-06's drift. The instantiation is a regression of one cell, written up as PERF-12 for the owner |
+| **R-08** | Track B verification, DATA-20 under MemoryPack 1.21.4 | `BigInteger` round-trips as zero: a 27-digit value is written as 248 bytes and read back as `0`, as the root and as a member, with every other member intact | Reproduced outside the harness in a console project with only MemoryPack 1.21.4 on net10.0 (`MemoryPackSerializer.Serialize(big)` then `Deserialize<BigInteger>`); the library ships a `BigIntegerFormatter`, so the cause is in the library, not in the model | DATA-20 is `Unsupported` for MemoryPack with this reason; a library defect, not a finding about Viper. Reporting it upstream is the owner's call |
+| **R-09** | FAIR-16, Nerdbank.MessagePack 1.4.82 | The plan names Nerdbank.MessagePack among the libraries with built-in compression; version 1.4.82 has none — no compression type or option in the assembly | The plan's list predates the version on nuget.org today | FAIR-16 is measured with MessagePack-CSharp's `Lz4BlockArray` against Viper's Deflate profile; Nerdbank.MessagePack appears in the uncompressed comparisons only, and its rationale says so |
+| **R-10** | Track B verification, DATA-12 under MessagePack-CSharp 3.1.12 | With `[Union]` on the schema's concrete `EventBase`, every arm was written and read back as `EventBase`, its own members lost, and no error raised; on an abstract base the same arms round-trip | The library dispatches unions only from an abstract class or an interface | The MessagePack-CSharp model declares `EventBase` abstract, recorded as a structural difference (FAIR-20, `market/model-differences.csv`), as MemoryPack's is; the corpus holds no bare `EventBase`, so no value changes |
+| **R-11** | Track B probes, `market/capabilities.csv`: Cycles and DepthLimiting | Under its defaults MessagePack-CSharp overflows the stack on a value that refers to itself and on a value 100 000 levels deep; Microsoft.Orleans.Serialization on the deep value. MemoryPack, Nerdbank.MessagePack, protobuf-net and System.Text.Json refuse both with an exception, Viper with `BinaryLimitException` or `BinaryTypeException` | MessagePack-CSharp checks depth when it reads — 500 by default, which is why DATA-06/511 is refused — and not when it writes, so the write recurses until the stack runs out; Orleans stopped neither | Recorded as probe results, not as harness defects: the two probes run in a process of their own, so a stack overflow is an outcome. MessagePack-CSharp keeps its default configuration (its rationale says why), and DATA-11 is `Unsupported` for every configuration whose cycle probe is not `Supported` |
+| **R-12** | SCALE-09, the BenchmarkDotNet export of `Baselines/pre-rework/` and `Measurements/1a73c62-20260927T130725Z` | Rebuilt from their `results.zip`, both runs lack the 10 Publication cells of `PayloadSizeScalingBenchmarks`: the export holds 657 of 667 and 513 of 523 cells. Every other cell of all 14 committed runs that kept an export rebuilds value for value (`--check-stop`) | BenchmarkDotNet names an export after the suite, and the Server GC pass of SCALE-09 ran the same suite into the same directory, overwriting the first pass's export. `results.csv` was built from the in-memory summaries, so no published table lost a cell; only the export behind it did | Harness defect, fixed before any publication run: the Server GC pass exports under `server-gc/results/` and is archived under `server-gc/` in `results.zip`. The two committed runs keep their exports as they are |
+| **R-13** | `--track A` at `b0f651e`, after the Track B merge | A Track A run refused to start: the five comparative suites of Track B carry `[Benchmark]` and were not in the track order, so the check for unregistered suites stopped every run before its manifest. `--verify` and `--smoke` do not reach that check, so the rc.2 P6 gates did not show it | The check knew only Track A's list | Harness defect, fixed on `benchmark/graceful-stop`: the Track B suites are listed as Track B's, and a suite in neither list still stops a run |
 
 ## 27.4 Proposals — `internal/performance/`
 
@@ -863,6 +955,7 @@ Checked only when a committed raw result proves it.
 - [ ] The report and charts regenerate from the raw files with one command.
 - [ ] The environment manifest, the package lock and the source revision are committed with the results.
 - [ ] The v1.0.0 baseline is frozen under `Baselines/v1.0.0/`.
+- [ ] **After the release, additive:** once this gate is green, one or two representative charts from `Baselines/v1.0.0/` are shown in the repository `README.md`, and `docs/` gains a performance page with the methodology, the tier tables and the charts, each figure citing the raw file behind it. Nothing about speed appears in either before then.
 - [ ] Reproduction instructions are committed, and the sequence has been executed once from a clean clone on a machine that did not produce the baseline — a second machine, or a base container image — proving the instructions complete. The check compares payload sizes, verification outcomes and result states, which are machine-independent; it does not compare timings or allocation, which belong to the recorded machine.
 
 ---
@@ -897,7 +990,7 @@ because the Viper half of it is done.
 
 **The tag.** A baseline belongs to a revision, and it takes its name from the tag on that revision, so
 the tag exists before the run does: the release is tagged, the tagged commit is checked out, and the
-publication run is taken there (BASE-08). A run on an untagged commit is a partial run of §23, never a
+publication run is taken there (BASE-08). A run on an untagged commit is a measurement of §23, never a
 baseline, however complete it happens to be.
 
 **Out of scope, and left untouched:** §5 the roster, §6 the tier tables beyond Viper's own placement,
@@ -928,21 +1021,50 @@ Kept accurate at the end of every session, so a session that starts cold knows w
 without reading the history.
 
 ```text
-Track:        A — Viper alone
-Stage:        A0–A7 written. Every A-stage suite exists, builds and runs; what remains for each is the
-              number, which only the publication run produces
-Harness:      frozen? not yet, and nothing further is planned in it. The freeze takes effect when the
-              publication run starts
-Last run:     none published. A full shortened --track A run produced every artifact of §23 for 655 cells in
-              1h14m and self-checked the report as byte-identical; deleted afterwards, since a shortened job
-              measures nothing worth keeping
-Machine:      publication runs not yet started
-Next action:  tag v1.0.0, check the tag out, and take the publication run there on an idle machine —
-              about 3.5 hours, of which 40 minutes is the soak. Then tick the A-stage measurement boxes
-              against the committed raw files under Baselines/v1.0.0/. Nothing is open before that: the
-              last two A5 items are written — the 16 MB and 64 MB points of SCALE-02 are built from
-              records rather than byte arrays, because array data spends the element budget per byte
-              (PERF-01, PERF-02), and SCALE-09 re-runs that large end under Server GC
+Track:        the harness, between the two tracks, on benchmark/graceful-stop: the graceful stop
+              (committed), then the --track B runner and the Track B report. Nothing is measured; the
+              numbers wait for the v1.0.0 tag
+Stage:        A0–A7 written and unchanged in what they measure. Track B: the seven libraries of §5.2 in 14
+              configurations (Adapters/Market/, MarketRoster), one model family per library generated
+              from the schema (Models/<library>/, Schema/ModelSchema), the corpus projected into each
+              (DataSets/Projection, MarketCorpus), ten probes per configuration (Capabilities/Probes; the
+              cycle and depth probes in a child process, --probe-child), tiers placed from the probes, and
+              the comparative suites MarketBuffered/Stream/Buffer/Span/EvolutionBenchmarks taking their
+              cases only from verified pairs (Verification/MarketCases). --verify writes
+              BenchmarkDotNet.Artifacts/market/: capabilities.csv, tiers.csv, market-verification.csv,
+              rationale.csv, model-differences.csv, verified-pairs.tsv. --track B runs B2's five suites
+              after the market's verification, writing it into the run with roster.csv (§5.2–§5.4),
+              market-datasets.csv and configuration.md (Reporting/MarketArtifacts); on a tag it is a
+              baseline only once Baselines/<tag>/ holds Track A's, and lands beside it in
+              Baselines/<tag>/market/. Its report (Reporting/MarketReport) is written for REP-05, RST-04,
+              RST-06, FAIR-13, FAIR-16, FAIR-20, TIER-01 and TIER-02, which close on the tagged run
+Harness:      frozen? not yet. The freeze takes effect when the publication run starts. A track run stops
+              on one Ctrl+C (read as a key, Suites/StopSignal) or a STOP file in its directory after the
+              current unit, and writes what it measured as an interrupted measurement; a second Ctrl+C
+              stops at once. run.json is kept current while it runs, so --report rebuilds a dead run
+              from BenchmarkDotNet's exports (Reporting/ExportRecovery). A baseline is measured under
+              Measurements/ and moved to Baselines/<tag>/ only when every unit has run (Q3). The Server
+              GC pass exports under server-gc/ (R-12). --check-stop checks all of it (R-13 found there);
+              --check-market-report holds the Track B report to its rules over a cell for every case
+Last run:     Track B runner, 2026-10-16: --check-market-report green (104 tables, 23 tier memberships, 2
+              compressed configurations, 1175 cases — the market count of today's --smoke); --track B
+              --short --filter '*Evolution*' wrote a complete run (deleted, its numbers mean nothing); a
+              committed Track A report regenerates unchanged.
+              Graceful stop, 2026-10-16: --check-stop green (14 committed exports rebuilt value for value,
+              a STOP after suite 2 and a kill in suite 3 both end as the same interrupted measurement);
+              --verify 405 + 304 pairs, 140 probes, 0 failed; --smoke 2477 benchmarks, 0 failed.
+              rc.2 P6, 2026-10-14: --verify 405 Viper pairs and 304 market pairs, 140 probes, 0 schema
+              failures, 0 failed; --smoke 2477 benchmarks, 0 failed (1319 of them market cells). Library
+              versions as built: MemoryPack 1.21.4, MessagePack-CSharp 3.1.12 (+ ImmutableCollection),
+              protobuf-net 3.4.30, Nerdbank.MessagePack 1.4.82, Microsoft.Orleans.Serialization 10.4.0 —
+              three newer than the §5.2 table of 2026-09-20; RST-03 re-verifies them on the day of the run
+Baseline:     Baselines/pre-rework/ — 667 cells, the "before" of every rework stage (§25), not a release
+              baseline
+Machine:      the one recorded in Baselines/pre-rework/environment.json
+Next action:  none before the tag. After the release, tag v1.0.0, check the tag out, and take the
+              publication run there on an idle machine — Track A about 4 hours, of which 40 minutes is the
+              soak — then tick the A-stage boxes against Baselines/v1.0.0/, then --track B on the same tag
+              (RST-03 the same day) and tick the B items against Baselines/v1.0.0/market/
 ```
 
 ---

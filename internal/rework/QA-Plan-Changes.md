@@ -1,5 +1,7 @@
 # QA-Plan.md — changes required
 
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
 **Applies to:** `internal/QA-Plan.md` as of 2026-09-26 (after `HST-40` and `KEY-23`).
 **Two parts.** §1 is owed to the plan now, for the format as it exists. §2 is owed to the rework,
 stage by stage (`Rework-Plan.md` §12), and is applied in the stage together with its code.
@@ -18,7 +20,7 @@ Plan sections are cited as "plan §n" (`Rework-Plan.md`); contract sections as "
 
 ---
 
-# 1. Owed now — the NX rules in the body of the plan
+# 1. Owed now — the NX rules in the body of the plan — applied
 
 The NX fixes are pinned by tests and recorded in §30.3, but the body carries no checkpoints for them.
 R1–R5 run against the current plan and must not lose a rule the plan never named, so this part is
@@ -64,7 +66,7 @@ Also owed now:
 
 # 2. Owed to the rework, by stage
 
-## R0 — Baseline and oracle
+## R0 — Baseline and oracle — applied
 
 - New **§0 "Rework oracle"**: one text file of SHA-256 values, one per case of the existing corpora —
   `RoundTrip/Corpus*.cs` under every `CorpusProfiles` profile, `Format/V0CorpusTests`, the reference
@@ -77,31 +79,38 @@ Also owed now:
 - **UTIL-17** — the oracle helper is itself tested: a deliberately changed byte is reported with both
   hex dumps (§29 — shared helpers are tested).
 
-## R1 — Wire primitives on buffers
+## R1 — Wire primitives on buffers — applied
 
 - **LIM-44** rewritten: payload bytes are reachable only through `WireReader`/`WireWriter`.
 - **LIM-40**, **LIM-47** rewritten for the new types; the rule text does not change.
 - **LIM-48** — `WireReader` and `WireWriter` are `ref struct`s and the only types exposing payload
   primitives (source-shape test, like the existing barrier tests).
 - WF-* and HST-* are untouched: they are the evidence that R1 changed nothing on the wire.
+- **V0-25 inverted** — moved here from R2 by the owner's decision of 2026-09-27 (`Owner-Review.md`
+  log 53): `WireWriter` writes into `PayloadBuffer` under V0 as well, so the refusal it pinned no
+  longer exists. The matching case in `Streams/PublicStreamTests` is inverted with it, and the
+  keyed-V0 example of EXC-15 is removed from `Exceptions/ExceptionMappingTests` (EXC-15 keeps its
+  reading case).
 
-## R2 — Pipeline on pooled buffers
+## R2 — Pipeline on pooled buffers — applied
 
 - **§21 rewritten** as "Metering and windowing over buffers" — STR-01…STR-28 re-expressed against the
   reader and writer (budget versus truncation, origin-relative budget, high-water mark across patches,
   window over-read is malformed, bounded skipping, no materialisation). None is dropped. §2 layout:
-  `Streams/` renamed `Wire/`.
+  `Streams/` renamed `Metering/` *(named `Wire/` here at first; renamed by the owner's decision of
+  2026-09-27, `Owner-Review.md` log 54, because "wire" already names the frozen fixtures, the `Wire`
+  frame builder and the wire-format tests of `Format/`, and because the folder must match its
+  namespace)*.
 - **STR-29** — no `MemoryStream` under `Pipeline/` or on the payload path (source-shape test).
 - **STR-30** — INV-15: an exception in the middle of a graph leaves an `IBufferWriter<byte>`, a
   `PipeWriter` and a `Stream` destination with zero bytes written.
-- **V0-25 inverted** — a V0 keyed write to a non-seekable destination succeeds and is byte-identical
-  to the seekable one.
+- **V0-25 inverted** — applied in R1 (see there).
 - **API-18** extended to keyed payloads.
 - **CYC-11** — cycle detection by ancestor stack: the same `BinaryTypeException` as today, for a cycle
   at depth 1 and at depth 500; a deep acyclic graph with repeated (non-cyclic) instances is not
   refused.
 
-## R3 — Public surface and non-seekable reading
+## R3 — Public surface and non-seekable reading — applied
 
 - **Retired:** SX-01…SX-11 (§8, `StreamExtensions` deleted); every OPT checkpoint citing §4.3
   (`FromHeader`/`FromStream` deleted); the `Deserialize` populate checkpoints of §6 are re-expressed
@@ -119,6 +128,17 @@ Also owed now:
   the reported position is exact, for span (`int`) and sequence (`SequencePosition`).
 - **API-23** — `PooledPayload`: the bytes equal `Serialize<T>(T)`; `Dispose` twice is safe; access
   after `Dispose` is `ObjectDisposedException`.
+- **Carried from R2 — the buffer-writer destination.** R2 built the write into
+  `IBufferWriter<byte>` as the internal `BinarySerializer.SerializeTo`, pinned by STR-30; R3 makes it
+  the public `Serialize(IBufferWriter<byte>, T)` and retires the internal name. Two points the stage
+  must settle, the first with the owner because the contract is silent on it:
+  - `EncodedFrame.WriteTo(IBufferWriter<byte>)` copies through `GetSpan(n)`; a writer that breaks the
+    `IBufferWriter` contract and returns an empty span would make the copy loop forever. Refuse it
+    (which exception) or trust the contract — an owner question with its test.
+  - A public `Serialize(IBufferWriter<byte>, T)` beside `Serialize(Stream, T)` makes
+    `Serialize(null!, value)` ambiguous at compile time; R2 hit it in `SerializerApiTests`,
+    `PublicStreamTests` and `ExceptionMappingTests` and avoided it only by naming the internal
+    method differently. API-13's null-argument cases must be rewritten with a typed null.
 - **API-24** — `Populate`: a class is populated in place and the same instance is observed; a keyed
   contract keeps a field absent from the payload; nested objects are new instances; a type with a
   dedicated formatter is `BinaryTypeException`; a null root or a back-reference root is
@@ -139,8 +159,22 @@ Also owed now:
 - **§31** extended: **XEP-08** — every new entry point, including `PooledPayload`, `Populate` and the
   asynchronous methods, agrees with the others under P0, P6 and P7.
 - **EXT-05** re-evaluated against the new contract §3.
+- *Applied in R3.* The first of the two points carried from R2 was decided by the owner on
+  2026-09-27 (`Owner-Review.md` log 55): a buffer writer that hands out an empty span is refused with
+  `BinaryStreamException`; it is pinned by **API-28**, with the helper **UTIL-20**
+  (`StingyBufferWriter`). IDs assigned: SRC-01…SRC-10, API-21…API-27, OPT-22, V0-27, XEP-08, and outside
+  this list, because the stage's code needed them: **LIM-50** (INV-16, the engine never awaits — a
+  structural test for the invariant R3 makes reachable; LIM-49 stays reserved for R4), **INS-11**
+  (`Peek` over a span and a sequence, contract §19), **UTIL-18** and **UTIL-19** (the two helpers
+  the stage added, `FrameBoundStream` and `ChunkedPipeReader`). Also retired: API-06…API-12 (the
+  `byte[]`, existing-instance and `ref` overloads they pinned are gone; re-expressed as API-21,
+  API-24 and XEP-05) and XEP-03 (`StreamExtensions`). **OPT-18** is listed above both among the
+  checkpoints citing §4.3, which are retired, and among the inverted ones; its API, `FromStream`,
+  no longer exists, so it is retired, and what an inversion would have said — a non-seekable source
+  is read — is SRC-05. The second carried point is applied: API-13's null cases are written with
+  typed nulls.
 
-## R4 — Typed engine
+## R4 — Typed engine — applied
 
 - **TYP-01** — every §19 corpus case through the typed engine reproduces the R0 oracle.
 - **TYP-02** — INV-17: a counting test double observes no boxing when writing and reading a graph
@@ -163,10 +197,28 @@ Also owed now:
   the shape-factory cache), CN-14, CN-15, CN-16.
 - **CN-20** — no type remains under `src/ViShap.Viper.Serialization/Cache/`, and no `ConcurrentDictionary`
   keyed by `Type` exists outside the contract, union and shape-factory caches (source-shape test).
+- *Applied in R4.* TYP-01 is pinned by `Format/OracleTests`, whose cases now run through the typed
+  codecs; TYP-02 counts boxing with the thread's allocation counter — a box is a heap object — and
+  proves the counter by a positive control, a struct in a polymorphic slot. The shapes of the generic
+  definitions are a fixed table, not a cache, so CN-20 finds a `ConcurrentDictionary` keyed by `Type`
+  only for contracts and unions. IDs assigned: TYP-01…TYP-03, LIM-49, CTR-31, CTR-32, **ALC-01…ALC-09**
+  (ALC-09: every asynchronous method returning a value task pools its state machine, the mechanism of
+  plan §11), CN-20; CTR-24 and LIM-47 rewritten; CN-03, CN-05, CN-14, CN-15, CN-16 re-pointed;
+  CN-06…CN-13 and CN-19 retired. Outside this list, because the stage's code needed them: **LIM-51**
+  (INV-1 over `OperationState`: who creates it, and that it travels by reference), **REF-19** (a back
+  reference to an object of another type is `BinaryFormatException`, where the object-typed setter
+  used to raise `InvalidCastException`) and **UTIL-21** (`OperationBox`, the helper that holds a state
+  for a test). The ALC checkpoints state each target as what the engine adds to the frame around it,
+  exactly; the absolute figures of plan §11 are Benchmark-Plan ALLOC-10…ALLOC-21.
 
-## R5 — Algorithm contracts
+## R5 — Algorithm contracts — applied
 
 - §23–§26 rewritten for plan §8: one method per direction.
+- **Carried from R2 — STR-29 extended to the built-ins.** STR-29 covers the payload path up to the
+  algorithm services; the built-in `Deflate` still compresses and decompresses through `MemoryStream`
+  (and `source.ToArray()`), because it is rewritten against the `IBufferWriter<byte>` interface of plan
+  §8.1 in this stage. Once ported, STR-29's path list gains `Compression/`, `Checksum/` and `Crypto/`,
+  and no built-in may use `MemoryStream`.
 - **Retired:** CMP-15 (incremental is the only mode). **Kept:** CMP-16.
 - **CMP-17** — `Decompress` producing fewer or more than `expectedLength` bytes is
   `BinaryFormatException`.
@@ -186,8 +238,18 @@ Also owed now:
 - **EXT-08** — no public type of the three packages shares its simple name with a public type of the
   BCL assemblies the packages reference (`System.IO.Hashing`, `System.Security.Cryptography`,
   `System.IO.Compression`, `System.Buffers`, `System.IO.Pipelines`) — reflection over both.
+- *Applied in R5.* Besides the IDs above: **ENC-29** was added for the contract's §13 entry — the
+  encrypted frame written straight into the destination — which no ID here covered; CHK-09 widened to
+  refuse a zero size (the 1…255 rule of plan §8.1); ENC-02 narrowed to the key a provider resolves,
+  the fixed key being ENC-24's; the profile checkpoints P3-01…P6-02 and CMP-02, CMP-03, CHK-02,
+  ENC-01 renamed to the family-suffixed built-ins; the release-gate line now cites STR-01…STR-29 and
+  ENC-01…ENC-29. ENC-28 is held by ENC-18, ENC-23 and EXT-06 rather than by a test of its own, since
+  the three together are the rule. The §30 finding NX-01 keeps its wording: it records the fix as
+  it was made.
 
-## R6 — The final format
+## R6 — The final format — applied
+
+Applied with two transcription fixes: REF-19 was already taken in R4 (a back reference of the wrong type), so the reference-frame checkpoint is REF-20; and the null-fold rows beyond the table of plan §6.3.2 (owner's decision of 2026-09-28) are WF-37. `ToXml()` joined DMP-15 by the owner's decision of 2026-09-28 (`Owner-Review.md` log 62).
 
 - **§11 and §14 rewritten**; §14.5 "Associated data" rewritten: the associated data is the header.
 - **HST-09 extended** — flipping every byte of an encrypted frame's header, `onDiskLength` included,
@@ -209,16 +271,53 @@ Also owed now:
 - **§30.4** rewritten — the fixtures re-frozen once from the corpus; **CMPT** checkpoints re-pointed
   at them.
 - **Retired:** ORC-01, ORC-02 (the oracle is deleted).
+- **§27 diagnostics, for plan §9.7** — `Diagnostics/`. DMP-01 and DMP-02 re-pointed at the span and
+  stream overloads (the `byte[]` overload is gone); DMP-03…DMP-05 kept. New:
+  - **DMP-06** — `DumpHeader` over a span and over a multi-segment sequence renders the same text as
+    over the stream, for every fixture.
+  - **DMP-07** — `Dump<T>` renders every `BinaryDumpNodeKind`: a scalar, `null`, a sequence, a map, a
+    positional object, a keyed object with its keys, an unknown keyed field shown as skipped with its
+    bytes, a union with its tag and runtime type, a back reference with its id and target path, a
+    composite (tuple, `KeyValuePair`, multi-dimensional array).
+  - **DMP-08** — every node's offset and length are the bytes it occupies: for each fixture, the
+    lengths of a node's children and its own framing add up to its length, and the root's length is
+    the payload length.
+  - **DMP-09** — a failing frame yields the tree up to the failure, `Failure` of the type a read raises,
+    and the `FailureOffset` and `FailurePath` of the failing member — one case per failure class of
+    contract §8 (format, limit, not supported, integrity, key).
+  - **DMP-10** — `Dump` without a type: an encrypted and compressed frame with the key is decrypted,
+    decompressed and its checksum verified; without the key `Decrypted` is `false` and nothing throws;
+    V0 bytes are shown as hex.
+  - **DMP-11** — the dump reads under the options' limits: a hostile frame from `Hostile/` is refused
+    with `BinaryLimitException` in `Failure`, allocating no more than the same read (`AssertEx`
+    allocation bound).
+  - **DMP-12** — no rendering of a dump contains key material, for every key provider.
+  - **DMP-13** — `DumpValue<T>` equals `Dump<T>` over `Serialize<T>` of the same value and options.
+  - **DMP-14** — `Compare<T>` returns null for two frames of the same value (encrypted frames with
+    different nonces included), and the path, offsets and both nodes of the first difference otherwise.
+  - **DMP-15** — `ToString()`, `ToJson()` and `ToHex()` are identical under every culture and time zone
+    of `Fixtures/Cultures`; `ToJson()` parses with `System.Text.Json`; `ToHex()` covers every payload
+    byte exactly once.
+  - **DMP-16** — the trace seam is null outside the dumper: a source test finds `Trace` assigned only in
+    `Diagnostics/`, and a counting observer sees no call during an ordinary read.
+  - **DMP-17** — golden text: the `ToString()` of three fixtures (a keyed record, a reference graph, a
+    protected frame) is compared with committed expected text, so a change to the report is a visible
+    diff.
+- INV-2, INV-5 and INV-17 structural tests extended to the trace seam: the observer receives no
+  `WireReader`, the codecs are its only callers, and the counting boxing double stays at zero with the
+  seam on.
 
-## R8 — Generator ground
+## R8 — Generator ground — applied
 
 - **CONF-01…CONF-nn** — the conformance suite: for each object shape — positional, keyed, inherited,
   shadowed, overridden, union, struct — the member order, keys, layout and bytes, written so that a
   generated `TypeContract<T>` can be substituted and run against the same cases.
 - **EXT-07** — a consumer project built with AOT analysis reports the annotated reflection entry
   points and nothing unannotated.
+- **Applied.** IDs assigned: CONF-01…CONF-07, one per shape, in the new §15.1 "Contract conformance";
+  EXT-07 in §31, beside EXT-06 and EXT-08. §2 names the consumer project `tests/ViShap.Viper.AotConsumer`.
 
-## R9 — Re-gate
+## R9a, R9b — Re-gate — applied
 
 - **§32** rebuilt; test count in Debug and Release.
 - New §32 box: `dotnet pack` succeeds for all three packages with non-empty READMEs.

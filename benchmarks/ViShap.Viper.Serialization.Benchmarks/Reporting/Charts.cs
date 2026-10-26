@@ -7,8 +7,8 @@ internal sealed record Chart(string File, string Title, string Note);
 
 /// <summary>
 /// The charts of Benchmark-Plan §24, generated from the raw files of the run and from nothing else
-/// (CHT-13). A chart whose suite did not run is not drawn at all rather than drawn empty, so a partial
-/// run produces fewer charts and never a misleading one.
+/// (CHT-13). A chart whose suite did not run is not drawn at all rather than drawn empty, so a
+/// measurement produces fewer charts and never a misleading one.
 /// </summary>
 internal static class Charts
 {
@@ -163,7 +163,7 @@ internal static class Charts
         foreach (var (suite, title, file, unit) in new[]
         {
             ("ValuePrimitiveBenchmarks", "MICRO-01 payload primitives", "components-primitives.svg", "nanoseconds per call"),
-            ("StreamMechanismBenchmarks", "MICRO-09 stream mechanisms", "components-streams.svg", "nanoseconds per call"),
+            ("MeteringBenchmarks", "MICRO-09 metering and windowing", "components-metering.svg", "nanoseconds per call"),
         })
         {
             var rows = results.Where(row => row.SuiteName == suite && row.State == "Supported").ToList();

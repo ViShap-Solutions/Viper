@@ -10,6 +10,13 @@ namespace ViShap.Viper.Serialization.Benchmarks.Reporting;
 /// regenerated from a committed baseline a year later says the same thing as the one generated the day
 /// it was taken.
 /// </summary>
+/// <remarks>
+/// A run that ended before its last suite says so: <c>Interrupted</c> is set, <c>StoppedBy</c> names
+/// how it ended, <c>SuitesUnfinished</c> names the suite that was cut off — whose cells are lost, because
+/// BenchmarkDotNet exports a suite only when it ends — and <c>SuitesNotRun</c> names every suite and
+/// step after it. While a run is in progress the record on disk already reads as interrupted, so a
+/// process that dies leaves a true record behind it.
+/// </remarks>
 internal sealed record RunRecord(
     string Kind,
     string Label,
@@ -26,7 +33,10 @@ internal sealed record RunRecord(
     string FinishedUtc,
     IReadOnlyList<string> Commands,
     IReadOnlyList<string> SuitesRun,
-    IReadOnlyList<string> SuitesNotRun)
+    IReadOnlyList<string> SuitesNotRun,
+    bool Interrupted = false,
+    string? StoppedBy = null,
+    IReadOnlyList<string>? SuitesUnfinished = null)
 {
     private static readonly JsonSerializerOptions Format = new()
     {

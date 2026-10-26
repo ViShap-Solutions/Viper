@@ -30,7 +30,7 @@ internal static class SizeReport
         foreach (var profile in ViperProfiles.All)
         {
             var adapter = new ViperAdapter(profile);
-            var references = profile == ViperProfile.PreserveReferences;
+            var references = ViperProfiles.PreservesReferences(profile);
 
             foreach (var dataset in Corpus.All)
             {
@@ -116,7 +116,7 @@ internal static class SizeReport
         string dataset) =>
         sizes.TryGetValue((profile, dataset), out var entry) ? entry.Bytes : 0;
 
-    /// <summary>What the V1 envelope adds over the headerless payload of the same value (§22.8).</summary>
+    /// <summary>What the V1 envelope adds over the headerless payload of the same value (§22.7).</summary>
     private static int Envelope(ViperProfile profile, int bytes, int headerless) =>
         profile == ViperProfile.Default && headerless > 0 ? bytes - headerless : 0;
 

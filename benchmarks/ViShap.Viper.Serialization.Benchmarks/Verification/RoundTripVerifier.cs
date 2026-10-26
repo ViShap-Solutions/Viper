@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Globalization;
+using System.IO.Pipelines;
 using System.Text;
 using ViShap.Viper.Serialization.Benchmarks.Adapters;
 using ViShap.Viper.Serialization.Benchmarks.Config;
@@ -24,7 +26,10 @@ internal sealed record VerificationResult(
 
 /// <summary>
 /// Runs every (adapter, dataset) pair through both entry-point families and compares the result with
-/// the source. A pair that does not verify produces no timing (Benchmark-Plan FAIR-24, FAIR-25).
+/// the source. A pair that does not verify produces no timing (Benchmark-Plan FAIR-24, FAIR-25). Viper
+/// is also run through the families only it has — the buffer writer, the span and the sequence, the
+/// pooled payload, and for version 1 frames the non-seekable stream and the awaited stream and pipe —
+/// so every entry point a suite times has verified first.
 /// </summary>
 internal static class RoundTripVerifier
 {
@@ -35,7 +40,8 @@ internal static class RoundTripVerifier
         foreach (var profile in ViperProfiles.All)
         {
             var adapter = new ViperAdapter(profile);
-            var references = profile == ViperProfile.PreserveReferences;
+            var references = ViperProfiles.PreservesReferences(profile);
+            var twin = ViperProfiles.ReflectedTwin(profile) is { } reflected ? new ViperAdapter(reflected) : null;
 
             foreach (var dataset in Corpus.All)
             {
@@ -48,7 +54,21 @@ internal static class RoundTripVerifier
                     continue;
                 }
 
-                results.Add(Verify(adapter, adapter, dataset, references));
+                var result = Verify(adapter, adapter, dataset, references);
+                if (result.State is VerificationState.Supported or VerificationState.Partial
+                    && VerifyEntryPoints(adapter, dataset, framed: profile != ViperProfile.Headerless) is { } failure)
+                {
+                    result = result with { State = VerificationState.Failed, Detail = failure };
+                }
+
+                if (twin is not null
+                    && result.State is VerificationState.Supported or VerificationState.Partial
+                    && SameBytes(adapter, twin, dataset) is { } difference)
+                {
+                    result = result with { State = VerificationState.Failed, Detail = difference };
+                }
+
+                results.Add(result);
             }
         }
 
@@ -106,7 +126,84 @@ internal static class RoundTripVerifier
         {
             return new VerificationResult(
                 buffered.Name, dataset.Id, VerificationState.Failed, 0, 0,
-                $"{exception.GetType().Name}: {Single(exception.Message)}");
+                Describe(exception));
+        }
+    }
+
+    /// <summary>
+    /// An exception and the causes inside it, outermost first, so the detail names the rule that fired
+    /// and not only the wrapper a library put around it.
+    /// </summary>
+    internal static string Describe(Exception exception)
+    {
+        var parts = new List<string>();
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            parts.Add($"{current.GetType().Name}: {Single(current.Message)}");
+
+        // A recursive codec wraps one exception per level; the outermost and the cause say enough.
+        return parts.Count <= 2
+            ? string.Join(" <- ", parts)
+            : $"{parts[0]} <- ({parts.Count - 2} more) <- {parts[^1]}";
+    }
+
+    /// <summary>
+    /// A generated contract must write the bytes the reflected one writes, or a generated cell would be
+    /// timing a different payload. Returns where the two differ, or <see langword="null"/>.
+    /// </summary>
+    private static string? SameBytes(ViperAdapter generated, ViperAdapter reflected, Dataset dataset)
+    {
+        byte[] ours = dataset.Serialize(generated);
+        byte[] theirs = dataset.Serialize(reflected);
+
+        if (ours.AsSpan().SequenceEqual(theirs))
+            return null;
+
+        int offset = ours.AsSpan().CommonPrefixLength(theirs);
+        return $"{generated.Name} writes {ours.Length} bytes and {reflected.Name} {theirs.Length}; they differ from offset {offset}";
+    }
+
+    /// <summary>
+    /// Reads the value back through every Viper entry point a suite times, and returns the first that
+    /// does not restore it, or <see langword="null"/> when all of them do.
+    /// </summary>
+    private static string? VerifyEntryPoints(ViperAdapter adapter, Dataset dataset, bool framed)
+    {
+        try
+        {
+            var writer = new ArrayBufferWriter<byte>();
+            dataset.SerializeInto(adapter, writer);
+            byte[] payload = writer.WrittenSpan.ToArray();
+
+            var candidates = new List<(string Entry, Func<object?> Read)>
+            {
+                ("IBufferWriter → ReadOnlySpan", () => dataset.DeserializeSpan(adapter, payload)),
+                ("ReadOnlySequence", () => dataset.DeserializeSequence(adapter, Suites.Segments.Of(payload, count: 4))),
+            };
+
+            if (dataset.SerializePooled(adapter) != payload.Length)
+                return "pooled payload: its length differs from the buffer writer's";
+
+            if (framed)
+            {
+                candidates.Add(("non-seekable Stream", () =>
+                    dataset.DeserializeFrom(adapter, new Suites.ForwardOnlyReadStream(payload))));
+                candidates.Add(("Stream, awaited", () =>
+                    dataset.DeserializeAsync(adapter, new MemoryStream(payload, writable: false)).AsTask().GetAwaiter().GetResult()));
+                candidates.Add(("PipeReader, awaited", () =>
+                    dataset.DeserializeAsync(adapter, PipeReader.Create(new ReadOnlySequence<byte>(payload))).AsTask().GetAwaiter().GetResult()));
+            }
+
+            foreach (var (entry, read) in candidates)
+            {
+                if (!StructuralComparer.Equal(dataset.BoxedValue, read(), out var difference))
+                    return $"{entry}: {difference}";
+            }
+
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return $"entry points: {exception.GetType().Name}: {Single(exception.Message)}";
         }
     }
 

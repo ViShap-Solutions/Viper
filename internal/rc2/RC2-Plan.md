@@ -1,0 +1,683 @@
+# ViShap.Viper — Plan for `v1.0.0-rc.2`
+
+**Class: plan.** A checklist of work to do before `v1.0.0`, in the order it is to be done. It defines no
+behavior: the contract (`internal/System-Contract.md`) does, and each stage here changes it in the stage
+that makes the change real.
+
+**Status:** drafted 2026-10-09 from the documents; every decision of §3 taken (§3.9); P0–P8 closed; `v1.0.0-rc.2`
+tagged at `fdd4c30` and published on 2026-10-26; the release — `release/v1.0.0` into `main`, the tag `v1.0.0` —
+is the owner's next step (§8). Section 3 holds the
+decisions only the owner can take; no stage whose decision is open begins before it is answered.
+**Written against:** `release/v1.0.0` at `c728c99` (the commit `v1.0.0-rc.1` points at), the tree clean,
+2 014 tests green in Release.
+
+---
+
+# 0. What this plan changes about earlier decisions
+
+Until now everything not needed for `v1.0.0` was recorded as "after the release, additive"
+(`rework/Decisions.md` D1.1, D9.2, D9.20; `rework/Rework-Plan.md` §13, §13.1; contract §21.3 "deferred
+by design"). On 2026-10-09 the owner decided the opposite timing: **all of it is done before `v1.0.0`,
+collected in `v1.0.0-rc.2`.** Consequences, each checked against the documents:
+
+| Consequence | Where it comes from |
+|---|---|
+| The rules of `Development-Workflow.md` §5 start at the `v1.0.0` tag (§5.6). Until then nothing here costs a major version, and what is published in `v1.0.0` is what §5 then freezes — which is the reason to settle the public shape of the generator seam and the names in it now, not after. | Workflow §5.6 |
+| `rc.2` is the only pre-release label that fits: `beta.N` sorts below `rc.1`, a stage never goes back (Workflow §3.2), and `cd.yml` refuses a pre-release after its stable version. | Workflow §3.2, `cd.yml` |
+| Workflow §3.3 says "`v1.0.0-rc.N` — only fixes". `rc.2` carries features. **Needs the owner's word** that §3.3 is amended; the agent does not edit `Development-Workflow.md` (it is the owner's guide). Proposed wording is in §6. | Workflow §3.3, §10 |
+| `rc.1` is published on NuGet and cannot be removed, only hidden. Whatever `rc.2` changes in public API is a change against a published pre-release, which §5.6 allows, but it goes into the release note. | Workflow §1.5 |
+| The R9 sequence "rc → defects only → release" is replaced for this release by: `rc.2` stages → conformance audit of `rc.2` (§4, P8) → fixes → `rc.3` if needed → release. | Rework-Plan R9 |
+
+`rework/` stays as it is (historical). This plan does not edit it; the decisions of §3 are recorded
+here and in `rework/Owner-Review.md` by the owner, if they want the log continued.
+
+---
+
+# 1. R9e — the closure check, verified
+
+The report is `internal/Audit-Conformance.md` §12 (written in the R9e session, commit `e8af35b`,
+2026-09-29); `v1.0.0-rc.1` was tagged on `c728c99`, which is `release/v1.0.0` HEAD and is on origin.
+
+| Check | Result |
+|---|---|
+| Seventeen R9c findings | CONF-01…15 and CONF-17 closed with evidence (code, contract section, QA checkpoint, test); CONF-16 stays open by design |
+| Two new findings | CONF-18 (Progress row), CONF-19 (a compiler warning in a test file) — both weight "recorded" |
+| Verdict "the rc may be tagged" | Present (§1, §12.5); no finding of weight "blocks the rc" or "fix before release" is open |
+| CD dry run | `dotnet pack` × 3 with `-p:Version=1.0.0-rc.1`: three `.nupkg`, two `.snupkg`, a non-empty README in each (§12.1) |
+| Independent re-run in this session | `dotnet test … --configuration Release`: **2 014 passed, 0 failed**; working tree clean; the tag points at HEAD |
+
+What is still wrong after R9e — all small, all in P0:
+
+- `Rework-Plan.md` Progress: row **R9e** says `not started` and the **Release** row is empty (CONF-18's
+  successor); R9d's row names only one of its two branches (`bugfix/v1-audit-all`; the second was
+  `bugfix/v1-strict-utf8-keys`, merge `e8af35b`).
+- `CLAUDE.md` "Current state" still says "the closure check (R9e) comes before `v1.0.0-rc.1`" — the rc is
+  tagged.
+- Seven compiler warnings remain in the test project (`CS0414`, `CS8631`, `CS8604`, `CS8602`, `xUnit2013`
+  ×2, `xUnit2028` — CONF-19 and the six of R9c). The packages have none.
+- The `rc.1` baseline of `Rework-Plan.md` R9 step 7 was not taken: `Baselines/` holds only `pre-rework`.
+  This is the owner's step (a worktree on the tag, a `benchmark/` branch); P0 only reminds.
+- CONF-16 (Track B adapters) is open; it becomes stage P6.
+
+---
+
+# 2. Inventory — everything that was deferred, with where it was written
+
+"Detail" is what the documents already fix; "open" is what they leave to a decision in §3.
+
+| # | Item | Written in | Detail the documents give | Open | Stage |
+|---|---|---|---|---|---|
+| I1 | State sync after rc.1 | `Audit-Conformance.md` §12.3 | Progress rows, `CLAUDE.md` state, CONF-19 | — | P0 |
+| I2 | Name of the contract's read methods, member calls | owner, 2026-10-09 | `TypeContract<T>.Read` (positional) vs `ReadField` (keyed); `MemberWriter.Member`/`Field`; `MemberReader.Member`/`Value` | **N1** | P1 |
+| I3 | Public generator seam: `TypeContract<T>`, `MemberWriter`, `MemberReader` | `Decisions.md` §8.8; `Rework-Plan.md` §13.1 | Shape of a method, abstract class so defaults can be added; engine checks every call (§8.4); seam is `internal` today; `PublicSurfaceTests.EngineTypes_AreNotPublic` pins it | **S1** | P2 |
+| I4 | Registration of generated contracts | `Decisions.md` §8.8; §13.1 | One lookup place: `TypeContractCache.Get`; "generated registered for T → use it, else `ReflectedContract<T>`"; bytes identical | **S2** | P2 |
+| I5 | Non-public `[BinaryInclude]` members under a generated contract | `Decisions.md` §8.8 | "`partial`, or `[UnsafeAccessor]`" | **S3** | P2/P3 |
+| I6 | `ViShap.Viper.Generator` | `Rework-Plan.md` §13.1; `Audit-Future.md` §5, §8-C, §9; contract §14.1 | Roslyn incremental generator, `netstandard2.0`, fourth package, analyzer in `analyzers/dotnet/cs`, build-time only, `Serialization` never references it; emits only `TypeContract<T>` (Create, Write, Read/ReadField, description, registration), never a length, count, loop, limit, null frame, union tag or byte; every runtime rejection of `ReflectedContract<T>` becomes a compiler diagnostic; repository gains the project, a snapshot-test project, `CONF-*` run a second time, CD packs four packages | **S4** (scope), **S5** (bundling) | P3, P4 |
+| I7 | AOT honesty of the generated path | `Rework-Plan.md` §13.1 "the generated path carries none" | — | **S4** — see the warning there | P3 |
+| I8 | Schema fingerprint | `Decisions.md` D9.2; `Rework-Plan.md` §13; `Owner-Review.md` P10 | "A new critical service with a new number" (4); an additional check, not a format change | **F1** (what is hashed, which layouts, which error) | P5a |
+| I9 | Zstandard, LZ4, AES-GCM-SIV | `Decisions.md` D9.2, D9.12; `Rework-Plan.md` §13; `Audit-Future.md` §2 | Separate packages implementing the Core `I*Algorithm` interfaces (exact `GetCiphertextLength`, `HashSizeInBytes`, no default members except additive ones); `Custom = 255` carries a name | **A1** (packaging, ids), dependency choice | P5c–e |
+| I10 | Live tracing: `WithTrace(sink)` | `Rework-Plan.md` §13 (owner's note 2026-09-29) | Options switch; sink receives the `BinaryDump` of each operation; needs the trace seam on the write side too; the observer itself stays internal | **T1** | P5b |
+| I11 | Executable documentation examples | `Rework-Plan.md` §13 | Test in `Serialization.Tests` that extracts every `csharp` block of `docs/` and READMEs, compiles with Roslyn, runs the ones with top-level statements; one new test dependency; CONF-15 fixed the wording | — | P5f |
+| I12 | Track B adapters | `Decisions.md` D9.25; CONF-16; `Benchmark-Plan.md` §5.2, §29.2 | `benchmark/track-b-adapters`; seven mandatory libraries (Viper, MemoryPack, MessagePack-CSharp, protobuf-net, Nerdbank.MessagePack, Orleans.Serialization, System.Text.Json), model variants (§7.4), probes (§7.5), verification (§7.6), tier tables (§6) | **B1** (when it is measured) | P6 |
+| I13 | Benchmark graceful stop | `Benchmark-Graceful-Stop.md` | Variant C decided 2026-09-27; stop between suites, recovery from exports; branch `benchmark/graceful-stop` | — | P6 |
+| I14 | Open performance proposals | `performance/PERF-02…PERF-09` | PERF-02 (byte budget), PERF-03…08 (measured costs), PERF-09 (trace seam ≈ 1.5 %) — each "Open", the owner decides | **B2** | P6 |
+| I15 | Performance in README / `docs/` | `Rework-Plan.md` §13; `Benchmark-Plan.md` §28 | Charts from `Baselines/v1.0.0/` after the §28 gate is green; no adjective before | **B1** | P7 (gated) |
+| I16 | `rc.1` and `v1.0.0` baselines | `Rework-Plan.md` R9 steps 7, 10 | Taken from a worktree on the tag, branch `benchmark/<tag>-baseline` | **B1** | owner |
+| I17 | Second conformance run | `Rework-Plan.md` §13.1, R8 | `Contracts/ConformanceTests` reaches a contract through the single seam `ContractOf<T>`; run unchanged against generated contracts | — | P4 |
+| I18 | CD / CI for new packages | `cd.yml` (`EXPECTED_COUNT=3`); `ci.yml` | Pack and validate every new package | — | P3, P5 |
+
+**Recorded, not scheduled** — the documents name them but do not give enough to plan, or say "not
+claimed". Each needs a design brief from the owner before it can become a stage; since 2026-10-09 each
+has a file in `internal/ideas/` (IDEA-05…IDEA-10) with its options and version impact, beside the
+deferred I8 (IDEA-01), I10 (IDEA-02) and I9 (IDEA-03 AES-GCM-SIV, IDEA-11 Zstandard and LZ4); S4-B
+(IDEA-04) was taken back into this plan as P4c–P4d on 2026-10-10:
+
+| Item | Written in | Why it is not a stage |
+|---|---|---|
+| Preservation of unknown keyed fields | `Audit-Future.md` §7 | Contradicts §16.2 (reference scopes assume a skipped field takes part in nothing); the interaction with `PreserveReferences` must be designed first |
+| CLI, and parsing a frame without the CLR type "by schema" | `Decisions.md` §9.32 "after the release" | The wire carries no type description; "by schema" needs a schema source nobody has specified |
+| Public formatter contract | contract §21.3, `Rework-Plan.md` §15 | Publishing it freezes the traversal protocol |
+| Per-field compression, V2 envelope | `Audit-Future.md` §7 | New wire rules and a new decompression-bomb surface |
+| Constant-time checksum comparison, async engine | contract §21.3 | Deferred by design, not claimed |
+
+---
+
+# 3. Decisions for the owner
+
+Each: every option, its cost, why the recommended one is better, a short example. A decision made is
+recorded in the table of §3.9 by the owner.
+
+## N1 — Naming of the contract's read side and member calls
+
+Today `TypeContract<T>` has `Write`, `Read` (positional, all members in plan order) and `ReadField`
+(keyed, called by the engine once per field on the wire). Both read members; the names do not say so.
+Two questions, independent of each other.
+
+**N1a — the two read methods**
+
+| | Names | Cost | Verdict |
+|---|---|---|---|
+| A | `ReadMembers` / `ReadMember(key)` | Reads naturally | Differ by one letter; easily mistyped and misread in a `switch` |
+| **B** | `ReadPositional` / `ReadKeyed` | Mirrors `MemberLayout.Positional` / `Keyed`, the vocabulary of the whole contract; the pair is visibly one concept | `ReadKeyed` does not say it reads one field — the XML doc and the `key` parameter do |
+| C | `ReadMembers` / `ReadMemberByKey` | Self-explanatory, no collision | Longest; the layout words used everywhere else are lost |
+| D | keep `Read`, rename only `ReadField` → `ReadMemberByKey` | Smallest change | Keeps the asymmetry the owner objected to |
+
+**N1b — the calls on `MemberWriter` / `MemberReader`**
+
+| | Writer / reader | Cost | Verdict |
+|---|---|---|---|
+| **M1** | writer `Member(value)` and `Member(key, value)`; reader `Member<T>()` for both layouts (`Value<T>()` goes) | One verb for "a member's value"; "field" stays the wire word (`MaxKeyedFields`, the field window, `int32 length`), owned by the engine, which the contract never sees | The layout is no longer visible in the call; it is still checked at run time (`WrongLayout`), as it is now |
+| M2 | keep `Member` / `Field` / `Value` | No change | The same member is a "Member", a "Field" and a "Value" depending on layout |
+
+Recommended: **B + M1**. Example, the sketch of `Rework-Plan.md` §10.2 after the change:
+
+```csharp
+public override void Write(ref MemberWriter w, in Person v)
+{
+    w.Member(1, v.Name);          // positional: w.Member(v.Name)
+    w.Member(2, v.Age);
+}
+
+public override void ReadPositional(ref MemberReader r, ref Person v) => v.Age = r.Member<int>();
+
+public override bool ReadKeyed(ref MemberReader r, int key, ref Person v)
+{
+    switch (key)
+    {
+        case 1: v.Name = r.Member<string>(); return true;
+        case 2: v.Age = r.Member<int>(); return true;
+        default: return false;
+    }
+}
+```
+
+The chain (P1) is the rename's whole blast radius: `TypeContract<T>`, `ReflectedContract<T>` and
+`MemberAccessor<T>.ReadFieldFrom`, `MemberReader`/`MemberWriter` and their mismatch messages,
+`ObjectCodec`, the tests that name them (`ContractCallTests`, `StructuralBarrierTests`,
+`ConformanceTests`, `PublicSurfaceTests`), contract §2.4/§14, QA-Plan, `CLAUDE.md`, the skills that
+quote them. `docs/` and the READMEs do not mention them. `rework/` and `Audit-*.md` are historical and
+are left as written; the renames go into the ledger of §7.
+
+## S1 — How much of the seam becomes public
+
+| | Option | Cost | Verdict |
+|---|---|---|---|
+| **a** | Publish exactly `TypeContract<T>`, `MemberWriter`, `MemberReader`, `MemberDescription`, `MemberLayout` (constructors protected or private as today) | The seam was designed as the façade: no bytes, no counts, no position, every call checked (INV-2, INV-5). Frozen at `v1.0.0` — adding members later is possible only with defaults, which the abstract class allows | Smallest surface that works; nothing of the codecs or shapes is published, so the traversal protocol stays free |
+| b | A narrower public façade (new public types the generator targets); the engine adapts to the internal contract | Two layers to keep identical; every future change is made twice | Only worth it if (a) is judged too wide; it adds a type to explain, not a guarantee |
+| c | Generator emits only the member *description* (data), the engine runs it | No public method seam | Already rejected in `Decisions.md` §8.1: data cannot express straight-line code, so the generator gains nothing over reflection |
+
+## S2 — How the engine finds a generated contract
+
+| | Option | Example | Cost | Verdict |
+|---|---|---|---|---|
+| a | `[ModuleInitializer]` calls `ContractRegistry.Register(...)` | zero configuration | A process-wide mutable registry — the thing INV-7 ("no process-wide mutable registry can change what an algorithm is") exists to avoid, and the thing `AlgorithmCatalog` was built not to be; timing depends on when the consumer's module initializes; unload and test isolation are awkward | Easiest to use, hardest to defend |
+| b | `static abstract` member on the type (`IBinaryContract<TSelf>`) | `where T : IBinaryContract<T>` or a runtime interface lookup | A generic constraint excludes every type that is not generated; a runtime lookup is reflection again | Does not fit a library that serializes types it does not own |
+| **c** | A context in the options, like `JsonSerializerContext`: `[BinaryContext]` on a partial class lists the types; `options.WithContracts(AppContracts.Default)` | `Serialize(person, options)`; types not in a context fall back to `ReflectedContract<T>` | One line of configuration; options stay immutable snapshots; no global state; the shape that extends to S4-B (a context that also carries codecs) | Recommended. A forgotten `WithContracts` silently uses reflection — answered by an analyzer hint and an opt-in `RequireGeneratedContracts()` that makes the fallback a `BinaryConfigurationException` |
+
+## S3 — Non-public `[BinaryInclude]` members under a generated contract
+
+| | Option | Cost | Verdict |
+|---|---|---|---|
+| a | Require `partial` and emit inside the type | Access to everything; the type must be partial and the owner of the source | Cannot cover a type the consumer does not own |
+| **b** | Public members by plain access; non-public by `[UnsafeAccessor]` (net10 supports it for fields, properties and methods, generic owners included) | Generated code stays outside the type; works under S2-c; no `partial` | Recommended; verify in P3 that every eligible member shape (init-only, struct owner by `ref`) is reachable, and fall back to a diagnostic where one is not |
+| c | Refuse non-public members in generated mode (diagnostic, the type uses reflection) | Simple | Loses the speed for exactly the types that use `[BinaryInclude]` |
+
+## S4 — What the generator is for (scope) — read before deciding
+
+`Rework-Plan.md` §13.1 says "the reflection path's `[RequiresDynamicCode]` annotations stay, and the
+generated path carries none." **Checked against the code, that is true only for the *member* half.**
+`FormatterRegistry` builds every codec of the declared type graph with `MakeGenericType` and
+`Activator.CreateInstance` (`Engine/FormatterRegistry.cs:186-287`), and `ReflectedContract` builds
+accessors with `Expression.Compile` (`Engine/Contracts/ReflectedContract.cs:33-166`). A generator that
+emits only `TypeContract<T>` removes the second and not the first. `BinarySerializer.Serialize<T>` would
+still carry `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]`, and `tests/ViShap.Viper.AotConsumer`
+would still report them. Hence:
+
+| | Scope | What a consumer gets | Cost |
+|---|---|---|---|
+| **A** | Contracts only (as §13.1) | No `Expression.Compile`, no member reflection; faster first use and steady state; compile-time diagnostics for every contract error; trim-friendly members. **Not** native-AOT-clean: the entries stay annotated and say so | The seam of S1; no codec is published |
+| B | Contracts and the codec graph: the context also emits the closed codec for every reachable type, and the entries that take a context carry no annotation | Native AOT without warnings | Publishes the codec/shape layer or a façade over it — the traversal protocol §13.1 and `Audit-Future.md` §7 keep internal; a type graph walker in the generator; a second set of entry points |
+| C | A now, B as a later minor, with the context type designed in S2-c so B is additive | A's value now, a path to B without breaking anything | B is not done before `v1.0.0` |
+
+Recommended: **A**, with the claim in §13.1 and the docs corrected to say what is true (the generator is
+about speed, start-up and compile-time diagnostics; AOT annotations stay until B), and S2-c chosen so B
+fits later. If the owner wants native AOT in `v1.0.0`, B becomes a stage of its own, larger than the
+generator, and `viper_generator` gets a design stage before any code.
+
+## S5 — Does the meta-package bundle the generator
+
+| | Option | Cost | Verdict |
+|---|---|---|---|
+| **a** | `ViShap.Viper` references it with `PrivateAssets="all"` (a development dependency) | One install gives everything; the generator is inert until a `[BinaryContext]` exists | Matches §13.1 "if the owner chooses to bundle it" |
+| b | Separate opt-in package only | The consumer who wants speed must know to add it | Safer for consumers who reject analyzers in the build |
+
+## F1 — The schema fingerprint
+
+The documents give only "a new critical service with a new number" and the questions of
+`Owner-Review.md` P10 (does a renamed class break the fingerprint? nested and generic types? a keyed
+contract exists precisely to evolve).
+
+| | What is hashed | Cost | Verdict |
+|---|---|---|---|
+| a | Ordered member names and CLR type names | Detects everything | A rename breaks it though the wire is compatible; platform-dependent type names |
+| **b** | The *wire shape* of the root type: for a positional contract the ordered sequence of member wire kinds; for a keyed contract nothing (evolution is the point); no CLR names | Stable across renames; computed from the contract description, so the reflected and the generated contract give the same value (INV-12) | Recommended. Catches the case it exists for — reading a positional payload as the wrong type — and says so |
+| c | A user-declared number, `[BinarySchema(3)]` | Human-controlled, trivially stable | Catches nothing automatically |
+
+Also to decide with it: the error (recommend `BinaryFormatException`, "schema mismatch", carrying both
+values — not an integrity error, since nothing was tampered with), and whether the check is opt-in
+(`WithSchemaFingerprint()`, recommended; default writes nothing) or on by default (a wire change for
+every frame, major under §5.2).
+
+## A1 — Zstandard, LZ4, AES-GCM-SIV
+
+| | Packaging | Cost | Verdict |
+|---|---|---|---|
+| **a** | One package each (`ViShap.Viper.Compression.Zstd`, `….Lz4`, `ViShap.Viper.Encryption.AesGcmSiv`), registered through the existing custom-algorithm builder methods; the header carries the algorithm's name (`Custom`, id `FF 01`) | Each has its own dependency and cycle; no change to Core | Matches `Decisions.md` D9.2 "separate packages" and `Audit-Future.md` §9 "a package exists when it has its own public contract and cycle" |
+| b | One `ViShap.Viper.Extras` | One package to ship | Pulls every dependency into every consumer |
+| c | Reserve built-in ids in Core's enums for them | Short header record | An enum value with no implementation in Core is a trap; reverses D9.12's "built-ins are in Serialization" |
+
+Dependencies to verify in the stage, not assumed here: a managed Zstandard and LZ4 implementation with a
+maintained release; AES-GCM-SIV is not in the BCL, so a library that provides it must be found and its
+test vectors (RFC 8452) used. If none is acceptable, AES-GCM-SIV is dropped from this release and the
+reason recorded. Each package implements the interface exactly as Core states it (exact ciphertext
+length, hash size 1…255, `expectedLength` produced exactly) and the services check it.
+
+## T1 — Live tracing
+
+`WithTrace(sink)`: the sink receives the `BinaryDump` of each operation. Needs the trace seam in the
+write codecs (today only read codecs report). Cost is known from `PERF-09`: the switched-off seam costs
+≈ 1.5 % on reads. Questions: is the sink called on failure with the partial dump (recommend yes, as
+`Dump<T>` does); is it called under a limit of its own (recommend the options' limits, as the dumper);
+does it ever see a key (never, as the dumper). Alternative: do nothing and keep the documented
+`catch` + `Dump<T>` pattern.
+
+## B1 — When Track B is measured, and the performance claim
+
+A baseline belongs to a tagged revision (`Benchmark-Plan.md` §29.1, BASE-08), and §28's box "the v1.0.0
+baseline is frozen" can only close after `v1.0.0`.
+
+| | Option | Cost | Verdict |
+|---|---|---|---|
+| **a** | Adapters before `v1.0.0` (P6); Track A and B measured on `v1.0.0` as planned; README/`docs/` performance after | The plan as written | No rule bent |
+| b | Measure A and B on `v1.0.0-rc.2` and record `Baselines/v1.0.0-rc.2`; README performance still waits for the §28 box on `v1.0.0` | Numbers earlier, from a tag that is not the release | Fine for information; cannot publish |
+| c | Amend §28 so an rc baseline can open the gate | Performance claims in the `v1.0.0` README | The owner's rule "no adjective before the numbers" is kept only if the numbers are the release's |
+
+## B2 — The open performance proposals
+
+`PERF-02…PERF-09` are all "Open", each ending where the owner's decision begins. They are not
+scheduled until decided; P6 lists them for a single sitting. `PERF-02` (byte budget) touches the public
+limits and is the only one that could change behavior.
+
+## 3.9 Decisions taken
+
+Filled in by the owner.
+
+| | Decision | Date |
+|---|---|---|
+| N1a / N1b | B + M1 (recommended) | 2026-10-09 |
+| S1 / S2 / S3 | a / c / b (recommended) | 2026-10-09 |
+| S4 / S5 | A / a (recommended) | 2026-10-09 |
+| S1 base type | `TypeContract<T>` implements an internal interface; exactly the five types of S1-a are public | 2026-10-09 |
+| S2 context | abstract `BinarySerializerContext`, contracts added in its constructor through `protected Add<T>`, snapshotted by `Build()`; `[BinaryContext(typeof(…))]` in Core lists the root types | 2026-10-09 |
+| S2 type coverage | the listed types and every member-encoded type reachable from them through members, element and key/value types, `Nullable<T>` and `[BinaryUnion]` arms | 2026-10-09 |
+| Invalid description | `BinaryConfigurationException` from the public constructors and from `Add<T>` | 2026-10-09 |
+| P1–P4 on one branch | `feature/generator`; the order inside it is kept, the gates are checked together at the end | 2026-10-09 |
+| F1 | deferred past `v1.0.0` — `internal/ideas/IDEA-01` | 2026-10-09 |
+| A1 | Zstandard and LZ4 as **built-in** algorithms (`CompressionAlgorithm.Zstandard = 3`, `Lz4 = 4`, in `Serialization`, not `Custom`, not separate packages) — then **deferred past `v1.0.0`** until an official implementation exists; no third-party dependency. Everything chosen is in `internal/ideas/IDEA-11`. AES-GCM-SIV deferred — `internal/ideas/IDEA-03`. No P5 package stage remains | 2026-10-09 |
+| T1 | deferred past `v1.0.0` — `internal/ideas/IDEA-02` | 2026-10-09 |
+| B1 | a — Track B adapters with current competitors before `v1.0.0`; Track A and B measured in full on the `v1.0.0` tag; the figures and charts go into the READMEs and `docs/` after that run | 2026-10-09 |
+| Engine fast path | a stage of `rc.2`, before the benchmarks: the generator profile first, then the measured internal improvements of the generated path (§4, P4a–P4b) | 2026-10-10 |
+| S4 revisited — native AOT | **in `rc.2`**, as S4-B through a façade of names (option a of `ideas/IDEA-04`): the context supplies every codec its types reach through statically typed factories named after the §23 definitions, entry points that take a typed handle carry no annotation, and every reflective resolution is guarded off under native AOT — `FormatterRegistry`, `ReflectedContract`, union maps from attributes, runtime contracts of polymorphic slots. Shapes and codecs stay internal. A design stage with the owner's approval comes before any code (§4, P4c–P4d). S4-A's annotations stay on the entry points that take no handle | 2026-10-10 |
+| B2 | no sitting on `PERF-02…PERF-09` before `v1.0.0`; each stays Open in its file | 2026-10-10 |
+| Workflow §3.3 amended | no — the owner does not amend `Development-Workflow.md`; `rc.2` carries this plan's features on the owner's decision recorded here | 2026-10-10 |
+| P4b item 1 | A — kept: the object codec finds its contract once per configuration; its gain is recorded as within the run-to-run drift of R-06, not as a measured number. Items 2 and 3 not made: neither P4a nor a cross-run comparison can show their cost — deferred past `v1.0.0` as `performance/PERF-11` | 2026-10-14 |
+| P4c — native AOT design | `rc2/Native-AOT-Design.md` approved as recommended, D1…D12 (a throughout; D7 a/a; INV-19 and INV-20 to be added by P4d). The façade of D1 is `ViShap.Viper.Contracts.SupportedTypes` and its token `SupportedType` — the term of contract §23 and `docs/supported-types.md`; `KnownTypes` declined as foreign to the system's vocabulary | 2026-10-14 |
+| P4d — the context's instantiation (R-07, PERF-12) | A + C — P4d closes with the regression of that one cell recorded; making the offers lazy waits, with PERF-10, past `v1.0.0` as one internal change | 2026-10-14 |
+| P8 — the auditor | A — `viper_conformance_auditor` generalized, not a new skill: the brief of the release (`internal/<release>/Audit-Brief.md`) is its authority, with the sessions and branches it names; the invariants come from contract §25; the verdict is "rc.N may be tagged". The rework's documents stay binding until `v1.0.0`, with this section after them. Made in P7, with the brief | 2026-10-14 |
+| After `rc.2` — the release | B — `v1.0.0` a few days after `rc.2`, not the same day; the owner checks the published packages, so the plan holds no item and no consumer-project branch for it | 2026-10-14 |
+| P8 — the auditor brief | `rc2/Audit-Brief.md` approved as written: the audit of the delta since `c728c99` and of the whole system, the sessions and branches of its §2, the report `rc2/Audit-Conformance.md` with findings `RC2-nn`, the CD dry run of all four packages with `1.0.0-rc.2` | 2026-10-26 |
+| RC2-01 — offers of `SupportedTypes` | `SupportedTypes.Union<T>` accepts exactly the arms `[BinaryUnion]` declares on `T` and refuses a type without them; `SupportedTypes.Collection<TCollection, T>()` takes no delegates — `new()` and the public `Add(T)` the reflection path finds, one rule shared by both paths (amends D4, D5 of `Native-AOT-Design.md`). Nothing a context offers can differ from what reflection builds | 2026-10-26 |
+| RC2-02 — errors of a supplied contract | an exception from a supplied contract's own code propagates unchanged, as a `Lazy<T>` factory's does; `null` from `Create` is `BinaryTypeException` | 2026-10-26 |
+| RC2-03 — S5 clarified | the meta-package references the generator with `PrivateAssets="none"`, so one install brings it | 2026-10-26 |
+| RC2 fixes — branches | two branches: `bugfix/rc2-audit-engine` (RC2-01, RC2-02, RC2-06, RC2-12; `viper_builder`, with `viper_generator` for the generator's part), then `bugfix/rc2-audit-documents` (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13; `viper_builder`) | 2026-10-26 |
+| RC2-14 — a custom collection's `Add` | the public `Add(T)` stays the rule for whether a custom collection is read; a class is filled through it when it returns nothing, a `bool` or a reference (the result discarded), and a value-type collection or a class whose `Add(T)` returns another value through `ICollection<T>.Add`, on the instance — no boxing (amends RC2-01 for those cases; option A of three: B, `MethodInfo.Invoke`, would have taken an exception to INV-17; C, refusing them on read, would have narrowed what rc.1 read) | 2026-10-26 |
+| RC2-14…RC2-16 — where they are fixed and closed | on `audit/rc2-closure` itself, no further branch; their closure check is made in the same session that fixed them, which the owner accepts in place of an independent session; the final `--smoke` runs on `release/v1.0.0` after `audit/rc2-closure` is merged, and it and the CI job `native-aot` on that merge commit are green before the `rc.2` tag | 2026-10-26 |
+
+---
+
+# 4. Stages
+
+Each stage is one branch from `release/v1.0.0`, cut **after the previous stage is merged into it**
+(`Development-Workflow.md` §2.5); the owner commits and merges. "Gate" means the stage may be handed over
+only when it holds. Every stage ends with the suite green in Debug and Release, the benchmark harness
+building (`--verify`, `--smoke`) where the stage touches code it measures, and the documents the stage
+made untrue corrected **in the same change** (`CLAUDE.md`, contract, QA plan, `docs/`, READMEs, the skills'
+quotations).
+
+| Stage | Branch | Skill | Needs decision |
+|---|---|---|---|
+| P0 State sync | `docs/rc1-state-sync` | `viper_builder` | — |
+| P1 Naming | `feature/generator` (one branch for P1–P4, owner's decision) | `viper_generator` | N1 — taken |
+| P2 Public contract seam | `feature/generator` | `viper_generator` | S1–S4 — taken |
+| P3 Generator | `feature/generator` | `viper_generator` | S2–S5 — taken |
+| P4 Generator tests | `feature/generator` | `viper_generator`, `viper_tester` | — |
+| P4a Generator profile | `benchmark/generator-profiles` | `viper_bencher` | — |
+| P4b Engine fast path | `feature/engine-fast-path` | `viper_builder` | — (each optional item by its measurement) |
+| P4c Native AOT — design | `docs/native-aot-design` | `viper_generator` | the brief, approved by the owner |
+| P4d Native AOT | `feature/native-aot` | `viper_generator`, `viper_builder` | P4c approved |
+| ~~P5a Schema fingerprint~~ | — | — | F1 — deferred, `ideas/IDEA-01` |
+| ~~P5b Live tracing~~ | — | — | T1 — deferred, `ideas/IDEA-02` |
+| ~~P5c Zstandard~~ | — | — | A1 — deferred, `ideas/IDEA-11` |
+| ~~P5d LZ4~~ | — | — | A1 — deferred, `ideas/IDEA-11` |
+| ~~P5e AES-GCM-SIV~~ | — | — | A1 — deferred, `ideas/IDEA-03` |
+| P5f Executable examples | `test/docs-examples` | `viper_tester` | — |
+| P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | `viper_bencher` | B1, B2 — taken |
+| P7 Documentation | `docs/rc2-docs` | `viper_builder` | — |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, then `audit/rc2-closure` | `viper_conformance_auditor` (new brief) | — |
+
+Order: P4a → P4b → P4c → P4d → P5f → P6 → P7 → P8. The profile comes first because P4b changes only what
+it shows to matter, and P4d is measured against P4b. P5f is independent and may move earlier.
+
+Of P5 only P5f remains. P5a–P5e were deferred past `v1.0.0` on 2026-10-09; each is written up with its
+options, the choices already made and its version impact in `internal/ideas/`, and their paragraphs
+below are kept for the record.
+
+## P0 — State sync — `docs/rc1-state-sync`
+
+- `Rework-Plan.md` Progress: R9d row names both branches; R9e `closed` with the merge of
+  `audit/v1-conformance-closure` (`c728c99`); Release row stays `not started`. (The rework's own file;
+  this is the Progress update its rules require.)
+- `CLAUDE.md` "Current state": `v1.0.0-rc.1` tagged; the closure check is done; the next work is this plan.
+- The seven test-project warnings fixed in the tests (`Hostile/CanonicalScalarTests.cs:55` and the six of
+  R9c), so the test project builds clean too.
+- A line in the hand-over reminding the owner of the `rc.1` baseline (R9 step 7) if they still want it.
+- **Gate:** build without a warning in any project; suite green; no behavior change.
+
+## P1 — Naming — `rework/p1-contract-naming`
+
+The chain of N1, in one change so no intermediate state names two things differently: `src/` (the
+contract, the reflected contract and its accessors, the reader and writer and the text of their
+mismatch exceptions, the object codec), every test that names them, the contract (§2.4, §14), the QA plan
+(checkpoints that quote the names), `CLAUDE.md` ("Member layouts", "Adding a formatter"), the skills.
+Search before and after for every old name; the ledger of §7 records each. No wire byte changes: the
+frozen fixtures and `CONF-*` are the arbiter.
+
+- **Gate:** the search for the old names is clean outside historical documents; `PublicSurfaceTests`,
+  `CONF-*`, `ContractCallTests` green; fixtures untouched.
+
+## P2 — Public contract seam — `feature/public-contract-seam`
+
+- S1: the chosen types become public with the full XML documentation a consumer reads on hover: what
+  each member does, what it takes, which exception it raises; no reference to `internal/`, no history.
+  The exposed types keep every guarantee INV-2/INV-5 states: no byte, no count, no position.
+- S2: the single lookup `TypeContractCache.Get` consults what the options carry (S2-c) before
+  `ReflectedContract`; the options gain `WithContracts(...)` (and `RequireGeneratedContracts()` if chosen);
+  `Build()` validates them. No static registry unless S2-a is chosen, in which case INV-7 is restated and a
+  structural test added.
+- S3: whatever the chosen access rule needs in the description (for example a flag per member).
+- Contract: §3 (surface) and §3.6 (member surface, enforced by `Api/MemberSurfaceTests`), §14.1, §2.4;
+  `PublicSurfaceTests` updated (`EngineTypes_AreNotPublic` no longer lists the seam types); QA group for
+  the seam; `docs/contracts.md` gains the section a hand-written contract needs (the seam is usable
+  without the generator).
+- **Gate:** a hand-written `TypeContract<T>` in a test, registered through the new path, passes the whole
+  `CONF-*` suite; the AOT analysis test still reports exactly what it reported (no new warning, no new
+  suppression); `CLAUDE.md` barrier text and "Adding a formatter" updated.
+
+## P3 — Generator — `feature/generator`
+
+Governed by `viper_generator`. `src/ViShap.Viper.Generator` (`netstandard2.0`, `IIncrementalGenerator`,
+`EnforceExtendedAnalyzerRules`, packed to `analyzers/dotnet/cs`, `DevelopmentDependency`, no runtime
+reference from `Serialization`), producing per type exactly one `TypeContract<T>`: the member description,
+`Create`, `Write`, `ReadPositional` or `ReadKeyed` (names per N1), and the registration of S2. Member
+order, keys, inheritance levels (base first), shadowing and override handling reproduce
+`ReflectedContract` rule for rule — the rules are contract §14, `Audit-Closure.md` NX-03…NX-05, and the
+total order of INV-12.
+
+- **Diagnostics.** One compiler diagnostic per rejection `ReflectedContract` makes at first use today
+  (list in §13.1: unmarked member of a contract, `[BinaryKey]` without `[BinaryContract]`, duplicate keys
+  or orders, `[BinaryKey]` with `[BinaryIgnore]`, `[BinaryInclude]` with `[BinaryIgnore]`, `[BinaryOrder]`
+  or `[BinaryInclude]` on a contract, a delegate member, a union tag above 255, an abstract type with no
+  union, a duplicate union tag, a known type not assignable to the base). Ids `VPR001…`, documented in
+  `docs/` with a fix for each; the runtime keeps rejecting the same things for a type without a generated
+  contract.
+- **What the generator never emits:** a length, a count, a loop over wire data, a limit, a null or
+  reference frame, a union tag, a byte. A structural test (P4) reads the emitted source for them.
+- **Packaging and delivery.** Solution entry; `ci.yml` builds it; `cd.yml` packs and validates four
+  packages (`EXPECTED_COUNT`, the pack steps, the artifact-name check) — dry-run with `-p:Version=1.0.0-rc.2`;
+  `GENERATOR-README.md`; the meta-package per S5.
+- **Contract:** a generator section (what is generated, the guarantee of byte identity, the diagnostics).
+  `Rework-Plan.md` §13.1's AOT sentence is corrected in the contract and the docs per S4.
+- **Gate:** every `CONF-*` case passes on a generated contract (P4 runs it); the frozen fixtures read and
+  reproduce through generated contracts; the package packs; the consumer sample builds with the generator
+  and without it and writes identical bytes.
+
+## P4 — Generator tests — `test/generator-conformance`
+
+Governed by `viper_tester` with `viper_generator`. A test project for the generator (snapshot tests of the
+emitted code, one per object shape and one per diagnostic id); `Contracts/ConformanceTests` run a second
+time against generated contracts through the same `ContractOf<T>` seam; frozen-fixture cross-check;
+a property-style test that reflected and generated contracts produce identical bytes for the whole corpus
+types; structural tests for "emits no loop, length, limit"; QA-Plan gains a GEN group with checkpoints
+citing contract sections.
+
+- **Gate:** QA-Plan GEN group fully ticked with passing tests; snapshots committed; both CONF runs green.
+
+## P4a — Generator profile — `benchmark/generator-profiles`
+
+Governed by `viper_bencher`; read-only over `src/`. A profile of the generated contract beside the
+reflected one in the profile matrix (`Benchmark-Plan.md` §8): cold start (first operation in a fresh
+process), first use of a type, steady state; positional and keyed; small and large objects; with and
+without `PreserveReferences`. Recorded as the baseline of the current tree, so P4b and P4d are measured
+against it. A cost it shows that P4b does not remove is written up as a `PERF-nn`.
+
+- **Gate:** harness builds; `--verify` and `--smoke` pass; the profile's numbers recorded in
+  `Benchmark-Plan.md` and cited by P4b; no `src/` file edited.
+
+## P4b — Engine fast path — `feature/engine-fast-path`
+
+Internal only: no public type or member, no wire byte, no behavior changes; the frozen fixtures, `CONF-*`
+(both runs), `PublicSurfaceTests`, `MemberSurfaceTests` and `AotAnalysisTests` are the arbiters. Items,
+from the code review of 2026-10-10:
+
+1. **The contract of an object, found once.** With a context, `ObjectCodec.Contract` looks the type up in
+   the `ContractSet` dictionary on every value — twice for a class without reference framing, once from
+   `FoldsNull` and once from the body (`Engine/Codecs/ObjectCodec.cs` `Contract`, `FoldsNull`,
+   `WriteBody`, `ReadBody`) — while the reflected path reads a cached field. A one-entry cache in the codec,
+   keyed by the identity of the `ContractSet`, an immutable pair published by one reference write. Done
+   unconditionally; the profile shows how much it was worth.
+2. **Scalars without interface dispatch** — `ScalarCodec<T, TFormatter> where TFormatter : struct,
+   IScalarFormatter<T>`, the formatters becoming structs, so the call is specialised and inlined. Only if
+   P4a's steady-state numbers show the dispatch.
+3. **Reference-typed members without generic-dictionary lookups** — the shared generic path of
+   `MemberWriter.Member<TMember>` / `MemberReader.Member<TMember>` for `string` and other reference types.
+   Only if P4a shows it, and only by an internal change: a public overload is a §5 question for the owner.
+
+Not in scope: the per-call checks of `MemberWriter`/`MemberReader` and the copy detection (INV-2, INV-5 —
+they stay); `IndexOfKey` beside the generated `switch` (part of the same check); `PERF-02…PERF-09`
+(B2: stay Open).
+
+- **Gate:** suite green in Debug and Release; fixtures untouched; P4a's profile re-run, every item kept
+  shows its gain and no cell of the profile regresses beyond the harness's noise; the numbers recorded
+  beside the baseline; the harness `--verify` and `--smoke` pass.
+
+## P4c — Native AOT — design — `docs/native-aot-design`
+
+Governed by `viper_generator`. A brief, `internal/rc2/Native-AOT-Design.md`, for the owner to approve before
+any code, working out option a of `ideas/IDEA-04`. It answers, with alternatives and costs each:
+
+- **The façade of names.** Where the statically typed factories live (protected members of
+  `BinarySerializerContext`, or a public static class), their names, and one per generic definition of
+  the §23 table — composites, sequences, maps, arrays, `Nullable<T>`, enums; what they return (nothing
+  public about a codec: an opaque registration); that no shape, codec, count or loop becomes public
+  (INV-5), and how a structural test pins it.
+- **What the context carries** beyond contracts: the codec of every reachable declared type and the union
+  map of every union base, so nothing is read from attributes or closed by `MakeGenericType`; how the
+  generator's reachability walk (already equal to `FormatterRegistry`'s tables through `TypeShapes`)
+  emits them; how a second resolution path is proved identical to `FormatterRegistry` (a test over every
+  §23 definition and the corpus types).
+- **The entry points without annotation.** A typed handle per root type in the generated context (in the
+  manner of `JsonTypeInfo<T>`), the overloads of `BinarySerializer` and `BinaryFormatDumper` that take it,
+  and the async, stream, pipe and `Populate` forms; which of them exist.
+- **The guard.** Every reflective resolution (`FormatterRegistry`, `ReflectedContract`,
+  `TypeContractCache.GetUnion`, the runtime contract of a polymorphic slot) behind a feature check the
+  trimming and AOT analysers understand, so under native AOT a type the context does not hold is
+  `BinaryConfigurationException`, never reflection; the `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]`
+  annotations of the existing entry points stay.
+- **Static caches.** `FormatterCache<T>` is process-wide; the codec of a type is the same whoever builds
+  it, so seeding it from a context changes nothing a call observes — the brief states why this is not a
+  process-wide mutable registry in the sense of INV-7, or chooses a per-context table instead, with the
+  cost of each.
+- **Proof.** `tests/ViShap.Viper.AotConsumer` published with native AOT **and run**, writing and reading the
+  corpus and comparing bytes with the JIT build; the CI job that does it (native toolchain on the runner —
+  a `ci.yml` change, named in the brief); `Api/AotAnalysisTests` extended.
+- **Contract and documents** the code will change: §3, §14, §21.3, §23 reference, INV list; `docs/aot.md`,
+  `docs/generator.md`; the generator's README.
+
+- **Gate:** the brief written; every question above answered with its alternatives; the owner's approval
+  recorded in §3.9. No `src/` file edited.
+
+## P4d — Native AOT — `feature/native-aot`
+
+Governed by `viper_generator` with `viper_builder`; built exactly as P4c approved.
+
+- **Gate:** the AOT consumer published with native AOT reports no trimming or AOT warning and runs green,
+  producing the same bytes as the JIT build; every `CONF-*` case and the frozen fixtures pass through the
+  context path; the second resolution path is proved identical to `FormatterRegistry`; the existing entry
+  points keep their annotations and nothing is suppressed; `PublicSurfaceTests` and `MemberSurfaceTests`
+  list the new surface and the structural test shows no shape or codec public; P4a's profile re-run with
+  no regression against P4b; contract, QA, `docs/`, READMEs and `CLAUDE.md` ("The reflection path states
+  its requirements", "The source generator") rewritten.
+
+## P5a–P5f — Additive features
+
+Each is one branch and follows the same pattern: contract section first (what it promises, what
+exception for what), checkpoint list in the QA plan, tests, XML docs, `docs/` page or section, README
+line, `CLAUDE.md` if an architectural sentence changes.
+
+- **P5a Fingerprint (F1) — deferred, `ideas/IDEA-01`.** A new critical service, number 4, in the header's ascending order after
+  encryption; at most 4 096 bytes still; written only when asked; read: if present and the reader's
+  expectation differs, the chosen error. V1 only (V0 has no header). The reflected and generated contracts
+  must produce the same value. Wire §22 gains the record; new frozen fixtures are **added**, none
+  regenerated (`CLAUDE.md`: fixtures are frozen).
+- **P5b Tracing (T1) — deferred, `ideas/IDEA-02`.** The write-side trace seam in the codecs; `WithTrace(sink)`; the cost measured
+  against `PERF-09` and recorded as a new `PERF-nn` if it is more than the read side's.
+- **P5c Zstandard, P5d LZ4 (A1) — deferred, `ideas/IDEA-11`.** Built-in algorithms, like Deflate and Brotli: a value in Core's
+  `CompressionAlgorithm` (`Zstandard = 3`, `Lz4 = 4`), a public class in `ViShap.Viper.Serialization`
+  (`ZstandardCompression`, `Lz4Compression`) implementing `ICompressionAlgorithm` exactly — `expectedLength`
+  produced exactly, output bounded by the writer the service supplies — and a case in
+  `AlgorithmCatalog.ResolveCompression`. No new package and no change to CD. Wire: a new algorithm id in
+  the compression record, written only when chosen; every existing frame and fixture unchanged; new
+  frozen fixtures **added** for each id, with the expected bytes decoded in a test by a reference
+  decompressor independent of the code under test. Contract §3, §12 and §22 list the ids; QA gains the
+  checkpoints; `docs/algorithms-and-keys.md` and the Serialization README name them; `PublicSurfaceTests`
+  and `MemberSurfaceTests` list the classes and enum values; `AotAnalysisTests` reports nothing new.
+  Deferred until an official implementation exists (§3.9); nothing native is accepted
+  (`Rework-Plan.md` §15).
+- **P5e AES-GCM-SIV — deferred, `ideas/IDEA-03`.**
+- **P5f Examples.** A test in `Serialization.Tests` extracting every `csharp` block of `docs/` and the
+  READMEs, compiling it with Roslyn against the built assemblies, running those with top-level statements
+  and compiling the others as a library — the CONF-15 wording. One new test-only dependency.
+- **Gate (each):** suite green; the new frozen/added fixtures read; `PublicSurfaceTests` and
+  `MemberSurfaceTests` list the new surface; documents consistent.
+
+## P6 — Benchmarks — `viper_bencher`
+
+- `benchmark/graceful-stop`: variant C of `Benchmark-Graceful-Stop.md`, done-when list included.
+- `benchmark/track-b-adapters` (CONF-16): an adapter for each library of `Benchmark-Plan.md` §5.2 in its
+  documented best mode, the model variants (§7.4), the capability probes (§7.5), verification before
+  timing (§7.6), the tier tables (§6) generated from probes. Only the public surface is used for
+  comparison; versions re-verified on the day of the run (RST-03). The work is read-only over `src/`.
+  Viper's best documented mode is a generated context with typed handles (P4d), measured beside the
+  reflected path.
+- The generator profile moved to P4a (2026-10-10).
+- `PERF-02…PERF-09` stay Open (B2, 2026-10-10); no sitting.
+- **Gate:** harness builds; `--verify` passes every pair; `--smoke` passes; no `src/` file edited; nothing
+  measured or published as a result before B1 says where.
+
+## P7 — Documentation — `docs/rc2-docs`
+
+`docs/` and the package READMEs (one more per new package): a generator page, the new algorithm packages, schema
+fingerprint, tracing, the contract-authoring page; every `csharp` block compiles and runs (P5f enforces).
+No adjective about performance (`Benchmark-Plan.md` §28) — the performance page waits for the gate (B1).
+
+The algorithm packages, the fingerprint and tracing were deferred with their stages (§3.9), so P7 writes nothing for
+them. The generator page (`docs/generator.md`) and the native AOT page (`docs/aot.md`) came with P3 and P4d. P7 adds
+the contract-authoring page, `docs/writing-contracts.md`, writes the auditor brief of P8 and generalizes
+`viper_conformance_auditor` to run from it (§3.9).
+
+## P8 — Audit of `rc.2`
+
+A new auditor brief (`internal/rc2/Audit-Brief.md`, written in P7 from the decisions taken and this plan,
+for the owner to approve, its approval recorded in §3.9) and a separate session of `viper_conformance_auditor` per `audit/rc2-conformance`,
+writing `internal/rc2/Audit-Conformance.md`;
+fixes on `bugfix/rc2-audit-<topic>`; a closure session on `audit/rc2-closure`; a CD dry run of **all
+packages** with `-p:Version=1.0.0-rc.2`; then the owner tags `v1.0.0-rc.2` on `release/v1.0.0`. Further
+defects: `bugfix/` and `rc.3`. The release follows the sequence of `Rework-Plan.md` R9, steps 8–11.
+
+---
+
+# 5. Rules for whoever executes this
+
+1. One stage at a time; a stage starts only when the previous one is merged and the suite is green at entry.
+2. **A stage whose decision (§3) is blank does not start.** Ask — with every option, its cost, why the
+   recommendation is better, a short example — and wait.
+3. The wire does not change except where a stage says so (P5a). The frozen `Fixtures/Wire/*.bin` are never
+   regenerated; a failure there is a compatibility break to be fixed in `src/`. New features add fixtures.
+4. The structural barriers and INV-1…INV-20 hold by construction; a stage that would weaken one stops and
+   asks (`CLAUDE.md`, "Three structural barriers"). The generator in particular may not become a second
+   place where a length, a count or a loop over wire data exists.
+5. Public surface is XML-documented for the NuGet consumer; no comment addresses the reader, records
+   history, or cites `internal/`.
+6. Documents change with the code, in the same change; a retired or renamed name goes into the ledger (§7)
+   and is searched for.
+7. The owner commits. Never commit, push, open a PR or tag. Every stage ends with the changed paths, the
+   evidence of the gate, the owner's next commands for the stage's cycle, and a ready commit message
+   (one subject line, optionally a short clause after a dash; no body, no trailer).
+8. Measure before claiming; benchmarks never change the library (`Benchmark-Plan.md` §1).
+9. A discovery that contradicts a decision is reported to the owner with the evidence; it is not
+   resolved by choosing.
+
+---
+
+# 6. Changes the owner's guide needs (not made by the agent)
+
+`Development-Workflow.md` binds every agent and is edited only on the owner's request. For this plan to
+run as written it needs:
+
+1. §3.3 "after R9e — `v1.0.0-rc.N` — fixes only": a sentence that for `v1.0.0` the rc carries the
+   features of `internal/rc2/RC2-Plan.md`, and that `rc.2` is audited as the R9 rc was.
+2. §2.1: the skills `viper_builder` and `viper_generator` in the *Skill* column for `feature/`, `bugfix/`
+   and `rework/` branches, and `viper_conformance_auditor` for the rc.2 `audit/` branches.
+3. §10: nothing to change.
+
+---
+
+# 7. Ledger of names retired or renamed by this plan
+
+Filled by the stage that renames; each row is searched for in `src/`, `tests/`, `benchmarks/`, the XML
+documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living documents of `internal/`.
+
+| Stage | Was | Now | Searched as | Result |
+|---|---|---|---|---|
+| P1 | `TypeContract<T>.Read` | `TypeContract<T>.ReadPositional` | `override void Read(`, `.Read(ref members` | clean |
+| P1 | `TypeContract<T>.ReadField` | `TypeContract<T>.ReadKeyed` | `ReadField\b`, `ReadField_` | clean outside historical documents |
+| P1 | `MemberWriter.Field<TMember>(key, value)` | `MemberWriter.Member<TMember>(key, value)` | `.Field(`, `Field<TMember>` | clean; `MemberReader.Field` (the engine's internal factory that opens one field) and `WireTrace.Field` keep the wire word |
+| P1 | `MemberReader.Value<TMember>()` | `MemberReader.Member<TMember>()`, one call for both layouts | `.Value<`, `Value<TMember>` | clean |
+| P1 | `MemberAccessor<T>.ReadFrom` / `ReadFieldFrom` | `ReadPositionalFrom` / `ReadKeyedFrom` | `ReadFieldFrom`, `.ReadFrom(ref reader` | clean (`BinaryFormatHeaderV1.ReadFrom` is unrelated) |
+| P1 | `Contracts.WrongLayout(…, write)` on the read side | write side only: a reader's layout is the one the engine opened it for | `WrongLayout(` | one caller, `MemberWriter` |
+| P2 | `ViShap.Viper.Engine.TypeContract` (internal abstract base) | `ViShap.Viper.Engine.ITypeContract` (internal interface `TypeContract<T>` implements) | `TypeContract contract`, `typeof(TypeContract)`, `(TypeContract)` | clean |
+| P2 | `ViShap.Viper.Engine.TypeContract<T>`, `MemberWriter`, `MemberReader`, `MemberDescription`, `MemberLayout` (internal) | the same names, public, in `ViShap.Viper.Contracts` | `ViShap.Viper.Engine.TypeContract`, `ViShap.Viper.Engine.Member` | clean outside historical documents |
+| P2 | `ViShap.Viper.Engine.Contracts` (static diagnostics class) | `ContractCalls` — the old name would shadow the new namespace | `Contracts.Mismatch`, `Contracts.WrongLayout`, `Contracts.TooManyCalls` | clean |
+| P2 | `StructuralCodec<T>.FoldsNull` (property) | `FoldsNull(ref OperationState)` — an object's null follows the contract in force for the operation | `FoldsNull =>` | clean |
+| P3 | `SourceTree.ProductionFiles` over every file of `src/` | over the shipped runtime assemblies only; the generator is held to its own tests | `ProductionFiles` | the source invariants still cover Core and Serialization |
+| P1 | test `ReadField_APositionalMemberUnderAKeyedLayout_ThrowsType` | `ReadKeyed_AMemberCallPerKnownKey_ReadsEachFieldsMember` — the mistake is no longer expressible | `APositionalMemberUnderAKeyedLayout` | clean of the read side; the one hit is `Contracts/ContractCallTests.Write_APositionalMemberUnderAKeyedLayout_ThrowsType`, the write-side mistake, which is still expressible and pinned |
+| P4d | `FormatterRegistry.Scalars` | `BuiltInCodecs.Scalars`, the one table both the reflection path and a context use | `FormatterRegistry.Scalars`, `registry.GetField("Scalars"` | clean |
+| P4d | `FormatterRegistry.Shapes`, `FormatterRegistry.Closing`, its classification | `TypeRules.Shapes`, `TypeRules.Closing`, `TypeRules.Classify` | `FormatterRegistry.Shapes`, `registry.GetField("Shapes"` | clean |
+| P4d | the marked calls of `tests/ViShap.Viper.AotConsumer/Program.cs`, "compiled, never run" | `AnnotatedEntryPoints.cs`, left out of a publish; `Program.cs` runs `ContextRun` | `AotConsumer/Program.cs`, `never run` | clean |
+| P4c/P4d | `KnownTypes` / `KnownType` (the brief before the owner named it) | `SupportedTypes` / `SupportedType` | `KnownType` | clean outside the brief's record of the declined name; `UnionDeclarationTests` and `Fixtures/Unions` use "known type" for a union arm, unrelated |
+| RC2-01 | `SupportedTypes.Collection<TCollection, T>(Func<TCollection> create, Action<TCollection, T>? add)` | `SupportedTypes.Collection<TCollection, T>()`, `TCollection : new()`; the shape finds `Add(T)` itself | `Collection<TCollection, T>(create`, `Func<TCollection>`, `collection.Add(element)`, `static () => new` | clean outside the D5 option it amends in `Native-AOT-Design.md`; `static () => new` remains only in algorithm registrations of the tests, unrelated |
+| RC2-01 | `CustomCollectionShape<TCollection, T>(create, add)` and the `Expression`-compiled operations of `FormatterRegistry.ForCollection` | `CustomCollectionShape<TCollection, T>()`, one shape for both paths | `Expression.Lambda`, `System.Linq.Expressions` | `ReflectedContract` keeps its compiled accessors, unrelated |
+| RC2-01 | `Planner.PublicAdd` (the generator's own search for `Add(T)`) | none — the shape's `GetMethod` is the one rule | `PublicAdd` | clean; the test `Collection_FillsThroughItsPublicAdd_AndWithoutOneRefusesToRead` names the rule |
+| RC2-01 | "the arms of a union are taken as given; the serializer does not read `[BinaryUnion]` for a type whose union map was supplied" (§14.5, `docs/writing-contracts.md`) | `Union<T>` holds its arms to the attributes | `taken as given`, `does not read` | clean |
+| RC2-01 | test `SupportedTypes_TakesNoTraversalAndReturnsOnlySupportedTypes` | `SupportedTypes_TakesNothingButAUnionsArmsAndReturnsOnlySupportedTypes` | `TakesNoTraversal`, `two operations of a custom collection`, `custom collection's operations` | clean |
+
+| RC2-05 | test `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoTagAndNoReflection`, and "no tag" in §14.4, GEN-09 and `CLAUDE.md` | `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoWireTagAndNoReflection`, which also requires every tag to sit in a `SupportedTypes.Union<T>` offer; "no tag written or read" | `NoCountNoTagAndNoReflection`, `a union tag or a byte`, `frame, tag or byte`, `no tag, no reflection` | clean outside the audit report that names the finding and `rc2/Audit-Brief.md` §4, which quotes the former `CLAUDE.md` wording as the brief the owner approved |
+| RC2-04 | "`dotnet pack` succeeds for all three packages" (§24, QA §32) | all four packages | `all three packages` | clean outside historical documents |
+| RC2-14 | `CustomCollectionShape.Adder()`, which bound only an `Add(T)` returning nothing and invoked the method on a copy of a value-type collection; "a value-type collection is handed to it as a copy" (§14.5, `Native-AOT-Design.md`) | `CustomCollectionShape.Bound(…)` for a class's `Add(T)` returning nothing, a `bool` or a reference; `ICollection<T>.Add` on the instance otherwise | `Adder()`, `handed to it as a copy`, `method.Invoke`, `an invocation of the method` | clean outside the audit report that names the finding |
+| RC2-15 | INV-19 "no codec, contract or union map is built by reflection" | INV-19: nothing described by reflection for a type no context offered; an offer reads only what its own type declares | `contract or union map is built by reflection` | clean outside `Native-AOT-Design.md` §4 (the proposal as approved), `rc2/Audit-Brief.md` §4.2 (the brief as approved) and the audit report |
+| RC2-16 | `Native-AOT-Design.md` §10 "The custom-collection shape takes its two operations in every configuration" | §10 D4 and D5 as amended | `its two operations` | clean outside the audit report |
+---
+
+# 8. Progress
+
+Updated by the executor when a stage's gate holds; a stage is `closed` only after the owner has merged
+its branch into `release/v1.0.0`.
+
+| Stage | Branch | Status | Closed by (merge commit) |
+|---|---|---|---|
+| Decisions of §3 | — | all taken | |
+| P0 State sync | `docs/rc1-state-sync` | closed | `c4995e1` |
+| P1 Naming | `feature/generator` | closed | `4604960` |
+| P2 Public contract seam | `feature/generator` | closed | `4604960` |
+| P3 Generator | `feature/generator` | closed | `4604960` |
+| P4 Generator tests | `feature/generator` | closed | `4604960` |
+| P4a Generator profile | `benchmark/generator-profiles` | closed | `e9a00bd` |
+| P4b Engine fast path | `feature/engine-fast-path` | closed | `ee3fefe` |
+| P4c Native AOT — design | `docs/native-aot-design` | closed | `146f03a` |
+| P4d Native AOT | `feature/native-aot` | closed | `c36f50f` |
+| P5a Schema fingerprint | — | deferred — `ideas/IDEA-01` | |
+| P5b Live tracing | — | deferred — `ideas/IDEA-02` | |
+| P5c Zstandard | — | deferred — `ideas/IDEA-11` | |
+| P5d LZ4 | — | deferred — `ideas/IDEA-11` | |
+| P5e AES-GCM-SIV | — | deferred — `ideas/IDEA-03` | |
+| P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
+| P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
+| P7 Documentation | `docs/rc2-docs` | closed | `97fba73` |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | closed — report `57176f3`, engine fixes `1ba774f`, documents' fixes `b0cb4d2`, closure RC2-14…RC2-16; the final `--smoke` on `release/v1.0.0` (2 477 benchmarks, 0 failed) and CI with `native-aot` on `fdd4c30` green (§3.9) | `fdd4c30` |
+| P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | closed | `1ba774f` |
+| P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | closed | `b0cb4d2` |
+| P8 fixes — closure (RC2-14, RC2-15, RC2-16) | `audit/rc2-closure` | closed | `fdd4c30` |
+| Tag | the owner tags `v1.0.0-rc.2` | closed — the tag on `fdd4c30`; the four packages published to NuGet on 2026-10-26 | `fdd4c30` |
+| Release | `release/v1.0.0` → `main` | not started | |
+
+Status values: `not started` · `in progress` · `gate holds — awaiting commit` · `closed` · `blocked — <question>`.

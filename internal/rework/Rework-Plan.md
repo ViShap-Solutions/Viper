@@ -1,6 +1,8 @@
 # ViShap.Viper — Pre-release Rework Plan
 
-**Status:** Approved by the owner on 2026-09-26. Stage R0 has not started. Two findings raised while
+**Class: historical.** The record of the pre-release rework. It binds nothing that ships, and its rules stop applying when `v1.0.0` is released; until then it is the evidence that R9 reconciles the system against.
+
+**Status:** Approved by the owner on 2026-09-26. Stages R0–R9e are closed and `v1.0.0-rc.1` is tagged; the work before the release continues in `internal/rc2/RC2-Plan.md`. Two findings raised while
 preparing the plan are already applied to `src/`, the contract and the QA plan (§1).
 **Target:** the first public release, `v1.0.0`. The rework happens before it, while no published
 format, package or consumer exists.
@@ -13,6 +15,9 @@ Rework-Plan.md               this file — what is built, in which order, and wh
 Contract-Changes.md          every change System-Contract.md receives, by section and by stage
 QA-Plan-Changes.md           every change QA-Plan.md receives, by section and by stage
 Benchmark-Plan-Changes.md    every change Benchmark-Plan.md receives, by section and by stage
+Claude-Changes.md            every change CLAUDE.md receives, by stage
+Retired.md                   every name, rule and term the rework removed, for the R9 sweep
+Conformance-Audit-Brief.md   what the R9 conformance auditor rests on, asks and delivers
 Decisions.md                 the owner's decisions, in Russian, with the byte diagrams and examples
                              they were taken on — the source this plan was written from
 Owner-Review.md              the review of the previous plan and the owner's decision log (Russian)
@@ -22,9 +27,9 @@ Owner-Review.md              the review of the previous plan and the owner's dec
 is defective; fix the plan, do not choose. Every section below cites the decision it implements as
 `[Dn.n]`, meaning `Decisions.md` §n.n.
 
-The three change files are separate from the documents they amend on purpose. `System-Contract.md`,
-`QA-Plan.md` and `Benchmark-Plan.md` describe what the code does *now*; each is rewritten from its
-change file in the stage that makes the change real, never ahead of it.
+The four change files are separate from the documents they amend on purpose. `System-Contract.md`,
+`QA-Plan.md`, `Benchmark-Plan.md` and `CLAUDE.md` describe what the code does *now*; each is rewritten
+from its change file in the stage that makes the change real, never ahead of it [D9.24].
 
 ---
 
@@ -43,8 +48,9 @@ change file in the stage that makes the change real, never ahead of it.
    rewritten with the code and never deleted. If meeting a stage's goal would weaken an invariant,
    the stage stops and the question goes to the owner. That is the one discovery this plan does not
    pre-authorise.
-6. **Documents change with the code.** Each stage applies its part of the three change files in the
-   same change as its code.
+6. **Documents change with the code.** Each stage applies its part of the four change files in the
+   same change as its code — `CLAUDE.md` included, so no agent reads a description of a system that
+   no longer exists [D9.24].
 7. **Nothing decided here is re-decided during execution.** A decision that turns out to be
    unimplementable is reported to the owner with the evidence; it is not silently replaced.
 8. **Measure before claiming.** Every performance statement in this plan is a target. It becomes a
@@ -54,9 +60,17 @@ change file in the stage that makes the change real, never ahead of it.
 10. **Branches and tags** follow `internal/Development-Workflow.md` [D9.22]. The rework is collected on
     `release/v1.0.0`, branched from `main`; each stage is worked on `rework/rN-<topic>` from
     `release/v1.0.0` and returns to it through a pull request. Nothing is published before R6; after
-    R6 the owner may tag `v1.0.0-beta.N` on `release/v1.0.0`; after R9, `v1.0.0-rc.N`; the release is
+    R6 no beta is tagged — the owner decided on 2026-09-29 not to set `v1.0.0-beta.1`, because the package READMEs that `dotnet pack` requires are written only in R9 (`Owner-Review.md` log 64); after R9, `v1.0.0-rc.N`; the release is
     `release/v1.0.0` merged into `main` and `v1.0.0` tagged on `main`. The executor never creates or
     merges these branches and never tags `v*`.
+11. **The benchmark harness lives with the code** [D9.27, D9.28]. At the end of every stage — R1–R6, R8
+    and R9 — it builds, `--verify` passes every pair and `--smoke` passes; a checkpoint whose measured API the stage
+    removes is rewritten or retired in that stage (`Benchmark-Plan-Changes.md` §2).
+12. **Nothing of the previous system survives silently** [D9.28]. Every stage records in
+    `Retired.md` what it removed or renamed — types, members, options, arguments, terms, rules,
+    checkpoints — in the same change. R9 does not trust the change files: it reconciles every living
+    document against the code independently, and searches the repository for every `Retired.md`
+    entry.
 
 ---
 
@@ -67,16 +81,20 @@ Updated by the executor when a stage's gate holds and its report is handed to th
 
 | Stage | Branch (from `release/v1.0.0`) | After the owner merges it | Status | Closed by (merge commit) |
 |---|---|---|---|---|
-| R0 — Baseline and oracle | `rework/r0-baseline` | — | not started | |
-| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | not started | |
-| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | not started | |
-| R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | not started | |
-| R4 — Typed engine | `rework/r4-typed-engine` | — | not started | |
-| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | not started | |
-| R6 — The final format | `rework/r6-final-format` | the owner may tag `v1.0.0-beta.1` on `release/v1.0.0` | not started | |
+| R0 — Baseline and oracle | `rework/r0-baseline` | — | closed | `530262a` |
+| R1 — Wire primitives on buffers | `rework/r1-wire-primitives` | — | closed | `1a73c62` |
+| R2 — Pipeline on pooled buffers | `rework/r2-pooled-pipeline` | — | closed | `7ac46c0` |
+| R3 — Public surface and non-seekable reading | `rework/r3-public-surface` | — | closed | `48c7bf5` |
+| R4 — Typed engine | `rework/r4-typed-engine` | — | closed | `c215131` |
+| R5 — Algorithm contracts | `rework/r5-algorithm-contracts` | — | closed | `76b9aa5` |
+| R6 — The final format | `rework/r6-final-format` | no tag: `v1.0.0-beta.1` deliberately not set (owner, 2026-09-29, `Owner-Review.md` log 64) | closed | `4a7d820` |
 | R7 — Removed | — | — | — | — |
-| R8 — Generator ground | `rework/r8-generator-ground` | — | not started | |
-| R9 — Re-gate and release | `rework/r9-release-gate` | the owner may tag `v1.0.0-rc.1` on `release/v1.0.0` | not started | |
+| R8 — Generator ground | `rework/r8-generator-ground` | — | closed | `a41f64a` |
+| R9a — Reconciliation | `rework/r9a-reconcile` | — | closed; `viper_refactorer` stays as it is until `v1.0.0` (owner's decision) and is replaced after it; the `dotnet pack` boxes of contract §24 and QA §32 stay for R9b | `16b2680` |
+| R9b — Consumer documentation | `docs/v1-consumer-docs` | — | closed | `16d2704` |
+| R9c — Conformance audit | `audit/v1-conformance` (separate session) | — | closed; seventeen findings, six of weight "blocks the rc" | `867ba6b` |
+| R9d — Audit fixes | `bugfix/v1-audit-all`, all seventeen findings in one group (owner, 2026-09-29); `bugfix/v1-strict-utf8-keys` | — | closed | `9d8e8ae`, `e8af35b` |
+| R9e — Closure check | `audit/v1-conformance-closure` (separate session) | `v1.0.0-rc.1` tagged on `release/v1.0.0` at `c728c99` | closed; the work before `v1.0.0` continues in `internal/rc2/RC2-Plan.md` | `c728c99` |
 | Release | `release/v1.0.0` → `main` | the owner tags `v1.0.0` on `main` | not started | |
 
 A defect found on a beta or an rc is fixed on `bugfix/<topic>` from `release/v1.0.0` and merged back;
@@ -97,7 +115,7 @@ Status values: `not started` · `in progress` · `gate holds — awaiting commit
 | Release workflow | **Applied.** `cd.yml`: stable `vX.Y.Z` only on `main` HEAD; pre-release `-alpha.N`/`-beta.N`/`-rc.N` from any branch on origin; a pre-release of an already released version is refused | — |
 | `QA-Plan.md` body ↔ NX rules | Behind: NX fixes are pinned by tests and recorded in §30.3, but the body carries no checkpoints for them | `QA-Plan-Changes.md` §1 |
 | `Benchmark-Plan.md` ↔ NX rules | Behind: nothing measures the incremental decompression path or the ratio check | `Benchmark-Plan-Changes.md` §1 |
-| Package READMEs | **Release blocker.** `SERIALIZATION-README.md`, `CORE-README.md`, `METAPACK-README.md` are empty; `dotnet pack` fails with NU5040 | R9 |
+| Package READMEs | **Release blocker.** `SERIALIZATION-README.md` and `METAPACK-README.md` are empty and `dotnet pack` fails on them with NU5040. `CORE-README.md` is empty too, but the Core package packs the repository's `README.md` instead | R9 |
 | Benchmark Track A | Harness built; no baseline captured | R0 |
 
 ---
@@ -429,6 +447,21 @@ Nullable<T> (T a value type)       flag byte 00 / 01, then T         same — va
 type that cannot be null           nothing                           nothing
 ```
 
+The types the table leaves out follow the same rule, by the owner's decision of 2026-09-28
+(`Owner-Review.md` log 60): the scalars that travel as a string — `Uri`, `Version`, `StringBuilder`,
+`CultureInfo`, `TimeZoneInfo` — fold the string's length, like `string`, and are never framed;
+`BitArray` is a class and folds its bit count (a varint) — [D4.2.3] calls it non-nullable, which it is
+not; an array of rank greater than one folds its rank, and with references on writes it after the frame
+as is; `Tuple<…>` and `Lazy<T>` begin with no number and take the flag byte, as a positional object
+does. Rank, dimension lengths and the bit count are structural numbers, so varints.
+
+```text
+Uri "a"                  02 61                  null 00
+BitArray of 9 bits       0A 02 8D 01            null 00
+int[2,3]                 03 02 03 <6 × int32>   null 00
+Tuple<int,string>        01 <int32> 04 ...      null 00
+```
+
 ```text
 null (string)                          00
 ""                                     01
@@ -569,9 +602,10 @@ public interface IEncryptionAlgorithm
 
     int GetCiphertextLength(int plaintextLength);                        // exact, and ≥ plaintextLength
 
-    // destination.Length == GetCiphertextLength(plaintext.Length); filled completely.
-    void Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
-                 ReadOnlySpan<byte> associatedData, Span<byte> destination);
+    // destination.Length == GetCiphertextLength(plaintext.Length); filled completely;
+    // returns the number of bytes written.
+    int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key,
+                ReadOnlySpan<byte> associatedData, Span<byte> destination);
 
     // destination.Length == ciphertext.Length; returns the plaintext length.
     int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key,
@@ -597,7 +631,7 @@ Checks the services perform:
 KeySizeInBytes        a static key — at Build(), BinaryConfigurationException;
                       a provided key — when resolved, BinaryEncryptionKeyException
 GetCiphertextLength   negative or below plaintextLength → BinaryConfigurationException
-Encrypt               destination not filled exactly → BinaryConfigurationException
+Encrypt               result other than destination.Length → BinaryConfigurationException
 Decrypt               result outside 0…ciphertext.Length → BinaryConfigurationException
 Decompress            not exactly expectedLength bytes → BinaryFormatException
 HashSizeInBytes       outside 1…255 → BinaryConfigurationException (NX-11)
@@ -615,7 +649,10 @@ none          NoCompression · NoChecksum · NoEncryption          unchanged
 key providers StaticKeyProvider · DelegateKeyProvider · HkdfKeyProvider
                                                                 new: message key = HKDF(root key, info = KeyId);
                                                                 the root key is never exposed; the derived key is
-                                                                an owned copy (SecretKey)
+                                                                an owned copy (SecretKey); HKDF-SHA-256,
+                                                                info = UTF-8(KeyId), key size a parameter
+                                                                (32 by default), optional salt, a null KeyId
+                                                                is BinaryEncryptionKeyException
 ```
 
 **Names** [D9.18]. Every built-in carries its family as a suffix, in the style of `NoChecksum`, so
@@ -821,6 +858,149 @@ which behaves identically. The rules of contract §3.1 carry over: a type with a
 different union runtime type is `BinaryTypeException`; an empty input leaves the target untouched. Only
 the root is populated — nested objects are created afresh — and a keyed contract keeps the current
 value of every field absent from the payload.
+
+## 9.7 Diagnostics [D9.32]
+
+**Why.** A binary frame cannot be read by eye the way JSON or XML can. `ViShap.Viper.Diagnostics` is
+what closes that gap: it turns a frame into text a person can read — what was written, where, and why
+it does not read back. Today it renders five header fields. After R6 it renders the header, every
+phase, and the payload as a tree, and it points at the byte and the member where a read fails.
+
+**Surface** (namespace `ViShap.Viper.Diagnostics`, all new public types listed in contract §3):
+
+```csharp
+public static class BinaryFormatDumper
+{
+    // The header alone; no type, no key. The byte[] overload goes: an array converts to a span.
+    public static string DumpHeader(ReadOnlySpan<byte> frame);
+    public static string DumpHeader(ReadOnlySequence<byte> frame);
+    public static string DumpHeader(Stream source);                       // seekable; position restored
+
+    // The whole frame without a type: header, then each phase undone with the options' keys and
+    // verified, then the payload as annotated hex. Bytes without the magic are shown as V0 hex.
+    public static BinaryDump Dump(ReadOnlySpan<byte> frame, BinarySerializerOptions? options = null);
+
+    // The whole frame with T as the schema: the payload as a tree.
+    public static BinaryDump Dump<T>(ReadOnlySpan<byte> frame, BinarySerializerOptions? options = null);
+    public static BinaryDump Dump<T>(ReadOnlySequence<byte> frame, BinarySerializerOptions? options = null);
+
+    // Writes value with the options, then dumps what was written: "what exactly went on the wire".
+    public static BinaryDump DumpValue<T>(T value, BinarySerializerOptions? options = null);
+
+    // The first node where two frames of T differ, or null when they decode to the same tree.
+    public static BinaryDumpDifference? Compare<T>(
+        ReadOnlySpan<byte> expected, ReadOnlySpan<byte> actual, BinarySerializerOptions? options = null);
+}
+
+public sealed class BinaryDump
+{
+    public int FormatVersion { get; }                    // 0 or 1
+    public BinaryHeaderInfo? Header { get; }             // null for V0
+    public int HeaderLength { get; }
+    public int PayloadLength { get; }                    // after decryption and decompression
+    public bool? ChecksumVerified { get; }               // null: no checksum, or not reached
+    public bool? Decrypted { get; }                      // null: not encrypted; false: no key given
+    public BinaryDumpNode? Root { get; }                 // null without T; partial on failure
+    public BinarySerializerException? Failure { get; }   // null when the frame read completely
+    public long? FailureOffset { get; }                  // offset in the payload
+    public string? FailurePath { get; }                  // "Order.Lines[2].Note"
+    public int MaxDepth { get; }                         // measured from the tree
+    public int NodeCount { get; }
+    public override string ToString();                   // the text report below
+    public string ToJson();                              // the same, as JSON
+    public string ToXml();                               // the same, as XML (Owner-Review.md log 62)
+    public string ToHex();                               // 16 bytes a line, each line labelled with its node
+}
+
+public sealed class BinaryDumpNode
+{
+    public string Name { get; }                          // member name, "[3]", "{key}", "root"
+    public string TypeName { get; }                      // the declared type; the runtime type in a union
+    public BinaryDumpNodeKind Kind { get; }
+    public long Offset { get; }                          // in the payload
+    public int Length { get; }                           // bytes the node occupies on the wire
+    public string? Value { get; }                        // a scalar, rendered invariantly; strings cut at 256 chars
+    public int? Key { get; }                             // keyed field
+    public byte? UnionTag { get; }
+    public int? ReferenceId { get; }                     // with PreserveReferences
+    public string? ReferenceTarget { get; }              // the path a back reference points to
+    public IReadOnlyList<BinaryDumpNode> Children { get; }
+}
+
+public enum BinaryDumpNodeKind
+{
+    Null, Scalar, Sequence, Map, Object, KeyedObject, KeyedField, UnknownKeyedField, Union,
+    BackReference, Composite
+}
+
+public sealed class BinaryDumpDifference
+{
+    public string Path { get; }
+    public BinaryDumpNode? Expected { get; }
+    public BinaryDumpNode? Actual { get; }
+}
+```
+
+`BinaryHeaderInfo` reports the service records as flat members, by the owner's decision of 2026-09-28
+(`Owner-Review.md` log 61): beside the version, the algorithms, their custom names and the key id, it
+carries `PreserveReferences`, `UncompressedLength` (`int?`, null without compression), `Checksum`
+(`ReadOnlyMemory<byte>`, empty without a checksum), `HeaderLength` and `OnDiskLength`. An unknown
+non-critical service is skipped and not reported.
+
+**The text report** — `ToString()`, the form a person reads:
+
+```text
+Viper V1 frame · 1 069 bytes · header 41 bytes
+  compression  Brotli         4 096 → 1 000 bytes (×4.1)
+  checksum     XxHash3        9F 2C 71 04 BE 55 03 3A   verified
+  encryption   Aes256Gcm      key id "2026-q3"   decrypted, header authenticated
+payload 4 096 bytes as Order · depth 4 · 38 nodes
+@0000  Order                         object · 5 members
+@0001  ├─ Id          Int64          42
+@0002  ├─ Customer    String         "Alice"                 6 bytes
+@0008  ├─ Lines       List<Line>     3 items
+@0009  │  ├─ [0]      Line           object · 2 members
+…
+@0F3A  └─ Note        String         ✗ BinaryFormatException: invalid UTF-8
+failure at @0F41 (3905) in Order.Lines[2].Note
+```
+
+**How it works.** One internal seam in the engine: `OperationState.Trace`, an internal observer that
+is `null` for every serializer call and set only by the dumper. The codecs of `Engine/` — the entry of
+every value (null flag, reference frame, union tag), the sequence, map, array and composite loops, the
+object codec per member through `MemberReader`, the keyed codec per field — report `Enter` (name,
+declared type, kind, offset), `Value<T>` (a scalar, generic, so nothing is boxed — INV-17) and `Exit`
+(offset). Offsets come from `WireReader.Consumed`, and the bytes of a node reach the observer only as a
+read-only view `WireReader` hands out (INV-2). Formatters and type contracts do not change: the codec
+that owns the loop is the only caller (INV-5). The read itself is the ordinary read, under the
+options' limits and budgets; a failure leaves the observer's stack open, which is where the path and
+the offset of the failure come from, and the exception is kept rather than thrown.
+
+**Rules.**
+
+- The dumper never throws for a malformed or hostile frame: every `BinarySerializerException` is
+  reported in `Failure`. It throws `ArgumentNullException` for a null argument and
+  `NotSupportedException` for a stream that cannot seek, as today (§19 of the contract).
+- It reads under the options' limits (`SerializationLimits.Default` when none are given), so a hostile
+  frame costs the dumper what it would cost a reader. The tree is bounded by the node and element
+  budgets; string values are cut at 256 characters and blobs at 64 bytes in the tree (`ToHex` shows
+  every byte of the payload, bounded by `MaxWireBytes`).
+- Decryption uses the options' keys; without a key the phases stop at the ciphertext, `Decrypted` is
+  `false`, and the report says so. Key material is never rendered. A decrypted dump shows plaintext:
+  the XML documentation says so.
+- Values render with the invariant culture, and times in UTC, so a dump is the same on every machine.
+- `Compare<T>` walks both trees in order and reports the first node whose kind, type, value, key, tag
+  or child count differs.
+
+**Where it lands.** R6, as its last step, after the format and the re-frozen fixtures: the offsets the
+tests pin are then the final ones, and the header it renders is the service-record header. Before the
+step, the read cells of the profile matrix are measured; after it, again — the difference is what the
+switched-off seam costs, and a measurable difference stops the stage for the owner (alternatives: a
+generic struct observer the JIT removes, or the seam only in a separate diagnostic codec set).
+
+**Not in v1.0.** A command-line tool (`dotnet viper dump`), which needs a type loaded from an assembly;
+reading a payload without a type from a schema file; and the path and offset added to the messages of
+ordinary reads, which would need the seam switched on for every call. All three are additive later.
 
 ---
 
@@ -1152,9 +1332,18 @@ materialised collection, and the first use of a type.
 # 12. Stages [D9.17]
 
 Internals first (R1–R5), then the format (R6): the encoding code is written once, directly in the new
-types, and the old fixtures and the oracle catch any unintended change on the way. "Wire unchanged"
+types, and the old fixtures and the oracle catch any unintended change on the way. A stage's
+measurement follows `Development-Workflow.md` §6.5, "Замер рабочей ветки", against
+`Baselines/pre-rework/`: by the raw files until R4, through `BASE-02` from R4 on. A stage measures
+the suites its section of `Benchmark-Plan-Changes.md` names, and the soak run is always kept (it is
+what shows a pooled buffer that never goes back to the pool). R1, R2, R3, R4 and R6 change the path
+of every public call, so they also measure the profile matrix (`ProfileMatrixBenchmarks`): it is the
+only measurement of a whole call under every profile, and a regression in the code a stage adds
+around the primitives shows there, in the stage that caused it. R5 and R8 do not. Nothing else runs
+on the machine while a stage is measured — a cell whose error grew several times over is
+interference, not a result. "Wire unchanged"
 means the thirteen fixtures and the oracle pass byte for byte. Each stage applies its part of the
-three change files.
+four change files.
 
 ### R0 — Baseline and oracle — *wire unchanged*
 
@@ -1176,17 +1365,21 @@ three change files.
   and `PayloadBuffer`. `ValueReader` / `ValueWriter` become thin adapters, then are deleted once no
   caller remains.
 - The structural tests for INV-2, INV-3 and INV-4 are rewritten for the new types.
-- **Gate:** fixtures and oracle byte-identical; no virtual call per byte on the write path.
+- V0 writes through `PayloadBuffer` here, not in R2, so a keyed V0 write to a non-seekable
+  destination succeeds and V0-25 is inverted in this stage (owner's decision of 2026-09-27,
+  `Owner-Review.md` log 53).
+- **Gate:** fixtures and oracle byte-identical; no virtual call per byte on the write path; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R2 — Pipeline on pooled buffers — *wire unchanged*
 
 - V0 and V1 write into `PayloadBuffer`; keyed lengths patched in place; atomic writes (INV-15).
+  *(Done in R1 for the payload; R2 carries the phases, the destinations and STR-30.)*
 - `MeteredReadStream`, `MeteredWriteStream`, `WindowReadStream` and every `MemoryStream` on the
   payload path are deleted (§5.2).
 - Cycle detection by ancestor stack; pooled reference tables (§11).
 - **Gate:** a V0 keyed write to a non-seekable destination succeeds; no `MemoryStream` under
   `Pipeline/`; an error in the middle of a graph leaves the destination empty; fixtures and oracle
-  byte-identical.
+  byte-identical; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R3 — Public surface and non-seekable reading — *wire unchanged*
 
@@ -1196,7 +1389,7 @@ three change files.
 - The V0 boundary rules (§7) and the V0 asynchronous rule with its required text (§9.5).
 - **Gate:** every entry point reads a non-seekable source; a non-seekable double that fails on any
   read past the frame proves exactly one V1 frame is consumed; `Api/CrossEntryPointTests` covers every
-  entry point; `Api/PublicSurfaceTests` matches contract §3.
+  entry point; `Api/PublicSurfaceTests` matches contract §3; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R4 — Typed engine — *wire unchanged*
 
@@ -1218,15 +1411,16 @@ three change files.
   [D9.19]
 - **Gate:** fixtures and oracle byte-identical; INV-5 and INV-17 structural tests pass; no type under
   `Cache/` remains and `Concurrency/CacheTests` covers exactly the caches that remain; the §11
-  targets that do not depend on R6 are measured; cold start (`ContractColdRunner`) measured against
-  R0, and any regression written up in `internal/performance/`.
+  targets that do not depend on R6 are measured; `BASE-02` — the tool that reports a run against a
+  baseline cell by cell — exists [D9.25], and the cold start (`ContractColdRunner`) is compared with
+  `pre-rework` through it, any regression written up in `internal/performance/`; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R5 — Algorithm contracts — *wire unchanged*
 
 - §8: the interfaces, the existing built-ins ported and renamed (§8.2), the new built-ins,
   `HkdfKeyProvider`, the services' checks.
 - **Gate:** every built-in round-trips through the pipeline and resolves from the catalog;
-  `KeySizeInBytes` is enforced at `Build()`; no interface has a default member.
+  `KeySizeInBytes` is enforced at `Build()`; no interface has a default member; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R6 — The final format — *the break*
 
@@ -1234,8 +1428,11 @@ three change files.
   numbers, the null fold, the reference frame, `ImmutableArray<T>`.
 - Re-freeze the fixtures once, from the corpus; record the exception in `CLAUDE.md` and restore the
   rule in the same change. Delete the oracle.
+- Last step: diagnostics (§9.7) — the engine's trace seam, `BinaryFormatDumper` over spans and
+  sequences, `Dump`, `Dump<T>`, `DumpValue<T>`, `Compare<T>`, and the `BinaryDump` model with its
+  text, JSON and hex renderings.
 - **Gate:** every rule of contract §22 is pinned by a byte-level test; the new fixtures are committed;
-  sizes (Track A §14) re-measured against R0 and the difference published in `internal/performance/`.
+  sizes (Track A §14) re-measured against R0 and the difference published in `internal/performance/`; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11); every node kind of `BinaryDumpNodeKind` and every failure class of contract §8 is pinned by a dumper test over the new fixtures; the read cells of the profile matrix before and after the trace seam are within error, or the difference is the owner's decision.
 
 ### R7 — Removed
 
@@ -1249,22 +1446,149 @@ and R3 (the read boundary).
   generated contract can be run against the same cases.
 - `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]` on the reflection path's public entry points.
 - **Gate:** `CONF-*` passes on `ReflectedContract<T>`; a consumer project built with AOT analysis
-  reports the annotated entry points and nothing unannotated.
+  reports the annotated entry points and nothing unannotated; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
 
 ### R9 — Re-gate and release
 
-- `System-Contract.md`, `QA-Plan.md` and `Benchmark-Plan.md` reconciled completely from the change
-  files; `Architecture-Audit.md` marked as the historical record of the first rework.
-- The three package READMEs written.
-- Track A re-measured on the release candidate.
-- A CD dry run.
-- **Gate:** contract §24 fully checked; QA plan §32 fully checked; `dotnet pack` succeeds for all three
-  packages.
+R9 is five sub-stages [D9.31]. Each is worked on its own branch cut from `release/v1.0.0` **after the
+previous one has been merged into it**, so every branch starts from everything before it and nothing
+is ever cut from another working branch. The branch kinds are those of `Development-Workflow.md` §2.1
+and each branch follows its cycle (§2.5); the owner's commands, step by step, are in "R9 and the
+release — the owner's sequence" below.
 
-Track B — the comparison with other serializers — runs after the release, on the `v1.0.0` tag.
+#### R9a — Reconciliation — `rework/r9a-reconcile` — `viper_refactorer`
+
+- `System-Contract.md`, `QA-Plan.md` and `Benchmark-Plan.md` reconciled completely from the change
+  files, and then **independently of them** [D9.28]:
+  - every section of the contract read against `src/`;
+  - every contract rule has at least one QA checkpoint, and every QA checkpoint names a rule that
+    exists and a test that passes;
+  - every benchmark checkpoint names an entry point and a suite that exist;
+  - every invariant INV-1…INV-18 is stated in the contract, so none is left only in this plan;
+  - the `Retired.md` sweep: every entry searched in `src/`, `tests/`, `benchmarks/`, the XML
+    documentation, `CLAUDE.md`, the skills and every living document, with the result recorded per
+    row.
+- Every file under `internal/` classed and the class written at its head and in `CLAUDE.md`:
+  normative (`System-Contract.md`), plan (`QA-Plan.md`, `Benchmark-Plan.md`), operational
+  (`Development-Workflow.md`, `CLAUDE.md`, the skills, the package READMEs, `docs/`), or historical
+  (`rework/`, `audit/`, `Architecture-Audit.md`, `Audit-Closure.md`, `Audit-Future.md`,
+  `Audit-Refactor.md`), whose head says that its rules no longer apply. `internal/README.md` states
+  the classes.
+- The skills under `.claude/skills/` reconciled with the system, with the owner's approval [D9.24].
+- The skill `viper_conformance_auditor` written from `Conformance-Audit-Brief.md`, for the owner to
+  approve in the pull request [D9.29]; `Development-Workflow.md` §2.1 names it for `audit/` branches.
+- `ViShap.Viper.Core.csproj` packs its own `CORE-README.md` instead of the repository's `README.md`,
+  which stays the face of the repository [D9.30].
+- **Gate:** contract §24 and QA plan §32 fully checked, except their `dotnet pack` and README boxes,
+  which R9b closes; the independent reconciliation finds no
+  divergence; every `Retired.md` row has a clean sweep; every file under `internal/` carries its class;
+  `CLAUDE.md` and the skills describe the system; the auditor skill exists; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
+
+#### R9b — Consumer documentation — `docs/v1-consumer-docs` — `viper_refactorer`
+
+Written from the reconciled contract and the system as R9a left them, never from a plan or a change
+file [D9.31].
+
+- `docs/`, one page per subject: getting started; the entry points by family — buffer, stream,
+  asynchronous, `Populate`, frame streams; options and limits; V1 and V0, with the explanation and
+  example plan §9.5 requires; positional and keyed layouts and schema evolution; references;
+  polymorphism; algorithms and keys; exceptions; AOT.
+- The three package READMEs, drawn from `docs/`: `SERIALIZATION-README.md`, `CORE-README.md` (for an
+  author of a custom algorithm or key provider), `METAPACK-README.md`. The repository's `README.md`
+  links to them and to `docs/`.
+- No adjective about performance anywhere (`Benchmark-Plan.md` §28).
+- **Gate:** every page and README agrees with the contract; no `Retired.md` entry appears in them;
+  `dotnet pack` succeeds for all three packages, each with its own non-empty README, which closes
+  the `dotnet pack` and README boxes of contract §24 and QA plan §32; every example in `docs/` compiles
+  and runs against the release branch.
+
+#### R9c — Conformance audit — `audit/v1-conformance` — `viper_conformance_auditor`, a separate session
+
+- The audit of `Conformance-Audit-Brief.md` over everything, `docs/` and the READMEs included. The
+  report is the only file the branch adds.
+- **Gate:** the report exists with a verdict; every finding carries its evidence, its side, its layer
+  and its weight.
+
+#### R9d — Audit fixes — `bugfix/v1-audit-<topic>` — `viper_refactorer`
+
+- Skipped when the audit found nothing. Otherwise one branch per coherent group of findings, each cut
+  from `release/v1.0.0` after the previous one is merged. A fix changes, in the same change, every
+  document it makes untrue — contract, plans, `CLAUDE.md`, `docs/`, READMEs — and adds a
+  `Retired.md` row for anything it removes. A finding the owner decides not to fix is recorded in the
+  report with the owner's decision.
+- **Gate:** every finding of weight "blocks the rc" is fixed or decided; the suite is green in Debug
+  and Release; the benchmark harness builds, `--verify` passes every pair and `--smoke` passes (§0.11).
+
+#### R9e — Closure check — `audit/v1-conformance-closure` — `viper_conformance_auditor`, a separate session
+
+- The auditor verifies every finding closed against the merged `release/v1.0.0` and records it in the
+  report. A fix that opened a new divergence is a new finding, and R9d runs again for it.
+- A CD dry run: `dotnet pack` of all three packages with `-p:Version=1.0.0-rc.1`, exactly as `cd.yml`
+  runs it, without pushing.
+- **Gate:** the report's verdict is "the rc may be tagged". Only then does the owner tag
+  `v1.0.0-rc.1`.
+
+#### R9 and the release — the owner's sequence
+
+`viper_refactorer` gives the owner the next step of this table with its exact commands at the start of
+every session and at the end of every hand-over, including the steps that are not its own. "Cycle"
+is the working-branch cycle of `Development-Workflow.md` §2.5 with `<release>` = `release/v1.0.0`.
+
+```text
+ 1  R9a   cycle with rework/r9a-reconcile               viper_refactorer; the owner approves the auditor skill in the PR
+ 2  R9b   cycle with docs/v1-consumer-docs              viper_refactorer: docs/ and the READMEs from the reconciled contract
+ 3  R9c   cycle with audit/v1-conformance               a NEW session with viper_conformance_auditor; the report only
+ 4  R9d   if the report has findings:
+          cycle with bugfix/v1-audit-<topic>            viper_refactorer; one branch per group of findings, each cut
+                                                        after the previous one is merged
+ 5  R9e   cycle with audit/v1-conformance-closure       a NEW session, the same auditor: verifies closure.
+                                                        A new finding → step 4 again, then step 5
+ 6  rc    only on the verdict "the rc may be tagged":
+            git switch release/v1.0.0 && git pull
+            git tag -a v1.0.0-rc.1 -m "v1.0.0-rc.1"
+            git push origin v1.0.0-rc.1                          CD publishes the pre-release
+ 7  rc baseline (Development-Workflow §6.3):
+            git worktree add ../viper-bench v1.0.0-rc.1
+            cd ../viper-bench
+            dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configuration Release -- --track A
+            cd -
+            git switch release/v1.0.0 && git pull
+            git switch -c benchmark/v1.0.0-rc.1-baseline
+            cp -r ../viper-bench/benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/v1.0.0-rc.1 \
+                  benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/
+            git worktree remove ../viper-bench
+            git add -A && git commit -m "Record the v1.0.0-rc.1 baseline"
+            git push -u origin benchmark/v1.0.0-rc.1-baseline
+            PR → release/v1.0.0, merge commit
+ 8  a defect on the rc: cycle with bugfix/<topic>, then tag v1.0.0-rc.2 as in step 6
+ 9  release, once the rc holds:
+            PR release/v1.0.0 → main, merge commit (no squash, no rebase)
+            git switch main && git pull
+            git tag -a v1.0.0 -m "v1.0.0"
+            git push origin v1.0.0                               CD publishes v1.0.0
+10  release baseline (mandatory): as step 7 on the v1.0.0 tag, branch benchmark/v1.0.0-baseline from
+    main, PR → main
+11  after the release: release/v1.0.0 is deleted; Track B is measured on the v1.0.0 tag
+```
+
+Never cut `docs/`, `audit/` or `bugfix/` from `rework/r9a-…` or from one another; never tag the rc
+before the R9e verdict; never move or delete a pushed tag.
+
+#### After the rc tag
+
+- Track A on the `v1.0.0-rc.N` tag, which the harness records as that tag's Baseline — a pre-release
+  baseline the owner asked for in this plan [D9.26] — taken from a worktree and committed through
+  `benchmark/v1.0.0-rc.N-baseline`, as `Development-Workflow.md` §6.3 describes.
+- A defect found on the rc is fixed on `bugfix/<topic>` from `release/v1.0.0`, with every document it
+  touches, and the next tag is `rc.N+1`.
+
+Track B — the comparison with other serializers — is measured after the release, on the `v1.0.0` tag.
+Its adapters are written earlier, once R6 has made the format final: on `benchmark/track-b-adapters`
+from `release/v1.0.0`, returned to it through a pull request, and never measured beyond a measurement
+before the tag exists [D9.25].
 
 **Tags along the way** [D9.22]: none published before R6 (the local `pre-rework` tag of R0 is never
-pushed); `v1.0.0-beta.N` allowed once R6 is closed — the format is final; `v1.0.0-rc.N` once R9 is
+pushed); `v1.0.0-beta.N` not set: after R6 the owner deliberately skipped it, since `dotnet pack` fails until the package READMEs of R9b exist (`Owner-Review.md` log 64); `v1.0.0-rc.N` once R9e is
 closed — fixes only; `v1.0.0` on `main` after `release/v1.0.0` is merged.
 
 ---
@@ -1277,6 +1601,22 @@ Each of these is additive; none blocks a stage [D9.2, D9.20]:
 - **Zstandard, LZ4, AES-GCM-SIV** — separate packages implementing the §8.1 interfaces.
 - **Source generator** — §13.1.
 - **Benchmark Track B** — on the `v1.0.0` tag.
+- **Executable documentation examples** — a test in `tests/ViShap.Viper.Serialization.Tests` that extracts
+  every `csharp` block of `docs/` and of the READMEs, compiles it with Roslyn and runs it, so CI catches an
+  example that no longer matches the API. Costs one new dependency (Roslyn) in the test project; decided by
+  the owner during R9b, not part of the rework.
+- **Performance in the README and `docs/`** — after the publication gate of `Benchmark-Plan.md` §28 is
+  green: one or two charts from `Baselines/v1.0.0/` in the repository `README.md` and a performance page in
+  `docs/`, each figure citing its raw file.
+
+**Live tracing of ordinary calls** (owner's note of 2026-09-29, not in v1.0). The diagnostics of §9.7
+read a finished frame. Logging each ordinary `Serialize`/`Deserialize` as it runs is additive later:
+the recommended shape is an options switch such as `WithTrace(sink)` whose sink receives the
+`BinaryDump` of each operation — it publishes only the dump model that already exists, and needs the
+seam in the write codecs as well. Publishing the observer itself was rejected for v1.0: it would
+freeze the engine's traversal protocol, which stays internal like the shapes and codecs. Until then the
+documented pattern is a `catch (BinarySerializerException)` that logs `Dump<T>` of the same bytes, and
+`DumpValue<T>` for a write.
 
 ## 13.1 `ViShap.Viper.Generator` — how it joins the system
 

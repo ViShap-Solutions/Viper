@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace ViShap.Viper.Compression;
 
 /// <summary>
@@ -5,9 +7,10 @@ namespace ViShap.Viper.Compression;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Implementations are pure mechanics: they transform spans and nothing else. Resource limits,
+/// Implementations are pure mechanics: they transform bytes and nothing else. Resource limits,
 /// framing and buffer lifetime belong to the serializer, which calls the algorithm inside those
-/// checks, so an implementation can neither weaken a limit nor be asked to enforce one.
+/// checks, so an implementation can neither weaken a limit nor be asked to enforce one. The writer it
+/// receives refuses space beyond what the serializer allows.
 /// </para>
 /// <para>
 /// An implementation must be safe for concurrent use, or must be supplied through a factory that
@@ -30,65 +33,29 @@ public interface ICompressionAlgorithm
     /// </summary>
     string? CustomName { get; }
 
-    /// <summary>
-    /// The largest output <see cref="Compress"/> can produce for an input of
-    /// <paramref name="uncompressedLength"/> bytes. May overestimate; must never underestimate.
-    /// </summary>
-    /// <param name="uncompressedLength">Length of the input, in bytes.</param>
-    /// <returns>An upper bound on the compressed size, in bytes.</returns>
-    int GetMaxCompressedLength(int uncompressedLength);
-
     /// <summary>Compresses <paramref name="source"/> into <paramref name="destination"/>.</summary>
     /// <param name="source">The bytes to compress.</param>
     /// <param name="destination">
-    /// The output buffer. It may be smaller than <see cref="GetMaxCompressedLength"/> suggests when a
-    /// configured limit caps it; in that case failing is correct and the serializer reports the limit.
+    /// Receives the compressed bytes. Ask it for space as output is produced and advance it by what
+    /// was written; it refuses space beyond the configured maximum, and the serializer reports that
+    /// as a limit.
     /// </param>
-    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
-    int Compress(ReadOnlySpan<byte> source, Span<byte> destination);
+    void Compress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination);
 
-    /// <summary>Decompresses <paramref name="source"/> into <paramref name="destination"/>.</summary>
+    /// <summary>
+    /// Decompresses <paramref name="source"/> into <paramref name="destination"/>, producing exactly
+    /// <paramref name="expectedLength"/> bytes.
+    /// </summary>
     /// <param name="source">The compressed bytes.</param>
     /// <param name="destination">
-    /// A buffer of exactly the declared uncompressed size. An implementation must fill it completely
-    /// and must reject input that would expand beyond it, so that a payload cannot declare a size
-    /// that hides part of its own content.
+    /// Receives the decompressed bytes. It grows as output arrives, so a payload that declares more
+    /// than it carries never causes the allocation it describes, and it refuses space beyond
+    /// <paramref name="expectedLength"/>.
     /// </param>
-    /// <returns>The number of bytes written, which must equal the length of <paramref name="destination"/>.</returns>
-    /// <exception cref="Exceptions.BinaryFormatException">The compressed data is malformed or over-long.</exception>
-    int Decompress(ReadOnlySpan<byte> source, Span<byte> destination);
-
-    /// <summary>
-    /// <see langword="true"/> when the algorithm implements
-    /// <see cref="Decompress(ReadOnlySpan{byte}, System.Buffers.IBufferWriter{byte}, int)"/>.
-    /// </summary>
-    /// <remarks>
-    /// Defaults to <see langword="false"/>, which is correct for an implementation that only offers
-    /// the span overload. The serializer then sizes the output buffer from the declared uncompressed
-    /// length instead of from the bytes actually produced; that length is still bounded, but only by
-    /// policy. Reporting <see langword="true"/> lets the serializer allocate as output arrives, so a
-    /// payload that claims to expand far more than it does never causes the allocation it describes.
-    /// </remarks>
-    bool SupportsIncrementalDecompression => false;
-
-    /// <summary>
-    /// Decompresses <paramref name="source"/> into a writer that supplies space as output is
-    /// produced, rather than into a buffer sized from the declared length.
-    /// </summary>
-    /// <remarks>
-    /// The serializer calls this overload whenever <see cref="SupportsIncrementalDecompression"/> is
-    /// <see langword="true"/>, and never otherwise, so the default implementation is unreachable for
-    /// a correctly declared algorithm. An implementation must never produce more than
-    /// <paramref name="maxOutputBytes"/> bytes, and must report input that would expand beyond it as
-    /// <see cref="Exceptions.BinaryFormatException"/> rather than truncating silently.
-    /// </remarks>
-    /// <param name="source">The compressed bytes.</param>
-    /// <param name="destination">Receives the decompressed bytes.</param>
-    /// <param name="maxOutputBytes">The declared uncompressed length, which the output may not exceed.</param>
-    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
-    /// <exception cref="Exceptions.BinaryFormatException">The compressed data is malformed or over-long.</exception>
-    /// <exception cref="NotSupportedException">The algorithm does not implement incremental decompression.</exception>
-    int Decompress(ReadOnlySpan<byte> source, System.Buffers.IBufferWriter<byte> destination, int maxOutputBytes) =>
-        throw new NotSupportedException(
-            $"'{GetType().Name}' does not implement incremental decompression.");
+    /// <param name="expectedLength">The declared uncompressed length.</param>
+    /// <exception cref="Exceptions.BinaryFormatException">
+    /// The compressed data is malformed, does not terminate, or decompresses to more or fewer than
+    /// <paramref name="expectedLength"/> bytes.
+    /// </exception>
+    void Decompress(ReadOnlySpan<byte> source, IBufferWriter<byte> destination, int expectedLength);
 }

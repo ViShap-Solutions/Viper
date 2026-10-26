@@ -1,0 +1,315 @@
+using System.Buffers;
+using ViShap.Viper.Serialization.Tests.Fixtures;
+
+namespace ViShap.Viper.Serialization.Tests.Contracts;
+
+/// <summary>
+/// Pins TYP-02 (INV-17): the engine boxes only in a polymorphic slot. A boxed value is a heap
+/// allocation, so the allocation counter of the current thread is the double that observes it: a
+/// graph of value types written or read at two sizes must cost the same beyond the values the read
+/// returns, whatever the number of members, enums, nullables and nested structs it holds — through
+/// the contracts reflection builds, the contracts the source generator writes and contracts written by
+/// hand. One test turns the counter on a polymorphic slot over a struct, where boxing is the contract,
+/// to show the counter sees it when it happens.
+/// </summary>
+public class BoxingTests
+{
+    /// <summary>Fewer bytes than one boxed value per element could account for.</summary>
+    private const long NotPerElement = 1024;
+
+    private readonly BinarySerializer _serializer = new();
+
+    private static readonly BinarySerializer Generated = new(
+        BinarySerializerOptions.Configure().WithContracts(BoxingContracts.Default).RequireGeneratedContracts().Build());
+
+    private static readonly BinarySerializer HandWritten = new(
+        BinarySerializerOptions.Configure().WithContracts(HandWrittenContracts.Default).RequireGeneratedContracts().Build());
+
+    [Fact]
+    public void Serialize_AGraphOfValueTypes_BoxesNothing()
+    {
+        long small = WriteCost(Probes(16));
+        long large = WriteCost(Probes(4096));
+
+        Assert.True(
+            large - small < NotPerElement,
+            $"Writing 4 080 more elements cost {large - small:N0} more bytes.");
+    }
+
+    [Fact]
+    public void Deserialize_AGraphOfValueTypes_AllocatesOnlyTheArrayItReturns()
+    {
+        byte[] small = _serializer.Serialize(Probes(16));
+        byte[] large = _serializer.Serialize(Probes(4096));
+
+        long difference = ReadCost<Probe[]>(large) - ReadCost<Probe[]>(small);
+        long arrays = Allocated(() => _ = new Probe[4096]) - Allocated(() => _ = new Probe[16]);
+
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more elements cost {difference:N0} more bytes; their array costs {arrays:N0}.");
+    }
+
+    [Fact]
+    public void Serialize_AGraphOfValueTypesThroughGeneratedContracts_BoxesNothing()
+    {
+        long small = WriteCost(Generated, Probes(16));
+        long large = WriteCost(Generated, Probes(4096));
+
+        Assert.True(
+            large - small < NotPerElement,
+            $"Writing 4 080 more elements through generated contracts cost {large - small:N0} more bytes.");
+    }
+
+    [Fact]
+    public void Deserialize_AGraphOfValueTypesThroughGeneratedContracts_AllocatesOnlyTheArrayItReturns()
+    {
+        byte[] small = Generated.Serialize(Probes(16));
+        byte[] large = Generated.Serialize(Probes(4096));
+
+        long difference = ReadCost<Probe[]>(Generated, large) - ReadCost<Probe[]>(Generated, small);
+        long arrays = Allocated(() => _ = new Probe[4096]) - Allocated(() => _ = new Probe[16]);
+
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more elements through generated contracts cost {difference:N0} more bytes; " +
+            $"their array costs {arrays:N0}.");
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_StructsThroughHandWrittenContracts_BoxNothing()
+    {
+        var few = Points(16);
+        var many = Points(4096);
+
+        Assert.True(WriteCost(HandWritten, many) - WriteCost(HandWritten, few) < NotPerElement);
+
+        long difference = ReadCost<ConformancePoint[]>(HandWritten, HandWritten.Serialize(many)) -
+                          ReadCost<ConformancePoint[]>(HandWritten, HandWritten.Serialize(few));
+        long arrays = Allocated(() => _ = new ConformancePoint[4096]) - Allocated(() => _ = new ConformancePoint[16]);
+
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more structs through hand-written contracts cost {difference:N0} more bytes; " +
+            $"their array costs {arrays:N0}.");
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_Enums_BoxNothing()
+    {
+        var few = Enumerable.Range(0, 16).Select(i => (Colour)(i % 3)).ToArray();
+        var many = Enumerable.Range(0, 4096).Select(i => (Colour)(i % 3)).ToArray();
+
+        Assert.True(WriteCost(many) - WriteCost(few) < NotPerElement);
+
+        long difference = ReadCost<Colour[]>(_serializer.Serialize(many)) - ReadCost<Colour[]>(_serializer.Serialize(few));
+        long arrays = Allocated(() => _ = new Colour[4096]) - Allocated(() => _ = new Colour[16]);
+
+        Assert.True(Math.Abs(difference - arrays) < NotPerElement);
+    }
+
+    [Fact]
+    public void Deserialize_AStructRoot_IsNotBoxedOnItsWayOut()
+    {
+        byte[] payload = _serializer.Serialize(new Probe { Number = 4, Colour = Colour.Blue });
+        byte[] scalar = _serializer.Serialize(4);
+
+        // The same frame machinery reads both; a struct root boxed on its way to the caller would cost
+        // one more object than an int root does.
+        Assert.Equal(ReadCost<int>(scalar), ReadCost<Probe>(payload));
+    }
+
+    [Fact]
+    public void Serialize_AStructInAPolymorphicSlot_IsBoxedThere()
+    {
+        // The positive control: an interface-typed slot holding a struct is the one place the engine
+        // boxes, and the counter sees each box.
+        var few = Enumerable.Range(0, 16).Select(i => (IShapeLike)new SquareLike { Side = i }).ToArray();
+        var many = Enumerable.Range(0, 4096).Select(i => (IShapeLike)new SquareLike { Side = i }).ToArray();
+
+        long difference = ReadCost<IShapeLike[]>(_serializer.Serialize(many)) - ReadCost<IShapeLike[]>(_serializer.Serialize(few));
+
+        Assert.True(difference > 4080 * 16, $"Reading 4 080 more boxed structs cost only {difference:N0} more bytes.");
+    }
+
+    [Fact]
+    public void Deserialize_AGraphOfValueTypesWithTheTraceSeamOn_BoxesNothingToReportIt()
+    {
+        // The seam hands every scalar to the observer through a generic call, so an observer that
+        // allocates nothing sees every value of a value-type graph and the read still costs only the
+        // array it returns.
+        byte[] small = Wire.Body(_serializer.Serialize(Probes(16)));
+        byte[] large = Wire.Body(_serializer.Serialize(Probes(4096)));
+        var counter = new CountingTrace();
+
+        long difference = Allocated(() => TracedRead(large, counter)) - Allocated(() => TracedRead(small, counter));
+        long arrays = Allocated(() => _ = new Probe[4096]) - Allocated(() => _ = new Probe[16]);
+
+        Assert.True(counter.Values > 4096, "The observer saw no value.");
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more elements with the seam on cost {difference:N0} more bytes; their array costs {arrays:N0}.");
+    }
+
+    private static Probe[]? TracedRead(byte[] payload, CountingTrace trace)
+    {
+        var operation = new OperationBox();
+        operation.State.Trace = trace;
+        var reader = new ViShap.Viper.Io.WireReader(payload, ref operation.State);
+        return ViShap.Viper.Engine.Graph.ReadRoot<Probe[]>(ref reader, default, preserveReferences: false);
+    }
+
+    /// <summary>An observer that counts what it is told and allocates nothing.</summary>
+    private sealed class CountingTrace : ViShap.Viper.Engine.IWireTrace
+    {
+        public long Values { get; private set; }
+
+        public long Events { get; private set; }
+
+        public void Label(string name) => Events++;
+
+        public void LabelIndex(int index) => Events++;
+
+        public void LabelMapKey(int index) => Events++;
+
+        public void LabelItem(int item) => Events++;
+
+        public void LabelMapValue(int index) => Events++;
+
+        public void Begin(Type declaredType, long offset) => Events++;
+
+        public void Continue() => Events++;
+
+        public void Null() => Events++;
+
+        public void Reference(int id, bool back) => Events++;
+
+        public void Shape(ViShap.Viper.Engine.TraceShape kind, int count) => Events++;
+
+        public void Union(byte tag, Type runtimeType) => Events++;
+
+        public void Value<T>(T value) => Values++;
+
+        public void Field(int key, int length, long offset) => Events++;
+
+        public void EndField(bool known, long offset) => Events++;
+
+        public void End(long offset) => Events++;
+    }
+
+    public enum Colour : byte
+    {
+        Red,
+        Green,
+        Blue
+    }
+
+    public struct Inner
+    {
+        public long Ticks { get; set; }
+
+        public Colour Colour { get; set; }
+    }
+
+    /// <summary>A value type with no member that allocates: every field a box would show up in.</summary>
+    public struct Probe
+    {
+        public int Number { get; set; }
+
+        public double Ratio { get; set; }
+
+        public bool Flag { get; set; }
+
+        public Colour Colour { get; set; }
+
+        public DayOfWeek Day { get; set; }
+
+        public int? Maybe { get; set; }
+
+        public Colour? MaybeColour { get; set; }
+
+        public decimal Amount { get; set; }
+
+        public Guid Id { get; set; }
+
+        public DateTime When { get; set; }
+
+        public Inner Inner { get; set; }
+
+        public KeyValuePair<int, long> Pair { get; set; }
+
+        public (int, Colour) Tuple { get; set; }
+    }
+
+    [BinaryUnion(1, typeof(SquareLike))]
+    public interface IShapeLike;
+
+    public struct SquareLike : IShapeLike
+    {
+        public int Side { get; set; }
+    }
+
+    private static Probe[] Probes(int count) =>
+    [
+        .. Enumerable.Range(0, count).Select(i => new Probe
+        {
+            Number = i,
+            Ratio = i / 3.0,
+            Flag = i % 2 == 0,
+            Colour = (Colour)(i % 3),
+            Day = (DayOfWeek)(i % 7),
+            Maybe = i % 4 == 0 ? null : i,
+            MaybeColour = i % 5 == 0 ? null : Colour.Green,
+            Amount = i * 1.5m,
+            Id = new Guid(i, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0]),
+            When = new DateTime(2026, 1, 1).AddMinutes(i),
+            Inner = new Inner { Ticks = i, Colour = Colour.Blue },
+            Pair = new KeyValuePair<int, long>(i, -i),
+            Tuple = (i, Colour.Red)
+        })
+    ];
+
+    private static ConformancePoint[] Points(int count) =>
+        [.. Enumerable.Range(0, count).Select(i => new ConformancePoint { X = i, Y = -i })];
+
+    private long WriteCost<T>(T value) => WriteCost(_serializer, value);
+
+    private static long WriteCost<T>(BinarySerializer serializer, T value)
+    {
+        var destination = new ArrayBufferWriter<byte>(1 << 20);
+        return Allocated(() =>
+        {
+            destination.ResetWrittenCount();
+            serializer.Serialize(destination, value);
+        });
+    }
+
+    private long ReadCost<T>(byte[] payload) => ReadCost<T>(_serializer, payload);
+
+    private static long ReadCost<T>(BinarySerializer serializer, byte[] payload) =>
+        Allocated(() => serializer.Deserialize<T>(payload));
+
+    /// <summary>
+    /// The bytes one call allocates on this thread once it is warm: the least of several calls, since
+    /// a pool the collector trimmed in the meantime can only add to a call, never take from it.
+    /// </summary>
+    private static long Allocated(Action act)
+    {
+        for (int i = 0; i < 4; i++)
+            act();
+
+        long least = long.MaxValue;
+        for (int i = 0; i < 5; i++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            act();
+            least = Math.Min(least, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        return least;
+    }
+}
+
+/// <summary>The contracts the source generator writes for the value-type graph of <see cref="BoxingTests"/>.</summary>
+[BinaryContext(typeof(BoxingTests.Probe[]))]
+public partial class BoxingContracts : BinarySerializerContext;

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using ViShap.Viper.Contracts;
 using ViShap.Viper.Engine;
 using ViShap.Viper.Serialization.Benchmarks.Environment;
 using ViShap.Viper.Serialization.Benchmarks.Models.Viper;

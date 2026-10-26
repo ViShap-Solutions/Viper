@@ -122,14 +122,19 @@ public class V0FormatTests
     }
 
     [Fact]
-    public void Serialize_KeyedContractOnV0ToANonSeekableDestination_ThrowsNotSupported()
+    public void Serialize_KeyedContractOnV0ToANonSeekableDestination_MatchesTheSeekableWrite()
     {
+        // A keyed field's length is patched in the serializer's own buffer, so the destination is
+        // written once, front to back, and never has to seek.
+        var value = new OldSchema { Kept = new Node { Value = 1 } };
         using var destination = new NonSeekableWriteStream();
+        using var seekable = new MemoryStream();
 
-        var ex = Assert.Throws<NotSupportedException>(
-            () => V0().Serialize(destination, new OldSchema { Kept = new Node { Value = 1 } }));
+        V0().Serialize(destination, value);
+        V0().Serialize(seekable, value);
 
-        Assert.Contains("seekable payload stream", ex.Message);
+        Assert.Equal(seekable.ToArray(), destination.Written);
+        Assert.Equal(1, V0().Deserialize<OldSchema>(destination.Written)!.Kept!.Value);
     }
 
     [Fact]
@@ -205,7 +210,7 @@ public class V0FormatTests
     [Fact]
     public void Serialize_V0PayloadAtMaxPayloadBytes_Succeeds()
     {
-        // A null flag, a 7-bit length of 1 and fourteen UTF-8 bytes are exactly sixteen.
+        // The length fifteen plus one, one 7-bit byte, and fifteen UTF-8 bytes are exactly sixteen.
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
                 .WithVersion(0)
@@ -213,10 +218,10 @@ public class V0FormatTests
                 .WithLimits(SerializationLimits.Default with { MaxPayloadBytes = 16 })
                 .Build());
 
-        byte[] payload = serializer.Serialize(new string('a', 14));
+        byte[] payload = serializer.Serialize(new string('a', 15));
 
         Assert.Equal(16, payload.Length);
-        Assert.Equal(new string('a', 14), serializer.Deserialize<string>(payload));
+        Assert.Equal(new string('a', 15), serializer.Deserialize<string>(payload));
     }
 
     [Theory]

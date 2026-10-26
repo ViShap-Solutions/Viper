@@ -2,6 +2,7 @@ using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
 using ViShap.Viper.Security;
+using ViShap.Viper.Serialization.Benchmarks.Models.Viper;
 
 namespace ViShap.Viper.Serialization.Benchmarks.Config;
 
@@ -20,17 +21,26 @@ public enum ViperProfile
     /// <summary>B-P2 — V1 under a tight limit policy.</summary>
     TightLimits,
 
-    /// <summary>B-P3 — V1 with Deflate.</summary>
+    /// <summary>B-P3 — V1 with <c>DeflateCompression</c>.</summary>
     Deflate,
 
-    /// <summary>B-P3 — V1 with Brotli.</summary>
+    /// <summary>B-P3 — V1 with <c>BrotliCompression</c>.</summary>
     Brotli,
 
-    /// <summary>B-P4 — V1 with CRC-32.</summary>
+    /// <summary>B-P4 — V1 with <c>Crc32Checksum</c>.</summary>
     Crc32,
 
-    /// <summary>B-P5 — V1 with AES-256-GCM.</summary>
+    /// <summary>B-P5 — V1 with <c>Aes256GcmEncryption</c>.</summary>
     Aes256Gcm,
+
+    /// <summary>B-P4x3 — V1 with <c>XxHash3Checksum</c>.</summary>
+    XxHash3,
+
+    /// <summary>B-P4x128 — V1 with <c>XxHash128Checksum</c>.</summary>
+    XxHash128,
+
+    /// <summary>B-P5c — V1 with <c>ChaCha20Poly1305Encryption</c>.</summary>
+    ChaCha20Poly1305,
 
     /// <summary>B-P6 — V1 with Brotli, CRC-32 and AES-256-GCM.</summary>
     ProtectedBrotli,
@@ -40,6 +50,12 @@ public enum ViperProfile
 
     /// <summary>B-P7 — the headerless compact codec.</summary>
     Headerless,
+
+    /// <summary>B-P0g — B-P0 with the generated contracts of a context, and reflection refused.</summary>
+    Generated,
+
+    /// <summary>B-P1g — B-P1 with the generated contracts of a context, and reflection refused.</summary>
+    GeneratedReferences,
 }
 
 public static class ViperProfiles
@@ -74,6 +90,46 @@ public static class ViperProfiles
 
     internal static IReadOnlyList<ViperProfile> All { get; } = Enum.GetValues<ViperProfile>();
 
+    /// <summary>
+    /// The profiles that write version 1 frames. A frame declares its length, so only these can be
+    /// awaited or read from a stream that cannot seek; B-P7's payload is refused there by design.
+    /// </summary>
+    internal static IReadOnlyList<ViperProfile> Framed { get; } =
+        [.. All.Where(profile => profile != ViperProfile.Headerless)];
+
+    /// <summary>
+    /// The profiles an entry-point suite runs over: the default frame, reference framing, one
+    /// encryption, the full envelope and V0 — every kind of path a frame takes through an entry point.
+    /// What each of the fifteen profiles costs is the profile matrix's to measure, not an entry point's.
+    /// </summary>
+    internal static IReadOnlyList<ViperProfile> Representative { get; } =
+    [
+        ViperProfile.Default,
+        ViperProfile.PreserveReferences,
+        ViperProfile.Aes256Gcm,
+        ViperProfile.ProtectedBrotli,
+        ViperProfile.Headerless,
+    ];
+
+    /// <summary>The representative profiles that write version 1 frames.</summary>
+    internal static IReadOnlyList<ViperProfile> RepresentativeFramed { get; } =
+        [.. Representative.Where(profile => profile != ViperProfile.Headerless)];
+
+    /// <summary>Whether the profile frames references, so a shared instance keeps its identity.</summary>
+    internal static bool PreservesReferences(ViperProfile profile) =>
+        profile is ViperProfile.PreserveReferences or ViperProfile.GeneratedReferences;
+
+    /// <summary>
+    /// The reflected profile a generated one is the twin of: the same configuration, the contracts
+    /// described by reflection instead. The two write the same bytes, and the harness checks it.
+    /// </summary>
+    internal static ViperProfile? ReflectedTwin(ViperProfile profile) => profile switch
+    {
+        ViperProfile.Generated => ViperProfile.Default,
+        ViperProfile.GeneratedReferences => ViperProfile.PreserveReferences,
+        _ => null,
+    };
+
     /// <summary>The plan's identifier for a profile, as it appears in a published cell.</summary>
     internal static string PlanId(ViperProfile profile) => profile switch
     {
@@ -84,9 +140,14 @@ public static class ViperProfiles
         ViperProfile.Brotli => "B-P3b",
         ViperProfile.Crc32 => "B-P4",
         ViperProfile.Aes256Gcm => "B-P5",
+        ViperProfile.XxHash3 => "B-P4x3",
+        ViperProfile.XxHash128 => "B-P4x128",
+        ViperProfile.ChaCha20Poly1305 => "B-P5c",
         ViperProfile.ProtectedBrotli => "B-P6b",
         ViperProfile.ProtectedDeflate => "B-P6d",
         ViperProfile.Headerless => "B-P7",
+        ViperProfile.Generated => "B-P0g",
+        ViperProfile.GeneratedReferences => "B-P1g",
         _ => throw new ArgumentOutOfRangeException(nameof(profile)),
     };
 
@@ -102,33 +163,57 @@ public static class ViperProfiles
             BinarySerializerOptions.Configure().WithLimits(Tight).Build(),
 
         ViperProfile.Deflate =>
-            BinarySerializerOptions.Configure().WithCompression(new Deflate()).Build(),
+            BinarySerializerOptions.Configure().WithCompression(new DeflateCompression()).Build(),
 
         ViperProfile.Brotli =>
-            BinarySerializerOptions.Configure().WithCompression(new Brotli()).Build(),
+            BinarySerializerOptions.Configure().WithCompression(new BrotliCompression()).Build(),
 
         ViperProfile.Crc32 =>
-            BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build(),
+            BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build(),
 
         ViperProfile.Aes256Gcm =>
-            BinarySerializerOptions.Configure().WithEncryption(new Aes256Gcm(), Key, "bench").Build(),
+            BinarySerializerOptions.Configure().WithEncryption(new Aes256GcmEncryption(), Key, "bench").Build(),
+
+        ViperProfile.XxHash3 =>
+            BinarySerializerOptions.Configure().WithChecksum(new XxHash3Checksum()).Build(),
+
+        ViperProfile.XxHash128 =>
+            BinarySerializerOptions.Configure().WithChecksum(new XxHash128Checksum()).Build(),
+
+        ViperProfile.ChaCha20Poly1305 =>
+            BinarySerializerOptions.Configure()
+                .WithEncryption(new ChaCha20Poly1305Encryption(), Key, "bench")
+                .Build(),
 
         ViperProfile.ProtectedBrotli =>
             BinarySerializerOptions.Configure()
-                .WithCompression(new Brotli())
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), Key, "bench")
+                .WithCompression(new BrotliCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), Key, "bench")
                 .Build(),
 
         ViperProfile.ProtectedDeflate =>
             BinarySerializerOptions.Configure()
-                .WithCompression(new Deflate())
-                .WithChecksum(new Crc32())
-                .WithEncryption(new Aes256Gcm(), Key, "bench")
+                .WithCompression(new DeflateCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), Key, "bench")
                 .Build(),
 
         ViperProfile.Headerless =>
             BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build(),
+
+        ViperProfile.Generated =>
+            BinarySerializerOptions.Configure()
+                .WithContracts(BenchmarkContracts.Default)
+                .RequireGeneratedContracts()
+                .Build(),
+
+        ViperProfile.GeneratedReferences =>
+            BinarySerializerOptions.Configure()
+                .WithContracts(BenchmarkContracts.Default)
+                .RequireGeneratedContracts()
+                .PreserveReferences()
+                .Build(),
 
         _ => throw new ArgumentOutOfRangeException(nameof(profile)),
     };

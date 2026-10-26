@@ -44,7 +44,7 @@ public class PhaseLimitTests
         var serializer = Limited(SerializationLimits.Default with { MaxPayloadBytes = 16 });
         byte[] frame = Wire.Frame(new byte[64]);
 
-        AssertEx.Throws<BinaryLimitException>("UncompressedLength", () => serializer.Deserialize<int>(frame));
+        AssertEx.Throws<BinaryLimitException>("MaxPayloadBytes", () => serializer.Deserialize<int>(frame));
     }
 
     // --- LIM-35: MaxCompressedBytes --------------------------------------------------------------
@@ -62,11 +62,11 @@ public class PhaseLimitTests
     [Fact]
     public void Deserialize_AHeaderDeclaringMoreThanMaxCompressedBytes_ThrowsLimit()
     {
+        // Without encryption the stored bytes are the compressed payload.
         var serializer = Limited(SerializationLimits.Default with { MaxCompressedBytes = 16 });
-        byte[] frame = Wire.FrameWith(
-            [], compression: Deflate, uncompressedLength: 4, compressedLength: 64, onDiskLength: 64);
+        byte[] frame = Wire.FrameWith([], services: [Wire.CompressionRecord(Deflate, 4)], onDiskLength: 64);
 
-        AssertEx.Throws<BinaryLimitException>("CompressedLength", () => serializer.Deserialize<int>(frame));
+        AssertEx.Throws<BinaryLimitException>("MaxCompressedBytes", () => serializer.Deserialize<int>(frame));
     }
 
     // --- LIM-36: MaxEncryptedBytes ---------------------------------------------------------------
@@ -83,8 +83,7 @@ public class PhaseLimitTests
     public void Deserialize_AHeaderDeclaringMoreThanMaxEncryptedBytes_ThrowsLimit()
     {
         var serializer = Limited(SerializationLimits.Default with { MaxEncryptedBytes = 16 });
-        byte[] frame = Wire.FrameWith(
-            [], encryption: Aes256Gcm, uncompressedLength: 4, compressedLength: 4, onDiskLength: 64);
+        byte[] frame = Wire.FrameWith([], services: [Wire.EncryptionRecord(Aes256Gcm)], onDiskLength: 64);
 
         AssertEx.Throws<BinaryLimitException>("OnDiskLength", () => serializer.Deserialize<int>(frame));
     }
@@ -102,8 +101,7 @@ public class PhaseLimitTests
     [Fact]
     public void Deserialize_ConsumingMoreThanMaxWireBytes_ThrowsLimit()
     {
-        // A complete frame is far longer than eight bytes, so the wire meter stops the read while
-        // the header is still being decoded.
+        // The header alone is eight bytes, so the wire meter stops the read before the payload.
         var serializer = Limited(SerializationLimits.Default with { MaxWireBytes = 8 });
         byte[] frame = new BinarySerializer().Serialize(123);
 
@@ -136,9 +134,7 @@ public class PhaseLimitTests
         var serializer = Limited(SerializationLimits.Default with { MaxEncryptedBytes = 16 });
         byte[] frame = Wire.FrameWith(
             [],
-            encryption: Aes256Gcm,
-            uncompressedLength: 4,
-            compressedLength: 4,
+            services: [Wire.EncryptionRecord(Aes256Gcm)],
             onDiskLength: 60 * 1024 * 1024);
 
         AssertEx.AllocatesLessThan(AllocationCeiling, () => serializer.Deserialize<int>(frame));
@@ -161,12 +157,11 @@ public class PhaseLimitTests
         // The header names DEFLATE and carries no compressed bytes at all: had the decision been
         // left to the algorithm, this would have surfaced as malformed compressed data instead.
         var serializer = Limited(SerializationLimits.Default with { MaxCompressedBytes = 16 });
-        byte[] frame = Wire.FrameWith(
-            [], compression: Deflate, uncompressedLength: 4, compressedLength: 64, onDiskLength: 64);
+        byte[] frame = Wire.FrameWith([], services: [Wire.CompressionRecord(Deflate, 4)], onDiskLength: 64);
 
         var ex = Assert.Throws<BinaryLimitException>(() => serializer.Deserialize<int>(frame));
 
-        Assert.Contains("CompressedLength", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("MaxCompressedBytes", ex.Message, StringComparison.Ordinal);
         Assert.Null(ex.InnerException);
     }
 
@@ -177,7 +172,6 @@ public class PhaseLimitTests
         var serializer = Limited(SerializationLimits.Default with { MaxPayloadBytes = 16 });
         byte[] frame = Wire.Frame(
         [
-            .. Wire.NotNull,
             .. Wire.KeyedBody([new Wire.KeyedField(1, [], DeclaredLength: 64)])
         ]);
 

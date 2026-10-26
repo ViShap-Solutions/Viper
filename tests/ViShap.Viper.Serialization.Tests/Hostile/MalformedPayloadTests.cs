@@ -143,7 +143,6 @@ public class MalformedPayloadTests
 
     private static byte[] OversizedString() => Wire.Frame(Wire.Payload(writer =>
     {
-        writer.Write(true);                      // non-null string
-        writer.Write7BitEncodedInt(3_000_000);   // declares far more than the frame holds
+        writer.Write7BitEncodedInt(3_000_001);   // declares far more than the frame holds, plus one
     }));
 }

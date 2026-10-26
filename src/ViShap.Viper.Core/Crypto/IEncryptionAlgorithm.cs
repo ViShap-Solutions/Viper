@@ -17,10 +17,15 @@ namespace ViShap.Viper.Crypto;
 /// and cannot be used with <c>RequireEncryption</c>.
 /// </para>
 /// <para>
+/// The serializer sizes every buffer from <see cref="GetCiphertextLength"/> before it encrypts, so
+/// the ciphertext length must be a function of the plaintext length alone. A cipher whose output
+/// length varies from call to call, such as one that adds random padding, cannot be plugged in.
+/// </para>
+/// <para>
 /// An implementation must be safe for concurrent use, or be supplied through a factory that returns a
 /// fresh instance per resolution. A nonce must never repeat for a given key; generating it inside
-/// <see cref="Encrypt(ReadOnlySpan{byte}, ReadOnlySpan{byte}, ReadOnlySpan{byte}, Span{byte})"/> and
-/// prefixing it to the ciphertext, as <c>Aes256Gcm</c> does, is the simplest way to guarantee that.
+/// <see cref="Encrypt"/> and storing it with the ciphertext, as <c>Aes256GcmEncryption</c> does, is the
+/// simplest way to guarantee that.
 /// </para>
 /// </remarks>
 public interface IEncryptionAlgorithm
@@ -40,80 +45,65 @@ public interface IEncryptionAlgorithm
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Defaults to <see langword="false"/>, which is correct for an implementation that does not
-    /// override the associated-data overloads. Such an algorithm leaves the format header as
-    /// unauthenticated metadata: it cannot satisfy <c>RequireEncryption</c>, and a payload written
-    /// with it is refused when read under that policy.
+    /// An algorithm that reports <see langword="false"/> leaves the format header as unauthenticated
+    /// metadata: it cannot satisfy <c>RequireEncryption</c>, and a payload written with it is refused
+    /// when read under that policy.
     /// </para>
     /// <para>
-    /// The associated data is always passed to the associated-data overloads, whatever this property
-    /// says, so returning <see langword="true"/> is an undertaking that those bytes take part in the
+    /// Returning <see langword="true"/> is an undertaking that the associated data takes part in the
     /// authentication tag. Nothing can verify that for you — an algorithm that claims it and ignores
     /// the associated data silently removes the protection <c>RequireEncryption</c> exists to give.
     /// </para>
     /// </remarks>
-    bool AuthenticatesAssociatedData => false;
+    bool AuthenticatesAssociatedData { get; }
+
+    /// <summary>The exact key length the algorithm requires, in bytes.</summary>
+    /// <remarks>
+    /// A fixed key given to the options builder is checked against it when the options are built; a
+    /// key obtained from a provider is checked when it is resolved.
+    /// </remarks>
+    int KeySizeInBytes { get; }
 
     /// <summary>
-    /// The largest output <see cref="Encrypt(ReadOnlySpan{byte}, ReadOnlySpan{byte}, Span{byte})"/>
-    /// can produce for a plaintext of <paramref name="plaintextLength"/> bytes, including any nonce
-    /// and authentication tag the algorithm stores alongside the ciphertext.
+    /// The exact length <see cref="Encrypt"/> produces for a plaintext of
+    /// <paramref name="plaintextLength"/> bytes, including any nonce and authentication tag stored with
+    /// the ciphertext.
     /// </summary>
     /// <param name="plaintextLength">Length of the plaintext, in bytes.</param>
-    /// <returns>An upper bound on the ciphertext size, in bytes.</returns>
-    int GetMaxCiphertextLength(int plaintextLength);
-
-    /// <summary>Encrypts without associated data.</summary>
-    /// <param name="plaintext">The bytes to encrypt.</param>
-    /// <param name="key">Key material, valid only for the duration of the call.</param>
-    /// <param name="destination">Output buffer, at least <see cref="GetMaxCiphertextLength"/> bytes.</param>
-    /// <returns>The number of bytes written.</returns>
-    int Encrypt(ReadOnlySpan<byte> plaintext, ReadOnlySpan<byte> key, Span<byte> destination);
-
-    /// <summary>Decrypts without associated data.</summary>
-    /// <param name="ciphertext">The bytes to decrypt.</param>
-    /// <param name="key">Key material, valid only for the duration of the call.</param>
-    /// <param name="destination">Output buffer for the plaintext.</param>
-    /// <returns>The number of plaintext bytes written.</returns>
-    /// <exception cref="Exceptions.BinaryIntegrityException">Authentication failed: wrong key or modified data.</exception>
-    int Decrypt(ReadOnlySpan<byte> ciphertext, ReadOnlySpan<byte> key, Span<byte> destination);
+    /// <returns>The ciphertext length, which is never less than <paramref name="plaintextLength"/>.</returns>
+    int GetCiphertextLength(int plaintextLength);
 
     /// <summary>
     /// Encrypts <paramref name="plaintext"/>, binding <paramref name="associatedData"/> to the result.
     /// </summary>
-    /// <remarks>
-    /// Viper always calls this overload, passing the payload's format metadata. The default
-    /// implementation discards the associated data and forwards to
-    /// <see cref="Encrypt(ReadOnlySpan{byte}, ReadOnlySpan{byte}, Span{byte})"/>, which is why
-    /// <see cref="AuthenticatesAssociatedData"/> defaults to <see langword="false"/>.
-    /// </remarks>
     /// <param name="plaintext">The bytes to encrypt.</param>
-    /// <param name="key">Key material, valid only for the duration of the call.</param>
+    /// <param name="key">Key material of <see cref="KeySizeInBytes"/> bytes, valid only for the duration of the call.</param>
     /// <param name="associatedData">Metadata to authenticate but not encrypt.</param>
-    /// <param name="destination">Output buffer, at least <see cref="GetMaxCiphertextLength"/> bytes.</param>
-    /// <returns>The number of bytes written.</returns>
+    /// <param name="destination">
+    /// Exactly <see cref="GetCiphertextLength"/> of the plaintext length; the algorithm fills all of it.
+    /// </param>
+    /// <returns>The number of bytes written, which must equal the length of <paramref name="destination"/>.</returns>
     int Encrypt(
         ReadOnlySpan<byte> plaintext,
         ReadOnlySpan<byte> key,
         ReadOnlySpan<byte> associatedData,
-        Span<byte> destination) => Encrypt(plaintext, key, destination);
+        Span<byte> destination);
 
     /// <summary>
     /// Decrypts <paramref name="ciphertext"/>, verifying <paramref name="associatedData"/>.
     /// </summary>
     /// <remarks>
-    /// Viper always calls this overload. Verification must fail if the associated data differs from
-    /// what encryption bound.
+    /// Verification must fail if the associated data differs from what encryption bound.
     /// </remarks>
     /// <param name="ciphertext">The bytes to decrypt.</param>
-    /// <param name="key">Key material, valid only for the duration of the call.</param>
+    /// <param name="key">Key material of <see cref="KeySizeInBytes"/> bytes, valid only for the duration of the call.</param>
     /// <param name="associatedData">Metadata that must match what encryption bound.</param>
-    /// <param name="destination">Output buffer for the plaintext.</param>
-    /// <returns>The number of plaintext bytes written.</returns>
+    /// <param name="destination">A buffer as long as <paramref name="ciphertext"/>.</param>
+    /// <returns>The number of plaintext bytes written, between 0 and the ciphertext length.</returns>
     /// <exception cref="Exceptions.BinaryIntegrityException">Authentication failed: wrong key, modified data, or modified metadata.</exception>
     int Decrypt(
         ReadOnlySpan<byte> ciphertext,
         ReadOnlySpan<byte> key,
         ReadOnlySpan<byte> associatedData,
-        Span<byte> destination) => Decrypt(ciphertext, key, destination);
+        Span<byte> destination);
 }

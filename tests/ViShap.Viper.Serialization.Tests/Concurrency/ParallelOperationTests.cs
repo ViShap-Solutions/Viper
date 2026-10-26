@@ -98,11 +98,11 @@ public class ParallelOperationTests
     public void Encryption_WithDistinctKeyIdsInParallel_StaysCorrect()
     {
         var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), ResolveKey, keyId: "alpha")
+            .WithEncryption(new Aes256GcmEncryption(), ResolveKey, keyId: "alpha")
             .Build());
 
         var beta = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), ResolveKey, keyId: "beta")
+            .WithEncryption(new Aes256GcmEncryption(), ResolveKey, keyId: "beta")
             .Build());
 
         var restored = Concurrent.Race(worker =>
@@ -120,11 +120,11 @@ public class ParallelOperationTests
     {
         // Guards the test above: it would prove nothing if both ids resolved to the same key.
         var alpha = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), ResolveKey, keyId: "alpha")
+            .WithEncryption(new Aes256GcmEncryption(), ResolveKey, keyId: "alpha")
             .Build());
 
         var beta = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), _ => KeyB, keyId: "beta")
+            .WithEncryption(new Aes256GcmEncryption(), _ => KeyB, keyId: "beta")
             .Build());
 
         byte[] payload = alpha.Serialize(new Person { Name = "Alice", Age = 30 });
@@ -139,7 +139,7 @@ public class ParallelOperationTests
         [
             .. Enumerable.Range(0, Concurrent.Workers).Select(worker =>
                 new BinarySerializer(BinarySerializerOptions.Configure()
-                        .WithEncryption(new Aes256Gcm(), ResolveKey, keyId: $"key-{worker}")
+                        .WithEncryption(new Aes256GcmEncryption(), ResolveKey, keyId: $"key-{worker}")
                         .Build())
                     .Serialize(worker))
         ];

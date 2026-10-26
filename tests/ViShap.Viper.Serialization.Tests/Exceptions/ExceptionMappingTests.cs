@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.IO.Pipelines;
 using System.Security.Cryptography;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Crypto;
@@ -26,14 +28,11 @@ public class ExceptionMappingTests
     // --- EXC-06: malformed structure → BinaryFormatException --------------------------------------
 
     [Fact]
-    public void Deserialize_NegativeCollectionCount_ThrowsFormatNotLimit()
+    public void Deserialize_CollectionCountBeyondInt32_ThrowsFormatNotLimit()
     {
-        // A count below zero is not a resource question: no configuration could make it legal.
-        byte[] frame = Wire.Frame(Wire.Payload(writer =>
-        {
-            writer.Write(true);
-            writer.Write(-1);
-        }));
+        // A count the format cannot represent is not a resource question: no configuration could
+        // make it legal.
+        byte[] frame = Wire.Frame([0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
 
         Assert.Throws<BinaryFormatException>(
             () => new BinarySerializer().Deserialize<List<int>>(frame));
@@ -64,8 +63,7 @@ public class ExceptionMappingTests
         var serializer = Limited(SerializationLimits.Default with { MaxCollectionLength = 2 });
         byte[] frame = Wire.Frame(Wire.Payload(writer =>
         {
-            writer.Write(true);
-            writer.Write(3);
+            writer.Write7BitEncodedInt(4);      // three elements, plus one
         }));
 
         Assert.Throws<BinaryLimitException>(() => serializer.Deserialize<List<int>>(frame));
@@ -94,7 +92,7 @@ public class ExceptionMappingTests
     [Fact]
     public void Deserialize_AnUndefinedAlgorithmIdentifier_ThrowsNotSupported()
     {
-        byte[] frame = Wire.FrameWith(Wire.Payload(writer => writer.Write(123)), compression: 200);
+        byte[] frame = Wire.FrameWith(Wire.Payload(writer => writer.Write(123)), services: [Wire.CompressionRecord(200, 4)]);
 
         Assert.Throws<BinaryFormatNotSupportedException>(
             () => new BinarySerializer().Deserialize<int>(frame));
@@ -121,13 +119,12 @@ public class ExceptionMappingTests
     public void Deserialize_AChecksumThatDoesNotMatchThePayload_ThrowsIntegrity()
     {
         var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithChecksum(new Crc32()).Build());
+            BinarySerializerOptions.Configure().WithChecksum(new Crc32Checksum()).Build());
 
         byte[] body = Wire.Payload(writer => writer.Write(123));
         byte[] frame = Wire.FrameWith(
             body,
-            checksumAlgorithm: (byte)ChecksumAlgorithm.Crc32,
-            checksum: [0, 0, 0, 0]);
+            services: [Wire.ChecksumRecord((byte)ChecksumAlgorithm.Crc32, [0, 0, 0, 0])]);
 
         Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(frame));
     }
@@ -158,24 +155,20 @@ public class ExceptionMappingTests
 
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), _ => null, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), _ => null, "primary")
                 .Build());
 
         Assert.Throws<BinaryEncryptionKeyException>(() => serializer.Deserialize<int>(payload));
     }
 
     [Fact]
-    public void Deserialize_OptionsBuiltFromAnEncryptedHeaderWithoutKeys_ThrowsKeyException()
+    public void Deserialize_AnEncryptedFrameWithoutKeys_ThrowsKeyException()
     {
         // The reachable form of "an algorithm is configured but no key material was supplied": the
-        // header names the algorithm, and the caller supplied nothing to decrypt with.
+        // header names the algorithm, and the reader was given nothing to decrypt with.
         byte[] payload = Encrypted(NewKey()).Serialize(123);
-        using var source = new MemoryStream(payload);
 
-        var options = BinarySerializerOptions.FromStream(source, key: null);
-
-        Assert.Throws<BinaryEncryptionKeyException>(
-            () => new BinarySerializer(options).Deserialize<int>(source));
+        Assert.Throws<BinaryEncryptionKeyException>(() => new BinarySerializer().Deserialize<int>(payload));
     }
 
     [Fact]
@@ -205,6 +198,48 @@ public class ExceptionMappingTests
         Assert.Throws<BinaryStreamException>(() => new BinarySerializer().Deserialize<int>(source));
     }
 
+    [Fact]
+    public async Task DeserializeAsync_FromAFailingStream_ThrowsStream()
+    {
+        using var source = new FailingStream(bytesBeforeFailure: 2);
+
+        await Assert.ThrowsAsync<BinaryStreamException>(
+            () => new BinarySerializer().DeserializeAsync<int>(source).AsTask());
+    }
+
+    [Fact]
+    public async Task SerializeAsync_IntoAFailingStream_ThrowsStream()
+    {
+        using var destination = new FailingStream(bytesBeforeFailure: 4);
+
+        await Assert.ThrowsAsync<BinaryStreamException>(
+            () => new BinarySerializer().SerializeAsync(destination, new Person { Name = "Alice", Age = 1 }).AsTask());
+    }
+
+    [Fact]
+    public async Task DeserializeAsync_FromAPipeWhoseWriterFailed_ThrowsStream()
+    {
+        var pipe = new Pipe();
+        await pipe.Writer.CompleteAsync(new IOException("The connection was reset."));
+
+        var thrown = await Assert.ThrowsAsync<BinaryStreamException>(
+            () => new BinarySerializer().DeserializeAsync<int>(pipe.Reader).AsTask());
+
+        Assert.IsType<IOException>(thrown.InnerException);
+    }
+
+    [Fact]
+    public async Task SerializeAsync_IntoAPipeWhoseReaderFailed_ThrowsStream()
+    {
+        var pipe = new Pipe();
+        await pipe.Reader.CompleteAsync(new IOException("The connection was reset."));
+
+        var thrown = await Assert.ThrowsAsync<BinaryStreamException>(
+            () => new BinarySerializer().SerializeAsync(pipe.Writer, 123).AsTask());
+
+        Assert.IsType<IOException>(thrown.InnerException);
+    }
+
     // --- EXC-12: invalid CLR type, contract or graph semantics → BinaryTypeException ---------------
 
     [Fact]
@@ -225,12 +260,12 @@ public class ExceptionMappingTests
     }
 
     [Fact]
-    public void Deserialize_IntoAnExistingInstanceOfAFormatterOwnedType_ThrowsType()
+    public void Populate_AnInstanceOfAFormatterOwnedType_ThrowsType()
     {
         byte[] payload = new BinarySerializer().Serialize(new List<int> { 1, 2, 3 });
 
         Assert.Throws<BinaryTypeException>(
-            () => new BinarySerializer().Deserialize(payload, new List<int>()));
+            () => new BinarySerializer().Populate(payload, new List<int>()));
     }
 
     // --- EXC-13: invalid configuration → BinaryConfigurationException ------------------------------
@@ -258,9 +293,10 @@ public class ExceptionMappingTests
     // --- EXC-14: a null public argument → ArgumentNullException, never a Viper type ----------------
 
     [Fact]
-    public void Serialize_ANullDestinationStream_ThrowsArgumentNull()
+    public void Serialize_ANullDestination_ThrowsArgumentNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new BinarySerializer().Serialize(null!, 123));
+        Assert.Throws<ArgumentNullException>(() => new BinarySerializer().Serialize((Stream)null!, 123));
+        Assert.Throws<ArgumentNullException>(() => new BinarySerializer().Serialize((IBufferWriter<byte>)null!, 123));
     }
 
     [Fact]
@@ -270,18 +306,19 @@ public class ExceptionMappingTests
     }
 
     [Fact]
-    public void Deserialize_ANullByteArray_ThrowsArgumentNull()
+    public void Deserialize_ANullByteArray_IsAnEmptyPayloadNotANullArgument()
     {
-        Assert.Throws<ArgumentNullException>(() => new BinarySerializer().Deserialize<int>((byte[])null!));
+        // An array converts to a span; a null array is an empty span, which is malformed input.
+        Assert.Throws<BinaryFormatException>(() => new BinarySerializer().Deserialize<int>((byte[])null!));
     }
 
     [Fact]
-    public void Deserialize_ANullExistingInstance_ThrowsArgumentNull()
+    public void Populate_ANullTarget_ThrowsArgumentNull()
     {
         byte[] payload = new BinarySerializer().Serialize(new Person { Name = "Alice", Age = 1 });
 
         Assert.Throws<ArgumentNullException>(
-            () => new BinarySerializer().Deserialize(payload, (Person)null!));
+            () => new BinarySerializer().Populate(payload, (Person)null!));
     }
 
     [Fact]
@@ -293,49 +330,43 @@ public class ExceptionMappingTests
         Assert.Throws<ArgumentNullException>(() => builder.WithChecksum(null!));
         Assert.Throws<ArgumentNullException>(() => builder.WithEncryption(null!, NewKey()));
         Assert.Throws<ArgumentNullException>(
-            () => builder.WithEncryption(new Aes256Gcm(), (IKeyProvider)null!));
-    }
-
-    [Fact]
-    public void StreamExtensions_ANullStream_ThrowsArgumentNull()
-    {
-        Assert.Throws<ArgumentNullException>(() => StreamExtensions.Serialize((Stream)null!, 123));
-        Assert.Throws<ArgumentNullException>(() => StreamExtensions.Deserialize<int>((Stream)null!));
+            () => builder.WithEncryption(new Aes256GcmEncryption(), (IKeyProvider)null!));
     }
 
     [Fact]
     public void Peek_ANullStream_ThrowsArgumentNull()
     {
-        Assert.Throws<ArgumentNullException>(() => BinaryFormatInspector.Peek(null!));
+        Assert.Throws<ArgumentNullException>(() => BinaryFormatInspector.Peek((Stream)null!));
     }
 
-    // --- EXC-15: a required capability such as seekability → NotSupportedException -----------------
+    // --- EXC-15: an unsupported capability → NotSupportedException ---------------------------------
+
+    private static BinarySerializer Headerless() =>
+        new(BinarySerializerOptions.Configure().WithVersion(0).AllowV0Fallback().Build());
 
     [Fact]
-    public void Deserialize_FromANonSeekableStream_ThrowsNotSupported()
+    public void Deserialize_AV0PayloadFromANonSeekableStream_ThrowsNotSupported()
     {
-        // Reading must detect the format version before consuming anything, which needs a rewind.
-        byte[] payload = new BinarySerializer().Serialize(123);
-        using var source = new NonSeekableStream(payload);
+        // A V0 payload carries no length, so a stream is read ahead and moved back, which needs a
+        // stream that can seek.
+        var serializer = Headerless();
+        using var source = new NonSeekableStream(serializer.Serialize(123));
 
-        Assert.Throws<NotSupportedException>(() => new BinarySerializer().Deserialize<int>(source));
+        Assert.Throws<NotSupportedException>(() => serializer.Deserialize<int>(source));
     }
 
     [Fact]
-    public void Serialize_AKeyedContractToANonSeekableV0Destination_ThrowsNotSupported()
+    public async Task DeserializeAsync_AV0Payload_ThrowsNotSupported()
     {
-        // A keyed field's length is patched after the field is written; V0 writes straight through.
-        var serializer = new BinarySerializer(
-            BinarySerializerOptions.Configure().WithVersion(0).Build());
+        // An asynchronous read waits for a frame whose length it knows; a V0 payload has none.
+        var serializer = Headerless();
+        using var source = new MemoryStream(serializer.Serialize(123));
 
-        using var destination = new NonSeekableWriteStream();
-
-        Assert.Throws<NotSupportedException>(
-            () => serializer.Serialize(destination, new NewSchema { Kept = new Node { Value = 1 } }));
+        await Assert.ThrowsAsync<NotSupportedException>(() => serializer.DeserializeAsync<int>(source).AsTask());
     }
 
     private static BinarySerializer Encrypted(byte[] key, string? keyId = null) =>
         new(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), key, keyId)
+            .WithEncryption(new Aes256GcmEncryption(), key, keyId)
             .Build());
 }

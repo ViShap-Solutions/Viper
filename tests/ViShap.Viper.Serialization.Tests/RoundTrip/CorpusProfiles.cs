@@ -20,7 +20,7 @@ public sealed class DefaultCorpusTests : Corpus
 /// <summary>
 /// RT-C08, profile P7: the same corpus through the headerless format. V0 supports every shape in the
 /// corpus — it lacks only the envelope's four phases and reference framing, none of which the corpus
-/// uses — so anything that round-trips under V1 must round-trip here unchanged (§10.2, §22.8).
+/// uses — so anything that round-trips under V1 must round-trip here unchanged (§10.2, §22.7).
 /// </summary>
 public sealed class HeaderlessCorpusTests : Corpus
 {
@@ -42,7 +42,8 @@ public sealed class HeaderlessCorpusTests : Corpus
 /// </summary>
 public sealed class ProtectedCorpusTests : Corpus
 {
-    private static readonly byte[] Key =
+    /// <summary>The fixed key of the profile.</summary>
+    internal static readonly byte[] Key =
     [
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
         0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -56,9 +57,9 @@ public sealed class ProtectedCorpusTests : Corpus
 
     private static BinarySerializerOptions Build(SerializationLimits limits) =>
         BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key)
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key)
             .WithLimits(limits)
             .Build();
 }
@@ -70,7 +71,8 @@ public sealed class ProtectedCorpusTests : Corpus
 /// </summary>
 public sealed class DeflateProtectedCorpusTests : Corpus
 {
-    private static readonly byte[] Key =
+    /// <summary>The fixed key of the profile.</summary>
+    internal static readonly byte[] Key =
     [
         0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27,
         0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
@@ -84,9 +86,9 @@ public sealed class DeflateProtectedCorpusTests : Corpus
 
     private static BinarySerializerOptions Build(SerializationLimits limits) =>
         BinarySerializerOptions.Configure()
-            .WithCompression(new Deflate())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), Key)
+            .WithCompression(new DeflateCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), Key)
             .WithLimits(limits)
             .Build();
 }

@@ -9,28 +9,27 @@ using ViShap.Viper.Security;
 namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 
 /// <summary>
-/// MICRO-08 — the V1 header: writing it, parsing it back with every declared length verified, and
-/// building the canonical image that authenticated encryption binds as associated data.
+/// MICRO-08 — the V1 header of service records: writing it, and parsing it back with every record
+/// and every declared length verified. Its bytes are the associated data authenticated encryption
+/// binds, so there is no separate image to build.
 /// </summary>
 /// <remarks>
-/// Measured twice: as the header a default configuration produces, and as the widest one the format
-/// admits — custom names for all three algorithm families, a key id, and a checksum present. The pair
+/// Measured twice: as the header a default configuration produces, with no service record, and as a
+/// wide one — all three services, a custom name for each algorithm family, a key id and a checksum. The pair
 /// is what DIFF-01 subtracts, so a V1-minus-V0 differential that exceeds it by more than its margin is
 /// buffering or framing rather than the header.
 /// </remarks>
 [MemoryDiagnoser]
 public class HeaderBenchmarks
 {
-    private SerializationOperation _operation = null!;
+    private OperationState _operation;
     private BinaryFormatHeaderV1 _header;
-    private MemoryStream _destination = null!;
-    private ValueWriter _writer = null!;
-    private MemoryStream _source = null!;
-    private ValueReader _reader = null!;
+    private PayloadBuffer _destination = null!;
+    private byte[] _encoded = [];
 
     /// <summary>
-    /// <c>false</c> is the header a default write produces; <c>true</c> carries a custom name for each
-    /// algorithm family, a key id and a checksum, which is every optional field the format has.
+    /// <c>false</c> is the header a default write produces; <c>true</c> carries all three service
+    /// records, with a custom name for each algorithm family, a key id and a checksum.
     /// </summary>
     [Params(false, true)]
     public bool AllFields { get; set; }
@@ -42,49 +41,41 @@ public class HeaderBenchmarks
 
         _header = AllFields
             ? new BinaryFormatHeaderV1(
-                CompressionAlgorithm.Custom, "benchmark-compression",
-                ChecksumAlgorithm.Custom, "benchmark-checksum",
-                EncryptionAlgorithm.Custom, "benchmark-encryption",
-                "benchmark-key-2026-09", PreserveReferences: true,
-                UncompressedLength: 4_096, CompressedLength: 2_048, OnDiskLength: 2_076,
-                Checksum: [0x11, 0x22, 0x33, 0x44])
+                PreserveReferences: true,
+                ChecksumAlgorithm.Custom, "benchmark-checksum", [0x11, 0x22, 0x33, 0x44],
+                CompressionAlgorithm.Custom, "benchmark-compression", UncompressedLength: 4_096,
+                EncryptionAlgorithm.Custom, "benchmark-encryption", "benchmark-key-2026-09",
+                OnDiskLength: 2_076)
             : new BinaryFormatHeaderV1(
-                CompressionAlgorithm.None, null,
-                ChecksumAlgorithm.None, null,
-                EncryptionAlgorithm.None, null,
-                null, PreserveReferences: false,
-                UncompressedLength: 4_096, CompressedLength: 4_096, OnDiskLength: 4_096,
-                Checksum: []);
+                PreserveReferences: false,
+                ChecksumAlgorithm.None, null, [],
+                CompressionAlgorithm.None, null, UncompressedLength: 0,
+                EncryptionAlgorithm.None, null, null,
+                OnDiskLength: 4_096);
 
-        _destination = new MemoryStream(256);
-        _writer = new ValueWriter(_destination, _operation);
-
-        (_source, _reader) = ComponentFixtures.Decoder(
-            _operation, ComponentFixtures.Encode(_operation, _header.WriteTo));
+        _destination = new PayloadBuffer(_operation.Limits.MaxWireBytes, "wire");
+        _encoded = ComponentFixtures.Encode(ref _operation, _header.WriteTo);
     }
 
     [GlobalCleanup]
-    public void Cleanup()
-    {
-        _destination.Dispose();
-        _source.Dispose();
-    }
+    public void Cleanup() => _destination.Dispose();
 
     [Benchmark(Description = "MICRO-08 write header")]
     public long Write()
     {
-        _destination.Position = 0;
-        _header.WriteTo(_writer);
-        return _destination.Position;
+        var writer = new WireWriter(_destination, ref _operation);
+        _header.WriteTo(ref writer);
+        writer.Flush();
+
+        long written = _destination.Length;
+        _destination.Dispose();
+        return written;
     }
 
     [Benchmark(Description = "MICRO-08 parse header")]
     public int Parse()
     {
-        _source.Position = 0;
-        return BinaryFormatHeaderV1.ReadFrom(_reader).UncompressedLength;
+        var reader = new WireReader(_encoded, ref _operation);
+        return BinaryFormatHeaderV1.ReadFrom(ref reader).OnDiskLength;
     }
-
-    [Benchmark(Description = "MICRO-08 build associated data")]
-    public byte[] BuildAssociatedData() => _header.BuildAssociatedData();
 }

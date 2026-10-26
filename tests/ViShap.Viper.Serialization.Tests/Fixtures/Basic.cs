@@ -93,6 +93,8 @@ public class ContradictoryPositional
     [BinaryInclude, BinaryIgnore] private int _secret = 42;
 
     public int Visible { get; set; }
+
+    public int Secret() => _secret;
 }
 
 [BinaryUnion(0, typeof(TaggedBase))]
@@ -154,4 +156,13 @@ public class ContractWithUnmarkedDelegate
     [BinaryKey(1)] public int Value { get; set; }
 
     public Func<int>? Callback { get; set; }
+}
+
+/// <summary>A keyed struct: it cannot be null, so its field count carries nothing but the count.</summary>
+[BinaryContract]
+public struct KeyedPoint
+{
+    [BinaryKey(1)] public int X { get; set; }
+
+    [BinaryKey(2)] public int Y { get; set; }
 }

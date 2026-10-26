@@ -175,9 +175,9 @@ public class ConfigurationValidationTests
         var builder = BinarySerializerOptions.Configure();
 
         Assert.Throws<ArgumentNullException>(
-            () => builder.WithEncryption(new Aes256Gcm(), (IKeyProvider)null!));
+            () => builder.WithEncryption(new Aes256GcmEncryption(), (IKeyProvider)null!));
         Assert.Throws<ArgumentNullException>(
-            () => builder.WithEncryption(new Aes256Gcm(), (Func<string?, byte[]?>)null!));
+            () => builder.WithEncryption(new Aes256GcmEncryption(), (Func<string?, byte[]?>)null!));
 
         Assert.Equal(EncryptionAlgorithm.None, builder.Build().Encryption.Kind);
     }
@@ -194,7 +194,7 @@ public class ConfigurationValidationTests
     public void Build_RequireChecksumWithAChecksumAlgorithm_Succeeds()
     {
         var options = BinarySerializerOptions.Configure()
-            .WithChecksum(new Crc32())
+            .WithChecksum(new Crc32Checksum())
             .RequireChecksum()
             .Build();
 
@@ -205,7 +205,7 @@ public class ConfigurationValidationTests
     public void Build_RequireEncryptionWithAnAeadAlgorithm_Succeeds()
     {
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), RandomNumberGenerator.GetBytes(32))
+            .WithEncryption(new Aes256GcmEncryption(), RandomNumberGenerator.GetBytes(32))
             .RequireEncryption()
             .Build();
 

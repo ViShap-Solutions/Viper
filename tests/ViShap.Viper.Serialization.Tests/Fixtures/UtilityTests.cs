@@ -1,12 +1,13 @@
 ﻿using System.Buffers;
 using System.Globalization;
+using ViShap.Viper.Crypto;
 using Xunit.Sdk;
 
 namespace ViShap.Viper.Serialization.Tests.Fixtures;
 
 /// <summary>
-/// Pins UTIL-01…UTIL-15. A helper with a bug passes every suite that uses it, so the helpers are
-/// tested before anything is allowed to rely on them.
+/// Pins UTIL-01…UTIL-15 and UTIL-18…UTIL-23. A helper with a bug passes every suite that uses it, so the
+/// helpers are tested before anything is allowed to rely on them.
 /// </summary>
 /// <remarks>
 /// The negative cases assert that a helper <em>fails</em>, and what it throws is whichever assertion
@@ -228,8 +229,8 @@ public class UtilityTests
     {
         byte[] produced = new BinarySerializer().Serialize(0x11223344);
 
-        Assert.Equal(Wire.PlainHeaderLength, Wire.Header(4).Length);
-        Assert.Equal(Wire.Header(4), produced[..Wire.PlainHeaderLength]);
+        Assert.Equal<byte[]>([0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x00, 0x04], Wire.Header(4));
+        Assert.Equal(Wire.Header(4), produced[..8]);
     }
 
     [Fact]
@@ -241,12 +242,10 @@ public class UtilityTests
     }
 
     [Fact]
-    public void Header_RecordsPreserveReferencesAtTheDocumentedOffset()
+    public void Header_RecordsTheReferencesModeAtTheDocumentedOffset()
     {
-        byte[] header = Wire.Header(0, preserveReferences: true);
-
-        Assert.Equal(1, header[Wire.PreserveReferencesOffset]);
-        Assert.Equal(0, Wire.Header(0)[Wire.PreserveReferencesOffset]);
+        Assert.Equal(1, Wire.Header(0, preserveReferences: true)[Wire.ModeOffset]);
+        Assert.Equal(0, Wire.Header(0)[Wire.ModeOffset]);
     }
 
     [Fact]
@@ -274,15 +273,37 @@ public class UtilityTests
     }
 
     [Fact]
-    public void FrameWith_PlacesTheChecksumBeforeThePayload()
+    public void Varint_IsTheMinimalSevenBitEncoding()
+    {
+        Assert.Equal<byte[]>([0x00], Wire.Varint(0));
+        Assert.Equal<byte[]>([0x7F], Wire.Varint(127));
+        Assert.Equal<byte[]>([0x80, 0x01], Wire.Varint(128));
+        Assert.Equal<byte[]>([0xFF, 0x01], Wire.Varint(255));
+    }
+
+    [Fact]
+    public void ServiceRecords_AreTheDocumentedBytes()
+    {
+        Assert.Equal<byte[]>([0x03, 0x05, 0x01, 0x9A, 0x3B, 0xC1, 0x07], Wire.ChecksumRecord(1, [0x9A, 0x3B, 0xC1, 0x07]));
+        Assert.Equal<byte[]>([0x05, 0x03, 0x02, 0xE8, 0x07], Wire.CompressionRecord(2, 1000));
+        Assert.Equal<byte[]>(
+            [0x05, 0x09, 0xFF, 0x01, 0x04, 0x6C, 0x7A, 0x34, 0x78, 0xE8, 0x07],
+            Wire.CompressionRecord(255, 1000, "lz4x"));
+        Assert.Equal<byte[]>([0x07, 0x04, 0x01, 0x03, 0x6B, 0x37], Wire.EncryptionRecord(1, "k7"));
+        Assert.Equal<byte[]>([0x0A, 0x01, 0xAB], Wire.Service(5, critical: false, [0xAB]));
+    }
+
+    [Fact]
+    public void FrameWith_PlacesTheRecordsBetweenTheCountAndTheLength()
     {
         byte[] body = Wire.Payload(writer => writer.Write(123));
+        byte[] record = Wire.ChecksumRecord(1, [1, 2, 3, 4]);
 
-        byte[] frame = Wire.FrameWith(body, checksumAlgorithm: 1, checksum: [1, 2, 3, 4]);
+        byte[] frame = Wire.FrameWith(body, services: [record]);
 
-        Assert.Equal(Wire.PlainHeaderLength + 4 + body.Length, frame.Length);
-        Assert.Equal<byte[]>([1, 2, 3, 4], frame[Wire.PlainHeaderLength..(Wire.PlainHeaderLength + 4)]);
-        Assert.Equal(body, frame[(Wire.PlainHeaderLength + 4)..]);
+        Assert.Equal<byte[]>(
+            [0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x01, .. record, 0x04, .. body],
+            frame);
     }
 
     [Fact]
@@ -292,29 +313,28 @@ public class UtilityTests
 
         var header = Wire.ReadHeader(Wire.FrameWith(
             body,
-            compression: 255, customCompressionName: "zip",
-            checksumAlgorithm: 255, customChecksumName: "sum",
-            encryption: 255, customEncryptionName: "box",
-            keyId: "ring",
-            preserveReferences: true,
-            uncompressedLength: 11,
-            compressedLength: 22,
-            onDiskLength: 33,
-            checksum: [7, 8]));
+            mode: 1,
+            services:
+            [
+                Wire.ChecksumRecord(255, [7, 8], "sum"),
+                Wire.CompressionRecord(255, 11, "zip"),
+                Wire.EncryptionRecord(255, "ring", "box")
+            ],
+            onDiskLength: 33));
 
         Assert.Equal(1, header.Version);
+        Assert.True(header.PreserveReferences);
         Assert.Equal(255, header.Compression);
         Assert.Equal("zip", header.CustomCompressionName);
+        Assert.Equal(11, header.UncompressedLength);
         Assert.Equal(255, header.ChecksumAlgorithm);
         Assert.Equal("sum", header.CustomChecksumName);
+        Assert.Equal<byte[]>([7, 8], header.Checksum);
         Assert.Equal(255, header.Encryption);
         Assert.Equal("box", header.CustomEncryptionName);
         Assert.Equal("ring", header.KeyId);
-        Assert.True(header.PreserveReferences);
-        Assert.Equal(11, header.UncompressedLength);
-        Assert.Equal(22, header.CompressedLength);
         Assert.Equal(33, header.OnDiskLength);
-        Assert.Equal<byte[]>([7, 8], header.Checksum);
+        Assert.Equal([1, 2, 3], header.Services.Select(service => service.Number));
     }
 
     [Fact]
@@ -324,8 +344,24 @@ public class UtilityTests
 
         var header = Wire.ReadHeader(Wire.Frame(body));
 
-        Assert.Equal(Wire.PlainHeaderLength, header.HeaderLength);
+        Assert.Equal(8, header.HeaderLength);
+        Assert.Equal(7, header.OnDiskLengthOffset);
         Assert.Equal(body.Length, header.OnDiskLength);
+        Assert.Equal(body, Wire.Body(Wire.Frame(body)));
+    }
+
+    [Fact]
+    public void WithLengths_ReEncodesOnlyTheLengthsItIsGiven()
+    {
+        byte[] body = [1, 2, 3, 4];
+        byte[] frame = Wire.FrameWith(body, services: [Wire.ChecksumRecord(1, [9, 9, 9, 9]), Wire.CompressionRecord(1, 4)]);
+
+        var header = Wire.ReadHeader(Wire.WithLengths(frame, uncompressedLength: 300, onDiskLength: 2));
+
+        Assert.Equal(300, header.UncompressedLength);
+        Assert.Equal(2, header.OnDiskLength);
+        Assert.Equal<byte[]>([9, 9, 9, 9], header.Checksum);
+        Assert.Equal(body, Wire.WithLengths(frame, uncompressedLength: 300)[header.HeaderLength..]);
     }
 
     // --- UTIL-10: the keyed and reference frame builders -----------------------------------------
@@ -334,14 +370,11 @@ public class UtilityTests
     public void KeyedBody_IsAcceptedByARealReader()
     {
         byte[] frame = Wire.Frame(
-        [
-            .. Wire.NotNull,
-            .. Wire.KeyedBody(
+            Wire.KeyedBody(
             [
                 new Wire.KeyedField(1, Wire.Payload(writer => writer.Write(11))),
                 new Wire.KeyedField(3, Wire.Payload(writer => writer.Write(33)))
-            ])
-        ]);
+            ]));
 
         var result = new BinarySerializer().Deserialize<OuterKeys>(frame)!;
 
@@ -356,20 +389,19 @@ public class UtilityTests
             [new Wire.KeyedField(2, [1, 2, 3, 4], DeclaredLength: 1024)],
             declaredFieldCount: 9);
 
-        Assert.Equal(9, body[0]);                          // the field count it was told to claim
+        Assert.Equal(10, body[0]);                         // the field count it was told to claim, plus one
         Assert.Equal(2, body[1]);                          // the key
         Assert.Equal(1024, BitConverter.ToInt32(body, 2)); // the length it was told to claim
         Assert.Equal<byte[]>([1, 2, 3, 4], body[6..]);     // the bytes actually present
+        Assert.Equal(9, Wire.KeyedBody([], declaredFieldCount: 9, nullFolded: false)[0]);
     }
 
     [Fact]
-    public void ReferenceFrame_IsTheMarkerThenTheId()
+    public void ReferenceFrame_IsTheIdTwiceWithTheBackBitPlusOne()
     {
-        byte[] frame = Wire.ReferenceFrame(1, 258);
-
-        Assert.Equal(5, frame.Length);
-        Assert.Equal(1, frame[0]);
-        Assert.Equal(258, BitConverter.ToInt32(frame, 1));
+        Assert.Equal<byte[]>([0x01], Wire.ReferenceFrame(0, back: false));
+        Assert.Equal<byte[]>([0x02], Wire.ReferenceFrame(0, back: true));
+        Assert.Equal<byte[]>([0x85, 0x04], Wire.ReferenceFrame(258, back: false));
     }
 
     [Fact]
@@ -404,12 +436,10 @@ public class UtilityTests
     [Fact]
     public void Container_DeclaresTheCountItWasGivenRatherThanTheBodyItHolds()
     {
-        byte[] frame = Wire.Container(declaredCount: 9, int32Values: 2);
-        byte[] body = frame[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.Container(declaredCount: 9, int32Values: 2));
 
-        Assert.Equal(1, body[0]);                       // the container is non-null
-        Assert.Equal(9, BitConverter.ToInt32(body, 1)); // the count it was told to claim
-        Assert.Equal(1 + 4 + (2 * 4), body.Length);     // two four-byte values actually present
+        Assert.Equal(10, body[0]);                      // the count it was told to claim, plus one
+        Assert.Equal(1 + (2 * 4), body.Length);         // two four-byte values actually present
     }
 
     [Fact]
@@ -423,11 +453,10 @@ public class UtilityTests
     [Fact]
     public void StringValue_DeclaresTheLengthItWasGivenRatherThanTheBytesItHolds()
     {
-        byte[] body = Wire.StringValue(200, 0x61, 0x62)[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.StringValue(200, 0x61, 0x62));
 
-        Assert.Equal(1, body[0]);                       // the string is non-null
-        Assert.Equal<byte[]>([0xC8, 0x01], body[1..3]); // 200, 7-bit encoded
-        Assert.Equal<byte[]>([0x61, 0x62], body[3..]);
+        Assert.Equal<byte[]>([0xC9, 0x01], body[..2]);  // 200 plus one, 7-bit encoded
+        Assert.Equal<byte[]>([0x61, 0x62], body[2..]);
     }
 
     [Fact]
@@ -441,12 +470,11 @@ public class UtilityTests
     [Fact]
     public void BitArrayValue_IsTheBitCountThenTheBlob()
     {
-        byte[] body = Wire.BitArrayValue(declaredBits: 12, dataBytes: 2)[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.BitArrayValue(declaredBits: 12, dataBytes: 2));
 
-        Assert.Equal(1, body[0]);                        // the BitArray is non-null
-        Assert.Equal(12, BitConverter.ToInt32(body, 1)); // the bit count
-        Assert.Equal(2, body[5]);                        // the blob length
-        Assert.Equal(1 + 4 + 1 + 2, body.Length);
+        Assert.Equal(13, body[0]);                       // the bit count, plus one
+        Assert.Equal(2, body[1]);                        // the blob length
+        Assert.Equal(1 + 1 + 2, body.Length);
     }
 
     [Fact]
@@ -461,22 +489,18 @@ public class UtilityTests
     [Fact]
     public void MultiDimensionalArray_IsTheRankThenTheDimensionsThenTheElements()
     {
-        byte[] body = Wire.MultiDimensionalArray([2, 3], int32Elements: 6)[Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.MultiDimensionalArray([2, 3], int32Elements: 6));
 
-        Assert.Equal(1, body[0]);                       // the array is non-null
-        Assert.Equal(2, BitConverter.ToInt32(body, 1)); // the rank
-        Assert.Equal(2, BitConverter.ToInt32(body, 5));
-        Assert.Equal(3, BitConverter.ToInt32(body, 9));
-        Assert.Equal(1 + 4 + (2 * 4) + (6 * 4), body.Length);
+        Assert.Equal<byte[]>([3, 2, 3], body[..3]);       // the rank plus one, then the dimensions
+        Assert.Equal(3 + (6 * 4), body.Length);
     }
 
     [Fact]
     public void MultiDimensionalArray_DeclaresTheRankItWasGiven()
     {
-        byte[] body = Wire.MultiDimensionalArray([2, 3], int32Elements: 0, declaredRank: 7)
-            [Wire.PlainHeaderLength..];
+        byte[] body = Wire.Body(Wire.MultiDimensionalArray([2, 3], int32Elements: 0, declaredRank: 7));
 
-        Assert.Equal(7, BitConverter.ToInt32(body, 1));
+        Assert.Equal(8, body[0]);
     }
 
     [Fact]
@@ -488,6 +512,14 @@ public class UtilityTests
         Assert.Equal(2, restored!.GetLength(0));
         Assert.Equal(3, restored.GetLength(1));
         Assert.Equal(5, restored[1, 2]);
+    }
+
+    [Fact]
+    public void NestedCollections_IsAcceptedByARealReader()
+    {
+        var restored = new BinarySerializer().Deserialize<List<List<List<int>>>>(Wire.NestedCollections(2));
+
+        Assert.Empty(restored![0][0]);
     }
 
     // --- UTIL-13: the write-only stream double ----------------------------------------------------
@@ -514,13 +546,13 @@ public class UtilityTests
         // The expected bytes are transcribed from §22 here as they are in the file, so a writer
         // change cannot quietly move both sides at once.
         Assert.Equal<byte[]>(
-            [0x01, 0x24, 0x00, 0x00, 0x00, 0x01, 0x03, 0x41, 0x64, 0x61],
+            [0x01, 0x24, 0x00, 0x00, 0x00, 0x04, 0x41, 0x64, 0x61],
             Wire.Fixture("person-v0.bin"));
 
         byte[] framed = Wire.Fixture("person-v1.bin");
 
-        Assert.Equal(Wire.PlainHeaderLength + 10, framed.Length);
-        Assert.Equal(Wire.Fixture("person-v0.bin"), framed[Wire.PlainHeaderLength..]);
+        Assert.Equal<byte[]>([0x42, 0x53, 0x45, 0x52, 0x01, 0x00, 0x00, 0x09], framed[..8]);
+        Assert.Equal(Wire.Fixture("person-v0.bin"), framed[8..]);
         Assert.Equal(Wire.Magic, BitConverter.ToInt32(framed));
     }
 
@@ -530,15 +562,15 @@ public class UtilityTests
     public void IdentityCompression_CountsEveryCallItReceives()
     {
         var compression = new IdentityCompression();
-        byte[] destination = new byte[3];
+        var destination = new System.Buffers.ArrayBufferWriter<byte>();
 
         compression.Compress([1, 2, 3], destination);
-        compression.Decompress([4, 5, 6], destination);
-        compression.Decompress([7, 8, 9], destination);
+        compression.Decompress([4, 5, 6], destination, 3);
+        compression.Decompress([7, 8, 9], destination, 3);
 
         Assert.Equal(1, compression.CompressCalls);
         Assert.Equal(2, compression.DecompressCalls);
-        Assert.Equal<byte[]>([7, 8, 9], destination);
+        Assert.Equal<byte[]>([1, 2, 3, 4, 5, 6, 7, 8, 9], destination.WrittenSpan.ToArray());
     }
 
     [Fact]
@@ -559,5 +591,315 @@ public class UtilityTests
         // Disposing the first key left the second one and the caller's material untouched.
         Assert.Equal(material, second.Span.ToArray());
         Assert.Equal<byte[]>([1, 2, 3, 4], material);
+    }
+
+    // --- UTIL-18: the stream that ends at a frame boundary ---------------------------------------
+
+    [Fact]
+    public void FrameBoundStream_ServesTheBytesUpToTheBoundary()
+    {
+        var stream = new FrameBoundStream([1, 2, 3, 4, 5], boundary: 3);
+        byte[] buffer = new byte[3];
+
+        Assert.Equal(2, stream.Read(buffer.AsSpan(0, 2)));
+        Assert.Equal(1, stream.Read(buffer.AsSpan(2, 1)));
+        Assert.Equal([1, 2, 3], buffer);
+        Assert.Equal(3, stream.Taken);
+        Assert.False(stream.CanSeek);
+    }
+
+    [Fact]
+    public void FrameBoundStream_FailsAReadThatAsksPastTheBoundary()
+    {
+        var stream = new FrameBoundStream([1, 2, 3, 4, 5], boundary: 3);
+
+        Assert.Throws<InvalidOperationException>(() => stream.Read(new byte[4]));
+        Assert.Throws<InvalidOperationException>(() => stream.ReadAsync(new byte[4]).AsTask().GetAwaiter().GetResult());
+        Assert.Equal(0, stream.Taken);
+    }
+
+    [Fact]
+    public void FrameBoundStream_EndsWhenItsContentDoes()
+    {
+        var stream = new FrameBoundStream([1, 2], boundary: 5);
+
+        Assert.Equal(2, stream.Read(new byte[5]));
+        Assert.Equal(0, stream.Read(new byte[3]));
+    }
+
+    // --- UTIL-19: the pipe reader that delivers its content in chunks ----------------------------
+
+    [Fact]
+    public async Task ChunkedPipeReader_DeliversAChunkOnlyOnceEverythingShownWasExamined()
+    {
+        var pipe = new ChunkedPipeReader([1, 2, 3, 4, 5, 6, 7], chunkSize: 3);
+
+        var first = await pipe.ReadAsync();
+        Assert.Equal([1, 2, 3], first.Buffer.ToArray());
+        pipe.AdvanceTo(first.Buffer.GetPosition(1), first.Buffer.GetPosition(2));
+
+        var sameBytes = await pipe.ReadAsync();
+        Assert.Equal([2, 3], sameBytes.Buffer.ToArray());
+        pipe.AdvanceTo(sameBytes.Buffer.Start, sameBytes.Buffer.End);
+
+        var more = await pipe.ReadAsync();
+        Assert.Equal([2, 3, 4, 5, 6], more.Buffer.ToArray());
+        Assert.False(more.Buffer.IsSingleSegment);
+        Assert.False(more.IsCompleted);
+        pipe.AdvanceTo(more.Buffer.End);
+
+        var last = await pipe.ReadAsync();
+        Assert.Equal([7], last.Buffer.ToArray());
+        Assert.True(last.IsCompleted);
+        pipe.AdvanceTo(last.Buffer.End);
+
+        Assert.Equal(7, pipe.Consumed);
+    }
+
+    [Fact]
+    public async Task ChunkedPipeReader_RefusesASecondReadBeforeAdvancing()
+    {
+        var pipe = new ChunkedPipeReader([1, 2, 3], chunkSize: 1);
+
+        await pipe.ReadAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pipe.ReadAsync().AsTask());
+    }
+
+    [Fact]
+    public async Task ChunkedPipeReader_ThatNeverCompletes_WaitsUntilTheReadIsCancelled()
+    {
+        var pipe = new ChunkedPipeReader([1], chunkSize: 1, completeAtEnd: false);
+        var first = await pipe.ReadAsync();
+        pipe.AdvanceTo(first.Buffer.Start, first.Buffer.End);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(20));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pipe.ReadAsync(cancellation.Token).AsTask());
+    }
+
+    [Fact]
+    public async Task ChunkedPipeReader_ReportsACancelledPendingRead()
+    {
+        var pipe = new ChunkedPipeReader([1, 2], chunkSize: 1);
+        pipe.CancelPendingRead();
+
+        var result = await pipe.ReadAsync();
+
+        Assert.True(result.IsCanceled);
+    }
+
+    // --- UTIL-20: the buffer writer that hands out small spans ----------------------------------
+
+    [Fact]
+    public void StingyBufferWriter_HandsOutAtMostItsLimitAndCommitsInOrder()
+    {
+        var writer = new StingyBufferWriter(limit: 2);
+
+        var first = writer.GetSpan(10);
+        first[0] = 1;
+        first[1] = 2;
+        writer.Advance(2);
+        var second = writer.GetSpan(10);
+        second[0] = 3;
+        writer.Advance(1);
+
+        Assert.Equal(2, first.Length);
+        Assert.Equal([1, 2, 3], writer.Written);
+        Assert.Equal(2, writer.Requests);
+        Assert.Throws<ArgumentOutOfRangeException>(() => writer.Advance(1));
+    }
+
+    [Fact]
+    public void StingyBufferWriter_WithALimitOfZero_HandsOutAnEmptySpan()
+    {
+        var writer = new StingyBufferWriter(limit: 0);
+
+        Assert.True(writer.GetSpan(16).IsEmpty);
+        Assert.True(writer.GetMemory(16).IsEmpty);
+    }
+
+    // --- UTIL-21: the operation state held on the heap -----------------------------------------
+
+    [Fact]
+    public void OperationBox_HoldsAFreshStateUnderTheLimitsItIsGiven()
+    {
+        var defaults = new OperationBox();
+        var tight = new OperationBox(ViShap.Viper.Security.SerializationLimits.Default with { MaxDepth = 3 });
+
+        Assert.Same(ViShap.Viper.Security.SerializationLimits.Default, defaults.State.Limits);
+        Assert.Equal(3, tight.State.Limits.MaxDepth);
+        Assert.Equal(0, defaults.State.Budget.TotalElements);
+        Assert.False(defaults.State.PreserveReferences);
+    }
+
+    [Fact]
+    public void OperationBox_IsTheStateAReaderHandedItChargesAndEachBoxIsItsOwn()
+    {
+        var operation = new OperationBox();
+        var other = new OperationBox();
+        var reader = new ViShap.Viper.Io.WireReader(new byte[] { 3 }, ref operation.State);
+
+        reader.ReadCount(ViShap.Viper.Io.CountKind.Collection, "Collection count", nullFolded: false);
+
+        Assert.Equal(3, operation.State.Budget.TotalElements);
+        Assert.Equal(0, other.State.Budget.TotalElements);
+    }
+
+    // --- UTIL-22: the documentation example extractor ------------------------------------------
+
+    [Fact]
+    public void DocumentationExamples_Extract_TakesCsharpBlocksInOrderWithTheirOrdinalAndFirstCodeLine()
+    {
+        string markdown = "# Page\n\n```csharp\nint a = 1;\n```\n\ntext\n\n```bash\nls\n```\n\n```csharp\nint b = 2;\nint c = 3;\n```\n";
+
+        var examples = DocumentationExamples.Extract("docs/page.md", markdown);
+
+        Assert.Equal(2, examples.Count);
+        Assert.Equal(new DocumentationExample("docs/page.md", 1, 4, "int a = 1;"), examples[0]);
+        Assert.Equal(new DocumentationExample("docs/page.md", 2, 14, "int b = 2;\nint c = 3;"), examples[1]);
+        Assert.Equal("docs/page.md#2", examples[1].Name);
+    }
+
+    [Fact]
+    public void DocumentationExamples_Extract_ReadsAnIndentedOrLongerFenceAndRemovesItsIndentation()
+    {
+        string markdown = "- item\r\n\r\n   ````csharp\r\n   int a = 1;\r\n     int b = 2;\r\n   ```\r\n   ````\r\n";
+
+        var example = Assert.Single(DocumentationExamples.Extract("README.md", markdown));
+
+        Assert.Equal("int a = 1;\n  int b = 2;\n```", example.Code);
+        Assert.Equal(4, example.Line);
+    }
+
+    [Fact]
+    public void DocumentationExamples_Extract_AFenceLeftOpen_Throws()
+    {
+        string markdown = "text\n\n```csharp\nint a = 1;\n";
+
+        var ex = Assert.Throws<InvalidOperationException>(() => DocumentationExamples.Extract("docs/page.md", markdown));
+
+        Assert.Contains("docs/page.md:3", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DocumentationExamples_FenceLanguages_NamesEveryOpeningFenceIncludingAnUnnamedOne()
+    {
+        string markdown = "```csharp\nint a;\n```\n\n```\ntree\n```\n\n```cs\nint b;\n```\n";
+
+        var languages = DocumentationExamples.FenceLanguages(markdown);
+
+        Assert.Equal(["csharp", "", "cs"], languages);
+    }
+
+    [Fact]
+    public void DocumentationExamples_FindPages_TakesDocsTheRootReadmeAndThePackageReadmesOnly()
+    {
+        string root = Directory.CreateTempSubdirectory("viper-pages-").FullName;
+        try
+        {
+            foreach (string file in new[]
+            {
+                "docs/a.md", "docs/sub/b.md", "docs/image.png", "README.md", "src/P/P-README.md",
+                "src/P/notes.md", "src/P/Deep/Q-README.md", "internal/x.md", "tests/T/T-README.md"
+            })
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(root, file))!);
+                File.WriteAllText(Path.Combine(root, file), "");
+            }
+
+            var pages = DocumentationExamples.FindPages(root);
+
+            Assert.Equal(["README.md", "docs/a.md", "docs/sub/b.md", "src/P/P-README.md"], pages);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DocumentationExamples_FindPages_WithoutDocs_Throws()
+    {
+        string root = Directory.CreateTempSubdirectory("viper-pages-").FullName;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "src"));
+
+            Assert.Throws<InvalidOperationException>(() => DocumentationExamples.FindPages(root));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    // --- UTIL-23: the documentation example compiler -------------------------------------------
+
+    [Fact]
+    public void ExampleCompiler_AnErrorIsReportedAtItsPageLine_AndNothingIsEmitted()
+    {
+        var example = new DocumentationExample("docs/page.md", 1, 10, "using ViShap.Viper;\n\nvar serializer = new BinarySerializer();\nserializer.NoSuchMethod();\n");
+
+        var compiled = ExampleCompiler.Compile(example);
+
+        Assert.True(compiled.IsProgram);
+        Assert.Null(compiled.Image);
+        Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.StartsWith("docs/page.md:13: error CS1061", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExampleCompiler_ANullableWarningIsReported()
+    {
+        var example = new DocumentationExample("docs/page.md", 1, 1, "string? text = null;\nConsole.WriteLine(text.Length);\n");
+
+        var compiled = ExampleCompiler.Compile(example);
+
+        Assert.NotNull(compiled.Image);
+        Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.StartsWith("docs/page.md:2: warning CS8602", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExampleCompiler_DeclarationsOnly_CompileAsALibrary()
+    {
+        var example = new DocumentationExample("docs/page.md", 1, 1, "public sealed class Order\n{\n    public int Id { get; set; }\n}\n");
+
+        var compiled = ExampleCompiler.Compile(example);
+
+        Assert.False(compiled.IsProgram);
+        Assert.False(ExampleCompiler.IsProgram(example));
+        Assert.Empty(compiled.Diagnostics);
+        Assert.NotNull(compiled.Image);
+        Assert.Throws<InvalidOperationException>(() => ExampleCompiler.Run(compiled));
+    }
+
+    [Fact]
+    public void ExampleCompiler_TheSourceGeneratorRuns_AndItsDiagnosticsAreReported()
+    {
+        var generated = new DocumentationExample("docs/page.md", 1, 1,
+            "using ViShap.Viper;\n\nConsole.WriteLine(Contracts.Default.Order is not null);\n\n" +
+            "public sealed class Order { public int Id { get; set; } }\n\n" +
+            "[BinaryContext(typeof(Order))]\npublic partial class Contracts : BinarySerializerContext;\n");
+        var notPartial = new DocumentationExample("docs/page.md", 2, 20,
+            "using ViShap.Viper;\n\n[BinaryContext(typeof(int))]\npublic class Contracts : BinarySerializerContext;\n");
+
+        var compiled = ExampleCompiler.Compile(generated);
+        var refused = ExampleCompiler.Compile(notPartial);
+
+        Assert.Empty(compiled.Diagnostics);
+        Assert.Equal(0, ExampleCompiler.Run(compiled));
+        Assert.Contains(refused.Diagnostics, diagnostic => diagnostic.StartsWith("docs/page.md:23: error VPR001", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExampleCompiler_Run_ReturnsTheExitCode_AndRaisesWhatTheProgramThrows()
+    {
+        var exits = new DocumentationExample("docs/page.md", 1, 1, "return 3;\n");
+        var awaits = new DocumentationExample("docs/page.md", 2, 1, "await Task.Yield();\nreturn 4;\n");
+        var throws = new DocumentationExample("docs/page.md", 3, 1,
+            "using ViShap.Viper;\n\nnew BinarySerializer().Deserialize<string>(ReadOnlySpan<byte>.Empty);\n");
+
+        Assert.Equal(3, ExampleCompiler.Run(ExampleCompiler.Compile(exits)));
+        Assert.Equal(4, ExampleCompiler.Run(ExampleCompiler.Compile(awaits)));
+        Assert.Throws<BinaryFormatException>(() => ExampleCompiler.Run(ExampleCompiler.Compile(throws)));
     }
 }

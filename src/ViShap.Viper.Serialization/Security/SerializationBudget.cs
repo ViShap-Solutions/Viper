@@ -1,21 +1,25 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
 namespace ViShap.Viper.Security;
 
 /// <summary>
 /// Per-operation resource accounting. The budget answers "what has this operation already consumed";
-/// it is created once per public call and is never shared between calls or threads.
+/// it lives inside the one <see cref="OperationState"/> of a public call and is never shared between
+/// calls or threads.
 /// </summary>
-internal sealed class SerializationBudget(SerializationLimits limits)
+internal struct SerializationBudget(SerializationLimits limits)
 {
     private long _totalElements;
     private long _objectGraphNodes;
     private long _keyedFields;
     private int _depth;
 
-    public SerializationLimits Limits { get; } = limits;
-    public int Depth => _depth;
-    public long TotalElements => _totalElements;
-    public long ObjectGraphNodes => _objectGraphNodes;
-    public long KeyedFields => _keyedFields;
+    public readonly SerializationLimits Limits { get; } = limits;
+    public readonly int Depth => _depth;
+    public readonly long TotalElements => _totalElements;
+    public readonly long ObjectGraphNodes => _objectGraphNodes;
+    public readonly long KeyedFields => _keyedFields;
 
     public void ConsumeElements(long count) =>
         Consume(ref _totalElements, count, Limits.MaxTotalElements,
@@ -34,8 +38,9 @@ internal sealed class SerializationBudget(SerializationLimits limits)
 
     /// <summary>
     /// Enters one structural level. The returned scope restores the previous depth exactly once;
-    /// it is a <c>ref struct</c> so entering a node costs no allocation.
+    /// it is a <c>ref struct</c> over this budget, so entering a node costs no allocation.
     /// </summary>
+    [UnscopedRef]
     public DepthScope EnterDepth()
     {
         if (_depth >= Limits.MaxDepth)
@@ -44,7 +49,7 @@ internal sealed class SerializationBudget(SerializationLimits limits)
                 $"({nameof(SerializationLimits.MaxDepth)}).");
 
         _depth++;
-        return new DepthScope(this);
+        return new DepthScope(ref this);
     }
 
     private static void Consume(
@@ -62,19 +67,19 @@ internal sealed class SerializationBudget(SerializationLimits limits)
 
     internal ref struct DepthScope
     {
-        private SerializationBudget? _owner;
+        private ref SerializationBudget _owner;
 
-        internal DepthScope(SerializationBudget owner) => _owner = owner;
+        internal DepthScope(ref SerializationBudget owner) => _owner = ref owner;
 
         public void Dispose()
         {
-            if (_owner is null)
+            if (Unsafe.IsNullRef(ref _owner))
                 return;
 
             if (_owner._depth > 0)
                 _owner._depth--;
 
-            _owner = null;
+            _owner = ref Unsafe.NullRef<SerializationBudget>();
         }
     }
 }

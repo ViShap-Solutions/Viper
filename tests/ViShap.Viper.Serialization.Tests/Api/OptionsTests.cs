@@ -10,8 +10,9 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins OPT-01…OPT-09 and OPT-11…OPT-21: the builder is the only construction path, what it records
-/// is what the serializer uses, and a registration reaches exactly one configuration.
+/// Pins OPT-01…OPT-09, OPT-11…OPT-14 and OPT-19…OPT-22: the builder is the only construction path,
+/// what it records is what the serializer uses, keys for reading have one place, and a registration
+/// reaches exactly one configuration.
 /// </summary>
 public class OptionsTests
 {
@@ -93,8 +94,8 @@ public class OptionsTests
     public void WithCompressionAndChecksum_AreRecordedInTheOptionsAndTheHeader()
     {
         var options = BinarySerializerOptions.Configure()
-            .WithCompression(new Deflate())
-            .WithChecksum(new Crc32())
+            .WithCompression(new DeflateCompression())
+            .WithChecksum(new Crc32Checksum())
             .Build();
 
         Assert.Equal(CompressionAlgorithm.Deflate, options.Compression.Kind);
@@ -113,7 +114,7 @@ public class OptionsTests
     {
         byte[] caller = NewKey();
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), caller, "primary")
+            .WithEncryption(new Aes256GcmEncryption(), caller, "primary")
             .Build();
 
         Array.Clear(caller);
@@ -128,7 +129,7 @@ public class OptionsTests
         byte[] key = NewKey();
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), _ => key, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), _ => key, "primary")
                 .Build());
 
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
@@ -140,7 +141,7 @@ public class OptionsTests
         using var provider = new StaticKeyProvider(NewKey(), "primary");
         var serializer = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), provider, "primary")
+                .WithEncryption(new Aes256GcmEncryption(), provider, "primary")
                 .Build());
 
         Assert.Equal(123, serializer.Deserialize<int>(serializer.Serialize(123)));
@@ -169,7 +170,7 @@ public class OptionsTests
         var options = BinarySerializerOptions.Configure()
             .PreserveReferences()
             .RequireChecksum()
-            .WithChecksum(new Crc32())
+            .WithChecksum(new Crc32Checksum())
             .Build();
 
         Assert.True(options.PreserveReferences);
@@ -193,7 +194,7 @@ public class OptionsTests
     {
         var ex = Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey())
+                .WithEncryption(new Aes256GcmEncryption(), NewKey())
                 .RequireEncryption()
                 .WithVersion(0)
                 .Build());
@@ -206,7 +207,7 @@ public class OptionsTests
     {
         var ex = Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey())
+                .WithEncryption(new Aes256GcmEncryption(), NewKey())
                 .RequireEncryption()
                 .AllowV0Fallback()
                 .Build());
@@ -219,11 +220,11 @@ public class OptionsTests
     {
         Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32()).RequireChecksum().WithVersion(0).Build());
+                .WithChecksum(new Crc32Checksum()).RequireChecksum().WithVersion(0).Build());
 
         Assert.Throws<BinaryConfigurationException>(
             () => BinarySerializerOptions.Configure()
-                .WithChecksum(new Crc32()).RequireChecksum().AllowV0Fallback().Build());
+                .WithChecksum(new Crc32Checksum()).RequireChecksum().AllowV0Fallback().Build());
     }
 
     [Fact]
@@ -231,8 +232,8 @@ public class OptionsTests
     {
         // An algorithm is a capability, not a demand, so it is not a contradiction on its own.
         var options = BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), NewKey())
-            .WithChecksum(new Crc32())
+            .WithEncryption(new Aes256GcmEncryption(), NewKey())
+            .WithChecksum(new Crc32Checksum())
             .WithVersion(0)
             .AllowV0Fallback()
             .Build();
@@ -245,8 +246,8 @@ public class OptionsTests
     public void Serialize_ConfiguredAlgorithmsUnderTheHeaderlessFormat_LeaveNoTraceInTheBytes()
     {
         var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithEncryption(new Aes256Gcm(), NewKey())
-            .WithChecksum(new Crc32())
+            .WithEncryption(new Aes256GcmEncryption(), NewKey())
+            .WithChecksum(new Crc32Checksum())
             .WithVersion(0)
             .AllowV0Fallback()
             .Build());
@@ -292,8 +293,8 @@ public class OptionsTests
     {
         // A custom name lives in its own space; the built-in identifiers are not addressable by name.
         var options = BinarySerializerOptions.Configure()
-            .WithCompression(new Deflate())
-            .RegisterCustomCompression("Deflate", static () => new Brotli())
+            .WithCompression(new DeflateCompression())
+            .RegisterCustomCompression("Deflate", static () => new BrotliCompression())
             .Build();
 
         using var stream = new MemoryStream(new BinarySerializer(options).Serialize(123));
@@ -309,85 +310,106 @@ public class OptionsTests
     {
         var builder = BinarySerializerOptions.Configure();
 
-        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomChecksum(null!, () => new Crc32()));
+        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomChecksum(null!, () => new Crc32Checksum()));
         Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomChecksum("x", null!));
-        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomCompression(null!, () => new Deflate()));
+        Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomCompression(null!, () => new DeflateCompression()));
         Assert.Throws<ArgumentNullException>(() => builder.RegisterCustomEncryption("x", null!));
     }
 
-    // --- FromHeader / FromStream ------------------------------------------------------------------------
+    // --- WithKeys: keys for reading, without an algorithm for writing ------------------------------------
 
-    [Fact]
-    public void FromHeader_BuildsOptionsMatchingTheMetadata()
-    {
-        var source = BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .Build();
-        using var stream = new MemoryStream(new BinarySerializer(source).Serialize(123));
-
-        var options = BinarySerializerOptions.FromHeader(BinaryFormatInspector.Peek(stream)!.Value);
-
-        Assert.Equal(CompressionAlgorithm.Brotli, options.Compression.Kind);
-        Assert.Equal(ChecksumAlgorithm.Crc32, options.Checksum.Kind);
-        Assert.Equal(123, new BinarySerializer(options).Deserialize<int>(stream.ToArray()));
-    }
-
-    [Fact]
-    public void FromHeader_InvalidLimits_ThrowsConfiguration()
-    {
-        using var stream = new MemoryStream(new BinarySerializer().Serialize(123));
-        var info = BinaryFormatInspector.Peek(stream)!.Value;
-
-        Assert.Throws<BinaryConfigurationException>(
-            () => BinarySerializerOptions.FromHeader(
-                info, (byte[]?)null, SerializationLimits.Default with { MaxDepth = 0 }));
-    }
-
-    [Fact]
-    public void FromStream_RestoresThePosition()
-    {
-        using var stream = new MemoryStream(new BinarySerializer().Serialize(123));
-        stream.Position = 0;
-
-        BinarySerializerOptions.FromStream(stream);
-
-        Assert.Equal(0, stream.Position);
-    }
-
-    [Fact]
-    public void FromStream_NonSeekableStream_ThrowsNotSupported()
-    {
-        using var stream = new NonSeekableStream(new BinarySerializer().Serialize(123));
-
-        Assert.Throws<NotSupportedException>(() => BinarySerializerOptions.FromStream(stream));
-    }
-
-    [Fact]
-    public void FromStream_UnrecognizedBytes_ThrowsFormat()
-    {
-        using var stream = new MemoryStream([1, 2, 3, 4, 5, 6, 7, 8]);
-
-        Assert.Throws<BinaryFormatException>(() => BinarySerializerOptions.FromStream(stream));
-    }
-
-    [Fact]
-    public void FromStream_PassesTheHeaderKeyIdToTheResolver()
-    {
-        byte[] key = NewKey();
-        byte[] payload = new BinarySerializer(
+    private static byte[] Encrypted(byte[] key, string? keyId) =>
+        new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), key, "rotated-2")
+                .WithCompression(new BrotliCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), key, keyId)
                 .Build()).Serialize(123);
 
+    [Fact]
+    public void WithKeys_AStaticKey_ReadsAnEncryptedFrame()
+    {
+        byte[] key = NewKey();
+        var reader = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(key).Build());
+
+        Assert.Equal(123, reader.Deserialize<int>(Encrypted(key, keyId: "primary")));
+    }
+
+    [Fact]
+    public void WithKeys_AStaticKeyWithAnotherId_RefusesTheFrame()
+    {
+        byte[] key = NewKey();
+        var reader = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithKeys(key, keyId: "other").Build());
+
+        Assert.Throws<BinaryEncryptionKeyException>(() => reader.Deserialize<int>(Encrypted(key, keyId: "primary")));
+    }
+
+    [Fact]
+    public void WithKeys_AResolver_ReadsAnEncryptedFrameAndReceivesItsKeyId()
+    {
+        byte[] key = NewKey();
         string? observed = null;
-        using var stream = new MemoryStream(payload);
+        var reader = new BinarySerializer(
+            BinarySerializerOptions.Configure().WithKeys(id => { observed = id; return key; }).Build());
 
-        var options = BinarySerializerOptions.FromStream(
-            stream, id => { observed = id; return key; });
-
-        Assert.Equal(123, new BinarySerializer(options).Deserialize<int>(payload));
+        Assert.Equal(123, reader.Deserialize<int>(Encrypted(key, keyId: "rotated-2")));
         Assert.Equal("rotated-2", observed);
+    }
+
+    [Fact]
+    public void WithKeys_AProvider_ReadsAnEncryptedFrame()
+    {
+        byte[] key = NewKey();
+        var provider = new RecordingKeyProvider(key);
+        var reader = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(provider).Build());
+
+        Assert.Equal(123, reader.Deserialize<int>(Encrypted(key, keyId: "primary")));
+        Assert.Equal(new string?[] { "primary" }, provider.RequestedIds);
+    }
+
+    [Fact]
+    public void WithKeys_ReadsAnUnencryptedFrameAsWell()
+    {
+        var reader = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(NewKey()).Build());
+
+        Assert.Equal(123, reader.Deserialize<int>(new BinarySerializer().Serialize(123)));
+    }
+
+    [Fact]
+    public void WithKeys_DoesNotEncryptWhatIsWritten()
+    {
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithKeys(NewKey()).Build());
+
+        Assert.Equal(EncryptionAlgorithm.None, BinaryFormatInspector.Peek(serializer.Serialize(123))!.Value.Encryption);
+    }
+
+    [Fact]
+    public void WithKeys_TogetherWithWithEncryption_ThrowsConfigurationAtBuild()
+    {
+        byte[] key = NewKey();
+
+        Assert.Throws<BinaryConfigurationException>(() => BinarySerializerOptions.Configure()
+            .WithEncryption(new Aes256GcmEncryption(), key, "primary")
+            .WithKeys(key)
+            .Build());
+        Assert.Throws<BinaryConfigurationException>(() => BinarySerializerOptions.Configure()
+            .WithKeys(_ => key)
+            .WithEncryption(new Aes256GcmEncryption(), _ => key, "primary")
+            .Build());
+        Assert.Throws<BinaryConfigurationException>(() => BinarySerializerOptions.Configure()
+            .WithKeys(new RecordingKeyProvider(key))
+            .WithEncryption(new Aes256GcmEncryption(), new RecordingKeyProvider(key), "primary")
+            .Build());
+    }
+
+    [Fact]
+    public void WithKeys_NullResolverOrProvider_ThrowsArgumentNull()
+    {
+        var builder = BinarySerializerOptions.Configure();
+
+        Assert.Throws<ArgumentNullException>(() => builder.WithKeys((Func<string?, byte[]?>)null!));
+        Assert.Throws<ArgumentNullException>(() => builder.WithKeys((IKeyProvider)null!));
     }
 
     [Fact]
@@ -396,12 +418,12 @@ public class OptionsTests
         // The same id with different key bytes must not decrypt.
         byte[] payload = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey(), "primary")
+                .WithEncryption(new Aes256GcmEncryption(), NewKey(), "primary")
                 .Build()).Serialize(123);
 
         var other = new BinarySerializer(
             BinarySerializerOptions.Configure()
-                .WithEncryption(new Aes256Gcm(), NewKey(), "primary")
+                .WithEncryption(new Aes256GcmEncryption(), NewKey(), "primary")
                 .Build());
 
         Assert.Throws<BinaryIntegrityException>(() => other.Deserialize<int>(payload));

@@ -166,9 +166,9 @@ public class CompatibilityTests
 
     internal static BinarySerializer Protected =>
         new(BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), ProtectedKey, keyId: "v1-fixture")
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), ProtectedKey, keyId: "v1-fixture")
             .Build());
 
     // --- the tests ------------------------------------------------------------------------------
@@ -204,7 +204,7 @@ public class CompatibilityTests
         byte[] framed = Wire.Fixture("v1-primitives.bin");
         byte[] bare = Wire.Fixture("v0-primitives.bin");
 
-        Assert.Equal(bare, framed[Wire.PlainHeaderLength..]);
+        Assert.Equal(bare, Wire.Body(framed));
     }
 
     [Fact]
@@ -348,9 +348,9 @@ public class CompatibilityTests
     {
         // Guards the fixture above: it proves the key is what decrypts it, not that anything would.
         var other = new BinarySerializer(BinarySerializerOptions.Configure()
-            .WithCompression(new Brotli())
-            .WithChecksum(new Crc32())
-            .WithEncryption(new Aes256Gcm(), new byte[32], keyId: "v1-fixture")
+            .WithCompression(new BrotliCompression())
+            .WithChecksum(new Crc32Checksum())
+            .WithEncryption(new Aes256GcmEncryption(), new byte[32], keyId: "v1-fixture")
             .Build());
 
         Assert.Throws<BinaryIntegrityException>(

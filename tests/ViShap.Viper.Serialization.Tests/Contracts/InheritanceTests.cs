@@ -12,7 +12,7 @@ public class InheritanceTests
 {
     private readonly BinarySerializer _serializer = new();
 
-    private byte[] Payload<T>(T value) => _serializer.Serialize(value)[Wire.PlainHeaderLength..];
+    private byte[] Payload<T>(T value) => Wire.Body(_serializer.Serialize(value));
 
     // --- a hidden member is a second member, and the order of the two is fixed --------------------
 

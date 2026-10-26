@@ -24,6 +24,9 @@ public class AlgorithmBenchmarks
         ViperProfile.Brotli,
         ViperProfile.Crc32,
         ViperProfile.Aes256Gcm,
+        ViperProfile.XxHash3,
+        ViperProfile.XxHash128,
+        ViperProfile.ChaCha20Poly1305,
         ViperProfile.ProtectedDeflate,
         ViperProfile.ProtectedBrotli,
     ];

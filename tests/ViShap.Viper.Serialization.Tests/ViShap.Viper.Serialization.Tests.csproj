@@ -9,8 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ViShap.Viper.Core\ViShap.Viper.Core.csproj" />
     <ProjectReference Include="..\..\src\ViShap.Viper.Serialization\ViShap.Viper.Serialization.csproj" />
+    <ProjectReference Include="..\..\src\ViShap.Viper.Generator\ViShap.Viper.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -25,5 +27,10 @@
   
   <ItemGroup>
     <None Include="Fixtures\Wire\*.bin" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\Dumps\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="CopyViperGenerator" AfterTargets="CopyFilesToOutputDirectory">
+    <Copy SourceFiles="@(Analyzer)" Condition="'%(Analyzer.Filename)' == 'ViShap.Viper.Generator'" DestinationFolder="$(OutDir)Generator" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

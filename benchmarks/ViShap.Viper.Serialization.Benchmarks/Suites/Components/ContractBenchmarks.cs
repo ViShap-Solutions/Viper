@@ -1,18 +1,18 @@
 using BenchmarkDotNet.Attributes;
 using ViShap.Viper.Engine;
-using ViShap.Viper.Formatters;
 using ViShap.Viper.Serialization.Benchmarks.Models.Viper;
 
 namespace ViShap.Viper.Serialization.Benchmarks.Suites.Components;
 
 /// <summary>
-/// MICRO-04 — the member plan once it is cached: what the reader and the writer pay per value to
-/// obtain the description of a concrete type, positional and keyed, and for a union map.
+/// MICRO-04 — the type contract once it is cached: what the polymorphic slot pays per value to find
+/// the contract of a runtime type, positional and keyed, and to find a union map.
 /// </summary>
 /// <remarks>
-/// Explains the steady-state half of DIFF-03 and the first-use column of every profile row: a
-/// contract is built once per type and looked up once per value, so a steady-state cell is this
-/// lookup and a first-use cell is the construction the cold runner reports.
+/// Explains the steady-state half of DIFF-03 and the union rows of the profile matrix. A declared
+/// type's codec holds its own contract after first use, so a value whose runtime type is the declared
+/// one pays no lookup at all; a value in a polymorphic slot pays this lookup once. A first-use cell
+/// is the construction the cold runner reports.
 /// </remarks>
 [MemoryDiagnoser]
 public class ContractLookupBenchmarks
@@ -72,13 +72,13 @@ public class ContractLookupBenchmarks
 }
 
 /// <summary>
-/// MICRO-05 — formatter resolution: a type a formatter claims, and a type none claims, which is how
-/// the engine learns that a value is member-encoded.
+/// MICRO-05 — codec resolution: a type a shape claims, and a type none claims, which is member-encoded
+/// through its contract.
 /// </summary>
 /// <remarks>
-/// Explains why a member-encoded value carries no resolution penalty over a claimed one: both answers
-/// come from the same cache, and a null answer is cached like any other. Every WL-01 cell pays this
-/// once per value.
+/// Explains why a member-encoded value carries no resolution penalty over a claimed one: both are a
+/// read of the static field of <see cref="FormatterCache{T}"/>, filled once per type. Every WL-01 cell
+/// pays this once per value.
 /// </remarks>
 [MemoryDiagnoser]
 public class FormatterResolutionBenchmarks
@@ -88,9 +88,9 @@ public class FormatterResolutionBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _ = FormatterRegistry.Resolve(typeof(List<TinyFlat>));
-        _ = FormatterRegistry.Resolve(typeof(Dictionary<string, ScalarRecord>));
-        _ = FormatterRegistry.Resolve(typeof(MediumObject));
+        _ = FormatterCache<List<TinyFlat>>.Instance;
+        _ = FormatterCache<Dictionary<string, ScalarRecord>>.Instance;
+        _ = FormatterCache<MediumObject>.Instance;
     }
 
     [Benchmark(Description = "MICRO-05 resolve claimed sequence", OperationsPerInvoke = Operations)]
@@ -100,7 +100,7 @@ public class FormatterResolutionBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            if (FormatterRegistry.Resolve(typeof(List<TinyFlat>)) is not null)
+            if (FormatterCache<List<TinyFlat>>.Instance.Shape == CodecShape.Sequence)
             {
                 resolved++;
             }
@@ -116,7 +116,7 @@ public class FormatterResolutionBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            if (FormatterRegistry.Resolve(typeof(Dictionary<string, ScalarRecord>)) is not null)
+            if (FormatterCache<Dictionary<string, ScalarRecord>>.Instance.Shape == CodecShape.Map)
             {
                 resolved++;
             }
@@ -132,7 +132,7 @@ public class FormatterResolutionBenchmarks
 
         for (var i = 0; i < Operations; i++)
         {
-            if (FormatterRegistry.Resolve(typeof(MediumObject)) is null)
+            if (FormatterCache<MediumObject>.Instance.Shape == CodecShape.Object)
             {
                 unclaimed++;
             }

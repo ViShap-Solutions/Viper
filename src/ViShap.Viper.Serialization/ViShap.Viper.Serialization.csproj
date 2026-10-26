@@ -5,6 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsAotCompatible>true</IsAotCompatible>
         
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -17,7 +18,7 @@
         <Authors>Vahe Babayan (0xVahe)</Authors>
         <Company>ViShap Solutions</Company>
         <Copyright>Copyright © ViShap Solutions 2026</Copyright>
-        <Description>High-performance .NET binary serialization with compression, checksums, encryption, polymorphism, and schema-aware contracts.</Description>
+        <Description>.NET binary serialization with compression, checksums, encryption, polymorphism, and schema-aware contracts.</Description>
         <PackageTags>binary;serialization;serializer;deserialization;binary-format;schema-evolution;polymorphism;aes-gcm;brotli;untrusted-input</PackageTags>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
@@ -39,6 +40,7 @@
     <ItemGroup>
         <None Include="..\..\icon.png" Pack="true" PackagePath="\" />
         <None Include="SERIALIZATION-README.md" Pack="true" PackagePath="\" />
+        <None Include="buildTransitive\ViShap.Viper.Serialization.targets" Pack="true" PackagePath="buildTransitive\" />
     </ItemGroup>
 
 </Project>

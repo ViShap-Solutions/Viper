@@ -1,0 +1,765 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="5652" viewBox="0 0 960 5652" role="img">
+<title>Payload size — Viper profiles over the corpus</title>
+<desc>bytes — lower is better</desc>
+<rect x="0" y="0" width="960" height="5652" fill="#ffffff" />
+<text x="16" y="26" fill="#1f2933" font-size="15" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-weight="600">Payload size — Viper profiles over the corpus</text>
+<text x="16" y="44" fill="#6b7280" font-size="11" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >bytes — lower is better</text>
+<text x="242" y="79" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-01</text>
+<rect x="250" y="68" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="79" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >120</text>
+<text x="242" y="101" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-01</text>
+<rect x="250" y="90" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="101" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >125</text>
+<text x="242" y="123" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-01</text>
+<rect x="250" y="112" width="1" height="14" fill="#a8324a" />
+<text x="257" y="123" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >120</text>
+<text x="242" y="145" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-01</text>
+<rect x="250" y="134" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="145" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >124</text>
+<text x="242" y="167" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-01</text>
+<rect x="250" y="156" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="167" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >114</text>
+<text x="242" y="189" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-01</text>
+<rect x="250" y="178" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="189" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >124</text>
+<text x="242" y="211" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-01</text>
+<rect x="250" y="200" width="1" height="14" fill="#b5651d" />
+<text x="257" y="211" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >154</text>
+<text x="242" y="233" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-01</text>
+<rect x="250" y="222" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="233" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >162</text>
+<text x="242" y="255" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-01</text>
+<rect x="250" y="244" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="255" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >152</text>
+<text x="242" y="277" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-01</text>
+<rect x="250" y="266" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="277" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >91</text>
+<text x="242" y="299" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-02</text>
+<rect x="250" y="288" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="299" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,06 k</text>
+<text x="242" y="321" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-02</text>
+<rect x="250" y="310" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="321" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,12 k</text>
+<text x="242" y="343" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-02</text>
+<rect x="250" y="332" width="1" height="14" fill="#a8324a" />
+<text x="257" y="343" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,06 k</text>
+<text x="242" y="365" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-02</text>
+<rect x="250" y="354" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="365" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >932</text>
+<text x="242" y="387" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-02</text>
+<rect x="250" y="376" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="387" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >951</text>
+<text x="242" y="409" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-02</text>
+<rect x="250" y="398" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="409" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,06 k</text>
+<text x="242" y="431" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-02</text>
+<rect x="250" y="420" width="1" height="14" fill="#b5651d" />
+<text x="257" y="431" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,09 k</text>
+<text x="242" y="453" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-02</text>
+<rect x="250" y="442" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="453" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >970</text>
+<text x="242" y="475" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-02</text>
+<rect x="250" y="464" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="475" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >989</text>
+<text x="242" y="497" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-02</text>
+<rect x="250" y="486" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="497" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,03 k</text>
+<text x="242" y="519" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-03</text>
+<rect x="250" y="508" width="3.747" height="14" fill="#2f6f9f" />
+<text x="259.747" y="519" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >21,76 k</text>
+<text x="242" y="541" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-03</text>
+<rect x="250" y="530" width="3.964" height="14" fill="#7a7f35" />
+<text x="259.964" y="541" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >23,02 k</text>
+<text x="242" y="563" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-03</text>
+<rect x="250" y="552" width="3.747" height="14" fill="#a8324a" />
+<text x="259.747" y="563" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >21,76 k</text>
+<text x="242" y="585" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-03</text>
+<rect x="250" y="574" width="3.169" height="14" fill="#7a7f35" />
+<text x="259.169" y="585" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,4 k</text>
+<text x="242" y="607" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-03</text>
+<rect x="250" y="596" width="3.113" height="14" fill="#8a5fa8" />
+<text x="259.113" y="607" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,08 k</text>
+<text x="242" y="629" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-03</text>
+<rect x="250" y="618" width="3.748" height="14" fill="#3f7d58" />
+<text x="259.748" y="629" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >21,77 k</text>
+<text x="242" y="651" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-03</text>
+<rect x="250" y="640" width="3.753" height="14" fill="#b5651d" />
+<text x="259.753" y="651" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >21,8 k</text>
+<text x="242" y="673" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-03</text>
+<rect x="250" y="662" width="3.176" height="14" fill="#3f7d58" />
+<text x="259.176" y="673" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,44 k</text>
+<text x="242" y="695" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-03</text>
+<rect x="250" y="684" width="3.12" height="14" fill="#3f7d58" />
+<text x="259.12" y="695" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,12 k</text>
+<text x="242" y="717" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-03</text>
+<rect x="250" y="706" width="3.742" height="14" fill="#7a7f35" />
+<text x="259.742" y="717" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >21,73 k</text>
+<text x="242" y="739" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-04</text>
+<rect x="250" y="728" width="299.543" height="14" fill="#2f6f9f" />
+<text x="555.543" y="739" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,74 M</text>
+<text x="242" y="761" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-04</text>
+<rect x="250" y="750" width="316.765" height="14" fill="#7a7f35" />
+<text x="572.765" y="761" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,84 M</text>
+<text x="242" y="783" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-04</text>
+<rect x="250" y="772" width="299.543" height="14" fill="#a8324a" />
+<text x="555.543" y="783" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,74 M</text>
+<text x="242" y="805" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-04</text>
+<rect x="250" y="794" width="249.682" height="14" fill="#7a7f35" />
+<text x="505.682" y="805" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,45 M</text>
+<text x="242" y="827" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-04</text>
+<rect x="250" y="816" width="247.72" height="14" fill="#8a5fa8" />
+<text x="503.72" y="827" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,44 M</text>
+<text x="242" y="849" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-04</text>
+<rect x="250" y="838" width="299.544" height="14" fill="#3f7d58" />
+<text x="555.544" y="849" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,74 M</text>
+<text x="242" y="871" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-04</text>
+<rect x="250" y="860" width="299.549" height="14" fill="#b5651d" />
+<text x="555.549" y="871" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,74 M</text>
+<text x="242" y="893" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-04</text>
+<rect x="250" y="882" width="249.689" height="14" fill="#3f7d58" />
+<text x="505.689" y="893" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,45 M</text>
+<text x="242" y="915" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-04</text>
+<rect x="250" y="904" width="247.726" height="14" fill="#3f7d58" />
+<text x="503.726" y="915" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,44 M</text>
+<text x="242" y="937" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-04</text>
+<rect x="250" y="926" width="299.538" height="14" fill="#7a7f35" />
+<text x="555.538" y="937" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,74 M</text>
+<text x="242" y="959" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-05</text>
+<rect x="250" y="948" width="93.013" height="14" fill="#2f6f9f" />
+<text x="349.013" y="959" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >540,11 k</text>
+<text x="242" y="981" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-05</text>
+<rect x="250" y="970" width="103.346" height="14" fill="#7a7f35" />
+<text x="359.346" y="981" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >600,11 k</text>
+<text x="242" y="1003" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-05</text>
+<rect x="250" y="992" width="93.013" height="14" fill="#a8324a" />
+<text x="349.013" y="1003" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >540,11 k</text>
+<text x="242" y="1025" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-05</text>
+<rect x="250" y="1014" width="64.117" height="14" fill="#7a7f35" />
+<text x="320.117" y="1025" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >372,32 k</text>
+<text x="242" y="1047" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-05</text>
+<rect x="250" y="1036" width="65.679" height="14" fill="#8a5fa8" />
+<text x="321.679" y="1047" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >381,39 k</text>
+<text x="242" y="1069" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-05</text>
+<rect x="250" y="1058" width="93.013" height="14" fill="#3f7d58" />
+<text x="349.013" y="1069" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >540,11 k</text>
+<text x="242" y="1091" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-05</text>
+<rect x="250" y="1080" width="93.018" height="14" fill="#b5651d" />
+<text x="349.018" y="1091" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >540,14 k</text>
+<text x="242" y="1113" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-05</text>
+<rect x="250" y="1102" width="64.123" height="14" fill="#3f7d58" />
+<text x="320.123" y="1113" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >372,35 k</text>
+<text x="242" y="1135" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-05</text>
+<rect x="250" y="1124" width="65.685" height="14" fill="#3f7d58" />
+<text x="321.685" y="1135" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >381,42 k</text>
+<text x="242" y="1157" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-05</text>
+<rect x="250" y="1146" width="93.008" height="14" fill="#7a7f35" />
+<text x="349.008" y="1157" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >540,08 k</text>
+<text x="242" y="1179" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-06/10</text>
+<rect x="250" y="1168" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="1179" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >243</text>
+<text x="242" y="1201" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-06/10</text>
+<rect x="250" y="1190" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1201" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >293</text>
+<text x="242" y="1223" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-06/10</text>
+<rect x="250" y="1212" width="1" height="14" fill="#a8324a" />
+<text x="257" y="1223" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >243</text>
+<text x="242" y="1245" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-06/10</text>
+<rect x="250" y="1234" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1245" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >233</text>
+<text x="242" y="1267" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-06/10</text>
+<rect x="250" y="1256" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="1267" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >243</text>
+<text x="242" y="1289" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-06/10</text>
+<rect x="250" y="1278" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1289" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >247</text>
+<text x="242" y="1311" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-06/10</text>
+<rect x="250" y="1300" width="1" height="14" fill="#b5651d" />
+<text x="257" y="1311" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >277</text>
+<text x="242" y="1333" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-06/10</text>
+<rect x="250" y="1322" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1333" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >271</text>
+<text x="242" y="1355" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-06/10</text>
+<rect x="250" y="1344" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1355" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >281</text>
+<text x="242" y="1377" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-06/10</text>
+<rect x="250" y="1366" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1377" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >214</text>
+<text x="242" y="1399" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-06/200</text>
+<rect x="250" y="1388" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="1399" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,49 k</text>
+<text x="242" y="1421" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-06/200</text>
+<rect x="250" y="1410" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1421" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >5,49 k</text>
+<text x="242" y="1443" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-06/200</text>
+<rect x="250" y="1432" width="1" height="14" fill="#a8324a" />
+<text x="257" y="1443" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,49 k</text>
+<text x="242" y="1465" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-06/200</text>
+<rect x="250" y="1454" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1465" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,83 k</text>
+<text x="242" y="1487" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-06/200</text>
+<rect x="250" y="1476" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="1487" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,87 k</text>
+<text x="242" y="1509" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-06/200</text>
+<rect x="250" y="1498" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1509" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,49 k</text>
+<text x="242" y="1531" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-06/200</text>
+<rect x="250" y="1520" width="1" height="14" fill="#b5651d" />
+<text x="257" y="1531" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,52 k</text>
+<text x="242" y="1553" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-06/200</text>
+<rect x="250" y="1542" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1553" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,86 k</text>
+<text x="242" y="1575" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-06/200</text>
+<rect x="250" y="1564" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1575" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,91 k</text>
+<text x="242" y="1597" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-06/200</text>
+<rect x="250" y="1586" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1597" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,46 k</text>
+<text x="242" y="1619" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-06/25</text>
+<rect x="250" y="1608" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="1619" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >584</text>
+<text x="242" y="1641" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-06/25</text>
+<rect x="250" y="1630" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1641" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >709</text>
+<text x="242" y="1663" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-06/25</text>
+<rect x="250" y="1652" width="1" height="14" fill="#a8324a" />
+<text x="257" y="1663" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >584</text>
+<text x="242" y="1685" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-06/25</text>
+<rect x="250" y="1674" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1685" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >525</text>
+<text x="242" y="1707" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-06/25</text>
+<rect x="250" y="1696" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="1707" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >565</text>
+<text x="242" y="1729" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-06/25</text>
+<rect x="250" y="1718" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1729" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >588</text>
+<text x="242" y="1751" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-06/25</text>
+<rect x="250" y="1740" width="1" height="14" fill="#b5651d" />
+<text x="257" y="1751" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >618</text>
+<text x="242" y="1773" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-06/25</text>
+<rect x="250" y="1762" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1773" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >563</text>
+<text x="242" y="1795" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-06/25</text>
+<rect x="250" y="1784" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1795" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >603</text>
+<text x="242" y="1817" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-06/25</text>
+<rect x="250" y="1806" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1817" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >555</text>
+<text x="242" y="1839" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-06/5</text>
+<rect x="250" y="1828" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="1839" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >136</text>
+<text x="242" y="1861" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-06/5</text>
+<rect x="250" y="1850" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1861" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >161</text>
+<text x="242" y="1883" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-06/5</text>
+<rect x="250" y="1872" width="1" height="14" fill="#a8324a" />
+<text x="257" y="1883" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >136</text>
+<text x="242" y="1905" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-06/5</text>
+<rect x="250" y="1894" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="1905" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >140</text>
+<text x="242" y="1927" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-06/5</text>
+<rect x="250" y="1916" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="1927" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >141</text>
+<text x="242" y="1949" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-06/5</text>
+<rect x="250" y="1938" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1949" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >140</text>
+<text x="242" y="1971" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-06/5</text>
+<rect x="250" y="1960" width="1" height="14" fill="#b5651d" />
+<text x="257" y="1971" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >170</text>
+<text x="242" y="1993" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-06/5</text>
+<rect x="250" y="1982" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1993" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >178</text>
+<text x="242" y="2015" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-06/5</text>
+<rect x="250" y="2004" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="2015" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >179</text>
+<text x="242" y="2037" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-06/5</text>
+<rect x="250" y="2026" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="2037" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >107</text>
+<text x="242" y="2059" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-06/50</text>
+<rect x="250" y="2048" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="2059" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,11 k</text>
+<text x="242" y="2081" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-06/50</text>
+<rect x="250" y="2070" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="2081" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,36 k</text>
+<text x="242" y="2103" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-06/50</text>
+<rect x="250" y="2092" width="1" height="14" fill="#a8324a" />
+<text x="257" y="2103" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,11 k</text>
+<text x="242" y="2125" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-06/50</text>
+<rect x="250" y="2114" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="2125" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >972</text>
+<text x="242" y="2147" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-06/50</text>
+<rect x="250" y="2136" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="2147" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,01 k</text>
+<text x="242" y="2169" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-06/50</text>
+<rect x="250" y="2158" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="2169" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,11 k</text>
+<text x="242" y="2191" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-06/50</text>
+<rect x="250" y="2180" width="1" height="14" fill="#b5651d" />
+<text x="257" y="2191" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,14 k</text>
+<text x="242" y="2213" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-06/50</text>
+<rect x="250" y="2202" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="2213" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,01 k</text>
+<text x="242" y="2235" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-06/50</text>
+<rect x="250" y="2224" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="2235" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,05 k</text>
+<text x="242" y="2257" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-06/50</text>
+<rect x="250" y="2246" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="2257" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,08 k</text>
+<text x="242" y="2279" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-06/511</text>
+<rect x="250" y="2268" width="1.946" height="14" fill="#2f6f9f" />
+<text x="257.946" y="2279" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,3 k</text>
+<text x="242" y="2301" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-06/511</text>
+<rect x="250" y="2290" width="2.386" height="14" fill="#7a7f35" />
+<text x="258.386" y="2301" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >13,85 k</text>
+<text x="242" y="2323" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-06/511</text>
+<rect x="250" y="2312" width="1.946" height="14" fill="#a8324a" />
+<text x="257.946" y="2323" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,3 k</text>
+<text x="242" y="2345" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-06/511</text>
+<rect x="250" y="2334" width="1.651" height="14" fill="#7a7f35" />
+<text x="257.651" y="2345" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,59 k</text>
+<text x="242" y="2367" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-06/511</text>
+<rect x="250" y="2356" width="1.654" height="14" fill="#8a5fa8" />
+<text x="257.654" y="2367" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,61 k</text>
+<text x="242" y="2389" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-06/511</text>
+<rect x="250" y="2378" width="1.947" height="14" fill="#3f7d58" />
+<text x="257.947" y="2389" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,3 k</text>
+<text x="242" y="2411" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-06/511</text>
+<rect x="250" y="2400" width="1.952" height="14" fill="#b5651d" />
+<text x="257.952" y="2411" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,33 k</text>
+<text x="242" y="2433" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-06/511</text>
+<rect x="250" y="2422" width="1.658" height="14" fill="#3f7d58" />
+<text x="257.658" y="2433" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,63 k</text>
+<text x="242" y="2455" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-06/511</text>
+<rect x="250" y="2444" width="1.661" height="14" fill="#3f7d58" />
+<text x="257.661" y="2455" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,65 k</text>
+<text x="242" y="2477" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-06/511</text>
+<rect x="250" y="2466" width="1.941" height="14" fill="#7a7f35" />
+<text x="257.941" y="2477" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,27 k</text>
+<text x="242" y="2499" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-07/ascii</text>
+<rect x="250" y="2488" width="14.595" height="14" fill="#2f6f9f" />
+<text x="270.595" y="2499" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >84,75 k</text>
+<text x="242" y="2521" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-07/ascii</text>
+<rect x="250" y="2510" width="14.595" height="14" fill="#7a7f35" />
+<text x="270.595" y="2521" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >84,75 k</text>
+<text x="242" y="2543" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-07/ascii</text>
+<rect x="250" y="2532" width="14.595" height="14" fill="#a8324a" />
+<text x="270.595" y="2543" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >84,75 k</text>
+<text x="242" y="2565" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-07/ascii</text>
+<rect x="250" y="2554" width="11.295" height="14" fill="#7a7f35" />
+<text x="267.295" y="2565" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >65,59 k</text>
+<text x="242" y="2587" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-07/ascii</text>
+<rect x="250" y="2576" width="11.323" height="14" fill="#8a5fa8" />
+<text x="267.323" y="2587" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >65,75 k</text>
+<text x="242" y="2609" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-07/ascii</text>
+<rect x="250" y="2598" width="14.595" height="14" fill="#3f7d58" />
+<text x="270.595" y="2609" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >84,75 k</text>
+<text x="242" y="2631" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-07/ascii</text>
+<rect x="250" y="2620" width="14.6" height="14" fill="#b5651d" />
+<text x="270.6" y="2631" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >84,78 k</text>
+<text x="242" y="2653" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-07/ascii</text>
+<rect x="250" y="2642" width="11.302" height="14" fill="#3f7d58" />
+<text x="267.302" y="2653" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >65,63 k</text>
+<text x="242" y="2675" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-07/ascii</text>
+<rect x="250" y="2664" width="11.33" height="14" fill="#3f7d58" />
+<text x="267.33" y="2675" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >65,79 k</text>
+<text x="242" y="2697" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-07/ascii</text>
+<rect x="250" y="2686" width="14.59" height="14" fill="#7a7f35" />
+<text x="270.59" y="2697" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >84,72 k</text>
+<text x="242" y="2719" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-07/unicode</text>
+<rect x="250" y="2708" width="19.591" height="14" fill="#2f6f9f" />
+<text x="275.591" y="2719" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >113,76 k</text>
+<text x="242" y="2741" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-07/unicode</text>
+<rect x="250" y="2730" width="19.592" height="14" fill="#7a7f35" />
+<text x="275.592" y="2741" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >113,77 k</text>
+<text x="242" y="2763" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-07/unicode</text>
+<rect x="250" y="2752" width="19.591" height="14" fill="#a8324a" />
+<text x="275.591" y="2763" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >113,76 k</text>
+<text x="242" y="2785" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-07/unicode</text>
+<rect x="250" y="2774" width="2.131" height="14" fill="#7a7f35" />
+<text x="258.131" y="2785" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >12,38 k</text>
+<text x="242" y="2807" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-07/unicode</text>
+<rect x="250" y="2796" width="1.748" height="14" fill="#8a5fa8" />
+<text x="257.748" y="2807" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >10,15 k</text>
+<text x="242" y="2829" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-07/unicode</text>
+<rect x="250" y="2818" width="19.591" height="14" fill="#3f7d58" />
+<text x="275.591" y="2829" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >113,76 k</text>
+<text x="242" y="2851" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-07/unicode</text>
+<rect x="250" y="2840" width="19.597" height="14" fill="#b5651d" />
+<text x="275.597" y="2851" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >113,79 k</text>
+<text x="242" y="2873" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-07/unicode</text>
+<rect x="250" y="2862" width="2.138" height="14" fill="#3f7d58" />
+<text x="258.138" y="2873" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >12,41 k</text>
+<text x="242" y="2895" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-07/unicode</text>
+<rect x="250" y="2884" width="1.755" height="14" fill="#3f7d58" />
+<text x="257.755" y="2895" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >10,19 k</text>
+<text x="242" y="2917" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-07/unicode</text>
+<rect x="250" y="2906" width="19.586" height="14" fill="#7a7f35" />
+<text x="275.586" y="2917" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >113,73 k</text>
+<text x="242" y="2939" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-08</text>
+<rect x="250" y="2928" width="155.002" height="14" fill="#2f6f9f" />
+<text x="411.002" y="2939" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,07 k</text>
+<text x="242" y="2961" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-08</text>
+<rect x="250" y="2950" width="155.003" height="14" fill="#7a7f35" />
+<text x="411.003" y="2961" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,08 k</text>
+<text x="242" y="2983" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-08</text>
+<rect x="250" y="2972" width="155.002" height="14" fill="#a8324a" />
+<text x="411.002" y="2983" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,07 k</text>
+<text x="242" y="3005" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-08</text>
+<rect x="250" y="2994" width="155.002" height="14" fill="#7a7f35" />
+<text x="411.002" y="3005" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,07 k</text>
+<text x="242" y="3027" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-08</text>
+<rect x="250" y="3016" width="155.049" height="14" fill="#8a5fa8" />
+<text x="411.049" y="3027" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,34 k</text>
+<text x="242" y="3049" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-08</text>
+<rect x="250" y="3038" width="155.002" height="14" fill="#3f7d58" />
+<text x="411.002" y="3049" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,07 k</text>
+<text x="242" y="3071" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-08</text>
+<rect x="250" y="3060" width="155.007" height="14" fill="#b5651d" />
+<text x="411.007" y="3071" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,1 k</text>
+<text x="242" y="3093" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-08</text>
+<rect x="250" y="3082" width="155.009" height="14" fill="#3f7d58" />
+<text x="411.009" y="3093" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,11 k</text>
+<text x="242" y="3115" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-08</text>
+<rect x="250" y="3104" width="155.056" height="14" fill="#3f7d58" />
+<text x="411.056" y="3115" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,38 k</text>
+<text x="242" y="3137" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-08</text>
+<rect x="250" y="3126" width="154.997" height="14" fill="#7a7f35" />
+<text x="410.997" y="3137" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,04 k</text>
+<text x="242" y="3159" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-09</text>
+<rect x="250" y="3148" width="62.002" height="14" fill="#2f6f9f" />
+<text x="318.002" y="3159" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >360,03 k</text>
+<text x="242" y="3181" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-09</text>
+<rect x="250" y="3170" width="62.003" height="14" fill="#7a7f35" />
+<text x="318.003" y="3181" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >360,04 k</text>
+<text x="242" y="3203" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-09</text>
+<rect x="250" y="3192" width="62.002" height="14" fill="#a8324a" />
+<text x="318.002" y="3203" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >360,03 k</text>
+<text x="242" y="3225" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-09</text>
+<rect x="250" y="3214" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="3225" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >106</text>
+<text x="242" y="3247" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-09</text>
+<rect x="250" y="3236" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="3247" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,22 k</text>
+<text x="242" y="3269" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-09</text>
+<rect x="250" y="3258" width="62.003" height="14" fill="#3f7d58" />
+<text x="318.003" y="3269" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >360,04 k</text>
+<text x="242" y="3291" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-09</text>
+<rect x="250" y="3280" width="62.008" height="14" fill="#b5651d" />
+<text x="318.008" y="3291" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >360,07 k</text>
+<text x="242" y="3313" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-09</text>
+<rect x="250" y="3302" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="3313" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >144</text>
+<text x="242" y="3335" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-09</text>
+<rect x="250" y="3324" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="3335" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,26 k</text>
+<text x="242" y="3357" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-09</text>
+<rect x="250" y="3346" width="61.997" height="14" fill="#7a7f35" />
+<text x="317.997" y="3357" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >360,01 k</text>
+<text x="242" y="3379" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-10</text>
+<rect x="250" y="3368" width="1.24" height="14" fill="#7a7f35" />
+<text x="257.24" y="3379" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >7,2 k</text>
+<text x="242" y="3401" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-11</text>
+<rect x="250" y="3390" width="1.348" height="14" fill="#7a7f35" />
+<text x="257.348" y="3401" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >7,83 k</text>
+<text x="242" y="3423" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-12</text>
+<rect x="250" y="3412" width="18.886" height="14" fill="#2f6f9f" />
+<text x="274.886" y="3423" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >109,67 k</text>
+<text x="242" y="3445" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-12</text>
+<rect x="250" y="3434" width="20.88" height="14" fill="#7a7f35" />
+<text x="276.88" y="3445" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >121,25 k</text>
+<text x="242" y="3467" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-12</text>
+<rect x="250" y="3456" width="18.886" height="14" fill="#a8324a" />
+<text x="274.886" y="3467" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >109,67 k</text>
+<text x="242" y="3489" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-12</text>
+<rect x="250" y="3478" width="15.773" height="14" fill="#7a7f35" />
+<text x="271.773" y="3489" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >91,59 k</text>
+<text x="242" y="3511" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-12</text>
+<rect x="250" y="3500" width="15.476" height="14" fill="#8a5fa8" />
+<text x="271.476" y="3511" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >89,87 k</text>
+<text x="242" y="3533" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-12</text>
+<rect x="250" y="3522" width="18.887" height="14" fill="#3f7d58" />
+<text x="274.887" y="3533" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >109,67 k</text>
+<text x="242" y="3555" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-12</text>
+<rect x="250" y="3544" width="18.892" height="14" fill="#b5651d" />
+<text x="274.892" y="3555" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >109,7 k</text>
+<text x="242" y="3577" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-12</text>
+<rect x="250" y="3566" width="15.779" height="14" fill="#3f7d58" />
+<text x="271.779" y="3577" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >91,63 k</text>
+<text x="242" y="3599" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-12</text>
+<rect x="250" y="3588" width="15.483" height="14" fill="#3f7d58" />
+<text x="271.483" y="3599" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >89,91 k</text>
+<text x="242" y="3621" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-12</text>
+<rect x="250" y="3610" width="18.881" height="14" fill="#7a7f35" />
+<text x="274.881" y="3621" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >109,64 k</text>
+<text x="242" y="3643" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-13</text>
+<rect x="250" y="3632" width="3.213" height="14" fill="#2f6f9f" />
+<text x="259.213" y="3643" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,66 k</text>
+<text x="242" y="3665" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-13</text>
+<rect x="250" y="3654" width="3.476" height="14" fill="#7a7f35" />
+<text x="259.476" y="3665" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >20,18 k</text>
+<text x="242" y="3687" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-13</text>
+<rect x="250" y="3676" width="3.213" height="14" fill="#a8324a" />
+<text x="259.213" y="3687" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,66 k</text>
+<text x="242" y="3709" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-13</text>
+<rect x="250" y="3698" width="1.433" height="14" fill="#7a7f35" />
+<text x="257.433" y="3709" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,32 k</text>
+<text x="242" y="3731" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-13</text>
+<rect x="250" y="3720" width="1.428" height="14" fill="#8a5fa8" />
+<text x="257.428" y="3731" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,29 k</text>
+<text x="242" y="3753" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-13</text>
+<rect x="250" y="3742" width="3.214" height="14" fill="#3f7d58" />
+<text x="259.214" y="3753" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,66 k</text>
+<text x="242" y="3775" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-13</text>
+<rect x="250" y="3764" width="3.219" height="14" fill="#b5651d" />
+<text x="259.219" y="3775" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,69 k</text>
+<text x="242" y="3797" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-13</text>
+<rect x="250" y="3786" width="1.44" height="14" fill="#3f7d58" />
+<text x="257.44" y="3797" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,36 k</text>
+<text x="242" y="3819" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-13</text>
+<rect x="250" y="3808" width="1.435" height="14" fill="#3f7d58" />
+<text x="257.435" y="3819" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,33 k</text>
+<text x="242" y="3841" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-13</text>
+<rect x="250" y="3830" width="3.208" height="14" fill="#7a7f35" />
+<text x="259.208" y="3841" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,63 k</text>
+<text x="242" y="3863" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-14/batch</text>
+<rect x="250" y="3852" width="619.992" height="14" fill="#2f6f9f" />
+<text x="875.992" y="3863" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,6 M</text>
+<text x="242" y="3885" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-14/batch</text>
+<rect x="250" y="3874" width="620" height="14" fill="#7a7f35" />
+<text x="876" y="3885" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,6 M</text>
+<text x="242" y="3907" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-14/batch</text>
+<rect x="250" y="3896" width="619.992" height="14" fill="#a8324a" />
+<text x="875.992" y="3907" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,6 M</text>
+<text x="242" y="3929" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-14/batch</text>
+<rect x="250" y="3918" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="3929" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >459</text>
+<text x="242" y="3951" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-14/batch</text>
+<rect x="250" y="3940" width="4.699" height="14" fill="#8a5fa8" />
+<text x="260.699" y="3951" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >27,29 k</text>
+<text x="242" y="3973" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-14/batch</text>
+<rect x="250" y="3962" width="619.993" height="14" fill="#3f7d58" />
+<text x="875.993" y="3973" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,6 M</text>
+<text x="242" y="3995" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-14/batch</text>
+<rect x="250" y="3984" width="619.998" height="14" fill="#b5651d" />
+<text x="875.998" y="3995" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,6 M</text>
+<text x="242" y="4017" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-14/batch</text>
+<rect x="250" y="4006" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="4017" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >497</text>
+<text x="242" y="4039" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-14/batch</text>
+<rect x="250" y="4028" width="4.706" height="14" fill="#3f7d58" />
+<text x="260.706" y="4039" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >27,33 k</text>
+<text x="242" y="4061" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-14/batch</text>
+<rect x="250" y="4050" width="619.987" height="14" fill="#7a7f35" />
+<text x="875.987" y="4061" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,6 M</text>
+<text x="242" y="4083" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-14/blob</text>
+<rect x="250" y="4072" width="155.001" height="14" fill="#2f6f9f" />
+<text x="411.001" y="4083" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,06 k</text>
+<text x="242" y="4105" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-14/blob</text>
+<rect x="250" y="4094" width="155.002" height="14" fill="#7a7f35" />
+<text x="411.002" y="4105" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,07 k</text>
+<text x="242" y="4127" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-14/blob</text>
+<rect x="250" y="4116" width="155.001" height="14" fill="#a8324a" />
+<text x="411.001" y="4127" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,06 k</text>
+<text x="242" y="4149" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-14/blob</text>
+<rect x="250" y="4138" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="4149" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >331</text>
+<text x="242" y="4171" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-14/blob</text>
+<rect x="250" y="4160" width="1.222" height="14" fill="#8a5fa8" />
+<text x="257.222" y="4171" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >7,1 k</text>
+<text x="242" y="4193" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-14/blob</text>
+<rect x="250" y="4182" width="155.001" height="14" fill="#3f7d58" />
+<text x="411.001" y="4193" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,07 k</text>
+<text x="242" y="4215" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-14/blob</text>
+<rect x="250" y="4204" width="155.007" height="14" fill="#b5651d" />
+<text x="411.007" y="4215" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,1 k</text>
+<text x="242" y="4237" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-14/blob</text>
+<rect x="250" y="4226" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="4237" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >369</text>
+<text x="242" y="4259" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-14/blob</text>
+<rect x="250" y="4248" width="1.229" height="14" fill="#3f7d58" />
+<text x="257.229" y="4259" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >7,13 k</text>
+<text x="242" y="4281" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-14/blob</text>
+<rect x="250" y="4270" width="154.996" height="14" fill="#7a7f35" />
+<text x="410.996" y="4281" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >900,03 k</text>
+<text x="242" y="4303" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-15</text>
+<rect x="250" y="4292" width="344.431" height="14" fill="#2f6f9f" />
+<text x="600.431" y="4303" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2 M</text>
+<text x="242" y="4325" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-15</text>
+<rect x="250" y="4314" width="344.434" height="14" fill="#7a7f35" />
+<text x="600.434" y="4325" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2 M</text>
+<text x="242" y="4347" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-15</text>
+<rect x="250" y="4336" width="344.431" height="14" fill="#a8324a" />
+<text x="600.431" y="4347" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2 M</text>
+<text x="242" y="4369" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-15</text>
+<rect x="250" y="4358" width="337.386" height="14" fill="#7a7f35" />
+<text x="593.386" y="4369" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,96 M</text>
+<text x="242" y="4391" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-15</text>
+<rect x="250" y="4380" width="337.455" height="14" fill="#8a5fa8" />
+<text x="593.455" y="4391" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,96 M</text>
+<text x="242" y="4413" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-15</text>
+<rect x="250" y="4402" width="344.431" height="14" fill="#3f7d58" />
+<text x="600.431" y="4413" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2 M</text>
+<text x="242" y="4435" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-15</text>
+<rect x="250" y="4424" width="344.436" height="14" fill="#b5651d" />
+<text x="600.436" y="4435" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2 M</text>
+<text x="242" y="4457" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-15</text>
+<rect x="250" y="4446" width="337.392" height="14" fill="#3f7d58" />
+<text x="593.392" y="4457" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,96 M</text>
+<text x="242" y="4479" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-15</text>
+<rect x="250" y="4468" width="337.462" height="14" fill="#3f7d58" />
+<text x="593.462" y="4479" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,96 M</text>
+<text x="242" y="4501" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-15</text>
+<rect x="250" y="4490" width="344.426" height="14" fill="#7a7f35" />
+<text x="600.426" y="4501" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2 M</text>
+<text x="242" y="4523" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-16</text>
+<rect x="250" y="4512" width="120.686" height="14" fill="#2f6f9f" />
+<text x="376.686" y="4523" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >700,8 k</text>
+<text x="242" y="4545" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-16</text>
+<rect x="250" y="4534" width="120.686" height="14" fill="#7a7f35" />
+<text x="376.686" y="4545" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >700,8 k</text>
+<text x="242" y="4567" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-16</text>
+<rect x="250" y="4556" width="120.686" height="14" fill="#a8324a" />
+<text x="376.686" y="4567" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >700,8 k</text>
+<text x="242" y="4589" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-16</text>
+<rect x="250" y="4578" width="94.205" height="14" fill="#7a7f35" />
+<text x="350.205" y="4589" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >547,03 k</text>
+<text x="242" y="4611" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-16</text>
+<rect x="250" y="4600" width="94.089" height="14" fill="#8a5fa8" />
+<text x="350.089" y="4611" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >546,36 k</text>
+<text x="242" y="4633" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-16</text>
+<rect x="250" y="4622" width="120.686" height="14" fill="#3f7d58" />
+<text x="376.686" y="4633" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >700,8 k</text>
+<text x="242" y="4655" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-16</text>
+<rect x="250" y="4644" width="120.691" height="14" fill="#b5651d" />
+<text x="376.691" y="4655" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >700,83 k</text>
+<text x="242" y="4677" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-16</text>
+<rect x="250" y="4666" width="94.212" height="14" fill="#3f7d58" />
+<text x="350.212" y="4677" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >547,07 k</text>
+<text x="242" y="4699" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-16</text>
+<rect x="250" y="4688" width="94.095" height="14" fill="#3f7d58" />
+<text x="350.095" y="4699" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >546,39 k</text>
+<text x="242" y="4721" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-16</text>
+<rect x="250" y="4710" width="120.681" height="14" fill="#7a7f35" />
+<text x="376.681" y="4721" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >700,77 k</text>
+<text x="242" y="4743" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-17</text>
+<rect x="250" y="4732" width="3.43" height="14" fill="#2f6f9f" />
+<text x="259.43" y="4743" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >19,92 k</text>
+<text x="242" y="4765" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-17</text>
+<rect x="250" y="4754" width="3.861" height="14" fill="#7a7f35" />
+<text x="259.861" y="4765" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >22,42 k</text>
+<text x="242" y="4787" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-17</text>
+<rect x="250" y="4776" width="3.43" height="14" fill="#a8324a" />
+<text x="259.43" y="4787" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >19,92 k</text>
+<text x="242" y="4809" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-17</text>
+<rect x="250" y="4798" width="1.633" height="14" fill="#7a7f35" />
+<text x="257.633" y="4809" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,48 k</text>
+<text x="242" y="4831" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-17</text>
+<rect x="250" y="4820" width="1.648" height="14" fill="#8a5fa8" />
+<text x="257.648" y="4831" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,57 k</text>
+<text x="242" y="4853" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-17</text>
+<rect x="250" y="4842" width="3.43" height="14" fill="#3f7d58" />
+<text x="259.43" y="4853" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >19,92 k</text>
+<text x="242" y="4875" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-17</text>
+<rect x="250" y="4864" width="3.435" height="14" fill="#b5651d" />
+<text x="259.435" y="4875" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >19,95 k</text>
+<text x="242" y="4897" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-17</text>
+<rect x="250" y="4886" width="1.639" height="14" fill="#3f7d58" />
+<text x="257.639" y="4897" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,52 k</text>
+<text x="242" y="4919" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-17</text>
+<rect x="250" y="4908" width="1.654" height="14" fill="#3f7d58" />
+<text x="257.654" y="4919" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >9,61 k</text>
+<text x="242" y="4941" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-17</text>
+<rect x="250" y="4930" width="3.425" height="14" fill="#7a7f35" />
+<text x="259.425" y="4941" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >19,89 k</text>
+<text x="242" y="4963" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-18</text>
+<rect x="250" y="4952" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="4963" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,88 k</text>
+<text x="242" y="4985" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-18</text>
+<rect x="250" y="4974" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="4985" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,88 k</text>
+<text x="242" y="5007" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-18</text>
+<rect x="250" y="4996" width="1" height="14" fill="#a8324a" />
+<text x="257" y="5007" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,88 k</text>
+<text x="242" y="5029" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-18</text>
+<rect x="250" y="5018" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="5029" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,64 k</text>
+<text x="242" y="5051" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-18</text>
+<rect x="250" y="5040" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="5051" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,65 k</text>
+<text x="242" y="5073" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-18</text>
+<rect x="250" y="5062" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="5073" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,88 k</text>
+<text x="242" y="5095" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-18</text>
+<rect x="250" y="5084" width="1" height="14" fill="#b5651d" />
+<text x="257" y="5095" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,91 k</text>
+<text x="242" y="5117" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-18</text>
+<rect x="250" y="5106" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="5117" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,67 k</text>
+<text x="242" y="5139" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-18</text>
+<rect x="250" y="5128" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="5139" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,68 k</text>
+<text x="242" y="5161" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-18</text>
+<rect x="250" y="5150" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="5161" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,85 k</text>
+<text x="242" y="5183" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-19</text>
+<rect x="250" y="5172" width="3.226" height="14" fill="#2f6f9f" />
+<text x="259.226" y="5183" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,73 k</text>
+<text x="242" y="5205" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-19</text>
+<rect x="250" y="5194" width="3.237" height="14" fill="#7a7f35" />
+<text x="259.237" y="5205" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,8 k</text>
+<text x="242" y="5227" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-19</text>
+<rect x="250" y="5216" width="3.226" height="14" fill="#a8324a" />
+<text x="259.226" y="5227" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,73 k</text>
+<text x="242" y="5249" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-19</text>
+<rect x="250" y="5238" width="2.012" height="14" fill="#7a7f35" />
+<text x="258.012" y="5249" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,68 k</text>
+<text x="242" y="5271" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-19</text>
+<rect x="250" y="5260" width="2.13" height="14" fill="#8a5fa8" />
+<text x="258.13" y="5271" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >12,37 k</text>
+<text x="242" y="5293" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-19</text>
+<rect x="250" y="5282" width="3.227" height="14" fill="#3f7d58" />
+<text x="259.227" y="5293" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,74 k</text>
+<text x="242" y="5315" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-19</text>
+<rect x="250" y="5304" width="3.232" height="14" fill="#b5651d" />
+<text x="259.232" y="5315" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,77 k</text>
+<text x="242" y="5337" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-19</text>
+<rect x="250" y="5326" width="2.018" height="14" fill="#3f7d58" />
+<text x="258.018" y="5337" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >11,72 k</text>
+<text x="242" y="5359" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-19</text>
+<rect x="250" y="5348" width="2.136" height="14" fill="#3f7d58" />
+<text x="258.136" y="5359" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >12,41 k</text>
+<text x="242" y="5381" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-19</text>
+<rect x="250" y="5370" width="3.221" height="14" fill="#7a7f35" />
+<text x="259.221" y="5381" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >18,7 k</text>
+<text x="242" y="5403" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P0 · DATA-20</text>
+<rect x="250" y="5392" width="5.796" height="14" fill="#2f6f9f" />
+<text x="261.796" y="5403" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,66 k</text>
+<text x="242" y="5425" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P1 · DATA-20</text>
+<rect x="250" y="5414" width="5.883" height="14" fill="#7a7f35" />
+<text x="261.883" y="5425" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >34,16 k</text>
+<text x="242" y="5447" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P2 · DATA-20</text>
+<rect x="250" y="5436" width="5.796" height="14" fill="#a8324a" />
+<text x="261.796" y="5447" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,66 k</text>
+<text x="242" y="5469" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3b · DATA-20</text>
+<rect x="250" y="5458" width="4.211" height="14" fill="#7a7f35" />
+<text x="260.211" y="5469" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >24,45 k</text>
+<text x="242" y="5491" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P3d · DATA-20</text>
+<rect x="250" y="5480" width="4.202" height="14" fill="#8a5fa8" />
+<text x="260.202" y="5491" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >24,4 k</text>
+<text x="242" y="5513" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P4 · DATA-20</text>
+<rect x="250" y="5502" width="5.797" height="14" fill="#3f7d58" />
+<text x="261.797" y="5513" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,66 k</text>
+<text x="242" y="5535" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P5 · DATA-20</text>
+<rect x="250" y="5524" width="5.802" height="14" fill="#b5651d" />
+<text x="261.802" y="5535" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,69 k</text>
+<text x="242" y="5557" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6b · DATA-20</text>
+<rect x="250" y="5546" width="4.217" height="14" fill="#3f7d58" />
+<text x="260.217" y="5557" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >24,49 k</text>
+<text x="242" y="5579" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P6d · DATA-20</text>
+<rect x="250" y="5568" width="4.209" height="14" fill="#3f7d58" />
+<text x="260.209" y="5579" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >24,44 k</text>
+<text x="242" y="5601" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >B-P7 · DATA-20</text>
+<rect x="250" y="5590" width="5.791" height="14" fill="#7a7f35" />
+<text x="261.791" y="5601" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,63 k</text>
+<line x1="250" y1="64" x2="250" y2="5608" stroke="#dfe3e8" stroke-width="1" />
+<text x="250" y="5636" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >0 … 3,6 M bytes</text>
+</svg>

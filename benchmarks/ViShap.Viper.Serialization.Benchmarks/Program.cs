@@ -12,9 +12,24 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        if (args is ["--probe-child", var probeAdapter, var capability, ..])
+        {
+            return Capabilities.Probes.Child(probeAdapter, capability);
+        }
+
         if (args.Contains("--verify", StringComparer.Ordinal))
         {
-            return Verify();
+            return args.Contains("--market", StringComparer.Ordinal) ? VerifyMarket() : Verify() | VerifyMarket();
+        }
+
+        if (args.Contains("--check-stop", StringComparer.Ordinal))
+        {
+            return StopCheck.Run(args);
+        }
+
+        if (args.Contains("--check-market-report", StringComparer.Ordinal))
+        {
+            return MarketReportCheck.Run();
         }
 
         if (args.Contains("--manifest", StringComparer.Ordinal))
@@ -32,6 +47,11 @@ internal static class Program
             return ColdStartRunner.Child(profile, dataset, operation, args.Length > 4 ? args[4] : null);
         }
 
+        if (args is ["--first-use-child", var firstUseProfile, ..])
+        {
+            return FirstUseRunner.Child(firstUseProfile);
+        }
+
         // A track run carries the same flags the single modes use — --filter, --soak — so it is
         // recognized before any of them.
         if (args.Contains("--track", StringComparer.Ordinal))
@@ -44,9 +64,19 @@ internal static class Program
             return Report(args);
         }
 
+        if (args is ["--compare", var baseline, var run, ..])
+        {
+            return BaselineComparison.Run(baseline, run, Argument(args, "--out"));
+        }
+
         if (args.Contains("--cold", StringComparer.Ordinal))
         {
             return ColdStartRunner.Drive();
+        }
+
+        if (args.Contains("--first-use", StringComparer.Ordinal))
+        {
+            return FirstUseRunner.Drive();
         }
 
         if (args.Contains("--contract-cold", StringComparer.Ordinal))
@@ -70,18 +100,19 @@ internal static class Program
     }
 
     /// <summary>
-    /// §29.1 — one command runs a whole track: every suite in order, every artifact of §23 into the
+    /// §29.1, §29.2 — one command runs a whole track: every suite in order, every artifact of §23 into the
     /// run's own directory, and nothing interactive in the middle.
     /// </summary>
     private static int Track(string[] args)
     {
         var track = Argument(args, "--track");
 
-        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(track, "A", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(track, "B", StringComparison.OrdinalIgnoreCase))
         {
             Console.Error.WriteLine(
-                $"Track '{track}' has no runner. Track A measures Viper alone; Track B follows it and needs " +
-                "the competitor roster of the plan's §5.");
+                $"Track '{track}' has no runner. Track A measures Viper alone; Track B measures the market of " +
+                "the plan's §5.2 beside it.");
 
             return 1;
         }
@@ -91,7 +122,9 @@ internal static class Program
 
     /// <summary>
     /// REP-02 — regenerates the report and the charts of an existing run from its raw files, so a
-    /// baseline committed long ago still produces the report it produced on the day it was taken.
+    /// baseline committed long ago still produces the report it produced on the day it was taken. A run
+    /// whose process ended before it wrote <c>results.csv</c> is rebuilt from BenchmarkDotNet's exports
+    /// first, and recorded as an interrupted measurement.
     /// </summary>
     private static int Report(string[] args)
     {
@@ -101,6 +134,11 @@ internal static class Program
         {
             Console.Error.WriteLine($"No run directory at '{directory}'.");
             return 1;
+        }
+
+        if (!File.Exists(Path.Combine(directory, "results.csv")))
+        {
+            return TrackRunner.Recover(directory);
         }
 
         ReportWriter.Generate(directory);
@@ -180,6 +218,57 @@ internal static class Program
         return failed == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    /// Track B's verification (§7.4–§7.6): the model families against the schema, the probes, the tiers
+    /// they place each configuration in, and every (configuration, dataset) pair of those tiers. Writes
+    /// the capability matrix and the verified pairs the comparative suites take their cases from.
+    /// </summary>
+    private static int VerifyMarket()
+    {
+        var verification = MarketVerifier.VerifyAll();
+        var directory = MarketCases.Directory;
+        MarketVerifier.Write(verification, directory);
+        MarketCases.Record(verification);
+
+        foreach (var failure in verification.SchemaFailures)
+        {
+            Console.WriteLine($"schema: {failure}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"{"Configuration",-44} {"Capability",-18} {"State",-12} Detail");
+        Console.WriteLine(new string('-', 120));
+
+        foreach (var result in verification.Capabilities)
+        {
+            Console.WriteLine($"{result.Adapter.Name,-44} {result.Capability,-18} {result.Outcome.State,-12} {result.Outcome.Detail}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"{"Configuration",-44} {"Dataset",-20} {"State",-12} {"Buffered",10} {"Streamed",10}  Detail");
+        Console.WriteLine(new string('-', 120));
+
+        foreach (var pair in verification.Pairs)
+        {
+            Console.WriteLine(
+                $"{pair.Adapter.Name,-44} {pair.Dataset,-20} {pair.State,-12} {pair.BufferedBytes,10} {pair.StreamedBytes,10}  {pair.Detail}");
+        }
+
+        Console.WriteLine();
+        foreach (var tier in verification.Tiers.GroupBy(placement => placement.Tier).OrderBy(group => group.Key))
+        {
+            var members = tier.Where(placement => placement.Intended && placement.Qualified).Select(placement => placement.Adapter.Name);
+            Console.WriteLine($"{tier.Key}: {string.Join(", ", members)}");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Market: {verification.Pairs.Count} pairs, {verification.Capabilities.Count} probes, " +
+            $"{verification.SchemaFailures.Count} schema failures, {verification.Failed} failed. Written to {directory}");
+
+        return verification.Failed == 0 ? 0 : 1;
+    }
+
     /// <summary>§14 — sizes, recorded without a timing in the same table.</summary>
     private static int Sizes()
     {
@@ -188,6 +277,8 @@ internal static class Program
         Directory.CreateDirectory(Environment.Paths.Artifacts);
         var output = Path.Combine(Environment.Paths.Artifacts, "payload-sizes.csv");
         Reporting.SizeReport.Write(rows, output);
+        Reporting.FormatSizeReport.Write(
+            Reporting.FormatSizeReport.Collect(), Path.Combine(Environment.Paths.Artifacts, "format-sizes.csv"));
 
         Console.WriteLine($"{"Profile",-8} {"Dataset",-22} {"Bytes",12} {"Envelope",10} {"Refs",8}  Ratio");
         Console.WriteLine(new string('-', 78));

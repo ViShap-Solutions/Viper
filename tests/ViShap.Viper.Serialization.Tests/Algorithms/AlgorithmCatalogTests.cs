@@ -9,7 +9,7 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Pins CAT-01…CAT-08: what a payload header names is resolved from the options that were built, and
+/// Pins CAT-01…CAT-10: what a payload header names is resolved from the options that were built, and
 /// from nothing else. Built-in identifiers are fixed, a custom name reaches only the configuration
 /// that registered it, and the set of registrations is a snapshot taken by <c>Build()</c>.
 /// </summary>
@@ -26,14 +26,65 @@ public class AlgorithmCatalogTests
         var catalog = AlgorithmCatalog.BuiltIn;
 
         Assert.IsType<NoCompression>(catalog.ResolveCompression(CompressionAlgorithm.None, null));
-        Assert.IsType<Deflate>(catalog.ResolveCompression(CompressionAlgorithm.Deflate, null));
-        Assert.IsType<Brotli>(catalog.ResolveCompression(CompressionAlgorithm.Brotli, null));
+        Assert.IsType<DeflateCompression>(catalog.ResolveCompression(CompressionAlgorithm.Deflate, null));
+        Assert.IsType<BrotliCompression>(catalog.ResolveCompression(CompressionAlgorithm.Brotli, null));
 
         Assert.IsType<NoChecksum>(catalog.ResolveChecksum(ChecksumAlgorithm.None, null));
-        Assert.IsType<Crc32>(catalog.ResolveChecksum(ChecksumAlgorithm.Crc32, null));
+        Assert.IsType<Crc32Checksum>(catalog.ResolveChecksum(ChecksumAlgorithm.Crc32, null));
+        Assert.IsType<XxHash3Checksum>(catalog.ResolveChecksum(ChecksumAlgorithm.XxHash3, null));
+        Assert.IsType<XxHash128Checksum>(catalog.ResolveChecksum(ChecksumAlgorithm.XxHash128, null));
 
         Assert.IsType<NoEncryption>(catalog.ResolveEncryption(EncryptionAlgorithm.None, null));
-        Assert.IsType<Aes256Gcm>(catalog.ResolveEncryption(EncryptionAlgorithm.Aes256Gcm, null));
+        Assert.IsType<Aes256GcmEncryption>(catalog.ResolveEncryption(EncryptionAlgorithm.Aes256Gcm, null));
+    }
+
+    // --- CAT-10: every built-in identifier resolves, the new ones included ---------------------------
+
+    [Fact]
+    public void Resolve_EveryBuiltInCompressionIdentifier_YieldsAnAlgorithmReportingIt()
+    {
+        foreach (var kind in Enum.GetValues<CompressionAlgorithm>().Where(kind => kind != CompressionAlgorithm.Custom))
+            Assert.Equal(kind, AlgorithmCatalog.BuiltIn.ResolveCompression(kind, null).Kind);
+    }
+
+    [Fact]
+    public void Resolve_EveryBuiltInChecksumIdentifier_YieldsAnAlgorithmReportingIt()
+    {
+        foreach (var kind in Enum.GetValues<ChecksumAlgorithm>().Where(kind => kind != ChecksumAlgorithm.Custom))
+            Assert.Equal(kind, AlgorithmCatalog.BuiltIn.ResolveChecksum(kind, null).Kind);
+    }
+
+    [Fact]
+    public void Resolve_EveryBuiltInEncryptionIdentifier_YieldsAnAlgorithmReportingIt()
+    {
+        foreach (var kind in Enum.GetValues<EncryptionAlgorithm>().Where(kind => kind != EncryptionAlgorithm.Custom))
+        {
+            if (kind == EncryptionAlgorithm.ChaCha20Poly1305 && !System.Security.Cryptography.ChaCha20Poly1305.IsSupported)
+            {
+                Assert.Throws<BinaryFormatNotSupportedException>(
+                    () => AlgorithmCatalog.BuiltIn.ResolveEncryption(kind, null));
+                continue;
+            }
+
+            Assert.Equal(kind, AlgorithmCatalog.BuiltIn.ResolveEncryption(kind, null).Kind);
+        }
+    }
+
+    [Fact]
+    public void BuiltInIdentifiers_AreTheOnesTheCatalogKnows()
+    {
+        Assert.Equal(
+            [CompressionAlgorithm.None, CompressionAlgorithm.Deflate, CompressionAlgorithm.Brotli, CompressionAlgorithm.Custom],
+            Enum.GetValues<CompressionAlgorithm>());
+        Assert.Equal(
+            [ChecksumAlgorithm.None, ChecksumAlgorithm.Crc32, ChecksumAlgorithm.XxHash3, ChecksumAlgorithm.XxHash128, ChecksumAlgorithm.Custom],
+            Enum.GetValues<ChecksumAlgorithm>());
+        Assert.Equal(
+            [EncryptionAlgorithm.None, EncryptionAlgorithm.Aes256Gcm, EncryptionAlgorithm.ChaCha20Poly1305, EncryptionAlgorithm.Custom],
+            Enum.GetValues<EncryptionAlgorithm>());
+        Assert.Equal(255, (int)ChecksumAlgorithm.Custom);
+        Assert.Equal(255, (int)EncryptionAlgorithm.Custom);
+        Assert.Equal(255, (int)CompressionAlgorithm.Custom);
     }
 
     [Fact]

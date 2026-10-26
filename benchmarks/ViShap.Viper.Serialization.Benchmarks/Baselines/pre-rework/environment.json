@@ -1,0 +1,24 @@
+{
+  "capturedUtc": "2026-09-27T04:27:33.8669897Z",
+  "os": "Microsoft Windows 10.0.26200",
+  "osArchitecture": "X64",
+  "processArchitecture": "X64",
+  "cpu": "11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz (Intel64 Family 6 Model 141 Stepping 1, GenuineIntel)",
+  "logicalCores": 12,
+  "runtime": ".NET 10.0.11",
+  "runtimeIdentifier": "win-x64",
+  "serverGc": false,
+  "gcLatencyMode": "Interactive",
+  "is64BitProcess": true,
+  "aesHardwareAcceleration": true,
+  "vectorHardwareAcceleration": true,
+  "debuggerAttached": false,
+  "configuration": "Release",
+  "benchmarkDotNet": "0.15.8.0",
+  "revision": "916f80551fd59f9fceeb25176ec9ee4d7806a443",
+  "branch": "rework/r0-baseline",
+  "dirty": false,
+  "packages": {
+    "BenchmarkDotNet": "0.15.8"
+  }
+}
