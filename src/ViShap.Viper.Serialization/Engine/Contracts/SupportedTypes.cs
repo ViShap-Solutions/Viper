@@ -143,8 +143,11 @@ public static class SupportedTypes
 
     /// <summary>
     /// A concrete collection the table names no entry for: created with its public parameterless
-    /// constructor and filled through its public instance <c>Add(T)</c>, declared on it or inherited.
-    /// A collection without that method is written, and reading one is refused.
+    /// constructor and read when it has a public instance <c>Add(T)</c>, declared on it or inherited. A
+    /// class is filled through that method when it returns nothing, a <see langword="bool"/> or a
+    /// reference; a value-type collection, or one whose <c>Add(T)</c> returns another value, through its
+    /// <see cref="ICollection{T}.Add(T)"/>. A collection without a public <c>Add(T)</c> is written, and
+    /// reading one is refused.
     /// </summary>
     /// <typeparam name="TCollection">The collection type: concrete, with a public parameterless constructor.</typeparam>
     /// <typeparam name="T">The element type of the <see cref="ICollection{T}"/> it implements.</typeparam>

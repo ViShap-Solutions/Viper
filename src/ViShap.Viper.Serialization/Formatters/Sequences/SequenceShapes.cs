@@ -250,8 +250,11 @@ internal sealed class ReadOnlySequenceShape<T>
 
 /// <summary>
 /// Any concrete type implementing <c>ICollection&lt;T&gt;</c> with a public parameterless constructor,
-/// created with that constructor and filled through its public instance <c>Add(T)</c>. The shape finds
-/// both itself, whichever path closes it, so a collection is read by one rule.
+/// created with that constructor and read only when it has a public instance <c>Add(T)</c>. A class is
+/// filled through that method when it returns nothing, a <see langword="bool"/> or a reference, whatever
+/// it returns being discarded; a value-type collection, or one whose <c>Add(T)</c> returns another value,
+/// through its <c>ICollection&lt;T&gt;.Add</c>, on the instance itself. The shape finds all of it itself,
+/// whichever path closes it, so a collection is read by one rule, and no element is boxed.
 /// </summary>
 internal sealed class CustomCollectionShape<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicMethods)] TCollection,
@@ -259,7 +262,12 @@ internal sealed class CustomCollectionShape<
     : SequenceShape<TCollection, T, TCollection, IEnumerator<T>>
     where TCollection : ICollection<T>, new()
 {
-    private readonly Action<TCollection, T>? _add = Adder();
+    private readonly MethodInfo? _publicAdd =
+        typeof(TCollection).GetMethod("Add", BindingFlags.Public | BindingFlags.Instance, [typeof(T)]);
+
+    private readonly Action<TCollection, T>? _add;
+
+    public CustomCollectionShape() => _add = Bound(_publicAdd);
 
     public override int? CountOf(TCollection collection) => Counts.Of(collection);
     public override IEnumerator<T> GetEnumerator(TCollection collection) => collection.GetEnumerator();
@@ -267,28 +275,45 @@ internal sealed class CustomCollectionShape<
 
     public override void Add(ref TCollection builder, T element)
     {
-        if (_add is null)
+        if (_add is not null)
+        {
+            _add(builder, element);
+            return;
+        }
+
+        if (_publicAdd is null)
             throw new BinaryTypeException(
                 $"'{typeof(TCollection)}' has no public instance method Add({typeof(T).Name}).");
 
-        _add(builder, element);
+        builder.Add(element);
     }
 
     /// <summary>
-    /// The collection's public instance <c>Add(T)</c>, declared on it or inherited, or
-    /// <see langword="null"/> when it has none. A value-type collection is handed to it as a copy.
+    /// A delegate over the public instance <c>Add(T)</c> of a class whose result can be discarded without
+    /// boxing — nothing, a <see langword="bool"/> or a reference; otherwise <see langword="null"/>.
     /// </summary>
-    private static Action<TCollection, T>? Adder()
+    private static Action<TCollection, T>? Bound(MethodInfo? method)
     {
-        var method = typeof(TCollection).GetMethod("Add", BindingFlags.Public | BindingFlags.Instance, [typeof(T)]);
-        if (method is null)
+        if (method is null || typeof(TCollection).IsValueType)
             return null;
 
-        if (!typeof(TCollection).IsValueType)
+        var result = method.ReturnType;
+        if (result == typeof(void))
             return method.CreateDelegate<Action<TCollection, T>>();
 
-        return (collection, element) =>
-            method.Invoke(collection, BindingFlags.DoNotWrapExceptions, binder: null, [element], culture: null);
+        if (result == typeof(bool))
+        {
+            var add = method.CreateDelegate<Func<TCollection, T, bool>>();
+            return (collection, element) => add(collection, element);
+        }
+
+        if (!result.IsValueType && !result.IsPointer && !result.IsByRef)
+        {
+            var add = method.CreateDelegate<Func<TCollection, T, object?>>();
+            return (collection, element) => add(collection, element);
+        }
+
+        return null;
     }
 
     public override TCollection Complete(TCollection builder) => builder;

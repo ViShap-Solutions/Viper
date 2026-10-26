@@ -192,6 +192,12 @@ internal static class ContextRun
         var read = serializer.Deserialize(written, context.Basket);
 
         Check(read is not null && read.SequenceEqual(basket), $"a custom collection read through its Add {Hash(written)}");
+
+        var stamps = new Stamps { 2, 7, 1 };
+        byte[] stamped = serializer.Serialize(stamps, context.Stamps);
+        var readStamps = serializer.Deserialize(stamped, context.Stamps);
+
+        Check(readStamps is not null && readStamps.SetEquals(stamps), $"a custom collection read through an Add that returns bool {Hash(stamped)}");
     }
 
     // --- a type no context offered ------------------------------------------------------------------------
@@ -301,5 +307,8 @@ internal sealed class Basket : ICollection<int>
     System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }
 
-[BinaryContext(typeof(Basket))]
+/// <summary>A collection the table names no definition for, filled through the <c>bool Add</c> it inherits.</summary>
+internal sealed class Stamps : HashSet<int>;
+
+[BinaryContext(typeof(Basket), typeof(Stamps))]
 internal partial class BasketContext : BinarySerializerContext;

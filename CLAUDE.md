@@ -110,13 +110,13 @@ tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-
 source generator (P1–P4), the generator profile, the engine fast path and native AOT through the context
 (P4a–P4d), the executable examples (P5f), the Track B adapters and the graceful stop of the harness (P6)
 and the documentation (P7) are done. The audit of `rc.2` (P8), run by `viper_conformance_auditor` from its
-brief `internal/rc2/Audit-Brief.md`, wrote `internal/rc2/Audit-Conformance.md` with findings RC2-01…RC2-13;
-they are fixed on two `bugfix/rc2-audit-*` branches, and its closure session remains before the `rc.2`
-tag; the other additive features were deferred past `v1.0.0` into
+brief `internal/rc2/Audit-Brief.md`, wrote `internal/rc2/Audit-Conformance.md` with findings RC2-01…RC2-13,
+fixed on two `bugfix/rc2-audit-*` branches; its closure session found RC2-14…RC2-16, fixed on
+`audit/rc2-closure`, and a second closure session remains before the `rc.2` tag; the other additive features were deferred past `v1.0.0` into
 `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 283 tests, and the generator's 46, green in Debug and Release.
+with the generated XML file. The suite is 2 293 tests, and the generator's 46, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and

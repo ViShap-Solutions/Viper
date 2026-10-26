@@ -114,8 +114,11 @@ data there. A null dictionary key is refused the same way.
 
 ### Custom collections
 
-A concrete type that implements `ICollection<T>` and has a public parameterless constructor and an `Add`
-method is written as a sequence of its elements, so a collection class of your own needs no annotation.
+A concrete type that implements `ICollection<T>` and has a public parameterless constructor is written as
+a sequence of its elements, so a collection class of your own needs no annotation. It is read back when it
+also has a public `Add(T)` — declared on it or inherited, returning nothing or a value, as the `bool Add` of
+a class derived from `HashSet<T>` does — through which it is filled; one without a public `Add(T)` is
+written, and reading it is a `BinaryTypeException`.
 
 ## What is not supported
 

@@ -167,15 +167,27 @@ AOT a lost attribute fails closed: the offer is refused, never made with other t
 given as delegates let an offer read a collection differently from the reflection path. The factory is
 `SupportedTypes.Collection<TCollection, T>()` with `TCollection : new()` and takes nothing; the one shape,
 for both paths, creates the collection with `new()` and fills it through the public instance `Add(T)` it
-finds with `GetMethod(… Public | Instance, [typeof(T)])` on a type annotated for its public methods — a
-delegate created once, or an invocation of the method for a value-type collection. A custom collection is no longer compiled with `Expression` on either path, and the generator no longer
+finds with `GetMethod(… Public | Instance, [typeof(T)])` on a type annotated for its public methods. A
+custom collection is no longer compiled with `Expression` on either path, and the generator no longer
 looks for `Add`.
+
+**Amended again by the owner on 2026-10-26** (`RC2-Plan.md` §3.9, RC2-14 of `Audit-Conformance.md`): an
+`Add(T)` that returns a value — the `bool Add` a class derived from `HashSet<T>` inherits — could not be
+bound to `Action<TCollection, T>`, so such a collection, read in rc.1, was refused. The public `Add(T)` stays
+the rule for whether a collection is read. A class is filled through it by a delegate created once —
+`Action` for nothing, `Func<…, bool>` for a `bool`, `Func<…, object>` for a reference, the result
+discarded; a value-type collection, and a class whose `Add(T)` returns another value, through its
+`ICollection<T>.Add`, a constrained call on the instance being read. No element or collection is boxed,
+and no `MethodInfo.Invoke` remains.
 
 ## D6 — The guard
 
 Every reflective resolution — B1 (through B2), B3 and, under D4-b, B4 — sits behind one feature switch the
 trimming and AOT analysers understand, so that code behind it raises no warning and the toolchain removes it
-when the switch is off:
+when the switch is off. *As amended for RC2-01 and RC2-14:* what an offer reads of its own type — the
+`[BinaryUnion]` attributes `Union<T>` compares its arms with, the public `Add(T)` of a custom collection —
+is read whatever the switch says, on a type annotated for the analysers, and builds nothing the rules would
+not (contract INV-19):
 
 ```csharp
 internal static class ReflectionPath
@@ -419,10 +431,14 @@ Where the build differs from the text above, and why. None of it changes a decis
   and under ILC. `FormatterCache<T>.Instance` stays `static readonly`.
 - **D4.** `Union<T>` takes its arms as `params (int Tag, Type Type)[]` — `Union<Shape>((1, typeof(Circle)),
   (2, typeof(Square)))` — instead of an `Arm<T>(tag)` factory, which would have needed one more public
-  type for the arm; it validates the arms as §14.5 states. `Object<T>` also refuses a type that declares
+  type for the arm. As amended (D4 above), it compares them as a set with the arms the `[BinaryUnion]`
+  attributes of the type declare, read at run time, refuses any difference and a type without the
+  attributes, and offers the map the reflection path reads. `Object<T>` also refuses a type that declares
   `[BinaryUnion]`, so a hand-written context cannot drop a union map by naming the wrong method.
-- **D5.** The custom-collection shape takes its two operations in every configuration: the reflection
-  path compiles them, a context writes them as code.
+- **D5.** As amended twice (D5 above): `Collection<TCollection, T>()` takes nothing; one
+  `CustomCollectionShape` serves both paths, creates the collection with `new()`, reads it only when it has
+  a public `Add(T)`, and fills a class through that method by a delegate for a result of nothing, a `bool`
+  or a reference, and a value-type collection or any other result through `ICollection<T>.Add`.
 - **D7.** `TryGetTypeInfo<T>` answers for a scalar as well as for a type the context made supported.
 - **D8.** The dumper's four forms take the options as a required argument after the type information:
   the options must name the type information's context, and an omitted `null` never can.
