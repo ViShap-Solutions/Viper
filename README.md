@@ -122,22 +122,32 @@ dotnet add package ViShap.Viper
 
 ```text
 📂 Viper
-├── 📁 src
-│   │
-│   ├── 📁 ViShap.Viper
+├── 📁 src                                      the four packages
+│   ├── 📁 ViShap.Viper                         meta-package: references the three below, ships no code
 │   │   └── 📄 METAPACK-README.md
-│   │
-│   ├── 📁 ViShap.Viper.Core
+│   ├── 📁 ViShap.Viper.Core                    attributes, algorithm and key contracts, exceptions
 │   │   └── 📄 CORE-README.md
-│   │
-│   └── 📁 ViShap.Viper.Serialization
-│       └── 📄 SERIALIZATION-README.md
+│   ├── 📁 ViShap.Viper.Serialization           the serializer, built-in algorithms and key providers, diagnostics
+│   │   ├── 📁 buildTransitive                  MSBuild switch of the reflection path for trimmed and AOT builds
+│   │   └── 📄 SERIALIZATION-README.md
+│   └── 📁 ViShap.Viper.Generator               build-time source generator of type contracts, diagnostics VPR001…VPR021
+│       └── 📄 GENERATOR-README.md
 │
 ├── 📁 tests
-├── 📁 benchmarks
-├── 📁 docs
+│   ├── 📁 ViShap.Viper.Serialization.Tests     round trips, wire format, limits, hostile input, frozen v1.0.0 fixtures,
+│   │                                           the public surface and every example of the documentation
+│   ├── 📁 ViShap.Viper.Generator.Tests         emitted code, diagnostics, bytes identical to the reflection path
+│   └── 📁 ViShap.Viper.AotConsumer             an application published with native AOT in CI
 │
+├── 📁 benchmarks
+│   └── 📁 ViShap.Viper.Serialization.Benchmarks  BenchmarkDotNet suites, against other .NET serializers too
+│
+├── 📁 docs                                     the documentation, one page per subject
+├── 📁 .github/workflows                        CI on every pull request, CD to NuGet on a version tag
+│
+├── 🖼️ icon.png
 ├── ⚖️ LICENSE
+├── 🧩 Viper.sln
 └── 📝 README.md
 ```
 

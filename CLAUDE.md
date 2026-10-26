@@ -112,8 +112,9 @@ source generator (P1–P4), the generator profile, the engine fast path and nati
 and the documentation (P7) are done. The audit of `rc.2` (P8), run by `viper_conformance_auditor` from its
 brief `internal/rc2/Audit-Brief.md`, wrote `internal/rc2/Audit-Conformance.md` with findings RC2-01…RC2-13,
 fixed on two `bugfix/rc2-audit-*` branches; its closure session found RC2-14…RC2-16 and fixed and
-closed them on `audit/rc2-closure`; the final `--smoke` on `release/v1.0.0` remains before the `rc.2` tag; the other additive features were deferred past `v1.0.0` into
-`internal/ideas/`. The public API is fully
+closed them on `audit/rc2-closure`; `v1.0.0-rc.2` is tagged at `fdd4c30` and published, and the release
+of `v1.0.0` — `release/v1.0.0` into `main`, then the tag — is the owner's next step. The other additive
+features were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
 with the generated XML file. The suite is 2 293 tests, and the generator's 46, green in Debug and Release.
