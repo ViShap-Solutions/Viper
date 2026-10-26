@@ -18,6 +18,7 @@ dotnet add package ViShap.Viper
 | [Options and limits](options-and-limits.md) | the options builder, its validation, and every `SerializationLimits` value |
 | [Formats: V1 and V0](formats.md) | the self-describing frame and the headerless codec, and how to choose between them |
 | [Contracts and schema evolution](contracts.md) | positional and keyed layouts, member attributes, evolving a type, supplying a contract |
+| [Writing contracts by hand](writing-contracts.md) | a context of your own: `TypeContract<T>`, both layouts, non-public members, the supported types it adds, checking it against reflection |
 | [The source generator](generator.md) | generated type contracts, the context, its type information, diagnostics VPR001–VPR021 |
 | [References](references.md) | preserving shared and cyclic references, and what happens without it |
 | [Polymorphism](polymorphism.md) | `[BinaryUnion]`: serializing a base type and its derived types |

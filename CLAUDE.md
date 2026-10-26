@@ -103,12 +103,14 @@ Current state: `src/` matches the contract. The architecture rework, its reconci
 documentation, the release conformance audit and its closure check (R9e) are done, and `v1.0.0-rc.1` is
 tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-contract seam and the
 source generator (P1–P4), the generator profile, the engine fast path and native AOT through the context
-(P4a–P4d) and the executable examples (P5f) are done; the benchmarks (P6), the documentation (P7) and the
-audit of `rc.2` (P8) remain; the other additive features
-were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
+(P4a–P4d), the executable examples (P5f), the Track B adapters and the graceful stop of the harness (P6)
+and the documentation (P7) are done; the audit of `rc.2` (P8) remains, run by `viper_conformance_auditor`
+from its brief `internal/rc2/Audit-Brief.md`, approved by the owner, and writing
+`internal/rc2/Audit-Conformance.md`; the other additive features were deferred past `v1.0.0` into
+`internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 261 tests, and the generator's 46, green in Debug and Release.
+with the generated XML file. The suite is 2 265 tests, and the generator's 46, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and

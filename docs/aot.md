@@ -114,7 +114,7 @@ public sealed class OrderCodec(BinarySerializer serializer)
 ## A context written by hand
 
 A context does not have to be generated. Its constructor adds a contract per member-encoded type
-(see [Contracts](contracts.md#supplying-a-contract)) and makes every type it reaches supported with a
+(see [Writing contracts by hand](writing-contracts.md)) and makes every type it reaches supported with a
 method of `SupportedTypes` named after the entry of the [table of supported types](supported-types.md)
 that type is — `SupportedTypes.List<Line>()`, `SupportedTypes.Dictionary<string, int>()`,
 `SupportedTypes.Enum<Status>()`, `SupportedTypes.Object<Order>()`, `SupportedTypes.Union<Shape>(…)`; the

@@ -100,6 +100,7 @@ public sealed class Customer
 `TypeContract<T>` supplied through a `BinarySerializerContext` and `WithContracts(…)` instead of by
 reflection; one that describes the type as reflection does writes the same bytes. See
 [Contracts and schema evolution](https://github.com/ViShap-Solutions/Viper/blob/main/docs/contracts.md),
+[Writing contracts by hand](https://github.com/ViShap-Solutions/Viper/blob/main/docs/writing-contracts.md),
 [Polymorphism](https://github.com/ViShap-Solutions/Viper/blob/main/docs/polymorphism.md) and
 [References](https://github.com/ViShap-Solutions/Viper/blob/main/docs/references.md).
 

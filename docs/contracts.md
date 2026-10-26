@@ -184,89 +184,13 @@ and reads and writes them in plain code. The serializer uses it for every operat
 is given to, and keeps doing everything around the members itself — nulls, object references, union
 tags, field keys and lengths, limits.
 
-Contracts are supplied through a `BinarySerializerContext`. A derived class adds one contract per type
-from its constructor, and `WithContracts` gives the context to the options:
+Contracts are supplied through a `BinarySerializerContext`, which `WithContracts` gives to the options.
+The [source generator](generator.md) writes the context and its contracts at build time from the types
+you list; [Writing contracts by hand](writing-contracts.md) shows a context written without it, both
+layouts, non-public members, and the rules every contract follows.
 
-```csharp
-using ViShap.Viper;
-using ViShap.Viper.Contracts;
-
-var serializer = new BinarySerializer(BinarySerializerOptions.Configure()
-    .WithContracts(AppContracts.Default)
-    .Build());
-
-Customer? copy = serializer.Deserialize<Customer>(serializer.Serialize(new Customer { Name = "Ada", Age = 36 }));
-Console.WriteLine($"{copy!.Name}, {copy.Age}");   // Ada, 36
-
-[BinaryContract]
-public sealed class Customer
-{
-    [BinaryKey(1)] public string Name { get; set; } = "";
-    [BinaryKey(2)] public int Age { get; set; }
-}
-
-public sealed class AppContracts : BinarySerializerContext
-{
-    public static AppContracts Default { get; } = new();
-
-    private AppContracts() => Add(new CustomerContract());
-
-    private sealed class CustomerContract() : TypeContract<Customer>(
-        MemberLayout.Keyed,
-        [new("Name", typeof(string), 1), new("Age", typeof(int), 2)],
-        canBeConstructed: true)
-    {
-        public override Customer Create() => new();
-
-        public override void Write(ref MemberWriter writer, in Customer value)
-        {
-            writer.Member(1, value.Name);
-            writer.Member(2, value.Age);
-        }
-
-        public override void ReadPositional(ref MemberReader reader, ref Customer value) =>
-            throw new NotSupportedException();
-
-        public override bool ReadKeyed(ref MemberReader reader, int key, ref Customer value)
-        {
-            switch (key)
-            {
-                case 1: value.Name = reader.Member<string>(); return true;
-                case 2: value.Age = reader.Member<int>(); return true;
-                default: return false;
-            }
-        }
-    }
-}
-```
-
-A contract implements four methods:
-
-| Method | What it does |
-|---|---|
-| `Create` | the instance a payload is read into: a new object, or `default` for a struct |
-| `Write` | one `writer.Member(value)` per member in order under a positional layout; one `writer.Member(key, value)` per member in ascending key order under a keyed one |
-| `ReadPositional` | positional layout: one `reader.Member<T>()` per member, in the same order |
-| `ReadKeyed` | keyed layout: called once for each field of the payload, with its key; a known key reads its member with one `reader.Member<T>()` and returns `true`, an unknown one returns `false` and the field is skipped |
-
-The serializer checks every call against the description given to the constructor — the member, its
-exact type, its key, how many calls — and a call that disagrees is a `BinaryTypeException` naming the
-type and the member, never a damaged payload. A contract that describes its type as reflection does —
-the same layout, the same members in the same order, the same types and keys — writes exactly the bytes
-reflection writes, so payloads move freely between serializers with and without the context.
-
-Rules worth knowing:
-
-- Use the `MemberWriter` and `MemberReader` through the reference you are handed. Passing one to a
-  helper by value, or keeping a copy, is refused with `BinaryTypeException` as soon as either copy is
-  used after the other; pass it on by `ref`.
-- A description that cannot be checked — a key under a positional layout, a keyed member without a key,
-  keys out of order or repeated, a negative key — is a `BinaryConfigurationException` from the
-  constructor. So is a second contract for the same type in one context, or a contract added after
-  options were built with the context.
-- A type the context does not hold is described by reflection. `RequireGeneratedContracts()` makes that
-  a `BinaryConfigurationException` naming the type instead, so a forgotten type cannot pass unnoticed.
-- A contract is shared by every operation and thread that uses the options: keep no per-call state in
-  it.
-- A member that is not public is reached the way any code outside the type reaches it — for example
-  through `[UnsafeAccessor]`.
+A contract that describes its type as reflection does — the same layout, the same members in the same
+order, the same types and keys — writes exactly the bytes reflection writes, so payloads move freely
+between serializers with and without the context. `RequireGeneratedContracts()` makes a member-encoded
+type the context does not hold a `BinaryConfigurationException` naming it, so a forgotten type cannot
+pass unnoticed.
