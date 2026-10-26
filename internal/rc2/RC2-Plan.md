@@ -294,6 +294,10 @@ Filled in by the owner.
 | P8 — the auditor | A — `viper_conformance_auditor` generalized, not a new skill: the brief of the release (`internal/<release>/Audit-Brief.md`) is its authority, with the sessions and branches it names; the invariants come from contract §25; the verdict is "rc.N may be tagged". The rework's documents stay binding until `v1.0.0`, with this section after them. Made in P7, with the brief | 2026-10-14 |
 | After `rc.2` — the release | B — `v1.0.0` a few days after `rc.2`, not the same day; the owner checks the published packages, so the plan holds no item and no consumer-project branch for it | 2026-10-14 |
 | P8 — the auditor brief | `rc2/Audit-Brief.md` approved as written: the audit of the delta since `c728c99` and of the whole system, the sessions and branches of its §2, the report `rc2/Audit-Conformance.md` with findings `RC2-nn`, the CD dry run of all four packages with `1.0.0-rc.2` | 2026-10-26 |
+| RC2-01 — offers of `SupportedTypes` | `SupportedTypes.Union<T>` accepts exactly the arms `[BinaryUnion]` declares on `T` and refuses a type without them; `SupportedTypes.Collection<TCollection, T>()` takes no delegates — `new()` and the public `Add(T)` the reflection path finds, one rule shared by both paths (amends D4, D5 of `Native-AOT-Design.md`). Nothing a context offers can differ from what reflection builds | 2026-10-26 |
+| RC2-02 — errors of a supplied contract | an exception from a supplied contract's own code propagates unchanged, as a `Lazy<T>` factory's does; `null` from `Create` is `BinaryTypeException` | 2026-10-26 |
+| RC2-03 — S5 clarified | the meta-package references the generator with `PrivateAssets="none"`, so one install brings it | 2026-10-26 |
+| RC2 fixes — branches | two branches: `bugfix/rc2-audit-engine` (RC2-01, RC2-02, RC2-06, RC2-12; `viper_builder`, with `viper_generator` for the generator's part), then `bugfix/rc2-audit-documents` (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13; `viper_builder`) | 2026-10-26 |
 
 ---
 
