@@ -1,6 +1,7 @@
 using System.Reflection;
 using ViShap.Viper.Contracts;
 using ViShap.Viper.Engine;
+using ViShap.Viper.Formatters;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Contracts;
@@ -10,7 +11,8 @@ namespace ViShap.Viper.Serialization.Tests.Contracts;
 /// encoded by the codec the reflection path builds for the same type — the same codec, over the same
 /// shape — so which path supplies a type never changes a byte; the table covers every supported generic
 /// definition; a method refuses a type another entry of the table claims; a union is the map its
-/// attributes declare; and a context adds each type once, before its first use.
+/// attributes declare and nothing else; a custom collection is filled by the rule of the reflection
+/// path; and a context adds each type once, before its first use.
 /// </summary>
 public class SupportedTypesTests
 {
@@ -57,8 +59,9 @@ public class SupportedTypesTests
         AssertSameCodec(SupportedTypes.Nullable<ConformancePoint>());
         AssertSameCodec(SupportedTypes.MultiDimensionalArray<int[,], int>());
         AssertSameCodec(SupportedTypes.MultiDimensionalArray<string[,,], string>());
-        AssertSameCodec(SupportedTypes.Collection<Bag, int>(static () => new Bag(), static (bag, item) => bag.Add(item)));
-        AssertSameCodec(SupportedTypes.Collection<Bag<string>, string>(static () => new Bag<string>(), static (bag, item) => bag.Add(item)));
+        AssertSameCodec(SupportedTypes.Collection<Bag, int>());
+        AssertSameCodec(SupportedTypes.Collection<Bag<string>, string>());
+        AssertSameCodec(SupportedTypes.Collection<AddlessBag, int>());
     }
 
     [Fact]
@@ -86,6 +89,7 @@ public class SupportedTypesTests
         var read = TypeContractCache.GetUnion(typeof(ConformanceShape))!;
 
         Assert.Equal(typeof(ObjectCodec<ConformanceShape>), supported.Codec.GetType());
+        Assert.Same(read, offered);
         foreach (var arm in new[] { typeof(ConformanceCircle), typeof(ConformanceSquare) })
         {
             Assert.True(offered.TryGetTag(arm, out byte offeredTag));
@@ -96,6 +100,45 @@ public class SupportedTypesTests
         }
 
         Assert.False(offered.TryGetType(3, out _));
+    }
+
+    [Fact]
+    public void Union_WithTheDeclaredArmsInAnotherOrder_IsTheMapTheReflectionPathReads()
+    {
+        var supported = SupportedTypes.Union<Shape>((3, typeof(Triangle)), (1, typeof(Circle)), (2, typeof(Square)));
+
+        Assert.Same(TypeContractCache.GetUnion(typeof(Shape)), Union(supported.Codec));
+    }
+
+    [Fact]
+    public void Union_WithArmsItsAttributesDoNotDeclare_ThrowsConfiguration()
+    {
+        const string differ = "differ from the ones its [BinaryUnion] attributes declare: (1, ";
+
+        Refused(() => SupportedTypes.Union<Shape>((9, typeof(Circle)), (2, typeof(Square)), (3, typeof(Triangle))), differ);
+        Refused(() => SupportedTypes.Union<Shape>((2, typeof(Circle)), (1, typeof(Square)), (3, typeof(Triangle))), differ);
+        Refused(() => SupportedTypes.Union<Shape>((1, typeof(Circle)), (2, typeof(Square))), differ);
+        Refused(
+            () => SupportedTypes.Union<Shape>(
+                (1, typeof(Circle)), (2, typeof(Square)), (3, typeof(Triangle)), (4, typeof(UndeclaredShape))),
+            differ);
+        Refused(() => SupportedTypes.Union<Shape>(), differ);
+    }
+
+    [Fact]
+    public void Union_OfATypeWithoutUnionAttributes_ThrowsConfiguration()
+    {
+        Refused(() => SupportedTypes.Union<ConformanceKeyed>(), "declares no [BinaryUnion] arm");
+        Refused(() => SupportedTypes.Union<ConformanceKeyed>((1, typeof(ConformanceKeyed))), "declares no [BinaryUnion] arm");
+        Refused(() => SupportedTypes.Union<UndeclaredShape>((1, typeof(UndeclaredShape))), "declares no [BinaryUnion] arm");
+    }
+
+    [Fact]
+    public void Union_OfATypeWhoseAttributesTheSerializerRefuses_ThrowsConfiguration()
+    {
+        Refused(() => SupportedTypes.Union<DuplicateTagBase>((1, typeof(FirstClaim))), "duplicate [BinaryUnion] tag");
+        Refused(() => SupportedTypes.Union<AboveRangeBase>(), "must fit in a byte");
+        Refused(() => SupportedTypes.Union<UnrelatedKnownTypeBase>(), "is not assignable");
     }
 
     [Fact]
@@ -123,12 +166,32 @@ public class SupportedTypesTests
     public void Collection_OfATypeAnotherEntryClaimsOrOfAnotherElement_ThrowsConfiguration()
     {
         Refused(
-            () => SupportedTypes.Collection<List<int>, int>(static () => [], static (list, item) => list.Add(item)),
+            () => SupportedTypes.Collection<List<int>, int>(),
             "supported generic type");
         if (TypeRules.CollectionElement(typeof(DoubleBag)) == typeof(int))
-            Refused(() => SupportedTypes.Collection<DoubleBag, string>(static () => new DoubleBag(), null), "not of");
+            Refused(() => SupportedTypes.Collection<DoubleBag, string>(), "not of");
         else
-            Refused(() => SupportedTypes.Collection<DoubleBag, int>(static () => new DoubleBag(), null), "not of");
+            Refused(() => SupportedTypes.Collection<DoubleBag, int>(), "not of");
+    }
+
+    [Fact]
+    public void Collection_FillsThroughItsPublicAdd_AndWithoutOneRefusesToRead()
+    {
+        var bag = new CustomCollectionShape<Bag, int>();
+        var filled = bag.Create(capacity: 2);
+        bag.Add(ref filled, 7);
+        bag.Add(ref filled, 8);
+
+        var structBag = new CustomCollectionShape<StructBag, int>();
+        var filledStruct = structBag.Create(capacity: 1);
+        structBag.Add(ref filledStruct, 9);
+
+        var addless = new CustomCollectionShape<AddlessBag, int>();
+        var empty = addless.Create(capacity: 1);
+
+        Assert.Equal([7, 8], filled);
+        Assert.Equal([9], filledStruct);
+        AssertEx.Throws<BinaryTypeException>("has no public instance method Add", () => addless.Add(ref empty, 1));
     }
 
     [Fact]
@@ -157,7 +220,6 @@ public class SupportedTypesTests
         Refused(
             () => SupportedTypes.Union<ConformanceShape>((1, null!)), "names no type");
         Assert.Throws<ArgumentNullException>(() => SupportedTypes.Union<ConformanceShape>(null!));
-        Assert.Throws<ArgumentNullException>(() => SupportedTypes.Collection<Bag, int>(null!, null));
     }
 
     // --- NAOT-04: a context adds each type once, before its first use --------------------------------
@@ -249,6 +311,41 @@ public class SupportedTypesTests
     {
         var lookup = codec.GetType().GetField("_union", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(codec);
         return (UnionMap?)lookup?.GetType().GetProperty("Map")!.GetValue(lookup);
+    }
+
+    /// <summary>A type derived from a union base whose attributes do not name it.</summary>
+    public sealed class UndeclaredShape : Shape;
+
+    /// <summary>A collection with no public instance <c>Add</c>: written, and refused when read.</summary>
+    public sealed class AddlessBag : ICollection<int>
+    {
+        public int Count => 0;
+        public bool IsReadOnly => true;
+        void ICollection<int>.Add(int item) => throw new NotSupportedException();
+        public void Clear() { }
+        public bool Contains(int item) => false;
+        public void CopyTo(int[] array, int arrayIndex) { }
+        public bool Remove(int item) => false;
+        public IEnumerator<int> GetEnumerator() => Enumerable.Empty<int>().GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    /// <summary>A value-type collection over a list it shares with its copies.</summary>
+    public struct StructBag : ICollection<int>
+    {
+        private readonly List<int> _items;
+
+        public StructBag() => _items = [];
+
+        public readonly int Count => _items.Count;
+        public readonly bool IsReadOnly => false;
+        public readonly void Add(int item) => _items.Add(item);
+        public readonly void Clear() => _items.Clear();
+        public readonly bool Contains(int item) => _items.Contains(item);
+        public readonly void CopyTo(int[] array, int arrayIndex) => _items.CopyTo(array, arrayIndex);
+        public readonly bool Remove(int item) => _items.Remove(item);
+        public readonly IEnumerator<int> GetEnumerator() => _items.GetEnumerator();
+        readonly System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     public sealed class OfferedOnly

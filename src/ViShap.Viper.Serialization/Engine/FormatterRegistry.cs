@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Linq.Expressions;
 using System.Reflection;
 
 namespace ViShap.Viper.Engine;
@@ -84,24 +83,11 @@ internal static class FormatterRegistry
     }
 
     /// <summary>
-    /// A custom collection, built through <c>new TCollection()</c> and its public instance
-    /// <c>Add(T)</c>, both compiled once from the type.
+    /// A custom collection, through the shape that creates it with <c>new TCollection()</c> and fills it
+    /// through its public instance <c>Add(T)</c> — the shape a context offers for it.
     /// </summary>
-    private static object ForCollection(Type type, Type element)
-    {
-        var create = Expression.Lambda(Expression.New(type)).Compile();
-
-        var method = type.GetMethod("Add", BindingFlags.Public | BindingFlags.Instance, [element]);
-        Delegate? add = null;
-        if (method is not null)
-        {
-            var collection = Expression.Parameter(type, "collection");
-            var value = Expression.Parameter(element, "element");
-            add = Expression.Lambda(Expression.Call(collection, method, value), collection, value).Compile();
-        }
-
-        return CodecFor(Instantiate(typeof(CustomCollectionShape<,>).MakeGenericType(type, element), create, add));
-    }
+    private static object ForCollection(Type type, Type element) =>
+        CodecFor(Instantiate(typeof(CustomCollectionShape<,>).MakeGenericType(type, element)));
 
     /// <summary>The engine's codec that drives <paramref name="shape"/>: its interface decides which.</summary>
     private static object CodecFor(object shape)

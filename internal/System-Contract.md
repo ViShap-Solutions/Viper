@@ -697,7 +697,7 @@ ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(TMember) : Void
 ViShap.Viper.Contracts.SupportedType :: Type : Type { get; }
 ViShap.Viper.Contracts.SupportedTypes :: static Array<T>() : SupportedType
 ViShap.Viper.Contracts.SupportedTypes :: static ArraySegment<T>() : SupportedType
-ViShap.Viper.Contracts.SupportedTypes :: static Collection<TCollection, T>(Func<TCollection>, Action<TCollection, T>) : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Collection<TCollection, T>() : SupportedType
 ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentBag<T>() : SupportedType
 ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentDictionary<TKey, TValue>() : SupportedType
 ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentQueue<T>() : SupportedType
@@ -1541,6 +1541,10 @@ These remain intentionally outside `BinarySerializerException`:
 - `OperationCanceledException` — a cancelled asynchronous call (§3.5). It is standard .NET and
   outside the taxonomy.
 
+An exception thrown by the caller's own code that an operation runs — a `Lazy<T>` factory (§23), a
+supplied type contract (§14.3) — is the caller's and propagates unchanged; it is not a framework
+exception the taxonomy maps (INV-10).
+
 Do not wrap every exception merely to force taxonomy symmetry.
 
 ---
@@ -2137,6 +2141,14 @@ the member list of its type. Whether a value carries its null in a flag or in it
 type as reflection does writes exactly the bytes reflection writes; that is the guarantee a generated
 contract gives, and the conformance suite (§14.1) and the byte-identity tests hold it.
 
+**The contract's own code.** `Create`, `Write`, `ReadPositional` and `ReadKeyed` are the caller's code,
+run at points the payload and the caller's value decide. An exception one of them throws propagates
+unchanged — wrapped, it would add nothing the caller could not already catch, as for a `Lazy<T>`
+factory (§23) — and a write it interrupts leaves nothing in its destination, as no failed write does
+(§2.6, INV-15). A `Create` of a reference type that returns `null` is `BinaryTypeException` naming the
+type, raised before the instance would be registered for a reference or its members read: the engine
+has no instance to read into, and a null instance never reaches the reference table.
+
 **Misuse of the seam.** A `MemberWriter` or `MemberReader` is used through the reference it is handed.
 A copy — passed to a helper by value, or assigned to a local — or a default instance is refused with
 `BinaryTypeException` the moment either copy is used after the other, and the operation leaves
@@ -2211,7 +2223,7 @@ property `ViperReflectionEnabled` is `false` (§14.5): the type would have no de
 **Supported types and type information.** Besides the contracts, the constructor makes every type the
 walk reaches supported (§14.5) — each container, array, nullable value, enum and member-encoded type,
 with the union map its `[BinaryUnion]` attributes declare when they are sound, and a custom collection
-with `() => new T()` and its public instance `Add(T)`, or no `Add` — in ordinal order of the types'
+by its type and element type alone — in ordinal order of the types'
 names, and assigns one public property of type information per type the attribute lists that it makes
 supported or that is a scalar: `BinaryTypeInfo<Order> Order`, named after the type's simple name, a
 generic type's arguments each after an underscore (`List_Order`), an array's element followed by
@@ -2229,7 +2241,7 @@ it keep `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` (§3).
 table of §23 that a caller's types close: one per supported generic definition, named after it
 (`List<T>()`, `IDictionary<TKey, TValue>()`, `Tuple<T1, …, T7, TRest>()`, `ImmutableArray<T>()`, …),
 and `Array<T>()` for `T[]`, `MultiDimensionalArray<TArray, TElement>()` for an array of rank 2 or more,
-`Nullable<T>()`, `Enum<T>()`, `Collection<TCollection, T>(create, add)` for a concrete collection no
+`Nullable<T>()`, `Enum<T>()`, `Collection<TCollection, T>()` for a concrete collection no
 definition claims, `Object<T>()` for a member-encoded type and `Union<T>(params (int Tag, Type Type)[])`
 for one with a union map. The scalars have no method: their codecs are built by statically typed code
 in every configuration. Each method returns a `SupportedType` naming its declared type, which a context
@@ -2242,9 +2254,17 @@ A method refuses what its entry does not claim, with `BinaryConfigurationExcepti
 type, a nullable value, a delegate), and `Object<T>` a type that declares `[BinaryUnion]`;
 `Collection<TCollection, T>` a type another entry claims or whose `ICollection<T>` element the rules of
 §23 take to be another; `MultiDimensionalArray` anything but an array of `TElement` of rank 2 or more;
-`Union<T>` a tag outside 0–255, a tag or a type given twice, a `null` type, or a type not assignable to
-`T`. The arms of a union are taken as given; the serializer does not read `[BinaryUnion]` for a type
-whose union map was supplied.
+`Union<T>` a tag outside 0–255, a tag or a type given twice, a `null` type, a type not assignable to
+`T`, a `T` that declares no `[BinaryUnion]` arm or arms the serializer refuses (§15), and arms that differ
+from the ones its `[BinaryUnion]` attributes declare — another tag for an arm, an arm missing or one
+more. The arms are compared as a set, so their order is free; the union map offered is the one the
+reflection path reads from the attributes, which `Union<T>` reads to compare. `Collection<TCollection, T>`
+takes no operation: `TCollection` is constrained to `new()`, and the shape creates it with that
+constructor and fills it through its public instance `Add(T)`, declared on it or inherited, found by the
+rule the reflection path uses — a value-type collection is handed to it as a copy — and without that
+method writes it and refuses to read one with `BinaryTypeException`. No method of `SupportedTypes`
+takes anything an offer could be made to differ by, so every offer is the reflection path's encoding by
+construction (INV-20).
 
 **Where a supported type takes effect.** Adding one makes its codec the one the serializer uses for that
 type in the process, unless the type was already used before any context added it: the first offer of a
@@ -3117,7 +3137,7 @@ contract first.
 | INV-7 | No process-wide mutable registry can change what an algorithm is. | §4.1 | CAT-06, LIM-53 |
 | INV-8 | Only tags travel, never type names. | §15 | PM-14, LIM-54 |
 | INV-9 | Every wire field has exactly one encoding: a bool is 0 or 1, UTF-8 is strict, varints are minimal, keyed field keys are strictly ascending, header service records are in ascending number, each number at most once and number 0 invalid, a known service's critical bit matches the contract, null is written once in the first number of the value, no service record carries id `None`, reserved payload-mode bits are zero, a duplicate in a collection is malformed, a `BigInteger` is its shortest two's complement, a `BitArray`'s padding bits are zero, a `Version` or a `CultureInfo` is the text its writer produces, and a string that UTF-8 cannot encode is refused on write. | §11, §22 | the WF and HDR checkpoints that are not retired, KEY-23, HST-40, HST-42…HST-45, WF-38, LIM-55 |
-| INV-10 | The exception taxonomy is complete: nothing on a payload path leaves under a framework name. | §8, §9 | EXC-14…EXC-20, REF-19, LIM-56 |
+| INV-10 | The exception taxonomy is complete: nothing on a payload path leaves under a framework name; only an exception of the caller's own code — a `Lazy<T>` factory, a supplied type contract — propagates as it was thrown. | §8, §9, §14.3 | EXC-14…EXC-20, REF-19, LIM-56, CTX-09 |
 | INV-11 | Key material is always an owned copy; the serializer clears only what it owns. | §13.2 | ENC-12, ENC-14, LIM-57 |
 | INV-12 | The member plan is a total order over the whole inheritance chain, identical for the reflected contract and for any generated contract. | §14.1 | CONF-01…CONF-07 |
 | INV-13 | Limits are policy, validated once; a payload can never raise them. | §5 | CFG-09, OPT-08 |
@@ -3127,4 +3147,4 @@ contract first.
 | INV-17 | Boxing happens only in a polymorphic slot (`[BinaryUnion]`, an interface, `object`), verified by a counting test double. | §2.4, §15 | TYP-02 |
 | INV-18 | A V0 payload is byte-identical to the V1 payload of the same value written without references. | §10.2, §22.7 | V0-19, V0-21, KEY-18, LIM-59 |
 | INV-19 | With the reflection path switched off, no codec, contract or union map is built by reflection: a type no context offered is `BinaryConfigurationException` where it is first used. | §3, §14.5 | NAOT-12, NAOT-13 |
-| INV-20 | A codec or union map a context offers through `SupportedTypes` is the one the reflection path builds for the same type, and a generated context offers exactly the types the engine reaches from those it lists. | §14.5 | NAOT-01, NAOT-02, NAOT-06 |
+| INV-20 | A codec or union map a context offers through `SupportedTypes` is the one the reflection path builds for the same type — no method takes anything an offer could differ by, and `Union<T>` refuses arms its attributes do not declare — and a generated context offers exactly the types the engine reaches from those it lists. | §14.5 | NAOT-01, NAOT-02, NAOT-03, NAOT-06 |

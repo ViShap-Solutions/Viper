@@ -17,12 +17,12 @@ namespace Shapes
             Add(new Shapes_OrderContract());
             Add(new Shapes_ShapeContract());
             Add(new Shapes_SquareContract());
-            Add(global::ViShap.Viper.Contracts.SupportedTypes.Collection<global::Shapes.Bag, int>(static () => new global::Shapes.Bag(), static (collection, element) => collection.Add(element)));
+            Add(global::ViShap.Viper.Contracts.SupportedTypes.Collection<global::Shapes.Bag, int>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Circle>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Line>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Array<global::Shapes.Line>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Order>());
-            Add(global::ViShap.Viper.Contracts.SupportedTypes.Collection<global::Shapes.Sealed, string>(static () => new global::Shapes.Sealed(), null));
+            Add(global::ViShap.Viper.Contracts.SupportedTypes.Collection<global::Shapes.Sealed, string>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Union<global::Shapes.Shape>((1, typeof(global::Shapes.Circle)), (2, typeof(global::Shapes.Square))));
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Square>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Enum<global::Shapes.Status>());

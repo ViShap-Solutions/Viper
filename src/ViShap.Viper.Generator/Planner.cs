@@ -849,35 +849,11 @@ internal sealed class Planner
                 if (elements.Count != 1)
                     return null;
 
-                string collection = TypeNames.Plain(named);
-                string element = TypeNames.Plain(elements[0]);
-                string add = PublicAdd(named, elements[0]) ? "static (collection, element) => collection.Add(element)" : "null";
-                return $"{SupportedTypes}.Collection<{collection}, {element}>(static () => new {collection}(), {add})";
+                return $"{SupportedTypes}.Collection<{TypeNames.Plain(named)}, {TypeNames.Plain(elements[0])}>()";
 
             default:
                 return null;
         }
-    }
-
-    /// <summary>
-    /// Whether <paramref name="collection"/> has the public instance method <c>Add</c> taking exactly
-    /// <paramref name="element"/>, declared on it or inherited — the method the reflection path calls.
-    /// </summary>
-    private static bool PublicAdd(INamedTypeSymbol collection, ITypeSymbol element)
-    {
-        for (var level = collection; level is not null; level = level.BaseType)
-        {
-            if (level.GetMembers("Add").OfType<IMethodSymbol>().Any(method =>
-                    method.DeclaredAccessibility == Accessibility.Public &&
-                    !method.IsStatic &&
-                    !method.IsGenericMethod &&
-                    method.Parameters.Length == 1 &&
-                    method.Parameters[0].RefKind == RefKind.None &&
-                    SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, element)))
-                return true;
-        }
-
-        return false;
     }
 
     /// <summary>A member-encoded type: its union map when it declares a sound one, else the type alone.</summary>

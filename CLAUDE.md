@@ -110,7 +110,7 @@ from its brief `internal/rc2/Audit-Brief.md`, approved by the owner, and writing
 `internal/ideas/`. The public API is fully
 XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 265 tests, and the generator's 46, green in Debug and Release.
+with the generated XML file. The suite is 2 282 tests, and the generator's 46, green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
@@ -249,8 +249,9 @@ References: with `PreserveReferences`, one varint frame precedes every structura
 `src/ViShap.Viper.Generator` reproduces `ReflectedContract` rule for rule — contract §14.4. `Planner` walks
 the types a context lists and every type they reach, classified by `TypeShapes`, whose tables must equal
 `BuiltInCodecs`' and `TypeRules`' (`PipelineTests` checks it); records for each reached type the
-`SupportedTypes` entry the context adds (a union with its arms when its map is sound, a custom collection
-with `new T()` and its public `Add(T)`) and a `BinaryTypeInfo<T>` property per listed type (VPR020 on a
+`SupportedTypes` entry the context adds (a union with the arms its attributes declare when its map is sound,
+which `SupportedTypes.Union` holds to those attributes; a custom collection by its type and element alone,
+filled by the shape through its public `Add(T)`) and a `BinaryTypeInfo<T>` property per listed type (VPR020 on a
 name clash, VPR021 for VPR019 when `ViperReflectionEnabled` is false); collects candidates level by level as
 the reflected contract does (each override once at its most derived declaration, attributes inherited
 through overrides, a hidden member as a second member); applies every rejection as a diagnostic; and

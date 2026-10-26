@@ -147,6 +147,13 @@ initialization).
 
 **Recommendation: a.**
 
+**Amended by the owner on 2026-10-26** (`RC2-Plan.md` §3.9, RC2-01 of `Audit-Conformance.md`): an offer of
+arms as given let a context that was only created change the tags of every serializer of the process,
+against D3's "an offer of a different value is not expressible". `SupportedTypes.Union<T>` keeps its
+arms, compares them as a set with the ones `[BinaryUnion]` declares on `T` — read at run time, as D4-b
+would — and refuses `T` without them; the map it offers is the one the reflection path reads. Under native
+AOT a lost attribute fails closed: the offer is refused, never made with other tags.
+
 ## D5 — Custom collections (B5)
 
 | | Option | Gives | Costs |
@@ -155,6 +162,14 @@ initialization).
 | b | Keep the reflective shape; under native AOT `Expression.Compile` falls back to the interpreter | Nothing to emit | `RequiresDynamicCode` stays reachable; the "no warning" gate fails. Rejected |
 
 **Recommendation: a.**
+
+**Amended by the owner on 2026-10-26** (`RC2-Plan.md` §3.9, RC2-01 of `Audit-Conformance.md`): operations
+given as delegates let an offer read a collection differently from the reflection path. The factory is
+`SupportedTypes.Collection<TCollection, T>()` with `TCollection : new()` and takes nothing; the one shape,
+for both paths, creates the collection with `new()` and fills it through the public instance `Add(T)` it
+finds with `GetMethod(… Public | Instance, [typeof(T)])` on a type annotated for its public methods — a
+delegate created once, or an invocation of the method for a value-type collection. A custom collection is no longer compiled with `Expression` on either path, and the generator no longer
+looks for `Add`.
 
 ## D6 — The guard
 

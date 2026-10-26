@@ -631,6 +631,11 @@ documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living docu
 | P4d | `FormatterRegistry.Shapes`, `FormatterRegistry.Closing`, its classification | `TypeRules.Shapes`, `TypeRules.Closing`, `TypeRules.Classify` | `FormatterRegistry.Shapes`, `registry.GetField("Shapes"` | clean |
 | P4d | the marked calls of `tests/ViShap.Viper.AotConsumer/Program.cs`, "compiled, never run" | `AnnotatedEntryPoints.cs`, left out of a publish; `Program.cs` runs `ContextRun` | `AotConsumer/Program.cs`, `never run` | clean |
 | P4c/P4d | `KnownTypes` / `KnownType` (the brief before the owner named it) | `SupportedTypes` / `SupportedType` | `KnownType` | clean outside the brief's record of the declined name; `UnionDeclarationTests` and `Fixtures/Unions` use "known type" for a union arm, unrelated |
+| RC2-01 | `SupportedTypes.Collection<TCollection, T>(Func<TCollection> create, Action<TCollection, T>? add)` | `SupportedTypes.Collection<TCollection, T>()`, `TCollection : new()`; the shape finds `Add(T)` itself | `Collection<TCollection, T>(create`, `Func<TCollection>`, `collection.Add(element)`, `static () => new` | clean outside the D5 option it amends in `Native-AOT-Design.md`; `static () => new` remains only in algorithm registrations of the tests, unrelated |
+| RC2-01 | `CustomCollectionShape<TCollection, T>(create, add)` and the `Expression`-compiled operations of `FormatterRegistry.ForCollection` | `CustomCollectionShape<TCollection, T>()`, one shape for both paths | `Expression.Lambda`, `System.Linq.Expressions` | `ReflectedContract` keeps its compiled accessors, unrelated |
+| RC2-01 | `Planner.PublicAdd` (the generator's own search for `Add(T)`) | none — the shape's `GetMethod` is the one rule | `PublicAdd` | clean; the test `Collection_FillsThroughItsPublicAdd_AndWithoutOneRefusesToRead` names the rule |
+| RC2-01 | "the arms of a union are taken as given; the serializer does not read `[BinaryUnion]` for a type whose union map was supplied" (§14.5, `docs/writing-contracts.md`) | `Union<T>` holds its arms to the attributes | `taken as given`, `does not read` | clean |
+| RC2-01 | test `SupportedTypes_TakesNoTraversalAndReturnsOnlySupportedTypes` | `SupportedTypes_TakesNothingButAUnionsArmsAndReturnsOnlySupportedTypes` | `TakesNoTraversal`, `two operations of a custom collection`, `custom collection's operations` | clean |
 
 ---
 
@@ -659,7 +664,9 @@ its branch into `release/v1.0.0`.
 | P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
 | P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
 | P7 Documentation | `docs/rc2-docs` | gate holds — awaiting commit | |
-| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | not started | |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | in progress — report merged (`57176f3`); fixes, then the closure session | |
+| P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | gate holds — awaiting commit | |
+| P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | not started | |
 | Tag | the owner tags `v1.0.0-rc.2` | not started | |
 | Release | `release/v1.0.0` → `main` | not started | |
 

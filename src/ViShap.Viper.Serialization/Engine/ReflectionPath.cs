@@ -38,4 +38,15 @@ internal static class ReflectionPath
             "published trimmed or with native AOT). Add the type to a [BinaryContext], or to a type a " +
             "context already lists, and configure the options with that context; or set the MSBuild " +
             "property ViperReflectionEnabled to true.");
+
+    /// <summary>
+    /// The error for a member-encoded type whose contract the operation's configuration does not supply
+    /// while the reflection path, which would build it, is off.
+    /// </summary>
+    public static BinaryConfigurationException NoContract(Type type) =>
+        new($"'{type}' has no TypeContract in the configuration of this operation, and the reflection path " +
+            $"that would build one is switched off ('{SwitchName}' is false, as it is for an application " +
+            "published trimmed or with native AOT). Configure the options with WithContracts and a context " +
+            "that adds a contract for the type — a [BinaryContext] that lists it, or a type that reaches it, " +
+            "does — or set the MSBuild property ViperReflectionEnabled to true.");
 }
