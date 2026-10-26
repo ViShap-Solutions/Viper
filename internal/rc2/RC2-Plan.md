@@ -299,6 +299,8 @@ Filled in by the owner.
 | RC2-02 — errors of a supplied contract | an exception from a supplied contract's own code propagates unchanged, as a `Lazy<T>` factory's does; `null` from `Create` is `BinaryTypeException` | 2026-10-26 |
 | RC2-03 — S5 clarified | the meta-package references the generator with `PrivateAssets="none"`, so one install brings it | 2026-10-26 |
 | RC2 fixes — branches | two branches: `bugfix/rc2-audit-engine` (RC2-01, RC2-02, RC2-06, RC2-12; `viper_builder`, with `viper_generator` for the generator's part), then `bugfix/rc2-audit-documents` (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13; `viper_builder`) | 2026-10-26 |
+| RC2-14 — a custom collection's `Add` | the public `Add(T)` stays the rule for whether a custom collection is read; a class is filled through it when it returns nothing, a `bool` or a reference (the result discarded), and a value-type collection or a class whose `Add(T)` returns another value through `ICollection<T>.Add`, on the instance — no boxing (amends RC2-01 for those cases; option A of three: B, `MethodInfo.Invoke`, would have taken an exception to INV-17; C, refusing them on read, would have narrowed what rc.1 read) | 2026-10-26 |
+| RC2-14…RC2-16 — where they are fixed and closed | on `audit/rc2-closure` itself, no further branch; their closure check is made in the same session that fixed them, which the owner accepts in place of an independent session; the final `--smoke` runs on `release/v1.0.0` after `audit/rc2-closure` is merged, and it and the CI job `native-aot` on that merge commit are green before the `rc.2` tag | 2026-10-26 |
 
 ---
 
@@ -640,6 +642,9 @@ documentation, `docs/`, the READMEs, `CLAUDE.md`, the skills and the living docu
 
 | RC2-05 | test `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoTagAndNoReflection`, and "no tag" in §14.4, GEN-09 and `CLAUDE.md` | `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoWireTagAndNoReflection`, which also requires every tag to sit in a `SupportedTypes.Union<T>` offer; "no tag written or read" | `NoCountNoTagAndNoReflection`, `a union tag or a byte`, `frame, tag or byte`, `no tag, no reflection` | clean outside the audit report that names the finding and `rc2/Audit-Brief.md` §4, which quotes the former `CLAUDE.md` wording as the brief the owner approved |
 | RC2-04 | "`dotnet pack` succeeds for all three packages" (§24, QA §32) | all four packages | `all three packages` | clean outside historical documents |
+| RC2-14 | `CustomCollectionShape.Adder()`, which bound only an `Add(T)` returning nothing and invoked the method on a copy of a value-type collection; "a value-type collection is handed to it as a copy" (§14.5, `Native-AOT-Design.md`) | `CustomCollectionShape.Bound(…)` for a class's `Add(T)` returning nothing, a `bool` or a reference; `ICollection<T>.Add` on the instance otherwise | `Adder()`, `handed to it as a copy`, `method.Invoke`, `an invocation of the method` | clean outside the audit report that names the finding |
+| RC2-15 | INV-19 "no codec, contract or union map is built by reflection" | INV-19: nothing described by reflection for a type no context offered; an offer reads only what its own type declares | `contract or union map is built by reflection` | clean outside `Native-AOT-Design.md` §4 (the proposal as approved), `rc2/Audit-Brief.md` §4.2 (the brief as approved) and the audit report |
+| RC2-16 | `Native-AOT-Design.md` §10 "The custom-collection shape takes its two operations in every configuration" | §10 D4 and D5 as amended | `its two operations` | clean outside the audit report |
 ---
 
 # 8. Progress
@@ -667,9 +672,10 @@ its branch into `release/v1.0.0`.
 | P5f Executable examples | `test/docs-examples` | closed | `5ac0304` |
 | P6 Benchmarks | `benchmark/track-b-adapters`, `benchmark/graceful-stop` | closed | `b0f651e`, `3c27571` |
 | P7 Documentation | `docs/rc2-docs` | closed | `97fba73` |
-| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | in progress — report merged (`57176f3`), engine fixes merged (`1ba774f`); the documents' fixes, then the closure session | |
+| P8 Audit of rc.2 | `audit/rc2-conformance`, `audit/rc2-closure` | gate holds — awaiting commit: report merged (`57176f3`), engine fixes merged (`1ba774f`), documents' fixes merged (`b0cb4d2`); the closure found RC2-14…RC2-16, fixed and closed on `audit/rc2-closure`; then the final `--smoke` and CI `native-aot` on `release/v1.0.0` (§3.9) | |
 | P8 fixes — engine (RC2-01, RC2-02, RC2-06, RC2-12) | `bugfix/rc2-audit-engine` | closed | `1ba774f` |
-| P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | gate holds — awaiting commit | |
+| P8 fixes — documents (RC2-04, RC2-05, RC2-07…RC2-11, RC2-13) | `bugfix/rc2-audit-documents` | closed | `b0cb4d2` |
+| P8 fixes — closure (RC2-14, RC2-15, RC2-16) | `audit/rc2-closure` | gate holds — awaiting commit | |
 | Tag | the owner tags `v1.0.0-rc.2` | not started | |
 | Release | `release/v1.0.0` → `main` | not started | |
 

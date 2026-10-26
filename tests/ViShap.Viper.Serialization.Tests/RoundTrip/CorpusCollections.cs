@@ -72,6 +72,23 @@ public abstract partial class Corpus
         Assert.Equal(["a", "b"], restored.ToArray());
     }
 
+    [Fact]
+    public void Deserialize_CustomCollectionWhoseAddReturnsAValue_RestoresTheElements()
+    {
+        Assert.Equal([1, 2, 3], RoundTrip(new SetBag { 1, 2, 3 })!.Order());
+        Assert.Equal(["a", "b"], RoundTrip(new ChainBag { "a", "b" })!.ToArray());
+        Assert.Equal([5, 6], RoundTrip(new TallyBag { 5, 6 })!.ToArray());
+    }
+
+    [Fact]
+    public void Deserialize_ValueTypeCustomCollection_FillsTheInstanceItReturns()
+    {
+        var restored = RoundTrip(new TallyStruct { 4, 5, 6 });
+
+        Assert.Equal(3, restored.Count);
+        Assert.Equal([4, 5, 6], restored.ToArray());
+    }
+
     // --- unordered and behavioural --------------------------------------------------------------
 
     [Fact]

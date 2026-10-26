@@ -189,9 +189,54 @@ public class SupportedTypesTests
         var addless = new CustomCollectionShape<AddlessBag, int>();
         var empty = addless.Create(capacity: 1);
 
+        var tallyStruct = new CustomCollectionShape<TallyStruct, int>();
+        var filledInPlace = tallyStruct.Create(capacity: 2);
+        tallyStruct.Add(ref filledInPlace, 3);
+        tallyStruct.Add(ref filledInPlace, 4);
+
         Assert.Equal([7, 8], filled);
         Assert.Equal([9], filledStruct);
+        Assert.Equal([3, 4], filledInPlace.ToArray());
         AssertEx.Throws<BinaryTypeException>("has no public instance method Add", () => addless.Add(ref empty, 1));
+    }
+
+    [Fact]
+    public void Collection_WhoseAddReturnsAValue_FillsThroughIt()
+    {
+        var set = new CustomCollectionShape<SetBag, int>();
+        var filledSet = set.Create(capacity: 2);
+        set.Add(ref filledSet, 1);
+        set.Add(ref filledSet, 2);
+
+        var chain = new CustomCollectionShape<ChainBag, string>();
+        var filledChain = chain.Create(capacity: 1);
+        chain.Add(ref filledChain, "x");
+
+        var tally = new CustomCollectionShape<TallyBag, int>();
+        var filledTally = tally.Create(capacity: 1);
+        tally.Add(ref filledTally, 5);
+
+        Assert.Equal([1, 2], filledSet.Order());
+        Assert.Equal(["x"], filledChain.ToArray());
+        Assert.Equal([5], filledTally.ToArray());
+    }
+
+    [Fact]
+    public void Collection_WhoseAddReturnsAValue_ThroughAGeneratedContext_WritesAndReadsTheReflectedBytes()
+    {
+        var context = CollectionContracts.Default;
+        var offered = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+        var reflected = new BinarySerializer(BinarySerializerOptions.Default);
+        var set = new SetBag { 1, 2, 3 };
+        var chain = new ChainBag { "a", "b" };
+        var tally = new TallyBag { 5, 6 };
+
+        Assert.Equal(reflected.Serialize(set), offered.Serialize(set, context.SetBag));
+        Assert.Equal(reflected.Serialize(chain), offered.Serialize(chain, context.ChainBag));
+        Assert.Equal(reflected.Serialize(tally), offered.Serialize(tally, context.TallyBag));
+        Assert.Equal([1, 2, 3], offered.Deserialize(offered.Serialize(set, context.SetBag), context.SetBag)!.Order());
+        Assert.Equal(["a", "b"], offered.Deserialize(offered.Serialize(chain, context.ChainBag), context.ChainBag)!.ToArray());
+        Assert.Equal([5, 6], offered.Deserialize(offered.Serialize(tally, context.TallyBag), context.TallyBag)!.ToArray());
     }
 
     [Fact]
@@ -413,3 +458,7 @@ public class SupportedTypesTests
         public NullSupportedContext() => Add((SupportedType)null!);
     }
 }
+
+/// <summary>The context the source generator writes for the custom collections whose <c>Add(T)</c> returns a value.</summary>
+[BinaryContext(typeof(SetBag), typeof(ChainBag), typeof(TallyBag))]
+public partial class CollectionContracts : BinarySerializerContext;

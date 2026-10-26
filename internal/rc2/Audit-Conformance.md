@@ -8,7 +8,24 @@
 
 ## 1. Вердикт
 
-**rc.2 не может быть помечен тегом.**
+**rc.2 может быть помечен тегом** — после двух условий, которые владелец перенёс на `release/v1.0.0`
+(`RC2-Plan.md` §3.9, «RC2-14…RC2-16 — where they are fixed and closed»): зелёный окончательный `--smoke`
+и зелёное задание CI `native-aot` на merge-коммите `audit/rc2-closure`.
+
+- RC2-01…RC2-13 закрыты на слоях, которые они называли; решения владельца по RC2-01…RC2-03 записаны в
+  `RC2-Plan.md` §3.9 и выполнены (§12.2).
+- Сессия закрытия нашла RC2-14 (блокировала rc: коллекция с `Add(T)`, возвращающим значение, не читалась),
+  RC2-15 и RC2-16; по решению владельца они исправлены и закрыты в той же сессии, на `audit/rc2-closure`
+  (§12.7). Эта проверка — не независимая, что владелец принял вместо отдельной сессии.
+- Сборка без предупреждений; 2 293 + 46 тестов зелёные в Debug и Release; `--verify` зелёный; локальная
+  публикация native AOT — без предупреждений, вывод равен JIT; пакеты `1.0.0-rc.2` — как требует CD.
+  Зелёный набор вердикта не определяет.
+
+Вердикт сессии закрытия на `b0cb4d2` до исправлений был «rc.2 может быть помечен тегом после закрытия
+RC2-14, RC2-15, RC2-16» (§12.6).
+
+Вердикт аудита на `97fba73` был **«rc.2 не может быть помечен тегом»**, по основаниям ниже; они
+сохранены как были.
 
 - Одна находка веса «блокирует rc» требует решения владельца по существу: предложения
   `SupportedTypes` действуют на весь процесс, а `Union<T>` и `Collection<TCollection, T>` принимают
@@ -472,4 +489,188 @@ README, `CLAUDE.md`, `.claude/skills/`, `internal/`:
 
 ## 12. Закрытие
 
-*Пишется в сессии закрытия на `audit/rc2-closure`.*
+### 12.1 Объём
+
+| | |
+|---|---|
+| Проверенный коммит | `b0cb4d2fa9755ad5cd7fd888e974555ca589f9c9` (`release/v1.0.0` HEAD, merge PR #35), совпадает с `origin/release/v1.0.0` |
+| Ветка | `audit/rc2-closure`, дерево чистое до и после всех прогонов |
+| Дата | 2026-10-26 |
+| Ветки исправлений | `bugfix/rc2-audit-engine` — `77ddbf9`, merge `1ba774f` (PR #34); `bugfix/rc2-audit-documents` — `b1466db`, merge `b0cb4d2` (PR #35) |
+| Дельта исправлений | `git diff 57176f3..HEAD`: 28 файлов, +703 / −192; `src/` — 7 файлов |
+| Пробы | в scratchpad сессии; пакеты `1.0.0-rc.2` из CD dry run; для сравнения — `Serialization` на `57176f3` и `c728c99` (rc.1) во временных worktree, удалённых после пробы |
+
+### 12.2 Находки аудита
+
+| Находка | Закрыта? | Доказательство |
+|---|---|---|
+| RC2-01 | **закрыта**, с новыми находками RC2-14…RC2-16 | Решение §3.9 «RC2-01 — offers of `SupportedTypes`». `SupportedTypes.Union<T>` (`SupportedTypes.cs:60–100`) сверяет плечи как множество с картой, которую `TypeContractCache.GetUnion` читает из атрибутов, отказывает типу без `[BinaryUnion]` и с отвергаемыми атрибутами (`UnionError`), предлагает именно прочитанную карту; `Collection<TCollection, T>()` не принимает ничего, `TCollection : new()`, одна `CustomCollectionShape` для обоих путей (`FormatterRegistry.ForCollection`), генератор больше не ищет `Add` (`Planner.cs:852`). Контракт §14.5, INV-20, `docs/writing-contracts.md`, D4/D5 `Native-AOT-Design.md` (поправки владельца), строки ведомости §7. Тесты NAOT-01…03, NAOT-14 (`SupportedTypesTests`, `SupportedSurfaceTests`). Проба `union-closure`: контекст с плечом `(9, A)` — `BinaryConfigurationException … differ from the ones its [BinaryUnion] attributes declare: (1, A), (2, B)`; те же плечи в другом порядке приняты; сериализатор без контекста пишет `Base(A)` как `4253455201000006010107000000` — байт в байт базовая линия пробы `union-baseline`. |
+| RC2-02 | закрыта | Решение §3.9 «RC2-02». `ObjectMembers.Create` (`ObjectCodec.cs:296–310`) — `null` из `Create` для ссылочного типа — `BinaryTypeException` до регистрации экземпляра; исключение из кода контракта не перехватывается. Контракт §8 (абзац о коде вызывающего), §14.3 «The contract's own code», INV-10 с CTX-09; `docs/writing-contracts.md`. CTX-09 (`ContextTests`: `…CreateReturnsNull…` для объявленного типа и полиморфного слота, `…WriteThrows_PropagatesItsExceptionUnchangedAndWritesNothing`, `…OwnCodeThrows_PropagatesItsExceptionUnchanged` ×4). Проба `null-create`: `BinaryTypeException: The contract of 'Plain' created null instead of an instance to read the members into.` |
+| RC2-03 | закрыта | Решение §3.9 «RC2-03 — S5 clarified»: `PrivateAssets="none"`. `src/ViShap.Viper/ViShap.Viper.csproj:25` — `PrivateAssets="none"`; nuspec мета-пакета из CD dry run — `<dependency id="ViShap.Viper.Generator" version="1.0.0-rc.2" include="All" />`; проба собрана только с `ViShap.Viper` — сгенерированный `SetContext` создан генератором у потребителя. |
+| RC2-04 | закрыта | Контракт §2 (схема слоёв), §14.1, §18 «`FormatterCache<T>`», §24 (26 + 26 входов; четыре пакета); QA §32 — четыре пакета; строка ведомости §7 RC2-04, `all three packages` вне исторических документов не найдено. |
+| RC2-05 | закрыта | §14.4 «a tag written or read … The union map is the one place a tag appears, as data»; GEN-09; `CLAUDE.md`; тест переименован в `TheEmittedSource_HoldsNoLoopNoLengthNoCountNoWireTagAndNoReflection` и требует, чтобы каждая пара `(n, typeof(` стояла в `SupportedTypes.Union<` (`PipelineTests`); строка §7 RC2-05. |
+| RC2-06 | закрыта | `BoxingTests`: `Serialize_AGraphOfValueTypesThroughGeneratedContracts_BoxesNothing`, `Deserialize_…ThroughGeneratedContracts_AllocatesOnlyTheArrayItReturns`, `SerializeAndDeserialize_StructsThroughHandWrittenContracts_BoxNothing`, оба с `RequireGeneratedContracts()`; TYP-02 называет три пути. |
+| RC2-07 | закрыта | `Benchmark-Plan.md` PROF-02, SIZE-02, DIFF-01 и `SizeReport.cs:119` — §22.7; `git grep '§22.8'` вне исторических документов и `Baselines/` — пусто; строка R9a `Retired.md` обновлена. |
+| RC2-08 | закрыта | Строки §7 P1, `Retired.md` R3 и R4 называют каждое допустимое попадание. |
+| RC2-09 | закрыта | `CLAUDE.md` — `internal/rc2/` с классами (plan; отчёт — historical), `Audit-Conformance.md` в списке исторических, `Benchmark-Graceful-Stop.md` «done in `rc.2` (P6)»; `internal/README.md` — обе строки `Audit-Conformance.md` и классы `rc2/`. |
+| RC2-10 | закрыта (см. 12.5) | Шапка `RC2-Plan.md` — решения приняты, P0–P7 закрыты, P8 идёт; P7 — `closed`, `97fba73`. |
+| RC2-11 | закрыта | `CLAUDE.md:265`, `QA-Plan.md:578` — `` `\n` ``. |
+| RC2-12 | закрыта | `ReflectionPath.NoContract` (`ReflectionPath.cs:42–51`) для предложенного member-encoded типа без контракта (`ObjectCodec.Reflected`, `RuntimeContract`); `Unavailable` остался для кодека, который никто не предложил (`ScalarCodecs.cs:159, 164`); NAOT-13 — `ContextRun.Uncontracted` требует «has no TypeContract» и имя типа, в наборе и в CI natively. |
+| RC2-13 | закрыта | `docs/writing-contracts.md:282–287` объясняет `SupportedType`; DOC-05 (`DocumentationExampleTests.Docs_NameEveryPublicTypeOfThePackages`) требует, чтобы каждый публичный тип Core и Serialization был назван на странице `docs/`. |
+
+### 12.3 Новые находки
+
+#### RC2-14 — пользовательская коллекция с `Add(T)`, возвращающим значение, больше не поддерживается
+
+- **Вес:** блокирует rc.
+- **Сторона:** код.
+- **Слой:** `Formatters/Sequences/SequenceShapes.cs`, `CustomCollectionShape<TCollection, T>.Adder` — одно
+  правило обоих путей; с тестом в NAOT-01 и случаем в корпусе round-trip.
+- **Доказательство:** `Adder()` берёт `GetMethod("Add", Public | Instance, [typeof(T)])` и для ссылочного
+  типа вызывает `method.CreateDelegate<Action<TCollection, T>>()`, что для метода с возвращаемым значением
+  бросает `ArgumentException`; поле `_add` инициализируется в конструкторе шейпа, то есть уже при
+  построении кодека. Проба `collection-add` (типы `class MySet : HashSet<int>` и `class BoolAdd :
+  ICollection<int>` с `public bool Add(int)` и явным `ICollection<int>.Add`):
+
+  ```text
+  c728c99 (rc.1)  MySet  425345520100000D04010000000200000003000000 -> 1,2,3
+                  BoolAdd 4253455201000009030500000006000000 -> 5,6
+  57176f3 (аудит) MySet, BoolAdd: TypeInitializationException: The type initializer for
+                  'ViShap.Viper.Engine.FormatterCache`1' threw an exception.
+  b0cb4d2         MySet, BoolAdd (рефлексия): BinaryTypeException: 'MySet' cannot be serialized: Cannot bind
+                  to the target method because its signature is not compatible with that of the delegate type.
+                  [BinaryContext(typeof(MySet))] SetContext.Default: TypeInitializationException: The type
+                  initializer for 'SetContext' threw an exception.
+  ```
+
+  Расхождение внесено в P4d (`ForCollection` перешёл на нетипизированный `Expression.Lambda`, который для
+  такого `Add` даёт `Func<…, bool>`), аудитом на `97fba73` не замечено; исправление RC2-01 изменило его
+  форму, но не устранило, а на сгенерированном пути, где до исправления работала лямбда
+  `static (c, e) => c.Add(e)`, создало заново.
+- **Наблюдается:** такую коллекцию нельзя ни записать, ни прочитать — ни через рефлексию, ни через
+  контекст; статическое свойство `Default` сгенерированного контекста, который её достигает, бросает
+  `TypeInitializationException`, исключение вне таксономии.
+- **Ожидается:** контракт §23 (`System-Contract.md:2965`) и `docs/supported-types.md:20, 117` — «any
+  concrete non-abstract type implementing `ICollection<T>` with a public parameterless constructor and an
+  `Add` method»; §14.5 — «fills it through its public instance `Add(T)` … and without that method writes
+  it and refuses to read one»; решение §3.9 RC2-01 — «`new()` and the public `Add(T)` the reflection path
+  finds»; rc.1 (`c728c99`, `Expression.Lambda<Action<TCollection, T>>`) возвращаемое значение отбрасывал.
+
+#### RC2-15 — INV-19 утверждает, что при выключенной рефлексии карта union не строится рефлексией
+
+- **Вес:** нужно исправить до выпуска.
+- **Сторона:** документ — контракт.
+- **Слой:** контракт §25 INV-19 (и §14.5 «The reflection path», если формулировка переносится туда).
+- **Доказательство:** INV-19 (`System-Contract.md:3154`): «With the reflection path switched off, no
+  codec, contract or union map is built by reflection». После RC2-01 `SupportedTypes.Union<T>` при любом
+  значении переключателя строит карту из атрибутов через `TypeContractCache.GetUnion`
+  (`GetCustomAttributes`) и предлагает её (`SupportedTypes.cs:90–110`), а `CustomCollectionShape` находит
+  `Add(T)` через `GetMethod` (`SequenceShapes.cs:281–291`); так и решено (§3.9 RC2-01, поправки D4/D5:
+  «read at run time, as D4-b would»), и §14.5 того же контракта это описывает («the union map offered is
+  the one the reflection path reads from the attributes»).
+- **Наблюдается:** инвариант в буквальном виде не держится и противоречит §14.5; наблюдаемая сторона
+  инварианта — тип, который не предложил ни один контекст, даёт `BinaryConfigurationException`, — держится
+  (NAOT-13, CI `native-aot`).
+- **Ожидается:** инвариант, который код держит по построению: при выключенном переключателе ничто не
+  описывает по рефлексии тип, который не предложил ни один контекст; предложение может читать только
+  метаданные собственного типа (атрибуты union, публичный `Add`) на типе, аннотированном для анализаторов
+  тримминга. Строка — решение §3.9 RC2-01, выше контракта по брифу §3.
+
+#### RC2-16 — «As built» D5 и обоснование D6 в `Native-AOT-Design.md` описывают снятое
+
+- **Вес:** нужно исправить до выпуска.
+- **Сторона:** документ — `internal/rc2/Native-AOT-Design.md`.
+- **Слой:** §10 «As built (P4d)», пункты D4 и D5; D6.
+- **Доказательство:** §10 D5 (`Native-AOT-Design.md:424–425`) «The custom-collection shape takes its two
+  operations in every configuration: the reflection path compiles them, a context writes them as code»;
+  §10 D4 «it validates the arms as §14.5 states», без сверки с атрибутами; D6 (`:176`) «Every reflective
+  resolution — B1 (through B2), B3 and, under D4-b, B4 — sits behind one feature switch» — чтение атрибутов
+  в `Union<T>` за переключателем не стоит. Поправки владельца добавлены в §3 (D4, D5), а «As built» и D6
+  остались. Строки ведомости §7 RC2-01 не называют `its two operations`.
+- **Ожидается:** бриф §3 ставит `Native-AOT-Design.md` «as approved (§9) and as built (§10)» вторым по
+  старшинству; §10 должен описывать построенное после поправок, D6 — где теперь проходит граница
+  переключателя.
+
+### 12.4 Повторная проверка
+
+**§4.5 брифа по файлам исправлений.** Каждое «Searched as» новых строк §7 (RC2-01, RC2-04, RC2-05) и
+строк `Retired.md`, изменённых исправлениями (R3, R4, R9a), найдено по всему дереву вне исторических
+документов и `Baselines/`: попадания совпадают с записанными (`Native-AOT-Design.md:161` — опция D5,
+которую поправка изменила; `static () => new` — регистрации алгоритмов в `AlgorithmCatalogTests`;
+`Expression.Lambda` — `ReflectedContract`; `does not read` — проза о кадре, не о union). Вне ведомостей —
+`its two operations` (RC2-16).
+
+**§4.9 брифа и CD dry run** (`cd.yml`, без публикации; артефакты в scratchpad):
+
+| Команда | Результат |
+|---|---|
+| `dotnet restore Viper.sln` | exit 0 |
+| `dotnet build Viper.sln --configuration Release --no-restore` | 0 предупреждений, 0 ошибок (Debug: 0 / 0) |
+| `dotnet test …Serialization.Tests… -c Release --no-build --no-restore` | пройдено 2 283, не пройдено 0 |
+| `dotnet test …Generator.Tests… -c Release --no-build --no-restore` | пройдено 46, не пройдено 0 |
+| `dotnet test …Serialization.Tests… -c Debug` | пройдено 2 283, не пройдено 0 |
+| `dotnet test …Generator.Tests… -c Debug` | пройдено 46, не пройдено 0 |
+| `dotnet pack` ×4, `-p:Version=1.0.0-rc.2` | exit 0 ×4 |
+| `dotnet run --project benchmarks/… -c Release -- --verify` | `405 pairs, 0 failed`; `Market: 304 pairs, 140 probes, 0 schema failures, 0 failed`; exit 0 |
+| `dotnet run --project benchmarks/… -c Release -- --smoke` | `Smoke: 2477 benchmarks, 0 failed.`, exit 0 (≈27 мин) |
+
+Пакеты CD dry run:
+
+| Пакет | `<version>` | README (байт) | Прочее |
+|---|---|---|---|
+| `ViShap.Viper.Core.1.0.0-rc.2.nupkg` + `.snupkg` | `1.0.0-rc.2` | `CORE-README.md` (7 045) | `lib/net10.0` |
+| `ViShap.Viper.Serialization.1.0.0-rc.2.nupkg` + `.snupkg` | `1.0.0-rc.2` | `SERIALIZATION-README.md` (7 503) | `buildTransitive/ViShap.Viper.Serialization.targets` |
+| `ViShap.Viper.Generator.1.0.0-rc.2.nupkg` | `1.0.0-rc.2` | `GENERATOR-README.md` (4 085) | только `analyzers/dotnet/cs/ViShap.Viper.Generator.dll`, `lib/` нет, `developmentDependency=true` |
+| `ViShap.Viper.1.0.0-rc.2.nupkg` | `1.0.0-rc.2` | `METAPACK-README.md` (4 188) | генератор — `include="All"` |
+
+Ровно четыре `.nupkg` и два `.snupkg`, как требует `cd.yml` (`EXPECTED_COUNT=4`).
+
+CI на проверенном коммите: `Viper CI`, run `40332765658`, push `release/v1.0.0`, `success`; задания
+`Build and test` и `Native AOT` — success
+(`https://github.com/ViShap-Solutions/Viper/actions/runs/40332765658`).
+
+### 12.5 Замечание без номера
+
+Строка §8 `RC2-Plan.md` «P8 fixes — documents» стоит «gate holds — awaiting commit», хотя ветка слита
+(`b0cb4d2`): ветка исправлений не может записать собственный merge. Строку закрывает следующая ветка
+исправлений (RC2-14…RC2-16) вместе со своей.
+
+### 12.6 Вердикт закрытия
+
+**rc.2 может быть помечен тегом после закрытия перечисленных находок** — RC2-14 (блокирует rc, код,
+`CustomCollectionShape`), RC2-15 (контракт, INV-19), RC2-16 (`Native-AOT-Design.md` §10, D6). Ни одна не
+требует решения владельца. После исправлений — новая сессия закрытия.
+
+### 12.7 Закрытие RC2-14…RC2-16
+
+Исправлены и проверены в этой же сессии, на `audit/rc2-closure` — коммит `bb88523` поверх `b0cb4d2`, по
+решению владельца (§3.9 «RC2-14 — a custom collection's `Add`», вариант A из трёх, и «RC2-14…RC2-16 —
+where they are fixed and closed»).
+
+| Находка | Закрыта? | Доказательство |
+|---|---|---|
+| RC2-14 | закрыта | `CustomCollectionShape` (`SequenceShapes.cs`): публичный `Add(T)` по-прежнему решает, читается ли коллекция; класс заполняется делегатом над ним для результата `void`, `bool` или ссылки (результат отбрасывается), структура и любой другой результат — через `ICollection<T>.Add` ограниченным вызовом на самом экземпляре; `MethodInfo.Invoke` нет, ничего не боксится. Контракт §14.5 и таблица §23, XML `SupportedTypes.Collection`, `docs/supported-types.md`, D5 `Native-AOT-Design.md`. Тесты: `Collection_WhoseAddReturnsAValue_FillsThroughIt`, `Collection_WhoseAddReturnsAValue_ThroughAGeneratedContext_WritesAndReadsTheReflectedBytes`, `Collection_FillsThroughItsPublicAdd_AndWithoutOneRefusesToRead` (структура `TallyStruct` заполняется на месте) — NAOT-01; `Deserialize_CustomCollectionWhoseAddReturnsAValue_RestoresTheElements`, `Deserialize_ValueTypeCustomCollection_FillsTheInstanceItReturns` во всех вариантах корпуса — RT-70; `ContextRun.Collection` с `Stamps : HashSet<int>` — NAOT-13. Проба `collection-add` на пакетах из исправленного кода: `MySet` — `425345520100000D04010000000200000003000000 -> 1,2,3` через рефлексию и через `SetContext`, `BoolAdd` — `4253455201000009030500000006000000 -> 5,6`, байт в байт как rc.1 (`c728c99`). |
+| RC2-15 | закрыта | INV-19 (§25): при выключенном переключателе ничто не описывается по рефлексии для типа, который не предложил ни один контекст; предложение читает только то, что объявляет его собственный тип (атрибуты union, публичный `Add(T)`) на типе, аннотированном для анализаторов, и не строит кодировки, которой не построили бы правила. Совпадает с §14.5 и с кодом (`SupportedTypes.Union<T>`, `CustomCollectionShape`). |
+| RC2-16 | закрыта | `Native-AOT-Design.md`: D6 — граница переключателя после поправок; §10 D4 — сверка плеч с атрибутами; §10 D5 — один шейп для обоих путей с правилом RC2-14; поправка D5 второго порядка. `its two operations` вне отчёта не найдено. |
+
+**§4.5 по файлам исправлений.** Новые строки ведомости §7 (RC2-14, RC2-15, RC2-16): `Adder()`,
+`handed to it as a copy`, `method.Invoke`, `an invocation of the method`, `its two operations` — вне отчёта
+пусто; `contract or union map is built by reflection` — только `rc2/Audit-Brief.md` §4.2 и
+`Native-AOT-Design.md` §4 (одобренные тексты), как записано в строке.
+
+**§4.9 на исправленном коде.**
+
+| Команда | Результат |
+|---|---|
+| `dotnet build Viper.sln -c Release` / `-c Debug` | 0 предупреждений, 0 ошибок |
+| `dotnet test …Serialization.Tests…` Debug / Release | 2 293 / 2 293, не пройдено 0 |
+| `dotnet test …Generator.Tests…` Debug / Release | 46 / 46, не пройдено 0 |
+| `dotnet run --project benchmarks/… -c Release -- --verify` | `405 pairs, 0 failed`; `Market: 304 pairs, 140 probes, 0 schema failures, 0 failed`; exit 0 |
+| `dotnet run --project benchmarks/… -c Release -- --smoke` | не запускался: по решению владельца окончательный прогон — на `release/v1.0.0` после слияния |
+| `dotnet pack` ×4, `-p:Version=1.0.0-rc.2` | четыре `.nupkg` и два `.snupkg`; `<version>1.0.0-rc.2</version>` в каждом; README у каждого (4 188, 7 045, 4 085, 7 503 байт); генератор — только `analyzers/dotnet/cs`, `lib/` нет; Serialization несёт `buildTransitive/ViShap.Viper.Serialization.targets` |
+| `dotnet publish tests/ViShap.Viper.AotConsumer -c Release -r win-x64` | 0 предупреждений `IL`/`AOT`; вывод нативного файла и `dotnet run … --no-build` идентичен, 51 строка, последняя `all checks passed` |
+
+### 12.8 Окончательный вердикт
+
+**rc.2 может быть помечен тегом** после зелёных окончательного `--smoke` и задания CI `native-aot` на
+merge-коммите `audit/rc2-closure` в `release/v1.0.0` (решение владельца, §3.9). Открытых находок нет.

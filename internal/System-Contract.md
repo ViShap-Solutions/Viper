@@ -2263,9 +2263,12 @@ from the ones its `[BinaryUnion]` attributes declare — another tag for an arm,
 more. The arms are compared as a set, so their order is free; the union map offered is the one the
 reflection path reads from the attributes, which `Union<T>` reads to compare. `Collection<TCollection, T>`
 takes no operation: `TCollection` is constrained to `new()`, and the shape creates it with that
-constructor and fills it through its public instance `Add(T)`, declared on it or inherited, found by the
-rule the reflection path uses — a value-type collection is handed to it as a copy — and without that
-method writes it and refuses to read one with `BinaryTypeException`. No method of `SupportedTypes`
+constructor. It reads a collection only when the collection has a public instance `Add(T)`, declared on it
+or inherited, found by the rule the reflection path uses; without one it writes the collection and refuses
+to read one with `BinaryTypeException`. A class is filled through that `Add(T)` when it returns nothing, a
+`bool` or a reference, whatever it returns being discarded; a value-type collection, and a class whose
+`Add(T)` returns another value, through its `ICollection<T>.Add`, on the instance being read, so no element
+and no collection is boxed (INV-17). No method of `SupportedTypes`
 takes anything an offer could be made to differ by, so every offer is the reflection path's encoding by
 construction (INV-20).
 
@@ -2962,7 +2965,7 @@ A type is supported when a formatter claims it, or when it is member-encoded. An
 | Dictionaries | `Dictionary<,>`, `IDictionary<,>`, `IReadOnlyDictionary<,>`, `ReadOnlyDictionary<,>`, `SortedDictionary<,>`, `SortedList<,>`, `PriorityQueue<,>` |
 | Immutable | `ImmutableList<>`, `IImmutableList<>`, `ImmutableHashSet<>`, `IImmutableSet<>`, `ImmutableSortedSet<>`, `ImmutableQueue<>`, `IImmutableQueue<>`, `ImmutableStack<>`, `IImmutableStack<>`, `ImmutableDictionary<,>`, `IImmutableDictionary<,>`, `ImmutableSortedDictionary<,>` |
 | Frozen | `FrozenSet<>`, `FrozenDictionary<,>` |
-| Custom collections | any concrete non-abstract type implementing `ICollection<T>` with a public parameterless constructor and an `Add` method |
+| Custom collections | any concrete non-abstract type implementing `ICollection<T>` with a public parameterless constructor; it is read when it also has a public instance `Add(T)`, filled as §14.5 states |
 | Objects | any other type with a parameterless constructor, encoded member by member |
 
 Every entry a caller's types close — each generic definition, `T[]`, an array of rank above one,
@@ -3151,5 +3154,5 @@ contract first.
 | INV-16 | The engine never awaits: `await` exists only at the frame edge, and the engine and the formatters contain no asynchronous method. | §2.4, §3.5 | LIM-50 |
 | INV-17 | Boxing happens only in a polymorphic slot (`[BinaryUnion]`, an interface, `object`), verified by a counting test double. | §2.4, §15 | TYP-02 |
 | INV-18 | A V0 payload is byte-identical to the V1 payload of the same value written without references. | §10.2, §22.7 | V0-19, V0-21, KEY-18, LIM-59 |
-| INV-19 | With the reflection path switched off, no codec, contract or union map is built by reflection: a type no context offered is `BinaryConfigurationException` where it is first used. | §3, §14.5 | NAOT-12, NAOT-13 |
+| INV-19 | With the reflection path switched off, nothing is described by reflection for a type no context offered — no codec, contract, union map or runtime contract of a polymorphic slot: such a type is `BinaryConfigurationException` where it is first used. An offer reads only what its own type declares, on a type annotated for the trimming analysers — `Union<T>` the `[BinaryUnion]` attributes it compares its arms with, `Collection<TCollection, T>` the public `Add(T)` — and never builds an encoding the rules would not. | §3, §14.5 | NAOT-12, NAOT-13 |
 | INV-20 | A codec or union map a context offers through `SupportedTypes` is the one the reflection path builds for the same type — no method takes anything an offer could differ by, and `Union<T>` refuses arms its attributes do not declare — and a generated context offers exactly the types the engine reaches from those it lists. | §14.5 | NAOT-01, NAOT-02, NAOT-03, NAOT-06 |
