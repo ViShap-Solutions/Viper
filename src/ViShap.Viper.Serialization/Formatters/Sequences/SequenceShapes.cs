@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -250,25 +249,46 @@ internal sealed class ReadOnlySequenceShape<T>
 }
 
 /// <summary>
-/// Any concrete type implementing <c>ICollection&lt;T&gt;</c> with a public parameterless constructor
-/// and a public <c>Add</c> method, built in place through that method. The two operations are given
-/// to it: compiled by the reflection path, or written as code by a context.
+/// Any concrete type implementing <c>ICollection&lt;T&gt;</c> with a public parameterless constructor,
+/// created with that constructor and filled through its public instance <c>Add(T)</c>. The shape finds
+/// both itself, whichever path closes it, so a collection is read by one rule.
 /// </summary>
-internal sealed class CustomCollectionShape<TCollection, T>(Func<TCollection> create, Action<TCollection, T>? add)
+internal sealed class CustomCollectionShape<
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicMethods)] TCollection,
+    T>
     : SequenceShape<TCollection, T, TCollection, IEnumerator<T>>
-    where TCollection : ICollection<T>
+    where TCollection : ICollection<T>, new()
 {
+    private readonly Action<TCollection, T>? _add = Adder();
+
     public override int? CountOf(TCollection collection) => Counts.Of(collection);
     public override IEnumerator<T> GetEnumerator(TCollection collection) => collection.GetEnumerator();
-    public override TCollection Create(int capacity) => create();
+    public override TCollection Create(int capacity) => new();
 
     public override void Add(ref TCollection builder, T element)
     {
-        if (add is null)
+        if (_add is null)
             throw new BinaryTypeException(
                 $"'{typeof(TCollection)}' has no public instance method Add({typeof(T).Name}).");
 
-        add(builder, element);
+        _add(builder, element);
+    }
+
+    /// <summary>
+    /// The collection's public instance <c>Add(T)</c>, declared on it or inherited, or
+    /// <see langword="null"/> when it has none. A value-type collection is handed to it as a copy.
+    /// </summary>
+    private static Action<TCollection, T>? Adder()
+    {
+        var method = typeof(TCollection).GetMethod("Add", BindingFlags.Public | BindingFlags.Instance, [typeof(T)]);
+        if (method is null)
+            return null;
+
+        if (!typeof(TCollection).IsValueType)
+            return method.CreateDelegate<Action<TCollection, T>>();
+
+        return (collection, element) =>
+            method.Invoke(collection, BindingFlags.DoNotWrapExceptions, binder: null, [element], culture: null);
     }
 
     public override TCollection Complete(TCollection builder) => builder;

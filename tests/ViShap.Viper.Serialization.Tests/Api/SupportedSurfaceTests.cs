@@ -4,11 +4,11 @@ using ViShap.Viper.Contracts;
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
-/// Pins NAOT-14 (INV-5): the surface that makes a type supported names types and nothing of the
+/// Pins NAOT-14 (INV-5, INV-20): the surface that makes a type supported names types and nothing of the
 /// traversal. A <see cref="SupportedType"/> exposes its declared type and a <see cref="BinaryTypeInfo{T}"/>
 /// its type and its context, and nothing else; every method of <see cref="SupportedTypes"/> returns a
-/// <see cref="SupportedType"/> and takes nothing but the two operations of a custom collection or the arms
-/// of a union — no codec, shape, count, reader or writer.
+/// <see cref="SupportedType"/> and takes nothing but the arms of a union, which it holds to the union's
+/// attributes — no operation, codec, shape, count, reader or writer an offer could be made to differ by.
 /// </summary>
 public class SupportedSurfaceTests
 {
@@ -31,24 +31,19 @@ public class SupportedSurfaceTests
     }
 
     [Fact]
-    public void SupportedTypes_TakesNoTraversalAndReturnsOnlySupportedTypes()
+    public void SupportedTypes_TakesNothingButAUnionsArmsAndReturnsOnlySupportedTypes()
     {
-        Type[] admitted = [typeof(Func<>), typeof(Action<,>), typeof(ValueTuple<int, Type>[])];
-
         var methods = typeof(SupportedTypes).GetMethods(Visible);
 
         Assert.NotEmpty(methods);
         Assert.All(methods, method =>
         {
             Assert.Equal(typeof(SupportedType), method.ReturnType);
-            Assert.All(method.GetParameters(), parameter =>
-            {
-                var type = parameter.ParameterType.IsGenericType && !parameter.ParameterType.IsArray
-                    ? parameter.ParameterType.GetGenericTypeDefinition()
-                    : parameter.ParameterType;
 
-                Assert.Contains(type, admitted);
-            });
+            if (method.Name == nameof(SupportedTypes.Union))
+                Assert.Equal([typeof(ValueTuple<int, Type>[])], method.GetParameters().Select(parameter => parameter.ParameterType));
+            else
+                Assert.Empty(method.GetParameters());
         });
     }
 

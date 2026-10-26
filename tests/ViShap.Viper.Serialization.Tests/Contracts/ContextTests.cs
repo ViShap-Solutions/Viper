@@ -19,11 +19,13 @@ public sealed class ContextContractConformanceTests : ContractConformance
 }
 
 /// <summary>
-/// Pins CTX-01…CTX-07: a context supplies contracts through the options, the engine uses them before
-/// reflection — for a declared type, in the polymorphic slot and when it decides how a value carries
-/// its null — and writes the bytes reflection writes; <c>RequireGeneratedContracts</c> turns the
-/// fallback into a configuration error; a context and a description refuse what is malformed; and a
-/// copy of a member writer or reader is refused instead of distorting the payload.
+/// Pins CTX-01…CTX-07 and CTX-09: a context supplies contracts through the options, the engine uses
+/// them before reflection — for a declared type, in the polymorphic slot and when it decides how a
+/// value carries its null — and writes the bytes reflection writes; <c>RequireGeneratedContracts</c>
+/// turns the fallback into a configuration error; a context and a description refuse what is
+/// malformed; a copy of a member writer or reader is refused instead of distorting the payload; and an
+/// exception from the contract's own code reaches the caller unchanged, while a null instance from
+/// <c>Create</c> is refused.
 /// </summary>
 public class ContextTests
 {
@@ -387,6 +389,59 @@ public class ContextTests
         });
     }
 
+    // --- CTX-09: the contract's own code -----------------------------------------------------------
+
+    [Theory]
+    [InlineData(MemberLayout.Positional)]
+    [InlineData(MemberLayout.Keyed)]
+    public void Deserialize_AContractWhoseCreateReturnsNull_ThrowsTypeNamingTheType(MemberLayout layout)
+    {
+        var serializer = Faulty(Fault.CreateNull, layout);
+        byte[] bytes = serializer.Serialize(new CountedPair { A = 1, B = "b" });
+
+        var error = AssertEx.Throws<BinaryTypeException>("created null", () => serializer.Deserialize<CountedPair>(bytes));
+        Assert.Contains(nameof(CountedPair), error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deserialize_AContractWhoseCreateReturnsNull_InThePolymorphicSlot_ThrowsType()
+    {
+        var serializer = Faulty(Fault.CreateNull, MemberLayout.Positional);
+        byte[] bytes = serializer.Serialize<CountedBase>(new CountedPair { A = 1, B = "b" });
+
+        AssertEx.Throws<BinaryTypeException>("created null", () => serializer.Deserialize<CountedBase>(bytes));
+    }
+
+    [Theory]
+    [InlineData(MemberLayout.Positional)]
+    [InlineData(MemberLayout.Keyed)]
+    public void Serialize_AContractWhoseWriteThrows_PropagatesItsExceptionUnchangedAndWritesNothing(MemberLayout layout)
+    {
+        var serializer = Faulty(Fault.WriteThrows, layout);
+        var destination = new MemoryStream();
+
+        var thrown = Assert.Throws<InvalidOperationException>(
+            () => serializer.Serialize(destination, new CountedPair { A = 1, B = "b" }));
+
+        Assert.Same(FaultyContract.Thrown, thrown);
+        Assert.Equal(0, destination.Length);
+    }
+
+    [Theory]
+    [InlineData(Fault.CreateThrows, MemberLayout.Positional)]
+    [InlineData(Fault.CreateThrows, MemberLayout.Keyed)]
+    [InlineData(Fault.ReadThrows, MemberLayout.Positional)]
+    [InlineData(Fault.ReadThrows, MemberLayout.Keyed)]
+    public void Deserialize_AContractWhoseOwnCodeThrows_PropagatesItsExceptionUnchanged(Fault fault, MemberLayout layout)
+    {
+        var serializer = Faulty(fault, layout);
+        byte[] bytes = Faulty(Fault.None, layout).Serialize(new CountedPair { A = 1, B = "b" });
+
+        var thrown = Assert.Throws<InvalidOperationException>(() => serializer.Deserialize<CountedPair>(bytes));
+
+        Assert.Same(FaultyContract.Thrown, thrown);
+    }
+
     // --- helpers and doubles -------------------------------------------------------------------
 
     private static BinarySerializerOptions Build(int version, bool references, BinarySerializerContext? context)
@@ -525,6 +580,78 @@ public class ContextTests
         public override void ReadPositional(ref MemberReader reader, ref CountedPair value) { }
 
         public override bool ReadKeyed(ref MemberReader reader, int key, ref CountedPair value) => false;
+    }
+
+    public enum Fault
+    {
+        None,
+        CreateNull,
+        CreateThrows,
+        WriteThrows,
+        ReadThrows
+    }
+
+    private static BinarySerializer Faulty(Fault fault, MemberLayout layout) =>
+        new(BinarySerializerOptions.Configure().WithContracts(new FaultyContext(fault, layout)).Build());
+
+    /// <summary>A sound contract for <see cref="CountedPair"/> whose own code fails in one place.</summary>
+    private sealed class FaultyContract(Fault fault, MemberLayout layout) : TypeContract<CountedPair>(
+        layout, layout == MemberLayout.Keyed ? KeyedPair : PositionalPair, canBeConstructed: true)
+    {
+        public static readonly InvalidOperationException Thrown = new("The contract's own failure.");
+
+        public override CountedPair Create() => fault switch
+        {
+            Fault.CreateNull => null!,
+            Fault.CreateThrows => throw Thrown,
+            _ => new CountedPair()
+        };
+
+        public override void Write(ref MemberWriter writer, in CountedPair value)
+        {
+            if (Layout == MemberLayout.Keyed)
+            {
+                writer.Member(1, value.A);
+                if (fault == Fault.WriteThrows)
+                    throw Thrown;
+
+                writer.Member(2, value.B);
+                return;
+            }
+
+            writer.Member(value.A);
+            if (fault == Fault.WriteThrows)
+                throw Thrown;
+
+            writer.Member(value.B);
+        }
+
+        public override void ReadPositional(ref MemberReader reader, ref CountedPair value)
+        {
+            value.A = reader.Member<int>();
+            if (fault == Fault.ReadThrows)
+                throw Thrown;
+
+            value.B = reader.Member<string>();
+        }
+
+        public override bool ReadKeyed(ref MemberReader reader, int key, ref CountedPair value)
+        {
+            if (fault == Fault.ReadThrows)
+                throw Thrown;
+
+            if (key == 1)
+                value.A = reader.Member<int>();
+            else
+                value.B = reader.Member<string>();
+
+            return true;
+        }
+    }
+
+    private sealed class FaultyContext : BinarySerializerContext
+    {
+        public FaultyContext(Fault fault, MemberLayout layout) => Add(new FaultyContract(fault, layout));
     }
 
     public enum Misbehaviour

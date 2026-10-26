@@ -9,7 +9,13 @@ internal sealed class UnionMap(
     IReadOnlyDictionary<Type, byte> tagByType,
     IReadOnlyDictionary<byte, Type> typeByTag)
 {
+    public int Count => tagByType.Count;
+
     public bool TryGetTag(Type runtimeType, out byte tag) => tagByType.TryGetValue(runtimeType, out tag);
+
+    /// <summary>The arms in ascending tag order, each as <c>(tag, type)</c>.</summary>
+    public string Describe() =>
+        string.Join(", ", typeByTag.OrderBy(arm => arm.Key).Select(arm => $"({arm.Key}, {arm.Value})"));
 
     public bool TryGetType(byte tag, out Type? runtimeType)
     {
@@ -48,36 +54,49 @@ internal static class TypeContractCache
 
     public static int CachedTypeCount => Contracts.Count;
 
-    private static UnionMap? BuildUnion(Type declaredType)
+    /// <summary>
+    /// Why the <see cref="BinaryUnionAttribute"/> arms of <paramref name="declaredType"/> cannot form a
+    /// union map, or <see langword="null"/> when they can or there are none.
+    /// </summary>
+    public static string? UnionError(Type declaredType)
     {
-        var attributes = declaredType
-            .GetCustomAttributes(typeof(BinaryUnionAttribute), inherit: false)
-            .Cast<BinaryUnionAttribute>()
-            .ToArray();
-
-        if (attributes.Length == 0)
-            return null;
+        var attributes = UnionAttributes(declaredType);
 
         var duplicateTags = attributes.GroupBy(a => a.Tag).Where(g => g.Count() > 1).ToArray();
         if (duplicateTags.Length > 0)
-            throw new BinaryTypeException(
-                $"'{declaredType}' has duplicate [BinaryUnion] tag(s): " +
-                $"{string.Join(", ", duplicateTags.Select(g => g.Key))}.");
+            return $"'{declaredType}' has duplicate [BinaryUnion] tag(s): " +
+                   $"{string.Join(", ", duplicateTags.Select(g => g.Key))}.";
 
         foreach (var attribute in attributes)
         {
             if (attribute.Tag is < 0 or > MaxUnionTag)
-                throw new BinaryTypeException(
-                    $"[BinaryUnion] tag {attribute.Tag} on '{declaredType}' must fit in a byte " +
-                    $"(0-{MaxUnionTag}).");
+                return $"[BinaryUnion] tag {attribute.Tag} on '{declaredType}' must fit in a byte " +
+                       $"(0-{MaxUnionTag}).";
 
             if (!declaredType.IsAssignableFrom(attribute.DerivedType))
-                throw new BinaryTypeException(
-                    $"Known type '{attribute.DerivedType}' is not assignable to '{declaredType}'.");
+                return $"Known type '{attribute.DerivedType}' is not assignable to '{declaredType}'.";
         }
+
+        return null;
+    }
+
+    private static UnionMap? BuildUnion(Type declaredType)
+    {
+        if (UnionError(declaredType) is { } error)
+            throw new BinaryTypeException(error);
+
+        var attributes = UnionAttributes(declaredType);
+        if (attributes.Length == 0)
+            return null;
 
         return new UnionMap(
             attributes.ToDictionary(a => a.DerivedType, a => (byte)a.Tag),
             attributes.ToDictionary(a => (byte)a.Tag, a => a.DerivedType));
     }
+
+    private static BinaryUnionAttribute[] UnionAttributes(Type declaredType) =>
+        declaredType
+            .GetCustomAttributes(typeof(BinaryUnionAttribute), inherit: false)
+            .Cast<BinaryUnionAttribute>()
+            .ToArray();
 }

@@ -25,7 +25,9 @@ internal static class ContextRun
         Fixtures();
         Conformance();
         await EntryPoints();
+        Collection();
         Unavailable();
+        Uncontracted();
 
         Console.WriteLine(Failures.Count == 0 ? "all checks passed" : $"{Failures.Count} check(s) failed");
         return Failures.Count == 0 ? 0 : 1;
@@ -178,6 +180,20 @@ internal static class ContextRun
         actual is not null && (expected.Id, expected.Name, expected.Big, expected.Defaulted, expected.GetCode()) ==
         (actual.Id, actual.Name, actual.Big, actual.Defaulted, actual.GetCode());
 
+    // --- a custom collection, created and filled by the shape --------------------------------------------
+
+    private static void Collection()
+    {
+        var context = BasketContext.Default;
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+        var basket = new Basket { 3, 1, 4, 1, 5 };
+
+        byte[] written = serializer.Serialize(basket, context.Basket);
+        var read = serializer.Deserialize(written, context.Basket);
+
+        Check(read is not null && read.SequenceEqual(basket), $"a custom collection read through its Add {Hash(written)}");
+    }
+
     // --- a type no context offered ------------------------------------------------------------------------
 
     private static void Unavailable()
@@ -193,6 +209,26 @@ internal static class ContextRun
         catch (BinaryConfigurationException failure)
         {
             Check(failure.Message.Contains(nameof(Unoffered), StringComparison.Ordinal), "a type no context offered is refused");
+        }
+    }
+
+    // --- a type offered without a contract ----------------------------------------------------------------
+
+    private static void Uncontracted()
+    {
+        var context = new UncontractedContext();
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+
+        try
+        {
+            serializer.Serialize(new Bare(), context.Value);
+            Check(false, "a type offered without a contract is refused");
+        }
+        catch (BinaryConfigurationException failure)
+        {
+            Check(failure.Message.Contains("has no TypeContract", StringComparison.Ordinal) &&
+                  failure.Message.Contains(nameof(Bare), StringComparison.Ordinal),
+                "a type offered without a contract is refused, naming the missing contract");
         }
     }
 
@@ -229,4 +265,41 @@ internal static class ContextRun
 
         public BinaryTypeInfo<List<Unoffered>> Items { get; }
     }
+
+    /// <summary>A member-encoded type a context makes supported without a contract.</summary>
+    private sealed class Bare
+    {
+        public int Value { get; set; }
+    }
+
+    /// <summary>A context that makes a member-encoded type supported but adds no contract for it.</summary>
+    private sealed class UncontractedContext : BinarySerializerContext
+    {
+        public UncontractedContext()
+        {
+            Add(SupportedTypes.Object<Bare>());
+            Value = TypeInfo<Bare>();
+        }
+
+        public BinaryTypeInfo<Bare> Value { get; }
+    }
 }
+
+/// <summary>A collection the table names no definition for, filled through its public <c>Add</c>.</summary>
+internal sealed class Basket : ICollection<int>
+{
+    private readonly List<int> _items = [];
+
+    public int Count => _items.Count;
+    public bool IsReadOnly => false;
+    public void Add(int item) => _items.Add(item);
+    public void Clear() => _items.Clear();
+    public bool Contains(int item) => _items.Contains(item);
+    public void CopyTo(int[] array, int arrayIndex) => _items.CopyTo(array, arrayIndex);
+    public bool Remove(int item) => _items.Remove(item);
+    public IEnumerator<int> GetEnumerator() => _items.GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+[BinaryContext(typeof(Basket))]
+internal partial class BasketContext : BinarySerializerContext;

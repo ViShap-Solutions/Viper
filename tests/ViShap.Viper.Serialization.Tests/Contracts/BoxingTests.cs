@@ -7,9 +7,10 @@ namespace ViShap.Viper.Serialization.Tests.Contracts;
 /// Pins TYP-02 (INV-17): the engine boxes only in a polymorphic slot. A boxed value is a heap
 /// allocation, so the allocation counter of the current thread is the double that observes it: a
 /// graph of value types written or read at two sizes must cost the same beyond the values the read
-/// returns, whatever the number of members, enums, nullables and nested structs it holds. The last
-/// test turns the counter on a polymorphic slot over a struct, where boxing is the contract, to show
-/// the counter sees it when it happens.
+/// returns, whatever the number of members, enums, nullables and nested structs it holds — through
+/// the contracts reflection builds, the contracts the source generator writes and contracts written by
+/// hand. One test turns the counter on a polymorphic slot over a struct, where boxing is the contract,
+/// to show the counter sees it when it happens.
 /// </summary>
 public class BoxingTests
 {
@@ -17,6 +18,12 @@ public class BoxingTests
     private const long NotPerElement = 1024;
 
     private readonly BinarySerializer _serializer = new();
+
+    private static readonly BinarySerializer Generated = new(
+        BinarySerializerOptions.Configure().WithContracts(BoxingContracts.Default).RequireGeneratedContracts().Build());
+
+    private static readonly BinarySerializer HandWritten = new(
+        BinarySerializerOptions.Configure().WithContracts(HandWrittenContracts.Default).RequireGeneratedContracts().Build());
 
     [Fact]
     public void Serialize_AGraphOfValueTypes_BoxesNothing()
@@ -41,6 +48,50 @@ public class BoxingTests
         Assert.True(
             Math.Abs(difference - arrays) < NotPerElement,
             $"Reading 4 080 more elements cost {difference:N0} more bytes; their array costs {arrays:N0}.");
+    }
+
+    [Fact]
+    public void Serialize_AGraphOfValueTypesThroughGeneratedContracts_BoxesNothing()
+    {
+        long small = WriteCost(Generated, Probes(16));
+        long large = WriteCost(Generated, Probes(4096));
+
+        Assert.True(
+            large - small < NotPerElement,
+            $"Writing 4 080 more elements through generated contracts cost {large - small:N0} more bytes.");
+    }
+
+    [Fact]
+    public void Deserialize_AGraphOfValueTypesThroughGeneratedContracts_AllocatesOnlyTheArrayItReturns()
+    {
+        byte[] small = Generated.Serialize(Probes(16));
+        byte[] large = Generated.Serialize(Probes(4096));
+
+        long difference = ReadCost<Probe[]>(Generated, large) - ReadCost<Probe[]>(Generated, small);
+        long arrays = Allocated(() => _ = new Probe[4096]) - Allocated(() => _ = new Probe[16]);
+
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more elements through generated contracts cost {difference:N0} more bytes; " +
+            $"their array costs {arrays:N0}.");
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_StructsThroughHandWrittenContracts_BoxNothing()
+    {
+        var few = Points(16);
+        var many = Points(4096);
+
+        Assert.True(WriteCost(HandWritten, many) - WriteCost(HandWritten, few) < NotPerElement);
+
+        long difference = ReadCost<ConformancePoint[]>(HandWritten, HandWritten.Serialize(many)) -
+                          ReadCost<ConformancePoint[]>(HandWritten, HandWritten.Serialize(few));
+        long arrays = Allocated(() => _ = new ConformancePoint[4096]) - Allocated(() => _ = new ConformancePoint[16]);
+
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more structs through hand-written contracts cost {difference:N0} more bytes; " +
+            $"their array costs {arrays:N0}.");
     }
 
     [Fact]
@@ -218,17 +269,25 @@ public class BoxingTests
         })
     ];
 
-    private long WriteCost<T>(T value)
+    private static ConformancePoint[] Points(int count) =>
+        [.. Enumerable.Range(0, count).Select(i => new ConformancePoint { X = i, Y = -i })];
+
+    private long WriteCost<T>(T value) => WriteCost(_serializer, value);
+
+    private static long WriteCost<T>(BinarySerializer serializer, T value)
     {
         var destination = new ArrayBufferWriter<byte>(1 << 20);
         return Allocated(() =>
         {
             destination.ResetWrittenCount();
-            _serializer.Serialize(destination, value);
+            serializer.Serialize(destination, value);
         });
     }
 
-    private long ReadCost<T>(byte[] payload) => Allocated(() => _serializer.Deserialize<T>(payload));
+    private long ReadCost<T>(byte[] payload) => ReadCost<T>(_serializer, payload);
+
+    private static long ReadCost<T>(BinarySerializer serializer, byte[] payload) =>
+        Allocated(() => serializer.Deserialize<T>(payload));
 
     /// <summary>
     /// The bytes one call allocates on this thread once it is warm: the least of several calls, since
@@ -250,3 +309,7 @@ public class BoxingTests
         return least;
     }
 }
+
+/// <summary>The contracts the source generator writes for the value-type graph of <see cref="BoxingTests"/>.</summary>
+[BinaryContext(typeof(BoxingTests.Probe[]))]
+public partial class BoxingContracts : BinarySerializerContext;

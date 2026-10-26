@@ -62,11 +62,11 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
     }
 
     /// <summary>
-    /// The contract built by reflection, kept once built; with the reflection path off, the type is
-    /// unavailable.
+    /// The contract built by reflection, kept once built; with the reflection path off, the type has
+    /// no contract.
     /// </summary>
     private TypeContract<T> Reflected() =>
-        _reflected ??= ReflectionPath.IsEnabled ? TypeContractCache.Get<T>() : throw ReflectionPath.Unavailable(typeof(T));
+        _reflected ??= ReflectionPath.IsEnabled ? TypeContractCache.Get<T>() : throw ReflectionPath.NoContract(typeof(T));
 
     /// <summary>The contract of a runtime type met in the polymorphic slot, found the same way.</summary>
     private static ITypeContract RuntimeContract(Type runtimeType, ref OperationState state)
@@ -80,7 +80,7 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
                 throw contracts.Missing(runtimeType);
         }
 
-        return ReflectionPath.IsEnabled ? TypeContractCache.Get(runtimeType) : throw ReflectionPath.Unavailable(runtimeType);
+        return ReflectionPath.IsEnabled ? TypeContractCache.Get(runtimeType) : throw ReflectionPath.NoContract(runtimeType);
     }
 
     private UnionMap? Union => (_union ??= new UnionLookup(TypeContractCache.GetUnion(typeof(T)))).Map;
@@ -289,13 +289,25 @@ internal static class ObjectMembers
         public byte Data;
     }
 
-    private static T Create<T>(TypeContract<T> contract) =>
-        contract.CanBeConstructed
-            ? contract.Create()
-            : throw new BinaryTypeException(
+    /// <summary>
+    /// The new instance the contract creates. An exception from the contract's own code propagates
+    /// unchanged; an instance that is <see langword="null"/> is refused.
+    /// </summary>
+    private static T Create<T>(TypeContract<T> contract)
+    {
+        if (!contract.CanBeConstructed)
+            throw new BinaryTypeException(
                 $"'{typeof(T)}' cannot be constructed during deserialization — a concrete type " +
                 "with a public or non-public parameterless constructor is required. An interface or " +
                 "an abstract class needs a [BinaryUnion] map naming the type to build.");
+
+        var instance = contract.Create();
+        if (!typeof(T).IsValueType && instance is null)
+            throw new BinaryTypeException(
+                $"The contract of '{typeof(T)}' created null instead of an instance to read the members into.");
+
+        return instance;
+    }
 
     private static void ReadMembers<T>(ref WireReader reader, TypeContract<T> contract, ref T instance, bool nullFolded)
     {

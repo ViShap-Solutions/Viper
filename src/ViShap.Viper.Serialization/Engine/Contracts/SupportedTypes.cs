@@ -45,14 +45,17 @@ public static class SupportedTypes
     }
 
     /// <summary>
-    /// A member-encoded base class or interface whose values are any of the given types, each written
-    /// with its tag, as <see cref="BinaryUnionAttribute"/> declares them.
+    /// A member-encoded base class or interface whose values are any of the types its
+    /// <see cref="BinaryUnionAttribute"/> arms declare, each written with its tag. The arms given are
+    /// exactly the ones the attributes declare, in any order.
     /// </summary>
     /// <typeparam name="T">The declared base type.</typeparam>
     /// <param name="arms">The tag and the runtime type of each arm.</param>
     /// <exception cref="BinaryConfigurationException">
-    /// <typeparamref name="T"/> is claimed by another entry of the table; or a tag is outside 0–255 or
-    /// repeated; or a type is repeated, <see langword="null"/> or not assignable to <typeparamref name="T"/>.
+    /// <typeparamref name="T"/> is claimed by another entry of the table, or declares no
+    /// <see cref="BinaryUnionAttribute"/> arm, or declares arms the serializer refuses; or a tag is outside
+    /// 0–255 or repeated; or a type is repeated, <see langword="null"/> or not assignable to
+    /// <typeparamref name="T"/>; or the arms differ from the ones the attributes declare.
     /// </exception>
     public static SupportedType Union<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] T>(
@@ -84,8 +87,32 @@ public static class SupportedTypes
                 throw new BinaryConfigurationException($"'{typeof(T)}' names union arm '{type}' more than once.");
         }
 
-        return Of(new ObjectCodec<T>(new UnionMap(tagByType, typeByTag)));
+        var declared = DeclaredUnion<T>();
+        foreach (var (type, tag) in tagByType)
+        {
+            if (!declared.TryGetTag(type, out byte declaredTag) || declaredTag != tag)
+                throw ArmsDiffer<T>(declared);
+        }
+
+        if (declared.Count != tagByType.Count)
+            throw ArmsDiffer<T>(declared);
+
+        return Of(new ObjectCodec<T>(declared));
     }
+
+    /// <summary>The union map the attributes of <typeparamref name="T"/> declare, as the reflection path reads it.</summary>
+    private static UnionMap DeclaredUnion<T>()
+    {
+        if (TypeContractCache.UnionError(typeof(T)) is { } error)
+            throw new BinaryConfigurationException(error);
+
+        return TypeContractCache.GetUnion(typeof(T)) ?? throw new BinaryConfigurationException(
+            $"'{typeof(T)}' declares no [BinaryUnion] arm — use SupportedTypes.Object.");
+    }
+
+    private static BinaryConfigurationException ArmsDiffer<T>(UnionMap declared) =>
+        new($"The union arms given for '{typeof(T)}' differ from the ones its [BinaryUnion] attributes declare: " +
+            $"{declared.Describe()}.");
 
     /// <summary>An enum, encoded as its underlying integer.</summary>
     public static SupportedType Enum<T>()
@@ -115,26 +142,21 @@ public static class SupportedTypes
     }
 
     /// <summary>
-    /// A concrete collection the table names no entry for: built with <paramref name="create"/> and
-    /// filled with <paramref name="add"/>, its public instance <c>Add</c>.
+    /// A concrete collection the table names no entry for: created with its public parameterless
+    /// constructor and filled through its public instance <c>Add(T)</c>, declared on it or inherited.
+    /// A collection without that method is written, and reading one is refused.
     /// </summary>
     /// <typeparam name="TCollection">The collection type: concrete, with a public parameterless constructor.</typeparam>
     /// <typeparam name="T">The element type of the <see cref="ICollection{T}"/> it implements.</typeparam>
-    /// <param name="create">Creates an empty collection — <c>() =&gt; new TCollection()</c>.</param>
-    /// <param name="add">
-    /// Adds one element through the collection's public instance <c>Add(T)</c>, or
-    /// <see langword="null"/> when it has none, in which case reading one is refused.
-    /// </param>
     /// <exception cref="BinaryConfigurationException">
     /// Another entry of the table claims <typeparamref name="TCollection"/>, or its element type is not
     /// <typeparamref name="T"/>.
     /// </exception>
     public static SupportedType Collection<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] TCollection,
-        T>(Func<TCollection> create, Action<TCollection, T>? add)
-        where TCollection : ICollection<T>
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces | DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicMethods)] TCollection,
+        T>()
+        where TCollection : ICollection<T>, new()
     {
-        ArgumentNullException.ThrowIfNull(create);
         Require<TCollection>(TypeRule.Collection, nameof(Collection));
 
         if (TypeRules.CollectionElement(typeof(TCollection)) != typeof(T))
@@ -142,7 +164,7 @@ public static class SupportedTypes
                 $"'{typeof(TCollection)}' is a collection of '{TypeRules.CollectionElement(typeof(TCollection))}', " +
                 $"not of '{typeof(T)}'.");
 
-        return Sequence(new CustomCollectionShape<TCollection, T>(create, add));
+        return Sequence(new CustomCollectionShape<TCollection, T>());
     }
 
     // --- Composites ---------------------------------------------------------------------------------

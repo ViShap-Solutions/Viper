@@ -344,9 +344,11 @@ public sealed class ShapeContracts : BinarySerializerContext
 }
 ```
 
-The arms passed to `SupportedTypes.Union` are the union map; the serializer does not read
-`[BinaryUnion]` from a type whose map a context supplied, so give the same tags the attributes give, or a
-serializer without the context reads different types from the same bytes.
+`SupportedTypes.Union` takes exactly the arms the type's `[BinaryUnion]` attributes declare, in any order:
+other tags, a missing or an extra arm, and a type without the attributes are a
+`BinaryConfigurationException`, so the union map a context supplies is always the one the attributes give.
+`SupportedTypes.Collection<TCollection, T>()` takes nothing but the two types: the collection is created
+with its public parameterless constructor and filled through its public `Add(T)`, as without a context.
 
 A context that adds a contract and `SupportedTypes.Object<T>()` for every member-encoded type it reaches,
 and makes every other reached type supported, is what an application published with native AOT needs;
@@ -433,6 +435,9 @@ same contract.
   keep no per-call state in either.
 - A contract held for a type the serializer encodes by a dedicated encoding — a collection, a string, a
   scalar — is never consulted.
+- An exception your contract throws — from `Create`, `Write`, `ReadPositional` or `ReadKeyed` — is yours
+  and reaches the caller unchanged; a write it interrupts leaves nothing in its destination. A class
+  contract whose `Create` returns `null` is a `BinaryTypeException`.
 - The encoding a supported type receives is the one the serializer would build for it by reflection,
   whichever context adds it, so the first context of the process that adds a type supplies it for every
   serializer, and nothing a context adds changes how another configuration writes or reads.
