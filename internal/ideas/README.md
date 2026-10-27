@@ -37,6 +37,9 @@ changes a default, a byte of an existing frame or a public signature is a major.
 | [IDEA-12 Error correction (Reed–Solomon)](IDEA-12-reed-solomon.md) | minor (outside the format) | idea |
 | [IDEA-13 Text of a dump's parts](IDEA-13-dump-part-rendering.md) | minor | idea |
 | [IDEA-14 Target frameworks, platforms and Unity](IDEA-14-target-frameworks.md) | patch (documents) to minor (a new target) | idea |
+| [IDEA-15 Construction through a constructor with parameters](IDEA-15-constructor-construction.md) | minor | idea |
+| [IDEA-16 Integration packages](IDEA-16-integration-packages.md) | minor, or a package line of its own | idea |
+| [IDEA-17 Length padding of an encrypted frame](IDEA-17-length-padding.md) | patch (documents) to minor (a new record) | idea |
 
 Performance proposals do not belong here: they live in `../performance/` as `PERF-nn`, each cited to the
 measurement behind it.
