@@ -172,6 +172,11 @@ public sealed class Order
 }
 ```
 
+In a file-based app (`dotnet run app.cs`), which is published with native AOT unless it says otherwise,
+Viper's reflection path is off and this example raises a `BinaryConfigurationException`: add
+`#:property ViperReflectionEnabled=true` at the top of the file, or describe the types with a
+[context](docs/aot.md).
+
 Configuration goes through a builder, and is validated once when it is built:
 
 ```csharp

@@ -53,6 +53,11 @@ public sealed class OrderLine
 `Serialize` returns one frame: a header that records the format version and any compression, checksum and
 encryption, followed by the payload. `Deserialize` reads all of that from the bytes.
 
+In a file-based app (`dotnet run app.cs`), which is published with native AOT unless it says otherwise,
+Viper's reflection path is off and this example raises a `BinaryConfigurationException`: add
+`#:property ViperReflectionEnabled=true` at the top of the file, or describe the types with a
+[context](https://github.com/ViShap-Solutions/Viper/blob/main/docs/aot.md).
+
 ## What it offers
 
 - **Buffers, streams and pipes.** `byte[]`, `IBufferWriter<byte>`, pooled payloads, `ReadOnlySpan<byte>`,

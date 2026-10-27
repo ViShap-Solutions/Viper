@@ -8,7 +8,7 @@ for it, and every failure is an exception from one hierarchy.
 This package holds the engine, the built-in algorithms and key providers, and the diagnostics. It
 depends on [`ViShap.Viper.Core`](https://www.nuget.org/packages/ViShap.Viper.Core) and
 `System.IO.Hashing`. Most applications install the [`ViShap.Viper`](https://www.nuget.org/packages/ViShap.Viper)
-meta-package instead, which references both.
+meta-package instead, which references it together with Core and the source generator.
 
 ```bash
 dotnet add package ViShap.Viper.Serialization
@@ -32,6 +32,11 @@ public sealed class Order
     public string Customer { get; set; } = "";
 }
 ```
+
+In a file-based app (`dotnet run app.cs`), which is published with native AOT unless it says otherwise,
+Viper's reflection path is off and this example raises a `BinaryConfigurationException`: add
+`#:property ViperReflectionEnabled=true` at the top of the file, or describe the types with a
+[context](https://github.com/ViShap-Solutions/Viper/blob/main/docs/aot.md).
 
 A `BinarySerializer` is immutable and safe to share between threads: create one per configuration.
 `Serialize` and `Deserialize` also work with `IBufferWriter<byte>`, `ReadOnlySequence<byte>`, `Stream` and
