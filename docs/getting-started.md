@@ -12,13 +12,14 @@ Viper targets .NET 10.
 dotnet add package ViShap.Viper
 ```
 
-`ViShap.Viper` is a meta-package: it ships no code and references the two packages that do.
+`ViShap.Viper` is a meta-package: it ships no code and references the three packages that do.
 
 | Package | Contains | Reference it directly when |
 |---|---|---|
-| `ViShap.Viper` | nothing of its own; references both packages below | you serialize objects — this is the usual choice |
+| `ViShap.Viper` | nothing of its own; references the three packages below | you serialize objects — this is the usual choice |
 | `ViShap.Viper.Core` | the attributes, the algorithm and key contracts, the exception hierarchy; no dependencies | a library annotates its types, or implements a compression, checksum or encryption algorithm or a key provider, without serializing anything itself |
 | `ViShap.Viper.Serialization` | the serializer, its options and limits, the built-in algorithms and key providers, the diagnostics | you want the engine without the meta-package |
+| `ViShap.Viper.Generator` | the source generator of type contracts, run by the compiler; nothing at run time | you reference `ViShap.Viper.Serialization` directly and want [generated contracts](generator.md) |
 
 The public types live in a handful of namespaces. `BinarySerializer`, `BinarySerializerOptions`, its
 builder, `PooledPayload` and the attributes are in `ViShap.Viper`, so one `using` is enough for the
@@ -69,6 +70,22 @@ public sealed class OrderLine
 version, whether the payload keeps object identity, and which compression, checksum and encryption were
 applied, so `Deserialize` finds all of that out from the bytes. [Formats](formats.md) describes the
 frame.
+
+### In a file-based app
+
+A file-based app — a single `.cs` file run with `dotnet run app.cs` — is published with native AOT
+unless it says otherwise, and Viper switches its reflection path off for every application published
+that way, in its `dotnet run` as well. The example above then raises a `BinaryConfigurationException`
+naming `Order`. Either list the types on a [context](generator.md) and pass its type information, as
+an application published with native AOT does, or keep the reflection path with one directive at the
+top of the file:
+
+```text
+#:package ViShap.Viper@1.*
+#:property ViperReflectionEnabled=true
+```
+
+[Trimming and native AOT](aot.md) explains the switch.
 
 ## What a type needs
 

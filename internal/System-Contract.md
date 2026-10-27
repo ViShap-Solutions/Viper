@@ -2292,8 +2292,9 @@ a polymorphic slot (§15). With it off, each of those is `BinaryConfigurationExc
 raised where the type is first used and before the destination is touched; never reflection (INV-19).
 The package `ViShap.Viper.Serialization` sets the switch from the MSBuild property
 `ViperReflectionEnabled`, which defaults to `false` for an application published trimmed or with native
-AOT (`PublishTrimmed`, `PublishAot`) — also in its JIT runs — and to `true` otherwise, and makes the
-property visible to the source generator (§14.4, `VPR021`).
+AOT (`PublishTrimmed`, `PublishAot`) — also in its JIT runs, and in a file-based app, which sets
+`PublishAot` unless it says otherwise — and to `true` otherwise, and makes the property visible to the
+source generator (§14.4, `VPR021`).
 
 ---
 

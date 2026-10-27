@@ -55,6 +55,7 @@ Whether a type no context describes may still be described by reflection is one 
 | Application | `ViperReflectionEnabled` by default |
 |---|---|
 | `PublishAot` or `PublishTrimmed` set — in its published build and in its JIT runs alike | `false` |
+| a file-based app (`dotnet run app.cs`), which sets `PublishAot` unless it says otherwise | `false` |
 | any other | `true` |
 
 With the switch off, a type no context offered — a member type, a collection element, a union arm, the
@@ -70,6 +71,12 @@ Set the property to keep the reflection path in a trimmed application whose type
 <PropertyGroup>
   <ViperReflectionEnabled>true</ViperReflectionEnabled>
 </PropertyGroup>
+```
+
+A file-based app sets it with a directive at the top of the file:
+
+```text
+#:property ViperReflectionEnabled=true
 ```
 
 ## Which members carry a requirement
