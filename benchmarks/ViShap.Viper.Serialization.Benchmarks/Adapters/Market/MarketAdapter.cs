@@ -35,9 +35,15 @@ internal sealed record Limitation(string Dataset, string Observed, string Reason
 internal abstract class MarketAdapter : IBufferedSerializer, IStreamingSerializer
 {
     protected MarketAdapter(string library, Assembly assembly, string configuration, ModelFamily family, Tier intended)
+        : this(library, VersionOf(assembly), configuration, family, intended)
+    {
+    }
+
+    /// <summary>An adapter whose library version is known from another adapter, as a composed baseline's is.</summary>
+    protected MarketAdapter(string library, string version, string configuration, ModelFamily family, Tier intended)
     {
         Library = library;
-        Version = VersionOf(assembly);
+        Version = version;
         Configuration = configuration;
         Family = family;
         Intended = intended;

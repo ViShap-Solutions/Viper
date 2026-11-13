@@ -1,8 +1,10 @@
 using System.Buffers;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
+using ViShap.Viper.Crypto;
 using ViShap.Viper.Exceptions;
 using ViShap.Viper.Serialization.Benchmarks.Capabilities;
+using ViShap.Viper.Serialization.Benchmarks.Config;
 using ViShap.Viper.Serialization.Benchmarks.DataSets;
 using ViShap.Viper.Serialization.Benchmarks.Models;
 using ViShap.Viper.Serialization.Benchmarks.Models.Viper;
@@ -22,7 +24,7 @@ internal sealed class ViperMarketAdapter : MarketAdapter, IBufferWriterSerialize
     private readonly Func<BinarySerializerOptionsBuilder, BinarySerializerOptionsBuilder> _configure;
 
     private ViperMarketAdapter(string configuration, Tier intended, string options, Func<BinarySerializerOptionsBuilder, BinarySerializerOptionsBuilder> configure)
-        : base("ViShap.Viper", typeof(BinarySerializer).Assembly, configuration, ModelFamily.Viper, intended)
+        : base("ViShap.Viper", Environment.ViperVersion.Value, configuration, ModelFamily.Viper, intended)
     {
         _options = options;
         _configure = configure;
@@ -49,6 +51,36 @@ internal sealed class ViperMarketAdapter : MarketAdapter, IBufferWriterSerialize
         {
             Compressed = true,
         };
+
+    /// <summary>
+    /// T4 — the protected envelope of B-P6b, Brotli, CRC-32 and AES-256-GCM under the key and key id of
+    /// Track A's encrypted profiles, compared with the composed baselines that compress (§17, Q5).
+    /// </summary>
+    internal static ViperMarketAdapter Protected() =>
+        new(
+            "V1 Brotli+CRC-32+AES-256-GCM",
+            Tier.T4,
+            "WithCompression(new BrotliCompression()).WithChecksum(new Crc32Checksum()).WithEncryption(new Aes256GcmEncryption(), key, \"bench\") — B-P6b",
+            builder => builder
+                .WithCompression(new BrotliCompression())
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), ViperProfiles.Key, ViperProfiles.KeyId))
+        {
+            Compressed = true,
+        };
+
+    /// <summary>
+    /// T4 without compression — CRC-32 and AES-256-GCM, a configuration a consumer builds for payloads
+    /// that do not compress — compared with the composed baselines that do not compress (§17, Q5).
+    /// </summary>
+    internal static ViperMarketAdapter Sealed() =>
+        new(
+            "V1 CRC-32+AES-256-GCM",
+            Tier.T4,
+            "WithChecksum(new Crc32Checksum()).WithEncryption(new Aes256GcmEncryption(), key, \"bench\")",
+            builder => builder
+                .WithChecksum(new Crc32Checksum())
+                .WithEncryption(new Aes256GcmEncryption(), ViperProfiles.Key, ViperProfiles.KeyId));
 
     internal override Rationale Rationale => new(
         "Source generator: a [BinaryContext] class listing every root, and each call given the root's BinaryTypeInfo<T> (docs/aot.md, docs/generator.md)",

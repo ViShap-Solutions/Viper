@@ -255,6 +255,15 @@ internal static class Program
         }
 
         Console.WriteLine();
+        Console.WriteLine($"{"T4 configuration",-60} {"Dataset",-12} {"State",-12} {"Bytes",10}  Detail");
+        Console.WriteLine(new string('-', 120));
+
+        foreach (var pair in verification.Protected)
+        {
+            Console.WriteLine($"{pair.Adapter.Name,-60} {pair.Dataset,-12} {pair.State,-12} {pair.BufferedBytes,10}  {pair.Detail}");
+        }
+
+        Console.WriteLine();
         foreach (var tier in verification.Tiers.GroupBy(placement => placement.Tier).OrderBy(group => group.Key))
         {
             var members = tier.Where(placement => placement.Intended && placement.Qualified).Select(placement => placement.Adapter.Name);
@@ -263,7 +272,7 @@ internal static class Program
 
         Console.WriteLine();
         Console.WriteLine(
-            $"Market: {verification.Pairs.Count} pairs, {verification.Capabilities.Count} probes, " +
+            $"Market: {verification.Pairs.Count} pairs, {verification.Protected.Count} T4 pairs, {verification.Capabilities.Count} probes, " +
             $"{verification.SchemaFailures.Count} schema failures, {verification.Failed} failed. Written to {directory}");
 
         return verification.Failed == 0 ? 0 : 1;

@@ -43,30 +43,44 @@ internal static class MarketCases
 
     internal static string RecordPath => Path.Combine(Directory, "verified-pairs.tsv");
 
-    private static readonly Lazy<IReadOnlyList<MarketCase>> Verified = new(Load);
+    /// <summary>T4's verified pairs, recorded apart so no suite of B2 can time a composed baseline.</summary>
+    internal static string ProtectedRecordPath => Path.Combine(Directory, "verified-protected-pairs.tsv");
 
-    /// <summary>Every verified pair, in roster and corpus order.</summary>
+    private static readonly Lazy<IReadOnlyList<MarketCase>> Verified = new(() => Load(RecordPath));
+
+    private static readonly Lazy<IReadOnlyList<MarketCase>> VerifiedProtected = new(() => Load(ProtectedRecordPath));
+
+    /// <summary>Every verified pair of T0–T3, in roster and corpus order.</summary>
     internal static IReadOnlyList<MarketCase> All => Verified.Value;
+
+    /// <summary>Every verified pair of T4, in roster and dataset order.</summary>
+    internal static IReadOnlyList<MarketCase> Protected => VerifiedProtected.Value;
 
     internal static void Record(MarketVerification verification)
     {
-        var text = new StringBuilder();
-
-        foreach (var pair in verification.Pairs.Where(pair => pair.State is VerificationState.Supported or VerificationState.Partial))
-            text.Append($"{pair.Adapter.Id}\t{pair.Dataset}\t{pair.State}\n");
-
         System.IO.Directory.CreateDirectory(Directory);
-        File.WriteAllText(RecordPath, text.ToString(), Encoding.UTF8);
+        File.WriteAllText(RecordPath, Lines(verification.Pairs), Encoding.UTF8);
+        File.WriteAllText(ProtectedRecordPath, Lines(verification.Protected), Encoding.UTF8);
     }
 
-    private static IReadOnlyList<MarketCase> Load()
+    private static string Lines(IEnumerable<MarketPairResult> pairs)
     {
-        if (!File.Exists(RecordPath))
+        var text = new StringBuilder();
+
+        foreach (var pair in pairs.Where(pair => pair.State is VerificationState.Supported or VerificationState.Partial))
+            text.Append($"{pair.Adapter.Id}\t{pair.Dataset}\t{pair.State}\n");
+
+        return text.ToString();
+    }
+
+    private static IReadOnlyList<MarketCase> Load(string path)
+    {
+        if (!File.Exists(path))
             Record(MarketVerifier.VerifyAll());
 
         return
         [
-            .. File.ReadAllLines(RecordPath)
+            .. File.ReadAllLines(path)
                 .Where(line => line.Length > 0)
                 .Select(line => line.Split('\t'))
                 .Select(parts => new MarketCase(parts[0], parts[1], parts[2] == nameof(VerificationState.Partial))),

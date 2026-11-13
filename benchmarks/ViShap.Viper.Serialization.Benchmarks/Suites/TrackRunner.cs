@@ -82,8 +82,8 @@ internal static class TrackRunner
 
     /// <summary>
     /// The comparative suites of Track B (§29.2), which a Track A run never measures. They are named here
-    /// so that a suite registered in neither track still stops a run instead of being left out unseen. All
-    /// of them are B2, the comparative core.
+    /// so that a suite registered in neither track still stops a run instead of being left out unseen: B2,
+    /// the comparative core, and B4's protected envelope against the composed baselines of §17.
     /// </summary>
     private static readonly (string Stage, Type Suite)[] TrackB =
     [
@@ -92,6 +92,7 @@ internal static class TrackRunner
         ("B2", typeof(MarketBufferBenchmarks)),
         ("B2", typeof(MarketSpanBenchmarks)),
         ("B2", typeof(MarketEvolutionBenchmarks)),
+        ("B4", typeof(MarketProtectedBenchmarks)),
     ];
 
     /// <summary>The names of both tracks' suites, in the order a run measures them.</summary>
@@ -111,6 +112,7 @@ internal static class TrackRunner
         bool shortened = args.Contains("--short", StringComparer.Ordinal);
         bool allowDirty = args.Contains("--allow-dirty", StringComparer.Ordinal);
         string? filter = Value(args, "--filter");
+        string? asTag = Value(args, "--as");
         double soakMinutes = Number(args, "--soak", shortened ? 0 : 10);
 
         var unregistered = Unregistered();
@@ -129,7 +131,8 @@ internal static class TrackRunner
             return 1;
         }
 
-        var target = RunTarget.Decide(shortened, filter, allowDirty, market);
+        var target = RunTarget.Decide(shortened, filter, allowDirty, market, asTag);
+        ViperVersion.Set(target.Tag, target.Describe);
         var selected = Select(filter, track);
 
         if (selected.Count == 0)
@@ -150,6 +153,13 @@ internal static class TrackRunner
             Console.WriteLine();
             Console.WriteLine($"Destination would be {target.Directory}");
             Console.WriteLine($"Kind would be {target.Kind} — {target.Reason}");
+
+            if (target.MeasuredAs is not null)
+            {
+                Console.WriteLine(
+                    $"Filed under {target.MeasuredAs}; src/ differs from it only in: " +
+                    (target.SourceDifferences.Count == 0 ? "nothing" : string.Join(", ", target.SourceDifferences)));
+            }
 
             // A listing that hid the refusal would send the operator off for three hours of measuring
             // that never starts.
@@ -183,6 +193,7 @@ internal static class TrackRunner
         var command = $"dotnet run --project {Paths.ProjectName} -c Release -- --track {letter}"
                       + (shortened ? " --short" : string.Empty)
                       + (filter is null ? string.Empty : $" --filter '{filter}'")
+                      + (asTag is null ? string.Empty : $" --as {asTag}")
                       + (!market && soakMinutes is > 0 and not 10 ? $" --soak {soakMinutes:F0}" : string.Empty)
                       + (allowDirty ? " --allow-dirty" : string.Empty);
 
@@ -216,7 +227,9 @@ internal static class TrackRunner
                 SuitesNotRun: [.. notSelected, .. notRun],
                 Interrupted: interrupted,
                 StoppedBy: stoppedBy,
-                SuitesUnfinished: unfinished);
+                SuitesUnfinished: unfinished,
+                MeasuredAs: written.MeasuredAs,
+                SourceDifferences: written.MeasuredAs is null ? null : written.SourceDifferences);
 
         using var stop = StopSignal.Listen(target.WorkingDirectory, () => StopAtOnce(target));
 
@@ -359,6 +372,7 @@ internal static class TrackRunner
             MarketArtifacts.Write(target.WorkingDirectory);
             MarketCases.Record(verification);
             File.Copy(MarketCases.RecordPath, target.File(Path.GetFileName(MarketCases.RecordPath)), overwrite: true);
+            File.Copy(MarketCases.ProtectedRecordPath, target.File(Path.GetFileName(MarketCases.ProtectedRecordPath)), overwrite: true);
             failed = verification.Failed;
 
             foreach (var failure in verification.SchemaFailures)
@@ -367,7 +381,7 @@ internal static class TrackRunner
             }
 
             Console.WriteLine(
-                $"{verification.Pairs.Count} pairs, {verification.Capabilities.Count} probes, " +
+                $"{verification.Pairs.Count} pairs, {verification.Protected.Count} T4 pairs, {verification.Capabilities.Count} probes, " +
                 $"{verification.SchemaFailures.Count} schema failures, {verification.Failed} failed.");
         });
 
@@ -834,6 +848,13 @@ internal static class TrackRunner
         text.Append(CultureInfo.InvariantCulture, $"- tag: {record.Tag ?? "none"}\n");
         text.Append(CultureInfo.InvariantCulture, $"- git describe: {record.Describe}\n");
         text.Append(CultureInfo.InvariantCulture, $"- revision: {record.Revision}\n");
+
+        if (record.MeasuredAs is not null)
+        {
+            text.Append(CultureInfo.InvariantCulture,
+                $"- measured as: {record.MeasuredAs}, from the revision above; src/ differs from it only in " +
+                $"{(record.SourceDifferences is { Count: > 0 } files ? string.Join(", ", files) : "nothing")}\n");
+        }
         text.Append(CultureInfo.InvariantCulture, $"- started (UTC): {record.StartedUtc}\n");
         text.Append(CultureInfo.InvariantCulture, $"- finished (UTC): {record.FinishedUtc}\n");
         text.Append(CultureInfo.InvariantCulture, $"- elapsed: {Elapsed(record):hh\\:mm\\:ss}\n");
@@ -853,11 +874,16 @@ internal static class TrackRunner
     /// </summary>
     private static void Reproduction(string directory, RunRecord record)
     {
-        var checkout = record.Tag ?? record.Revision;
+        var checkout = record.MeasuredAs is null ? record.Tag ?? record.Revision : record.Revision;
         var run = $"dotnet run --project {Paths.ProjectName} -c Release --";
         var commands = string.Join(System.Environment.NewLine, record.Commands);
         var folder = record.Kind == nameof(RunKind.Baseline) ? "Baselines" : "Measurements";
-        var tagged = record.Tag is null ? string.Empty : $", tag `{record.Tag}`";
+        var tagged = (record.Tag, record.MeasuredAs) switch
+        {
+            (null, _) => string.Empty,
+            (_, null) => $", tag `{record.Tag}`",
+            _ => $", filed under tag `{record.MeasuredAs}`, whose `src/` it carries in code",
+        };
         bool market = record.Track == MarketReport.Track;
 
         var whole = string.Join('\n', market

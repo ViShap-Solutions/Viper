@@ -60,8 +60,14 @@ public enum ViperProfile
 
 public static class ViperProfiles
 {
-    /// <summary>The fixed key every encrypted profile uses, so a payload is reproducible across runs.</summary>
-    private static readonly byte[] Key =
+    /// <summary>The key id every encrypted profile names in its header.</summary>
+    internal const string KeyId = "bench";
+
+    /// <summary>
+    /// The fixed key every encrypted profile uses, so a payload is reproducible across runs; Track B's
+    /// protected configurations and composed baselines use it too, under the same key id.
+    /// </summary>
+    internal static readonly byte[] Key =
     [
         0x1F, 0x2E, 0x3D, 0x4C, 0x5B, 0x6A, 0x79, 0x88,
         0x97, 0xA6, 0xB5, 0xC4, 0xD3, 0xE2, 0xF1, 0x00,

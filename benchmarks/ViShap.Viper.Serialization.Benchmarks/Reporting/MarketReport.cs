@@ -15,16 +15,13 @@ namespace ViShap.Viper.Serialization.Benchmarks.Reporting;
 /// the same table, beside the absolute it comes from; <c>≈</c> marks two cells whose 99.9 % intervals
 /// overlap, which is no measurable difference and not a ranking.
 /// </remarks>
-internal static class MarketReport
+internal static partial class MarketReport
 {
     internal const string Track = "B — the market";
 
     private const string Viper = "ViShap.Viper";
 
     private const string Evolution = "MarketEvolutionBenchmarks";
-
-    /// <summary>The z of a two-sided 99.9 % interval, applied to a cell's standard error.</summary>
-    private const double Z999 = 3.29;
 
     private static readonly string[] Tiers = ["T0", "T1", "T2", "T3"];
 
@@ -74,6 +71,8 @@ internal static class MarketReport
     internal static void Write(Document document, string directory, IReadOnlyList<ResultRow> results)
     {
         var run = Load(directory, results);
+        var protectedRun = LoadProtected(directory, results);
+        var charts = WriteCharts(directory, run, protectedRun);
 
         Caveats(document);
         TierTable(document, run);
@@ -86,6 +85,8 @@ internal static class MarketReport
         Sizes(document, run);
         Comparisons(document, run);
         Compressed(document, run);
+        Protected(document, protectedRun);
+        Gallery(document, charts);
         ReportWriter.Caution(document, results);
     }
 
@@ -212,7 +213,7 @@ internal static class MarketReport
         [
             "T4",
             "—",
-            "No library peer. The protected envelope is measured in Track A and against the composed baselines of §17",
+            "No library peer. The protected envelope is measured against the composed baselines of §17, in the T4 section below",
             "—",
         ]);
 
@@ -612,7 +613,7 @@ internal static class MarketReport
         {
             text += $" ×{(row.MeanNs / baseline.MeanNs).ToString("F2", CultureInfo.InvariantCulture)}";
 
-            if (Math.Abs(row.MeanNs - baseline.MeanNs) <= Z999 * (row.ErrorNs + baseline.ErrorNs))
+            if (Math.Abs(row.MeanNs - baseline.MeanNs) <= row.MarginNs + baseline.MarginNs)
             {
                 text += " ≈";
             }

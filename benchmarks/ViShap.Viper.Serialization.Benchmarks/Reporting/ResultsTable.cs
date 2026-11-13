@@ -34,8 +34,14 @@ internal sealed record ResultRow(
         "suite,method,parameters,job,state,mean_ns,error_ns,stddev_ns,median_ns,p95_ns," +
         "ops_per_second,allocated_bytes,gen0_per_1000,gen1_per_1000,gen2_per_1000,iterations";
 
+    /// <summary>
+    /// The margin of error in nanoseconds: the half-width of the 99.9 % interval. <c>ErrorNs</c> is the
+    /// standard error the export records, which is narrower by Student's t.
+    /// </summary>
+    internal double MarginNs => Confidence.Margin(ErrorNs, Iterations);
+
     /// <summary>The relative margin of error, which STAT-04 bounds and the report prints beside a cell.</summary>
-    internal double RelativeErrorPercent => MeanNs > 0 ? ErrorNs / MeanNs * 100 : 0;
+    internal double RelativeErrorPercent => MeanNs > 0 ? MarginNs / MeanNs * 100 : 0;
 
     /// <summary>True for a component cell, which is diagnostic and never enters a market table (§18).</summary>
     internal bool IsComponent => Suite.Contains("Components", StringComparison.Ordinal);

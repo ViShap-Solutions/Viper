@@ -7,7 +7,7 @@ namespace ViShap.Viper.Serialization.Benchmarks.Reporting;
 /// BASE-02 — the delta of a run against a baseline, cell by cell, with margins of error. A cell is one
 /// row of a raw file, keyed as the baseline keys it; the two are read from their committed raw files
 /// and nothing is recomputed. A timed cell is faster or slower only when its interval — the mean plus
-/// or minus its error — does not overlap the baseline's; otherwise it is within error, whatever its
+/// or minus its 99.9 % margin of error — does not overlap the baseline's; otherwise it is within error, whatever its
 /// ratio says.
 /// </summary>
 /// <remarks>
@@ -38,7 +38,7 @@ internal static class BaselineComparison
         markdown.AppendLine(CultureInfo.InvariantCulture, $"# {runName} against {baselineName}");
         markdown.AppendLine();
         markdown.AppendLine(
-            "A timed cell is `faster` or `slower` only when its interval, mean ± error, does not overlap " +
+            "A timed cell is `faster` or `slower` only when its interval, mean ± its 99.9 % margin of error, does not overlap " +
             "the baseline's; otherwise it is `within error`. Ratio is run ÷ baseline.");
 
         foreach (var file in TimedFiles)
@@ -105,8 +105,8 @@ internal static class BaselineComparison
                 continue;
             }
 
-            double meanBefore = Number(before["mean_ns"]), errorBefore = Number(before["error_ns"]);
-            double meanAfter = Number(after["mean_ns"]), errorAfter = Number(after["error_ns"]);
+            double meanBefore = Number(before["mean_ns"]), errorBefore = Margin(before);
+            double meanAfter = Number(after["mean_ns"]), errorAfter = Margin(after);
 
             string verdict = before["state"] != "Supported" || after["state"] != "Supported"
                 ? $"state {before["state"]} → {after["state"]}"
@@ -268,7 +268,16 @@ internal static class BaselineComparison
 
     private static string Timing(Dictionary<string, string> cell) =>
         $"{Number(cell["mean_ns"]).ToString("F1", CultureInfo.InvariantCulture)} ± " +
-        $"{Number(cell["error_ns"]).ToString("F1", CultureInfo.InvariantCulture)} ns";
+        $"{Margin(cell).ToString("F1", CultureInfo.InvariantCulture)} ns";
+
+    /// <summary>
+    /// The cell's 99.9 % margin from the standard error the file records and its iteration count, so an
+    /// interval here is the one BenchmarkDotNet prints as <c>Error</c>, not one standard error wide.
+    /// </summary>
+    private static double Margin(Dictionary<string, string> cell) =>
+        Confidence.Margin(
+            Number(cell["error_ns"]),
+            cell.TryGetValue("iterations", out var iterations) && int.TryParse(iterations, CultureInfo.InvariantCulture, out int n) ? n : 0);
 
     private static string Median(Dictionary<string, string> cell) =>
         $"{cell["median_us"]} µs (p95 {cell["p95_us"]}, n={cell["samples"]})";
