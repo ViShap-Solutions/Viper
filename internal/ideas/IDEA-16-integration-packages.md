@@ -12,6 +12,9 @@ response. Small packages around the serializer would make those choices once.
 ## Where it was written
 
 - The owner's review of an outside assessment of `v1.0.0`, 2026-10-27.
+- A second outside assessment, reviewed by the owner on 2026-11-13, which named b — an
+  `IHybridCacheSerializer<T>` whose keyed contracts keep cache entries readable across a redeploy — as
+  the scenario that lets a web application try Viper in minutes.
 
 ## What is already fixed
 
