@@ -17,7 +17,7 @@
         <PackageId>ViShap.Viper.Generator</PackageId>
         <Authors>Vahe Babayan (0xVahe)</Authors>
         <Company>ViShap Solutions</Company>
-        <Copyright>Copyright © ViShap Solutions 2026</Copyright>
+        <Copyright>Copyright (c) 2026 Vahe Babayan</Copyright>
         <Description>Build-time source generator for Viper: writes the type contracts of a BinarySerializerContext and reports contract errors as compiler diagnostics.</Description>
         <PackageTags>binary;serialization;serializer;source-generator;roslyn;schema-evolution</PackageTags>
         <RepositoryUrl>https://github.com/ViShap-Solutions/Viper</RepositoryUrl>
