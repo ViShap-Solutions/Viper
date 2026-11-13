@@ -40,6 +40,9 @@ changes a default, a byte of an existing frame or a public signature is a major.
 | [IDEA-15 Construction through a constructor with parameters](IDEA-15-constructor-construction.md) | minor | idea |
 | [IDEA-16 Integration packages](IDEA-16-integration-packages.md) | minor, or a package line of its own | idea |
 | [IDEA-17 Length padding of an encrypted frame](IDEA-17-length-padding.md) | patch (documents) to minor (a new record) | idea |
+| [IDEA-18 Coverage-guided fuzzing of the read path](IDEA-18-coverage-guided-fuzzing.md) | none (tests and CI) | idea |
+| [IDEA-19 Diagnostics for types and calls a context does not reach](IDEA-19-analyzer-outside-a-context.md) | minor | idea |
+| [IDEA-20 Type information supplied at the call site by interceptors](IDEA-20-intercepted-calls.md) | minor (opt-in) | idea |
 
 Performance proposals do not belong here: they live in `../performance/` as `PERF-nn`, each cited to the
 measurement behind it.
