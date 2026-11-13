@@ -216,6 +216,38 @@ public class MarketEvolutionBenchmarks
     }
 }
 
+/// <summary>
+/// B4 — T4, the protected envelope (§17, COMP-03): Viper's protected configurations against the composed
+/// baselines of MemoryPack, MessagePack-CSharp and protobuf-net, through the buffered entry points
+/// (WL-01, WL-04). A case is compared only with the cases that compress as it does (Q5), and the
+/// verification behind it proved both the round trip and that a changed tag byte is refused.
+/// </summary>
+[MemoryDiagnoser]
+public class MarketProtectedBenchmarks
+{
+    private MarketAdapter _adapter = null!;
+    private Dataset _dataset = null!;
+    private byte[] _payload = [];
+
+    public static IEnumerable<MarketCase> Cases => MarketCases.Protected;
+
+    [ParamsSource(nameof(Cases))]
+    public MarketCase Case { get; set; } = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        (_adapter, _dataset) = MarketSetup.Verified(Case);
+        _payload = _dataset.Serialize(_adapter);
+    }
+
+    [Benchmark(Description = "WL-01 serialize → byte[]")]
+    public byte[] Serialize() => _dataset.Serialize(_adapter);
+
+    [Benchmark(Description = "WL-04 deserialize ← byte[]")]
+    public object? Deserialize() => _dataset.Deserialize(_adapter, _payload);
+}
+
 /// <summary>The setup every comparative suite shares.</summary>
 internal static class MarketSetup
 {

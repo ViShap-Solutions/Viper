@@ -23,9 +23,15 @@ internal static class EnvironmentManifest
             ["processArchitecture"] = RuntimeInformation.ProcessArchitecture.ToString(),
             ["cpu"] = CpuName(),
             ["logicalCores"] = System.Environment.ProcessorCount,
+            ["machine"] = Machine.Capture(),
+            ["powerPlan"] = Machine.PowerPlan(),
+            ["busyCpuPercentBeforeRun"] = Machine.BusyCpuPercent(TimeSpan.FromSeconds(3)),
+            ["sdk"] = Shell.Run("dotnet", "--version"),
             ["runtime"] = RuntimeInformation.FrameworkDescription,
             ["runtimeIdentifier"] = RuntimeInformation.RuntimeIdentifier,
+            ["runtimeSettings"] = Machine.RuntimeSettings(),
             ["serverGc"] = GCSettings.IsServerGC,
+            ["concurrentGc"] = AppContext.GetData("System.GC.Concurrent") is not false,
             ["gcLatencyMode"] = GCSettings.LatencyMode.ToString(),
             ["is64BitProcess"] = System.Environment.Is64BitProcess,
             ["aesHardwareAcceleration"] = System.Runtime.Intrinsics.X86.Aes.IsSupported
@@ -37,8 +43,9 @@ internal static class EnvironmentManifest
                 .GetName().Version?.ToString(),
             ["revision"] = Git("rev-parse HEAD"),
             ["branch"] = Git("rev-parse --abbrev-ref HEAD"),
-            ["dirty"] = !string.IsNullOrWhiteSpace(Git("status --porcelain")),
+            ["dirty"] = RunTarget.WorkingTreeChanged(),
             ["packages"] = Packages(),
+            ["packagesOnNuGet"] = PackageCurrency.Check(Packages()),
         };
 
         return manifest;
@@ -46,8 +53,17 @@ internal static class EnvironmentManifest
 
     internal static void Write(string path)
     {
-        var json = JsonSerializer.Serialize(Capture(), new JsonSerializerOptions { WriteIndented = true });
+        var manifest = Capture();
+        var json = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(path, json);
+
+        // RST-03 is checked on the day of the run; an outdated pin is said before the timings, not found
+        // in the manifest afterwards.
+        if (manifest["packagesOnNuGet"] is IReadOnlyDictionary<string, PackageCurrency.Entry> currency
+            && PackageCurrency.Outdated(currency) is { Count: > 0 } outdated)
+        {
+            Console.WriteLine($"Newer stable versions exist on nuget.org: {string.Join("; ", outdated)}");
+        }
     }
 
     private static string Configuration()

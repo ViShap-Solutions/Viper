@@ -16,6 +16,11 @@ namespace ViShap.Viper.Serialization.Benchmarks.Reporting;
 /// BenchmarkDotNet exports a suite only when it ends — and <c>SuitesNotRun</c> names every suite and
 /// step after it. While a run is in progress the record on disk already reads as interrupted, so a
 /// process that dies leaves a true record behind it.
+/// <para>
+/// A run filed under a tag it was not taken on (<c>--as</c>) names the tag in <c>MeasuredAs</c> and the
+/// files under <c>src/</c> that differ from it, none of them code, in <c>SourceDifferences</c>;
+/// <c>Revision</c> is always the commit that ran.
+/// </para>
 /// </remarks>
 internal sealed record RunRecord(
     string Kind,
@@ -36,7 +41,9 @@ internal sealed record RunRecord(
     IReadOnlyList<string> SuitesNotRun,
     bool Interrupted = false,
     string? StoppedBy = null,
-    IReadOnlyList<string>? SuitesUnfinished = null)
+    IReadOnlyList<string>? SuitesUnfinished = null,
+    string? MeasuredAs = null,
+    IReadOnlyList<string>? SourceDifferences = null)
 {
     private static readonly JsonSerializerOptions Format = new()
     {

@@ -39,7 +39,7 @@ internal sealed class NerdbankAdapter : MarketAdapter, IBufferWriterSerializer
     internal override Rationale Rationale => new(
         "Source generator: PolyType shapes for every root through [GenerateShapeFor<T>] on one witness class, passed as ITypeShape<T> to each call (docs, \"Getting started\", \"Type shapes\")",
         $"{_options}; [DerivedTypeShape] with integer tags for the union arms; [DefaultValue(\"\")] on string members initialized to empty, as analyzer NBMsgPack110 asks",
-        "No compression: version 1.4.82 ships no compression phase; SerializeDefaultValues and DeserializeDefaultValues keep their defaults",
+        "No compression: versions 1.4.82 and 1.4.104 ship no compression phase; SerializeDefaultValues and DeserializeDefaultValues keep their defaults",
         "PerfOverSchemaStability gives up schema stability for speed, so it is the closed-world configuration only; the tolerant and reference-preserving tiers use the default");
 
     internal override IReadOnlyList<Limitation> Limitations =>

@@ -40,7 +40,30 @@ internal sealed record RunTarget(
     bool Dirty,
     bool AllowDirty)
 {
+    /// <summary>
+    /// The baselines directory as git names it from the repository's top, which <see cref="Dirty"/> leaves
+    /// out: a baseline Track A wrote moments ago, not yet committed, is the output of this harness and not a
+    /// change to what is measured, and Track B on the same revision is measured beside it.
+    /// </summary>
+    private const string BaselinesPathspec = Paths.ProjectName + "/Baselines";
+
     internal bool IsBaseline => Kind == RunKind.Baseline;
+
+    /// <summary>
+    /// When the run measures a tag from a later commit (<c>--as</c>), the tag; otherwise <c>null</c>, and
+    /// <see cref="Tag"/> is the commit's own.
+    /// </summary>
+    internal string? MeasuredAs { get; init; }
+
+    /// <summary>The files under <c>src/</c> that differ from <see cref="MeasuredAs"/>, none of them code.</summary>
+    internal IReadOnlyList<string> SourceDifferences { get; init; } = [];
+
+    /// <summary>
+    /// Whether the working tree differs from the commit in anything but the baselines directory, which
+    /// holds this harness's own output.
+    /// </summary>
+    internal static bool WorkingTreeChanged() =>
+        !string.IsNullOrWhiteSpace(Shell.Git($"status --porcelain -- \":(top,exclude){BaselinesPathspec}\""));
 
     /// <summary>
     /// Decides the destination. A run is a baseline only when the commit carries a tag of its own, the
@@ -48,18 +71,28 @@ internal sealed record RunTarget(
     /// named after `git describe` and the moment it started so that no two runs can collide.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Track B is measured on the tag Track A's baseline already holds, and is kept beside it, in
     /// <c>Baselines/&lt;tag&gt;/market/</c>, without touching a file of it (Benchmark-Plan §29.2). Until
     /// that baseline exists a Track B run on the tag is a measurement.
+    /// </para>
+    /// <para>
+    /// <paramref name="asTag"/> records a later commit as the baseline of an earlier tag when the library
+    /// is the one that tag released and only the harness moved on (Q4): every file under <c>src/</c> that
+    /// differs must be one that cannot change code (<see cref="SourceIdentity"/>), and the run records the
+    /// commit it ran on beside the tag it is filed under.
+    /// </para>
     /// </remarks>
-    internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty, bool market = false)
+    internal static RunTarget Decide(bool shortened, string? filter, bool allowDirty, bool market = false, string? asTag = null)
     {
         var tag = Shell.Git("describe --tags --exact-match HEAD");
         var describe = Shell.Git("describe --tags --always --long");
 
         // An empty answer means a clean tree or no git at all; outside a repository there is no tag
         // either, so a run there can never be a baseline and the distinction never matters.
-        bool dirty = !string.IsNullOrWhiteSpace(Shell.Git("status --porcelain"));
+        bool dirty = WorkingTreeChanged();
+        IReadOnlyList<string> differences = [];
+        string? measuredAs = null;
 
         if (string.IsNullOrEmpty(describe))
         {
@@ -71,6 +104,29 @@ internal sealed record RunTarget(
         var blocked = new List<string>();
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var working = Path.Combine(Paths.Measurements, $"{describe}-{stamp}");
+
+        if (asTag is not null && asTag != tag)
+        {
+            if (!SourceIdentity.TagExists(asTag))
+            {
+                blocked.Add($"--as names {asTag}, which is not a tag of this repository");
+            }
+            else
+            {
+                var comparison = SourceIdentity.Compare(asTag);
+
+                if (comparison.SameCode)
+                {
+                    tag = asTag;
+                    measuredAs = asTag;
+                    differences = comparison.Differing;
+                }
+                else
+                {
+                    blocked.Add($"src/ differs from {asTag} in what may change code: {string.Join(", ", comparison.Code)}");
+                }
+            }
+        }
 
         if (string.IsNullOrEmpty(tag))
         {
@@ -89,7 +145,7 @@ internal sealed record RunTarget(
 
         if (market && !string.IsNullOrEmpty(tag) && !System.IO.Directory.Exists(Path.Combine(Paths.Baselines, tag)))
         {
-            blocked.Add($"Track A's baseline of {tag} is not committed yet, and Track B is measured beside it");
+            blocked.Add($"Track A's baseline of {tag} does not exist yet, and Track B is measured beside it");
         }
 
         if (blocked.Count == 0)
@@ -101,9 +157,15 @@ internal sealed record RunTarget(
                 market ? $"{tag}/market" : tag,
                 tag,
                 describe,
-                "every suite of the track, on a tagged commit, under the publication job",
+                measuredAs is null
+                    ? "every suite of the track, on a tagged commit, under the publication job"
+                    : $"every suite of the track, under the publication job, on a commit whose src/ is {measuredAs}'s in code",
                 dirty,
-                allowDirty);
+                allowDirty)
+            {
+                MeasuredAs = measuredAs,
+                SourceDifferences = differences,
+            };
         }
 
         return new RunTarget(
@@ -115,7 +177,11 @@ internal sealed record RunTarget(
             describe,
             string.Join("; ", blocked),
             dirty,
-            allowDirty);
+            allowDirty)
+        {
+            MeasuredAs = measuredAs,
+            SourceDifferences = differences,
+        };
     }
 
     /// <summary>
@@ -138,7 +204,7 @@ internal sealed record RunTarget(
         if (IsBaseline && Dirty && !AllowDirty)
         {
             throw new InvalidOperationException(
-                $"The working tree has uncommitted changes, so a baseline named {Tag} would not measure " +
+                $"The working tree has uncommitted changes outside Baselines/, so a baseline named {Tag} would not measure " +
                 "what that tag points at. Commit or stash them, or pass --allow-dirty deliberately, which " +
                 "records the flag in the run. Nothing was written.");
         }

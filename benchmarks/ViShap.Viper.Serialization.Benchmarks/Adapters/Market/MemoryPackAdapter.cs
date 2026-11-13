@@ -23,7 +23,7 @@ internal sealed class MemoryPackAdapter()
 
     internal override IReadOnlyList<Limitation> Limitations =>
     [
-        new("DATA-20", ".Big.", "BigInteger is read back as zero by version 1.21.4 on net10.0, reproduced outside this harness"),
+        new("DATA-20", ".Big.", "BigInteger is read back as zero on net10.0 by versions 1.21.4 and 1.22.0, reproduced outside this harness"),
     ];
 
     public override byte[] Serialize<T>(T value) => MemoryPackSerializer.Serialize(value);

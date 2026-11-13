@@ -43,6 +43,13 @@ internal static class MarketReportCheck
             Check(drifted.Count == 0, $"the report differs between two generations: {string.Join(", ", drifted)}");
 
             Hold(File.ReadAllLines(Path.Combine(directory, "report.md")), verification);
+
+            var charts = Directory.Exists(Path.Combine(directory, "charts"))
+                ? Directory.GetFiles(Path.Combine(directory, "charts"), "market-*.svg").Length
+                : 0;
+            Check(charts > 0, "CHT-01: the report drew no chart");
+            Check(Directory.GetFiles(Path.Combine(directory, "charts"), "market-T4-*.svg").Length > 0, "CHT-07: no T4 chart");
+            Console.WriteLine($"   {charts} charts");
         }
         finally
         {
@@ -69,7 +76,7 @@ internal static class MarketReportCheck
         foreach (var suite in new[]
                  {
                      typeof(MarketBufferedBenchmarks), typeof(MarketStreamBenchmarks), typeof(MarketBufferBenchmarks),
-                     typeof(MarketSpanBenchmarks), typeof(MarketEvolutionBenchmarks),
+                     typeof(MarketSpanBenchmarks), typeof(MarketEvolutionBenchmarks), typeof(MarketProtectedBenchmarks),
                  })
         {
             var cases = (IEnumerable<MarketCase>)suite.GetProperty("Cases", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
@@ -130,6 +137,16 @@ internal static class MarketReportCheck
         {
             Check(report.Contains($"### {adapter.Library} {adapter.Version} — {adapter.Configuration}"), $"FAIR-13: no rationale for {adapter.Name}");
         }
+
+        foreach (var adapter in MarketRoster.Protected)
+        {
+            Check(report.Contains($"#### {adapter.Library} {adapter.Version} — {adapter.Configuration}"), $"FAIR-13: no rationale for {adapter.Name}");
+        }
+
+        Check(Index("## T4") > 0, "COMP-03: the report has no T4 section");
+        Check(report.Any(line => line.StartsWith("- **Authenticated metadata.**", StringComparison.Ordinal)), "COMP-04: the report does not say what a composed baseline lacks");
+
+        var protectedNames = MarketRoster.Protected.ToDictionary(adapter => adapter.Name, adapter => adapter.Compressed, StringComparer.Ordinal);
 
         foreach (var difference in ModelFamiliesDifferences())
         {
@@ -192,6 +209,15 @@ internal static class MarketReportCheck
             if (table.StartsWith("Compressed", StringComparison.Ordinal))
             {
                 Check(compressed.Contains(name), $"FAIR-16: {name} is in the compressed section and does not compress");
+                continue;
+            }
+
+            if (table.StartsWith("T4", StringComparison.Ordinal))
+            {
+                bool brotli = table.EndsWith("· Brotli", StringComparison.Ordinal);
+                Check(cellsOf[0] == "T4", $"TIER-02: a row of '{table}' says tier {cellsOf[0]}");
+                Check(protectedNames.TryGetValue(name, out var compresses), $"COMP-01: {name} is in '{table}' and is not a T4 configuration");
+                Check(compresses == brotli, $"Q5: {name} is in '{table}', which {(brotli ? "compresses" : "does not compress")}, and it does not do the same");
                 continue;
             }
 

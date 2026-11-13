@@ -2,7 +2,9 @@ using System.Buffers;
 using System.Collections;
 using System.Globalization;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
+using ViShap.Viper.Exceptions;
 using ViShap.Viper.Serialization.Benchmarks.Adapters;
 using ViShap.Viper.Serialization.Benchmarks.Adapters.Market;
 using ViShap.Viper.Serialization.Benchmarks.Capabilities;
@@ -23,9 +25,12 @@ internal sealed record MarketVerification(
     IReadOnlyList<string> SchemaFailures,
     IReadOnlyList<CapabilityResult> Capabilities,
     IReadOnlyList<TierPlacement> Tiers,
-    IReadOnlyList<MarketPairResult> Pairs)
+    IReadOnlyList<MarketPairResult> Pairs,
+    IReadOnlyList<MarketPairResult> Protected)
 {
-    internal int Failed => SchemaFailures.Count + Pairs.Count(pair => pair.State == VerificationState.Failed);
+    internal int Failed => SchemaFailures.Count
+        + Pairs.Count(pair => pair.State == VerificationState.Failed)
+        + Protected.Count(pair => pair.State == VerificationState.Failed);
 }
 
 /// <summary>
@@ -39,14 +44,62 @@ internal static class MarketVerifier
     /// <summary>The evolution read of WL-15: DATA-13 written as <c>KeyedOrder</c> and read as <c>KeyedOrderV2</c>.</summary>
     internal const string Evolution = "DATA-13/evolution";
 
+    /// <summary>
+    /// The datasets of T4 (COMP-03): the per-call cost, the ordinary object, a small and a large batch, and
+    /// compression's worst and best case, where an envelope that compresses differs most from one that
+    /// does not.
+    /// </summary>
+    internal static IReadOnlyList<string> ProtectedDatasets { get; } = ["DATA-01", "DATA-02", "DATA-03", "DATA-04", "DATA-08", "DATA-09"];
+
     internal static MarketVerification VerifyAll()
     {
         var schema = ModelSchema.Failures();
         var capabilities = MarketRoster.All.SelectMany(Probes.RunAll).ToList();
         var tiers = MarketRoster.All.SelectMany(adapter => Place(adapter, capabilities)).ToList();
         var pairs = MarketRoster.All.SelectMany(adapter => VerifyPairs(adapter, capabilities)).ToList();
+        var protectedPairs = MarketRoster.Protected.SelectMany(VerifyProtected).ToList();
 
-        return new MarketVerification(schema, capabilities, tiers, pairs);
+        return new MarketVerification(schema, capabilities, tiers, pairs, protectedPairs);
+    }
+
+    /// <summary>
+    /// T4's pairs (COMP-01): each round-trips, and a frame with one byte of its ciphertext changed is
+    /// refused — so a composed baseline is measured doing the authentication it claims, not skipping it.
+    /// </summary>
+    private static IEnumerable<MarketPairResult> VerifyProtected(MarketAdapter adapter)
+    {
+        foreach (var id in ProtectedDatasets)
+        {
+            var dataset = MarketCorpus.Find(adapter.Family, id);
+            var result = RoundTripVerifier.Verify(adapter, adapter, dataset, identityExpected: false);
+            var state = result.State;
+            var detail = result.Detail;
+
+            if (state is VerificationState.Supported or VerificationState.Partial && Tampering(adapter, dataset) is { } failure)
+            {
+                state = VerificationState.Failed;
+                detail = failure;
+            }
+
+            yield return new MarketPairResult(adapter, id, state, result.BufferedBytes, result.StreamedBytes, detail);
+        }
+    }
+
+    /// <summary>The last byte of the frame — inside the tag — flipped; null when the frame is refused.</summary>
+    private static string? Tampering(MarketAdapter adapter, Dataset dataset)
+    {
+        var frame = dataset.Serialize(adapter);
+        frame[^1] ^= 0xFF;
+
+        try
+        {
+            dataset.Deserialize(adapter, frame);
+            return "a frame with a changed tag byte was read without an error";
+        }
+        catch (Exception exception) when (exception is BinarySerializerException or CryptographicException)
+        {
+            return null;
+        }
     }
 
     private static IEnumerable<TierPlacement> Place(MarketAdapter adapter, IReadOnlyList<CapabilityResult> capabilities)
@@ -218,6 +271,16 @@ internal static class MarketVerifier
 
         File.WriteAllText(Path.Combine(directory, "market-verification.csv"), pairs.ToString(), Encoding.UTF8);
 
+        var protectedPairs = new StringBuilder("library,version,configuration,compressed,dataset,state,buffered_bytes,detail\n");
+        foreach (var pair in verification.Protected)
+        {
+            protectedPairs.Append(CultureInfo.InvariantCulture,
+                $"{Quote(pair.Adapter.Library)},{Quote(pair.Adapter.Version)},{Quote(pair.Adapter.Configuration)},{pair.Adapter.Compressed},");
+            protectedPairs.Append(CultureInfo.InvariantCulture, $"{Quote(pair.Dataset)},{pair.State},{pair.BufferedBytes},{Quote(pair.Detail)}\n");
+        }
+
+        File.WriteAllText(Path.Combine(directory, "protected-verification.csv"), protectedPairs.ToString(), Encoding.UTF8);
+
         var tiers = new StringBuilder("tier,library,configuration,intended,qualified,reason\n");
         foreach (var placement in verification.Tiers.OrderBy(placement => placement.Tier))
         {
@@ -237,6 +300,16 @@ internal static class MarketVerifier
         }
 
         File.WriteAllText(Path.Combine(directory, "rationale.csv"), rationale.ToString(), Encoding.UTF8);
+
+        var protectedRationale = new StringBuilder("library,version,configuration,mode,options,not_enabled,faster_mode_not_used\n");
+        foreach (var adapter in MarketRoster.Protected)
+        {
+            var r = adapter.Rationale;
+            protectedRationale.Append(CultureInfo.InvariantCulture,
+                $"{Quote(adapter.Library)},{Quote(adapter.Version)},{Quote(adapter.Configuration)},{Quote(r.Mode)},{Quote(r.Options)},{Quote(r.NotEnabled)},{Quote(r.FasterModeNotUsed)}\n");
+        }
+
+        File.WriteAllText(Path.Combine(directory, "protected-rationale.csv"), protectedRationale.ToString(), Encoding.UTF8);
 
         var differences = new StringBuilder("family,type,member,difference,reason\n");
         foreach (var difference in ModelFamilies.Differences)

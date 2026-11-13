@@ -151,7 +151,17 @@ internal static class ReportWriter
             [
                 ["Kind", run.Kind],
                 ["Track", run.Track],
-                ["Tag", run.Tag ?? "none — this commit is not tagged"],
+                [
+                    "Tag",
+                    (run.Tag, run.MeasuredAs) switch
+                    {
+                        (null, _) => "none — this commit is not tagged",
+                        (_, null) => run.Tag,
+                        _ => $"{run.MeasuredAs}, measured from the revision below, whose `src/` differs from the tag only in "
+                             + (run.SourceDifferences is { Count: > 0 } files ? string.Join(", ", files.Select(file => $"`{file}`")) : "nothing")
+                             + " — package metadata and documents, no code",
+                    }
+                ],
                 ["git describe", $"`{run.Describe}`"],
                 ["Revision", $"`{run.Revision}`"],
                 [

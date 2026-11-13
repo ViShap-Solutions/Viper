@@ -101,45 +101,65 @@ internal static class Svg
 /// A horizontal bar chart. Bars run sideways because a cell's label is a profile and a dataset, which
 /// does not fit under a vertical bar.
 /// </summary>
-internal sealed class BarChart(string title, string unit, bool lowerIsBetter)
+internal sealed class BarChart(string title, string unit, bool lowerIsBetter, double labelWidth = 250)
 {
     private const double Width = 960;
-    private const double Left = 250;
+    private readonly double _left = labelWidth;
     private const double Right = 90;
     private const double Top = 64;
     private const double RowHeight = 22;
 
-    private readonly List<(string Label, double Value, int Colour)> _bars = [];
+    private readonly List<(string Label, double Value, int Colour, double Error)> _bars = [];
 
-    internal void Add(string label, double value, int colour = 0) => _bars.Add((label, value, colour));
+    /// <summary>
+    /// Adds a bar. <paramref name="error"/>, when given, is the half-width of the cell's confidence
+    /// interval in the bar's unit, drawn as a whisker, so two bars whose whiskers overlap read as no
+    /// measurable difference rather than as a ranking.
+    /// </summary>
+    internal void Add(string label, double value, int colour = 0, double error = 0) => _bars.Add((label, value, colour, error));
 
     internal string Render()
     {
         double height = Top + (_bars.Count * RowHeight) + 44;
-        double plot = Width - Left - Right;
-        double max = _bars.Count > 0 ? _bars.Max(bar => bar.Value) : 1;
+        double plot = Width - _left - Right;
+        double max = _bars.Count > 0 ? _bars.Max(bar => bar.Value + bar.Error) : 1;
 
         if (max <= 0)
         {
             max = 1;
         }
 
-        var subtitle = $"{unit} — {(lowerIsBetter ? "lower is better" : "higher is better")}";
+        var subtitle = $"{unit} — {(lowerIsBetter ? "lower is better" : "higher is better")}"
+                       + (_bars.Any(bar => bar.Error > 0) ? " — whiskers: 99.9 % confidence interval" : string.Empty);
         var svg = Svg.Open(Width, height, title, subtitle);
 
         for (var index = 0; index < _bars.Count; index++)
         {
-            var (label, value, colour) = _bars[index];
+            var (label, value, colour, error) = _bars[index];
             double y = Top + (index * RowHeight);
             double length = Math.Max(value / max * plot, value > 0 ? 1 : 0);
+            double reach = length;
 
-            Svg.Text(svg, Left - 8, y + 15, label, Svg.Ink, 11, "end");
-            Svg.Rect(svg, Left, y + 4, length, RowHeight - 8, Svg.Series[colour % Svg.Series.Length]);
-            Svg.Text(svg, Left + length + 6, y + 15, Svg.Compact(value), Svg.Muted, 10);
+            Svg.Text(svg, _left - 8, y + 15, label, Svg.Ink, 11, "end");
+            Svg.Rect(svg, _left, y + 4, length, RowHeight - 8, Svg.Series[colour % Svg.Series.Length]);
+
+            if (error > 0)
+            {
+                double low = _left + (Math.Max(0, value - error) / max * plot);
+                double high = _left + ((value + error) / max * plot);
+                double middle = y + (RowHeight / 2);
+
+                Svg.Line(svg, low, middle, high, middle, Svg.Ink);
+                Svg.Line(svg, low, middle - 4, low, middle + 4, Svg.Ink);
+                Svg.Line(svg, high, middle - 4, high, middle + 4, Svg.Ink);
+                reach = high - _left;
+            }
+
+            Svg.Text(svg, _left + reach + 6, y + 15, Svg.Compact(value), Svg.Muted, 10);
         }
 
-        Svg.Line(svg, Left, Top, Left, Top + (_bars.Count * RowHeight), Svg.Grid);
-        Svg.Text(svg, Left, height - 16, $"0 … {Svg.Compact(max)} {unit}", Svg.Muted, 10);
+        Svg.Line(svg, _left, Top, _left, Top + (_bars.Count * RowHeight), Svg.Grid);
+        Svg.Text(svg, _left, height - 16, $"0 … {Svg.Compact(max)} {unit}", Svg.Muted, 10);
 
         return Svg.Close(svg);
     }
