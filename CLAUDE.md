@@ -37,6 +37,9 @@ same change. `Api/DocumentationExampleTests` holds the rule: it compiles every b
 source generator, runs the programs, and names the page and line of what fails. No page cites `internal/`,
 names a retired API or carries an adjective about performance (`Benchmark-Plan.md` §28). Everything
 below is engineering material — for the contributor and for Claude Code — and lives under `internal/`.
+`internal/` is kept out of git (`.gitignore`): it exists only in the owner's working copy, so nothing in
+`src/`, `tests/`, `benchmarks/` or CI reads a file there — what a test needs from the contract, such as
+the member surface of §3.6 (`Fixtures/MemberSurface.txt`), is a tracked file beside the test.
 
 Every file under `internal/` carries its class at its head, and `internal/README.md` states the
 classes: **normative** (the contract), **plan** (a checklist of work to do or repeat), **operational**

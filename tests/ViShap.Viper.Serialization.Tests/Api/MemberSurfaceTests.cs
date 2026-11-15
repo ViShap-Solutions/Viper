@@ -1,19 +1,15 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Api;
 
 /// <summary>
 /// Pins API-29: every public member of every public type — and every protected member of a public type
-/// a consumer can derive from — is listed in contract §3.6, and every member the list names exists. The
-/// list is read from <c>internal/System-Contract.md</c> itself, so the contract cannot drift from the
-/// assemblies in either direction.
+/// a consumer can derive from — is listed in <c>Fixtures/MemberSurface.txt</c>, and every member the list
+/// names exists, so the published surface cannot drift from the assemblies in either direction.
 /// </summary>
 public class MemberSurfaceTests
 {
-    private const string Heading = "## 3.6 Member surface";
-
     private const BindingFlags Declared =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static |
         BindingFlags.DeclaredOnly;
@@ -23,7 +19,7 @@ public class MemberSurfaceTests
     {
         string[] unlisted = [.. Actual().Except(Listed(), StringComparer.Ordinal)];
 
-        Assert.True(unlisted.Length == 0, $"Public members absent from contract §3.6:\n{string.Join("\n", unlisted)}");
+        Assert.True(unlisted.Length == 0, $"Public members absent from the member surface:\n{string.Join("\n", unlisted)}");
     }
 
     [Fact]
@@ -31,30 +27,24 @@ public class MemberSurfaceTests
     {
         string[] missing = [.. Listed().Except(Actual(), StringComparer.Ordinal)];
 
-        Assert.True(missing.Length == 0, $"Members contract §3.6 lists that do not exist:\n{string.Join("\n", missing)}");
+        Assert.True(missing.Length == 0, $"Members the member surface lists that do not exist:\n{string.Join("\n", missing)}");
     }
 
     [Fact]
     public void TheList_IsFoundAndNotEmpty()
     {
         Assert.Contains("ViShap.Viper.BinarySerializer :: .ctor(BinarySerializerOptions)", Listed());
-        Assert.True(Listed().Length > 200, $"Only {Listed().Length} members were read from contract §3.6.");
+        Assert.True(Listed().Length > 200, $"Only {Listed().Length} members were read from the member surface.");
     }
 
-    /// <summary>The lines of the first <c>text</c> block under the §3.6 heading.</summary>
+    /// <summary>The non-empty lines of <c>Fixtures/MemberSurface.txt</c>, one member each.</summary>
     private static string[] Listed()
     {
-        string contract = File.ReadAllText(Path.Combine(SourceTree.RepositoryRoot, "internal", "System-Contract.md"));
-
-        int heading = contract.IndexOf(Heading, StringComparison.Ordinal);
-        Assert.True(heading >= 0, $"Contract has no '{Heading}' section.");
-
-        int start = contract.IndexOf("```text", heading, StringComparison.Ordinal) + "```text".Length;
-        int end = contract.IndexOf("```", start, StringComparison.Ordinal);
+        string surface = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "MemberSurface.txt"));
 
         return
         [
-            .. contract[start..end]
+            .. surface
                 .Split('\n')
                 .Select(line => line.TrimEnd('\r').Trim())
                 .Where(line => line.Length > 0)
