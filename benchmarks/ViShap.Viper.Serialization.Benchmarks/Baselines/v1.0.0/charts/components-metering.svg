@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="262" viewBox="0 0 960 262" role="img">
+<title>MICRO-09 metering and windowing — measured on the internal type</title>
+<desc>nanoseconds per call — lower is better</desc>
+<rect x="0" y="0" width="960" height="262" fill="#ffffff" />
+<text x="16" y="26" fill="#1f2933" font-size="15" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-weight="600">MICRO-09 metering and windowing — measured on the internal type</text>
+<text x="16" y="44" fill="#6b7280" font-size="11" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >nanoseconds per call — lower is better</text>
+<text x="242" y="79" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 bare read'</text>
+<rect x="250" y="68" width="147.513" height="14" fill="#3f7d58" />
+<text x="403.513" y="79" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3.158</text>
+<text x="242" y="101" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 bare write'</text>
+<rect x="250" y="90" width="258.459" height="14" fill="#3f7d58" />
+<text x="514.459" y="101" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >5.533</text>
+<text x="242" y="123" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 copy to stream'</text>
+<rect x="250" y="112" width="233.324" height="14" fill="#3f7d58" />
+<text x="489.324" y="123" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4.995</text>
+<text x="242" y="145" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 metered read'</text>
+<rect x="250" y="134" width="254.36" height="14" fill="#3f7d58" />
+<text x="510.36" y="145" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >5.445</text>
+<text x="242" y="167" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 metered write'</text>
+<rect x="250" y="156" width="620" height="14" fill="#3f7d58" />
+<text x="876" y="167" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >13.272</text>
+<text x="242" y="189" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 window read'</text>
+<rect x="250" y="178" width="265.104" height="14" fill="#3f7d58" />
+<text x="521.104" y="189" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >5.675</text>
+<text x="242" y="211" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >'MICRO-09 window skip'</text>
+<rect x="250" y="200" width="49.993" height="14" fill="#3f7d58" />
+<text x="305.993" y="211" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1.07</text>
+<line x1="250" y1="64" x2="250" y2="218" stroke="#dfe3e8" stroke-width="1" />
+<text x="250" y="246" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >0 … 13.272 nanoseconds per call</text>
+</svg>

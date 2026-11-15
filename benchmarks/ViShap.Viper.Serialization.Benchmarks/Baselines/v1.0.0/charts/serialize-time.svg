@@ -1,0 +1,279 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="2088" viewBox="0 0 960 2088" role="img">
+<title>Serialize time — Viper profiles over the core corpus</title>
+<desc>nanoseconds per operation — lower is better</desc>
+<rect x="0" y="0" width="960" height="2088" fill="#ffffff" />
+<text x="16" y="26" fill="#1f2933" font-size="15" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-weight="600">Serialize time — Viper profiles over the core corpus</text>
+<text x="16" y="44" fill="#6b7280" font-size="11" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >nanoseconds per operation — lower is better</text>
+<text x="242" y="79" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Aes256Gcm · DATA-01 TinyFlat</text>
+<rect x="250" y="68" width="1" height="14" fill="#a8324a" />
+<text x="257" y="79" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,44 k</text>
+<text x="242" y="101" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Brotli · DATA-01 TinyFlat</text>
+<rect x="250" y="90" width="1" height="14" fill="#b5651d" />
+<text x="257" y="101" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >12,6 k</text>
+<text x="242" y="123" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ChaCha20Poly1305 · DATA-01 TinyFlat</text>
+<rect x="250" y="112" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="123" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,4 k</text>
+<text x="242" y="145" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Crc32 · DATA-01 TinyFlat</text>
+<rect x="250" y="134" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="145" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >420.551</text>
+<text x="242" y="167" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Default · DATA-01 TinyFlat</text>
+<rect x="250" y="156" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="167" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >427.364</text>
+<text x="242" y="189" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Deflate · DATA-01 TinyFlat</text>
+<rect x="250" y="178" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="189" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >7,09 k</text>
+<text x="242" y="211" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Generated · DATA-01 TinyFlat</text>
+<rect x="250" y="200" width="1" height="14" fill="#a8324a" />
+<text x="257" y="211" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >359.919</text>
+<text x="242" y="233" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >GeneratedReferences · DATA-01 TinyFlat</text>
+<rect x="250" y="222" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="233" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >381.861</text>
+<text x="242" y="255" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Headerless · DATA-01 TinyFlat</text>
+<rect x="250" y="244" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="255" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >275.917</text>
+<text x="242" y="277" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >PreserveReferences · DATA-01 TinyFlat</text>
+<rect x="250" y="266" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="277" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >441.721</text>
+<text x="242" y="299" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedBrotli · DATA-01 TinyFlat</text>
+<rect x="250" y="288" width="1" height="14" fill="#b5651d" />
+<text x="257" y="299" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >13,43 k</text>
+<text x="242" y="321" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedDeflate · DATA-01 TinyFlat</text>
+<rect x="250" y="310" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="321" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,04 k</text>
+<text x="242" y="343" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >TightLimits · DATA-01 TinyFlat</text>
+<rect x="250" y="332" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="343" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >410.037</text>
+<text x="242" y="365" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash128 · DATA-01 TinyFlat</text>
+<rect x="250" y="354" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="365" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >421.93</text>
+<text x="242" y="387" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash3 · DATA-01 TinyFlat</text>
+<rect x="250" y="376" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="387" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >430.171</text>
+<text x="242" y="409" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Aes256Gcm · DATA-02 MediumObject</text>
+<rect x="250" y="398" width="1" height="14" fill="#a8324a" />
+<text x="257" y="409" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,19 k</text>
+<text x="242" y="431" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Brotli · DATA-02 MediumObject</text>
+<rect x="250" y="420" width="1" height="14" fill="#b5651d" />
+<text x="257" y="431" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >30,27 k</text>
+<text x="242" y="453" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ChaCha20Poly1305 · DATA-02 MediumObject</text>
+<rect x="250" y="442" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="453" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >5,97 k</text>
+<text x="242" y="475" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Crc32 · DATA-02 MediumObject</text>
+<rect x="250" y="464" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="475" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,05 k</text>
+<text x="242" y="497" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Default · DATA-02 MediumObject</text>
+<rect x="250" y="486" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="497" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,71 k</text>
+<text x="242" y="519" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Deflate · DATA-02 MediumObject</text>
+<rect x="250" y="508" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="519" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >25,72 k</text>
+<text x="242" y="541" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Generated · DATA-02 MediumObject</text>
+<rect x="250" y="530" width="1" height="14" fill="#a8324a" />
+<text x="257" y="541" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,43 k</text>
+<text x="242" y="563" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >GeneratedReferences · DATA-02 MediumObject</text>
+<rect x="250" y="552" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="563" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,66 k</text>
+<text x="242" y="585" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Headerless · DATA-02 MediumObject</text>
+<rect x="250" y="574" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="585" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,51 k</text>
+<text x="242" y="607" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >PreserveReferences · DATA-02 MediumObject</text>
+<rect x="250" y="596" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="607" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,88 k</text>
+<text x="242" y="629" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedBrotli · DATA-02 MediumObject</text>
+<rect x="250" y="618" width="1" height="14" fill="#b5651d" />
+<text x="257" y="629" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >31,12 k</text>
+<text x="242" y="651" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedDeflate · DATA-02 MediumObject</text>
+<rect x="250" y="640" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="651" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >27,67 k</text>
+<text x="242" y="673" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >TightLimits · DATA-02 MediumObject</text>
+<rect x="250" y="662" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="673" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,93 k</text>
+<text x="242" y="695" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash128 · DATA-02 MediumObject</text>
+<rect x="250" y="684" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="695" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,91 k</text>
+<text x="242" y="717" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash3 · DATA-02 MediumObject</text>
+<rect x="250" y="706" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="717" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,08 k</text>
+<text x="242" y="739" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Aes256Gcm · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="728" width="1" height="14" fill="#a8324a" />
+<text x="257" y="739" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >47,14 k</text>
+<text x="242" y="761" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Brotli · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="750" width="5.853" height="14" fill="#b5651d" />
+<text x="261.853" y="761" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >393,42 k</text>
+<text x="242" y="783" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ChaCha20Poly1305 · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="772" width="1.316" height="14" fill="#3f7d58" />
+<text x="257.316" y="783" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >88,44 k</text>
+<text x="242" y="805" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Crc32 · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="794" width="1" height="14" fill="#2f6f9f" />
+<text x="257" y="805" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >44,58 k</text>
+<text x="242" y="827" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Default · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="816" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="827" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >42,58 k</text>
+<text x="242" y="849" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Deflate · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="838" width="6.208" height="14" fill="#2f6f9f" />
+<text x="262.208" y="849" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >417,29 k</text>
+<text x="242" y="871" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Generated · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="860" width="1" height="14" fill="#a8324a" />
+<text x="257" y="871" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,18 k</text>
+<text x="242" y="893" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >GeneratedReferences · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="882" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="893" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >39,57 k</text>
+<text x="242" y="915" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Headerless · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="904" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="915" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >41,15 k</text>
+<text x="242" y="937" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >PreserveReferences · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="926" width="1" height="14" fill="#7a7f35" />
+<text x="257" y="937" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >46,63 k</text>
+<text x="242" y="959" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedBrotli · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="948" width="5.807" height="14" fill="#b5651d" />
+<text x="261.807" y="959" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >390,33 k</text>
+<text x="242" y="981" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedDeflate · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="970" width="6.289" height="14" fill="#2f6f9f" />
+<text x="262.289" y="981" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >422,72 k</text>
+<text x="242" y="1003" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >TightLimits · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="992" width="1" height="14" fill="#8a5fa8" />
+<text x="257" y="1003" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >42,45 k</text>
+<text x="242" y="1025" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash128 · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="1014" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1025" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >45,11 k</text>
+<text x="242" y="1047" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash3 · DATA-03 RecordBatchSmall</text>
+<rect x="250" y="1036" width="1" height="14" fill="#3f7d58" />
+<text x="257" y="1047" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >44,78 k</text>
+<text x="242" y="1069" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Aes256Gcm · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1058" width="59.998" height="14" fill="#a8324a" />
+<text x="315.998" y="1069" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,03 M</text>
+<text x="242" y="1091" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Brotli · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1080" width="499.119" height="14" fill="#b5651d" />
+<text x="755.119" y="1091" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >33,55 M</text>
+<text x="242" y="1113" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ChaCha20Poly1305 · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1102" width="103.355" height="14" fill="#3f7d58" />
+<text x="359.355" y="1113" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >6,95 M</text>
+<text x="242" y="1135" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Crc32 · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1124" width="58.485" height="14" fill="#2f6f9f" />
+<text x="314.485" y="1135" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,93 M</text>
+<text x="242" y="1157" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Default · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1146" width="55.109" height="14" fill="#3f7d58" />
+<text x="311.109" y="1157" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,7 M</text>
+<text x="242" y="1179" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Deflate · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1168" width="620" height="14" fill="#2f6f9f" />
+<text x="876" y="1179" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >41,67 M</text>
+<text x="242" y="1201" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Generated · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1190" width="47.897" height="14" fill="#a8324a" />
+<text x="303.897" y="1201" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,22 M</text>
+<text x="242" y="1223" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >GeneratedReferences · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1212" width="61.664" height="14" fill="#3f7d58" />
+<text x="317.664" y="1223" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,14 M</text>
+<text x="242" y="1245" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Headerless · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1234" width="55.104" height="14" fill="#8a5fa8" />
+<text x="311.104" y="1245" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,7 M</text>
+<text x="242" y="1267" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >PreserveReferences · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1256" width="71.506" height="14" fill="#7a7f35" />
+<text x="327.506" y="1267" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,81 M</text>
+<text x="242" y="1289" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedBrotli · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1278" width="435.263" height="14" fill="#b5651d" />
+<text x="691.263" y="1289" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >29,26 M</text>
+<text x="242" y="1311" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedDeflate · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1300" width="599.801" height="14" fill="#2f6f9f" />
+<text x="855.801" y="1311" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >40,32 M</text>
+<text x="242" y="1333" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >TightLimits · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1322" width="56.077" height="14" fill="#8a5fa8" />
+<text x="312.077" y="1333" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,77 M</text>
+<text x="242" y="1355" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash128 · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1344" width="60.316" height="14" fill="#3f7d58" />
+<text x="316.316" y="1355" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >4,05 M</text>
+<text x="242" y="1377" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash3 · DATA-04 RecordBatchLarge</text>
+<rect x="250" y="1366" width="57.962" height="14" fill="#3f7d58" />
+<text x="313.962" y="1377" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >3,9 M</text>
+<text x="242" y="1399" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Aes256Gcm · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1388" width="22.452" height="14" fill="#a8324a" />
+<text x="278.452" y="1399" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,51 M</text>
+<text x="242" y="1421" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Brotli · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1410" width="122.082" height="14" fill="#b5651d" />
+<text x="378.082" y="1421" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,21 M</text>
+<text x="242" y="1443" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ChaCha20Poly1305 · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1432" width="35.282" height="14" fill="#3f7d58" />
+<text x="291.282" y="1443" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >2,37 M</text>
+<text x="242" y="1465" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Crc32 · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1454" width="21.8" height="14" fill="#2f6f9f" />
+<text x="277.8" y="1465" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,47 M</text>
+<text x="242" y="1487" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Default · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1476" width="22.714" height="14" fill="#3f7d58" />
+<text x="278.714" y="1487" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,53 M</text>
+<text x="242" y="1509" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Deflate · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1498" width="155.801" height="14" fill="#2f6f9f" />
+<text x="411.801" y="1509" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >10,47 M</text>
+<text x="242" y="1531" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Generated · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1520" width="19.842" height="14" fill="#a8324a" />
+<text x="275.842" y="1531" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,33 M</text>
+<text x="242" y="1553" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >GeneratedReferences · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1542" width="25.772" height="14" fill="#3f7d58" />
+<text x="281.772" y="1553" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,73 M</text>
+<text x="242" y="1575" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Headerless · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1564" width="20.888" height="14" fill="#8a5fa8" />
+<text x="276.888" y="1575" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,4 M</text>
+<text x="242" y="1597" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >PreserveReferences · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1586" width="27.296" height="14" fill="#7a7f35" />
+<text x="283.296" y="1597" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,83 M</text>
+<text x="242" y="1619" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedBrotli · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1608" width="125.338" height="14" fill="#b5651d" />
+<text x="381.338" y="1619" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >8,42 M</text>
+<text x="242" y="1641" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedDeflate · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1630" width="158.519" height="14" fill="#2f6f9f" />
+<text x="414.519" y="1641" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >10,65 M</text>
+<text x="242" y="1663" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >TightLimits · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1652" width="21.723" height="14" fill="#8a5fa8" />
+<text x="277.723" y="1663" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,46 M</text>
+<text x="242" y="1685" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash128 · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1674" width="23.555" height="14" fill="#3f7d58" />
+<text x="279.555" y="1685" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,58 M</text>
+<text x="242" y="1707" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash3 · DATA-05 DictionaryHeavy</text>
+<rect x="250" y="1696" width="21.469" height="14" fill="#3f7d58" />
+<text x="277.469" y="1707" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,44 M</text>
+<text x="242" y="1729" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Aes256Gcm · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1718" width="3.26" height="14" fill="#a8324a" />
+<text x="259.26" y="1729" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >219,09 k</text>
+<text x="242" y="1751" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Brotli · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1740" width="11.653" height="14" fill="#b5651d" />
+<text x="267.653" y="1751" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >783,27 k</text>
+<text x="242" y="1773" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ChaCha20Poly1305 · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1762" width="6.308" height="14" fill="#3f7d58" />
+<text x="262.308" y="1773" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >424 k</text>
+<text x="242" y="1795" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Crc32 · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1784" width="2.94" height="14" fill="#2f6f9f" />
+<text x="258.94" y="1795" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >197,59 k</text>
+<text x="242" y="1817" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Default · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1806" width="2.959" height="14" fill="#3f7d58" />
+<text x="258.959" y="1817" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >198,91 k</text>
+<text x="242" y="1839" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Deflate · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1828" width="17.583" height="14" fill="#2f6f9f" />
+<text x="273.583" y="1839" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,18 M</text>
+<text x="242" y="1861" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Generated · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1850" width="2.862" height="14" fill="#a8324a" />
+<text x="258.862" y="1861" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >192,38 k</text>
+<text x="242" y="1883" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >GeneratedReferences · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1872" width="2.896" height="14" fill="#3f7d58" />
+<text x="258.896" y="1883" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >194,68 k</text>
+<text x="242" y="1905" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >Headerless · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1894" width="2.816" height="14" fill="#8a5fa8" />
+<text x="258.816" y="1905" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >189,29 k</text>
+<text x="242" y="1927" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >PreserveReferences · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1916" width="2.812" height="14" fill="#7a7f35" />
+<text x="258.812" y="1927" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >189 k</text>
+<text x="242" y="1949" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedBrotli · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1938" width="11.416" height="14" fill="#b5651d" />
+<text x="267.416" y="1949" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >767,34 k</text>
+<text x="242" y="1971" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >ProtectedDeflate · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1960" width="17.723" height="14" fill="#2f6f9f" />
+<text x="273.723" y="1971" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >1,19 M</text>
+<text x="242" y="1993" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >TightLimits · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="1982" width="3.034" height="14" fill="#8a5fa8" />
+<text x="259.034" y="1993" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >203,95 k</text>
+<text x="242" y="2015" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash128 · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="2004" width="2.889" height="14" fill="#3f7d58" />
+<text x="258.889" y="2015" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >194,19 k</text>
+<text x="242" y="2037" fill="#1f2933" font-size="11" text-anchor="end" font-family="Segoe UI, Helvetica, Arial, sans-serif" >XxHash3 · DATA-07/unicode UnicodeHeavy</text>
+<rect x="250" y="2026" width="3.096" height="14" fill="#3f7d58" />
+<text x="259.096" y="2037" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >208,13 k</text>
+<line x1="250" y1="64" x2="250" y2="2044" stroke="#dfe3e8" stroke-width="1" />
+<text x="250" y="2072" fill="#6b7280" font-size="10" text-anchor="start" font-family="Segoe UI, Helvetica, Arial, sans-serif" >0 … 41,67 M nanoseconds per operation</text>
+</svg>

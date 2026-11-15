@@ -1,0 +1,9 @@
+﻿checkpoint,case,bytes
+SIZE-09,"no service",8
+SIZE-09,"checksum (CRC-32)",15
+SIZE-09,"checksum + compression (Deflate)",19
+SIZE-09,"checksum + compression + encryption (AES-256-GCM, key id ""k7"")",25
+SIZE-10,"wide nullable record, 16 members, all null",17
+SIZE-10,"wide nullable record, 16 members, all set",71
+SIZE-10,"list of 1 000 strings of 8 bytes",9002
+SIZE-10,"list of 1 000 null strings",1002

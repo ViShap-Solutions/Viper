@@ -1,0 +1,109 @@
+{
+  "capturedUtc": "2026-11-15T04:57:56.6927581Z",
+  "os": "Microsoft Windows 10.0.26300",
+  "osArchitecture": "X64",
+  "processArchitecture": "X64",
+  "cpu": "11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz (Intel64 Family 6 Model 141 Stepping 1, GenuineIntel)",
+  "logicalCores": 12,
+  "machine": {
+    "physicalCores": 6,
+    "maxClockMHz": 2688,
+    "memoryBytes": 16889278464,
+    "memoryModules": 1,
+    "memoryConfiguredMHz": 3200,
+    "hypervisorPresent": true,
+    "model": "ASUS TUF Gaming F15 FX506HEB_FX506HEB"
+  },
+  "powerPlan": "GUID \u0441\u0445\u0435\u043C\u044B \u043F\u0438\u0442\u0430\u043D\u0438\u044F: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\u0412\u044B\u0441\u043E\u043A\u0430\u044F \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C)",
+  "busyCpuPercentBeforeRun": 8.6,
+  "sdk": "10.0.404",
+  "runtime": ".NET 10.0.15",
+  "runtimeIdentifier": "win-x64",
+  "runtimeSettings": {},
+  "serverGc": false,
+  "concurrentGc": true,
+  "gcLatencyMode": "Interactive",
+  "is64BitProcess": true,
+  "aesHardwareAcceleration": true,
+  "vectorHardwareAcceleration": true,
+  "debuggerAttached": false,
+  "configuration": "Release",
+  "benchmarkDotNet": "0.15.8.0",
+  "revision": "1a45b7df283aa36b10e29ac5f34b3f0b3d6650b0",
+  "branch": "release/v1.1.0",
+  "dirty": false,
+  "packages": {
+    "BenchmarkDotNet": "0.15.8",
+    "MemoryPack": "1.22.0",
+    "MessagePack": "3.1.12",
+    "MessagePack.ImmutableCollection": "3.1.12",
+    "Microsoft.CodeAnalysis.CSharp": "5.0.0",
+    "Microsoft.Extensions.DependencyInjection": "10.0.15",
+    "Microsoft.Orleans.CodeGenerator": "10.4.2",
+    "Microsoft.Orleans.Serialization": "10.4.2",
+    "Nerdbank.MessagePack": "1.4.104",
+    "protobuf-net": "3.4.40"
+  },
+  "packagesOnNuGet": {
+    "BenchmarkDotNet": {
+      "Pinned": "0.15.8",
+      "Latest": "0.15.8",
+      "LatestOverall": "0.15.8",
+      "Current": true
+    },
+    "MemoryPack": {
+      "Pinned": "1.22.0",
+      "Latest": "1.22.0",
+      "LatestOverall": "1.22.0",
+      "Current": true
+    },
+    "MessagePack": {
+      "Pinned": "3.1.12",
+      "Latest": "3.1.12",
+      "LatestOverall": "3.1.12",
+      "Current": true
+    },
+    "MessagePack.ImmutableCollection": {
+      "Pinned": "3.1.12",
+      "Latest": "3.1.12",
+      "LatestOverall": "3.1.12",
+      "Current": true
+    },
+    "Microsoft.CodeAnalysis.CSharp": {
+      "Pinned": "5.0.0",
+      "Latest": "5.12.0",
+      "LatestOverall": "5.12.0",
+      "Current": false
+    },
+    "Microsoft.Extensions.DependencyInjection": {
+      "Pinned": "10.0.15",
+      "Latest": "10.0.15",
+      "LatestOverall": "11.0.0",
+      "Current": true
+    },
+    "Microsoft.Orleans.CodeGenerator": {
+      "Pinned": "10.4.2",
+      "Latest": "10.4.2",
+      "LatestOverall": "10.4.2",
+      "Current": true
+    },
+    "Microsoft.Orleans.Serialization": {
+      "Pinned": "10.4.2",
+      "Latest": "10.4.2",
+      "LatestOverall": "10.4.2",
+      "Current": true
+    },
+    "Nerdbank.MessagePack": {
+      "Pinned": "1.4.104",
+      "Latest": "1.4.104",
+      "LatestOverall": "1.4.104",
+      "Current": true
+    },
+    "protobuf-net": {
+      "Pinned": "3.4.40",
+      "Latest": "3.4.40",
+      "LatestOverall": "3.4.40",
+      "Current": true
+    }
+  }
+}
