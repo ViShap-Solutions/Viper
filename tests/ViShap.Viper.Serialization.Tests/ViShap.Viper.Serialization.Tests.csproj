@@ -28,6 +28,7 @@
   <ItemGroup>
     <None Include="Fixtures\Wire\*.bin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\Dumps\*.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\MemberSurface.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="CopyViperGenerator" AfterTargets="CopyFilesToOutputDirectory">

@@ -1,0 +1,420 @@
+ViShap.Viper.BinaryContextAttribute :: .ctor(Type[])
+ViShap.Viper.BinaryContextAttribute :: Types : IReadOnlyList<Type> { get; }
+ViShap.Viper.BinaryContractAttribute :: .ctor()
+ViShap.Viper.BinaryIgnoreAttribute :: .ctor()
+ViShap.Viper.BinaryIncludeAttribute :: .ctor()
+ViShap.Viper.BinaryKeyAttribute :: .ctor(Int32)
+ViShap.Viper.BinaryKeyAttribute :: Key : Int32 { get; }
+ViShap.Viper.BinaryOrderAttribute :: .ctor(Int32)
+ViShap.Viper.BinaryOrderAttribute :: Order : Int32 { get; }
+ViShap.Viper.BinarySerializer :: .ctor(BinarySerializerOptions)
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, out SequencePosition) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySequence<Byte>, out SequencePosition) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, out Int32) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(ReadOnlySpan<Byte>, out Int32) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(Stream) : T
+ViShap.Viper.BinarySerializer :: Deserialize<T>(Stream, BinaryTypeInfo<T>) : T
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(PipeReader, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsync<T>(Stream, CancellationToken) : ValueTask<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(PipeReader, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(PipeReader, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(Stream, BinaryTypeInfo<T>, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: DeserializeAsyncEnumerable<T>(Stream, CancellationToken) : IAsyncEnumerable<T>
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, BinaryTypeInfo<T>, out SequencePosition) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySequence<Byte>, T, out SequencePosition) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, BinaryTypeInfo<T>, out Int32) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(ReadOnlySpan<Byte>, T, out Int32) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(Stream, T) : Void
+ViShap.Viper.BinarySerializer :: Populate<T>(Stream, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(PipeReader, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(PipeReader, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: PopulateAsync<T>(Stream, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: Serialize<T>(IBufferWriter<Byte>, T) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(IBufferWriter<Byte>, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(Stream, T) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(Stream, T, BinaryTypeInfo<T>) : Void
+ViShap.Viper.BinarySerializer :: Serialize<T>(T) : Byte[]
+ViShap.Viper.BinarySerializer :: Serialize<T>(T, BinaryTypeInfo<T>) : Byte[]
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(PipeWriter, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, BinaryTypeInfo<T>, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializeAsync<T>(Stream, T, CancellationToken) : ValueTask
+ViShap.Viper.BinarySerializer :: SerializePooled<T>(T) : PooledPayload
+ViShap.Viper.BinarySerializer :: SerializePooled<T>(T, BinaryTypeInfo<T>) : PooledPayload
+ViShap.Viper.BinarySerializerContext :: TryGetTypeInfo<T>() : BinaryTypeInfo<T>
+ViShap.Viper.BinarySerializerContext :: protected .ctor()
+ViShap.Viper.BinarySerializerContext :: protected Add(SupportedType) : Void
+ViShap.Viper.BinarySerializerContext :: protected Add<T>(TypeContract<T>) : Void
+ViShap.Viper.BinarySerializerContext :: protected TypeInfo<T>() : BinaryTypeInfo<T>
+ViShap.Viper.BinarySerializerOptions :: AllowV0Fallback : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: Checksum : IChecksumAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Compression : ICompressionAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Contracts : BinarySerializerContext { get; }
+ViShap.Viper.BinarySerializerOptions :: Encryption : IEncryptionAlgorithm { get; }
+ViShap.Viper.BinarySerializerOptions :: Equals(BinarySerializerOptions) : Boolean
+ViShap.Viper.BinarySerializerOptions :: Equals(Object) : Boolean
+ViShap.Viper.BinarySerializerOptions :: GetHashCode() : Int32
+ViShap.Viper.BinarySerializerOptions :: KeyId : String { get; }
+ViShap.Viper.BinarySerializerOptions :: Keys : IKeyProvider { get; }
+ViShap.Viper.BinarySerializerOptions :: Limits : SerializationLimits { get; }
+ViShap.Viper.BinarySerializerOptions :: PreserveReferences : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireChecksum : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireEncryption : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: RequireGeneratedContracts : Boolean { get; }
+ViShap.Viper.BinarySerializerOptions :: ToString() : String
+ViShap.Viper.BinarySerializerOptions :: WriteVersion : Int32 { get; }
+ViShap.Viper.BinarySerializerOptions :: static Configure() : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptions :: static Default : BinarySerializerOptions { get; }
+ViShap.Viper.BinarySerializerOptions :: static op_Equality(BinarySerializerOptions, BinarySerializerOptions) : Boolean
+ViShap.Viper.BinarySerializerOptions :: static op_Inequality(BinarySerializerOptions, BinarySerializerOptions) : Boolean
+ViShap.Viper.BinarySerializerOptionsBuilder :: AllowV0Fallback(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: Build() : BinarySerializerOptions
+ViShap.Viper.BinarySerializerOptionsBuilder :: PreserveReferences(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomChecksum(String, Func<IChecksumAlgorithm>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomCompression(String, Func<ICompressionAlgorithm>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RegisterCustomEncryption(String, Func<IEncryptionAlgorithm>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireChecksum(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireEncryption(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: RequireGeneratedContracts(Boolean) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithChecksum(IChecksumAlgorithm) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithCompression(ICompressionAlgorithm) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithContracts(BinarySerializerContext) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, Func<String, Byte[]>, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, IKeyProvider, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithEncryption(IEncryptionAlgorithm, ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(Func<String, Byte[]>) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(IKeyProvider) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithKeys(ReadOnlySpan<Byte>, String) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithLimits(SerializationLimits) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinarySerializerOptionsBuilder :: WithVersion(Int32) : BinarySerializerOptionsBuilder
+ViShap.Viper.BinaryTypeInfo`1 :: Context : BinarySerializerContext { get; }
+ViShap.Viper.BinaryTypeInfo`1 :: Type : Type { get; }
+ViShap.Viper.BinaryUnionAttribute :: .ctor(Int32, Type)
+ViShap.Viper.BinaryUnionAttribute :: DerivedType : Type { get; }
+ViShap.Viper.BinaryUnionAttribute :: Tag : Int32 { get; }
+ViShap.Viper.Checksum.ChecksumAlgorithm :: Crc32 = 1
+ViShap.Viper.Checksum.ChecksumAlgorithm :: Custom = 255
+ViShap.Viper.Checksum.ChecksumAlgorithm :: None = 0
+ViShap.Viper.Checksum.ChecksumAlgorithm :: XxHash128 = 3
+ViShap.Viper.Checksum.ChecksumAlgorithm :: XxHash3 = 2
+ViShap.Viper.Checksum.Crc32Checksum :: .ctor()
+ViShap.Viper.Checksum.Crc32Checksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.Crc32Checksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.Crc32Checksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.Crc32Checksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.IChecksumAlgorithm :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.IChecksumAlgorithm :: CustomName : String { get; }
+ViShap.Viper.Checksum.IChecksumAlgorithm :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.IChecksumAlgorithm :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.NoChecksum :: .ctor()
+ViShap.Viper.Checksum.NoChecksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.NoChecksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.NoChecksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.NoChecksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.XxHash128Checksum :: .ctor()
+ViShap.Viper.Checksum.XxHash128Checksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.XxHash128Checksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.XxHash128Checksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.XxHash128Checksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Checksum.XxHash3Checksum :: .ctor()
+ViShap.Viper.Checksum.XxHash3Checksum :: Compute(ReadOnlySpan<Byte>, Span<Byte>) : Void
+ViShap.Viper.Checksum.XxHash3Checksum :: CustomName : String { get; }
+ViShap.Viper.Checksum.XxHash3Checksum :: HashSizeInBytes : Int32 { get; }
+ViShap.Viper.Checksum.XxHash3Checksum :: Kind : ChecksumAlgorithm { get; }
+ViShap.Viper.Compression.BrotliCompression :: .ctor(CompressionLevel)
+ViShap.Viper.Compression.BrotliCompression :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.BrotliCompression :: CustomName : String { get; }
+ViShap.Viper.Compression.BrotliCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.BrotliCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Compression.CompressionAlgorithm :: Brotli = 2
+ViShap.Viper.Compression.CompressionAlgorithm :: Custom = 255
+ViShap.Viper.Compression.CompressionAlgorithm :: Deflate = 1
+ViShap.Viper.Compression.CompressionAlgorithm :: None = 0
+ViShap.Viper.Compression.DeflateCompression :: .ctor(CompressionLevel)
+ViShap.Viper.Compression.DeflateCompression :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.DeflateCompression :: CustomName : String { get; }
+ViShap.Viper.Compression.DeflateCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.DeflateCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Compression.ICompressionAlgorithm :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.ICompressionAlgorithm :: CustomName : String { get; }
+ViShap.Viper.Compression.ICompressionAlgorithm :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.ICompressionAlgorithm :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Compression.NoCompression :: .ctor()
+ViShap.Viper.Compression.NoCompression :: Compress(ReadOnlySpan<Byte>, IBufferWriter<Byte>) : Void
+ViShap.Viper.Compression.NoCompression :: CustomName : String { get; }
+ViShap.Viper.Compression.NoCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
+ViShap.Viper.Compression.NoCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Contracts.MemberDescription :: .ctor(String, Type, Int32?)
+ViShap.Viper.Contracts.MemberDescription :: Key : Int32? { get; }
+ViShap.Viper.Contracts.MemberDescription :: MemberType : Type { get; }
+ViShap.Viper.Contracts.MemberDescription :: Name : String { get; }
+ViShap.Viper.Contracts.MemberLayout :: Keyed = 1
+ViShap.Viper.Contracts.MemberLayout :: Positional = 0
+ViShap.Viper.Contracts.MemberReader :: Member<TMember>() : TMember
+ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(Int32, TMember) : Void
+ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(TMember) : Void
+ViShap.Viper.Contracts.SupportedType :: Type : Type { get; }
+ViShap.Viper.Contracts.SupportedTypes :: static Array<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ArraySegment<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Collection<TCollection, T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentBag<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ConcurrentStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Dictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Enum<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static FrozenDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static FrozenSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static HashSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ICollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IEnumerable<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IImmutableStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static IReadOnlyList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ISet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableArray<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableHashSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableQueue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableSortedDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableSortedSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ImmutableStack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static KeyValuePair<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Lazy<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static LinkedList<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static List<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Memory<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static MultiDimensionalArray<TArray, TElement>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Nullable<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Object<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ObservableCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static PriorityQueue<TElement, TPriority>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Queue<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyMemory<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlyObservableCollection<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ReadOnlySequence<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedDictionary<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedList<TKey, TValue>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static SortedSet<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Stack<T>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6, T7, TRest>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6, T7>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5, T6>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4, T5>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3, T4>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2, T3>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1, T2>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Tuple<T1>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static Union<T>(ValueTuple<Int32, Type>[]) : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6, T7>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5, T6>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4, T5>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3, T4>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2, T3>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1, T2>() : SupportedType
+ViShap.Viper.Contracts.SupportedTypes :: static ValueTuple<T1>() : SupportedType
+ViShap.Viper.Contracts.TypeContract`1 :: CanBeConstructed : Boolean { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: Create() : T
+ViShap.Viper.Contracts.TypeContract`1 :: Layout : MemberLayout { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: Members : IReadOnlyList<MemberDescription> { get; }
+ViShap.Viper.Contracts.TypeContract`1 :: ReadKeyed(ref MemberReader, Int32, ref T) : Boolean
+ViShap.Viper.Contracts.TypeContract`1 :: ReadPositional(ref MemberReader, ref T) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: Write(ref MemberWriter, in T) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: protected .ctor(MemberLayout, MemberDescription[], Boolean)
+ViShap.Viper.Crypto.Aes256GcmEncryption :: .ctor()
+ViShap.Viper.Crypto.Aes256GcmEncryption :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.Aes256GcmEncryption :: CustomName : String { get; }
+ViShap.Viper.Crypto.Aes256GcmEncryption :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.Aes256GcmEncryption :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.Aes256GcmEncryption :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.Aes256GcmEncryption :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.Aes256GcmEncryption :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: .ctor()
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: CustomName : String { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.ChaCha20Poly1305Encryption :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.DelegateKeyProvider :: .ctor(Func<String, Byte[]>)
+ViShap.Viper.Crypto.DelegateKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Crypto.EncryptionAlgorithm :: Aes256Gcm = 1
+ViShap.Viper.Crypto.EncryptionAlgorithm :: ChaCha20Poly1305 = 2
+ViShap.Viper.Crypto.EncryptionAlgorithm :: Custom = 255
+ViShap.Viper.Crypto.EncryptionAlgorithm :: None = 0
+ViShap.Viper.Crypto.HkdfKeyProvider :: .ctor(ReadOnlySpan<Byte>, Int32, ReadOnlySpan<Byte>)
+ViShap.Viper.Crypto.HkdfKeyProvider :: Dispose() : Void
+ViShap.Viper.Crypto.HkdfKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: CustomName : String { get; }
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.IEncryptionAlgorithm :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.IKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Crypto.NoEncryption :: .ctor()
+ViShap.Viper.Crypto.NoEncryption :: AuthenticatesAssociatedData : Boolean { get; }
+ViShap.Viper.Crypto.NoEncryption :: CustomName : String { get; }
+ViShap.Viper.Crypto.NoEncryption :: Decrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.NoEncryption :: Encrypt(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, Span<Byte>) : Int32
+ViShap.Viper.Crypto.NoEncryption :: GetCiphertextLength(Int32) : Int32
+ViShap.Viper.Crypto.NoEncryption :: KeySizeInBytes : Int32 { get; }
+ViShap.Viper.Crypto.NoEncryption :: Kind : EncryptionAlgorithm { get; }
+ViShap.Viper.Crypto.SecretKey :: Dispose() : Void
+ViShap.Viper.Crypto.SecretKey :: Length : Int32 { get; }
+ViShap.Viper.Crypto.SecretKey :: Span : ReadOnlySpan<Byte> { get; }
+ViShap.Viper.Crypto.SecretKey :: static CopyFrom(ReadOnlySpan<Byte>) : SecretKey
+ViShap.Viper.Crypto.StaticKeyProvider :: .ctor(ReadOnlySpan<Byte>, String)
+ViShap.Viper.Crypto.StaticKeyProvider :: Dispose() : Void
+ViShap.Viper.Crypto.StaticKeyProvider :: Resolve(String) : SecretKey
+ViShap.Viper.Diagnostics.BinaryDump :: ChecksumVerified : Boolean? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Decrypted : Boolean? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Failure : BinarySerializerException { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: FailureOffset : Int64? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: FailurePath : String { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: FormatVersion : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Header : BinaryHeaderInfo? { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: HeaderLength : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: MaxDepth : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: NodeCount : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: PayloadLength : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: Root : BinaryDumpNode { get; }
+ViShap.Viper.Diagnostics.BinaryDump :: ToHex() : String
+ViShap.Viper.Diagnostics.BinaryDump :: ToJson() : String
+ViShap.Viper.Diagnostics.BinaryDump :: ToString() : String
+ViShap.Viper.Diagnostics.BinaryDump :: ToXml() : String
+ViShap.Viper.Diagnostics.BinaryDumpDifference :: Actual : BinaryDumpNode { get; }
+ViShap.Viper.Diagnostics.BinaryDumpDifference :: Expected : BinaryDumpNode { get; }
+ViShap.Viper.Diagnostics.BinaryDumpDifference :: Path : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Children : IReadOnlyList<BinaryDumpNode> { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Key : Int32? { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Kind : BinaryDumpNodeKind { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Length : Int32 { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Name : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Offset : Int64 { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: ReferenceId : Int32? { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: ReferenceTarget : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: TypeName : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: UnionTag : Byte? { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNode :: Value : String { get; }
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: BackReference = 9
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Composite = 10
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: KeyedField = 6
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: KeyedObject = 5
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Map = 3
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Null = 0
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Object = 4
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Scalar = 1
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Sequence = 2
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: Union = 8
+ViShap.Viper.Diagnostics.BinaryDumpNodeKind :: UnknownKeyedField = 7
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Compare<T>(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDumpDifference
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Compare<T>(ReadOnlySpan<Byte>, ReadOnlySpan<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDumpDifference
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump(ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySequence<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySequence<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySpan<Byte>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static Dump<T>(ReadOnlySpan<Byte>, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(ReadOnlySequence<Byte>) : String
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(ReadOnlySpan<Byte>) : String
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpHeader(Stream) : String
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpValue<T>(T, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Diagnostics.BinaryFormatDumper :: static DumpValue<T>(T, BinaryTypeInfo<T>, BinarySerializerOptions) : BinaryDump
+ViShap.Viper.Exceptions.BinaryConfigurationException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryConfigurationException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryEncryptionException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryEncryptionException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryEncryptionKeyException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryEncryptionKeyException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryFormatException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryFormatException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryFormatNotSupportedException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryFormatNotSupportedException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryIntegrityException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryIntegrityException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryLimitException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryLimitException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinarySerializerException :: protected .ctor(String)
+ViShap.Viper.Exceptions.BinarySerializerException :: protected .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryStreamException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryStreamException :: .ctor(String, Exception)
+ViShap.Viper.Exceptions.BinaryTypeException :: .ctor(String)
+ViShap.Viper.Exceptions.BinaryTypeException :: .ctor(String, Exception)
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySequence<Byte>) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySequence<Byte>, SerializationLimits) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySpan<Byte>) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(ReadOnlySpan<Byte>, SerializationLimits) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(Stream) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryFormatInspector :: static Peek(Stream, SerializationLimits) : BinaryHeaderInfo?
+ViShap.Viper.Metadata.BinaryHeaderInfo :: .ctor(Int32, Boolean, CompressionAlgorithm, String, Int32?, ChecksumAlgorithm, String, ReadOnlyMemory<Byte>, EncryptionAlgorithm, String, String, Int32, Int32)
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Checksum : ReadOnlyMemory<Byte> { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: ChecksumAlgorithm : ChecksumAlgorithm { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Compression : CompressionAlgorithm { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: CustomChecksumName : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: CustomCompressionName : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: CustomEncryptionName : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Deconstruct(out Int32, out Boolean, out CompressionAlgorithm, out String, out Int32?, out ChecksumAlgorithm, out String, out ReadOnlyMemory<Byte>, out EncryptionAlgorithm, out String, out String, out Int32, out Int32) : Void
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Encryption : EncryptionAlgorithm { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Equals(BinaryHeaderInfo) : Boolean
+ViShap.Viper.Metadata.BinaryHeaderInfo :: Equals(Object) : Boolean
+ViShap.Viper.Metadata.BinaryHeaderInfo :: FormatVersion : Int32 { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: GetHashCode() : Int32
+ViShap.Viper.Metadata.BinaryHeaderInfo :: HeaderLength : Int32 { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: KeyId : String { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: OnDiskLength : Int32 { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: PreserveReferences : Boolean { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: ToString() : String
+ViShap.Viper.Metadata.BinaryHeaderInfo :: UncompressedLength : Int32? { get; init; }
+ViShap.Viper.Metadata.BinaryHeaderInfo :: static op_Equality(BinaryHeaderInfo, BinaryHeaderInfo) : Boolean
+ViShap.Viper.Metadata.BinaryHeaderInfo :: static op_Inequality(BinaryHeaderInfo, BinaryHeaderInfo) : Boolean
+ViShap.Viper.PooledPayload :: Dispose() : Void
+ViShap.Viper.PooledPayload :: Memory : ReadOnlyMemory<Byte> { get; }
+ViShap.Viper.PooledPayload :: Span : ReadOnlySpan<Byte> { get; }
+ViShap.Viper.Security.SerializationLimits :: .ctor()
+ViShap.Viper.Security.SerializationLimits :: Equals(Object) : Boolean
+ViShap.Viper.Security.SerializationLimits :: Equals(SerializationLimits) : Boolean
+ViShap.Viper.Security.SerializationLimits :: GetHashCode() : Int32
+ViShap.Viper.Security.SerializationLimits :: MaxArrayLength : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxByteBlobBytes : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxCollectionLength : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxCompressedBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxDecompressionRatio : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxDepth : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxDictionaryEntries : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxEncryptedBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxKeyedFields : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxObjectGraphNodes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxPayloadBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxStringBytes : Int32 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxTotalElements : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxTotalKeyedFields : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: MaxWireBytes : Int64 { get; init; }
+ViShap.Viper.Security.SerializationLimits :: ToString() : String
+ViShap.Viper.Security.SerializationLimits :: Validate() : Void
+ViShap.Viper.Security.SerializationLimits :: static Default : SerializationLimits { get; }
+ViShap.Viper.Security.SerializationLimits :: static op_Equality(SerializationLimits, SerializationLimits) : Boolean
+ViShap.Viper.Security.SerializationLimits :: static op_Inequality(SerializationLimits, SerializationLimits) : Boolean
