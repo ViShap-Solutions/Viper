@@ -22,12 +22,24 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Account>()
-                    .Member<int>(static (in global::Shapes.Account value) => value.Id, static (ref global::Shapes.Account value, int member) => { value.Id = member; })
-                    .Member<decimal>(static (in global::Shapes.Account value) => value.Balance, static (ref global::Shapes.Account value, decimal member) => { value.Balance = member; })
-                    .Member<string?>(static (in global::Shapes.Account value) => value.Owner, static (ref global::Shapes.Account value, string? member) => { value.Owner = member; })
-                    .Member<int>(static (in global::Shapes.Account value) => Field3(value), static (ref global::Shapes.Account value, int member) => { Field3(value) = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Account, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Account, int>(MemberSet0))
+                    .Member<decimal>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Account, decimal>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Account, decimal>(MemberSet1))
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Account, string?>(MemberGet2), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Account, string?>(MemberSet2))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Account, int>(MemberGet3), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Account, int>(MemberSet3))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Account value) => value.Id;
+            private void MemberSet0(ref global::Shapes.Account value, int member) { value.Id = member; }
+
+            private decimal MemberGet1(in global::Shapes.Account value) => value.Balance;
+            private void MemberSet1(ref global::Shapes.Account value, decimal member) { value.Balance = member; }
+
+            private string? MemberGet2(in global::Shapes.Account value) => value.Owner;
+            private void MemberSet2(ref global::Shapes.Account value, string? member) { value.Owner = member; }
+
+            private int MemberGet3(in global::Shapes.Account value) => Field3(value);
+            private void MemberSet3(ref global::Shapes.Account value, int member) { Field3(value) = member; }
 
             public override global::Shapes.Account Create() => new global::Shapes.Account();
 

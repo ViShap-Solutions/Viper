@@ -46,7 +46,8 @@ public partial class AppContracts : BinarySerializerContext;
 The generator writes a contract for each listed type and for every member-encoded type it reaches —
 through members, array and collection elements, dictionary keys and values, nullable values and
 `[BinaryUnion]` arms. `Line` above needs no entry of its own. It also writes the context's public
-parameterless constructor and its `Default` property, so the class declares neither; makes every type it
+parameterless constructor and its `Default` property, so the class declares neither — the constructor adds
+each contract as the function that creates it, so a contract is built the first time its type is used; makes every type it
 reaches supported, so the serializer builds nothing for it by reflection; and gives the context one
 property of [type information](aot.md) per listed type — `AppContracts.Default.Order` — named after the
 type (`List_Order` for `List<Order>`).

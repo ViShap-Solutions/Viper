@@ -12,11 +12,11 @@ namespace Shapes
         /// <summary>Creates the context, adds its generated contracts and makes the types it reaches supported.</summary>
         public Contracts()
         {
-            Add(new Shapes_CircleContract());
-            Add(new Shapes_LineContract());
-            Add(new Shapes_OrderContract());
-            Add(new Shapes_ShapeContract());
-            Add(new Shapes_SquareContract());
+            Add(static () => new Shapes_CircleContract());
+            Add(static () => new Shapes_LineContract());
+            Add(static () => new Shapes_OrderContract());
+            Add(static () => new Shapes_ShapeContract());
+            Add(static () => new Shapes_SquareContract());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Collection<global::Shapes.Bag, int>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Circle>());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Line>());

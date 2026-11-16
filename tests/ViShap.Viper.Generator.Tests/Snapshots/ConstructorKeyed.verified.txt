@@ -24,10 +24,10 @@ namespace Shapes
                 UseConstructor(
                     static () => new Values(),
                     new global::ViShap.Viper.Contracts.MemberAccessors<Values>()
-                        .Member<string>(static (in Values values) => values.M0, static (ref Values values, string member) => { values.M0 = member; })
-                        .Member<int>(static (in Values values) => values.M1, static (ref Values values, int member) => { values.M1 = member; })
-                        .Member<decimal?>(static (in Values values) => values.M2, static (ref Values values, decimal? member) => { values.M2 = member; })
-                        .Member<string?>(static (in Values values) => values.M3, static (ref Values values, string? member) => { values.M3 = member; values.HasM3 = true; }),
+                        .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<Values, string>(ValueGet0), new global::ViShap.Viper.Contracts.MemberSetter<Values, string>(ValueSet0))
+                        .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<Values, int>(ValueGet1), new global::ViShap.Viper.Contracts.MemberSetter<Values, int>(ValueSet1))
+                        .Member<decimal?>(new global::ViShap.Viper.Contracts.MemberGetter<Values, decimal?>(ValueGet2), new global::ViShap.Viper.Contracts.MemberSetter<Values, decimal?>(ValueSet2))
+                        .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<Values, string?>(ValueGet3), new global::ViShap.Viper.Contracts.MemberSetter<Values, string?>(ValueSet3)),
                     static (ref Values values) =>
                     {
                         var value = new global::Shapes.Invoice(values.M0, values.M1, values.M2);
@@ -37,12 +37,32 @@ namespace Shapes
                     }
                 );
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Invoice>()
-                    .Member<string>(static (in global::Shapes.Invoice value) => value.Number)
-                    .Member<int>(static (in global::Shapes.Invoice value) => value.Lines)
-                    .Member<decimal?>(static (in global::Shapes.Invoice value) => value.Total)
-                    .Member<string?>(static (in global::Shapes.Invoice value) => value.Memo)
+                    .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Invoice, string>(MemberGet0))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Invoice, int>(MemberGet1))
+                    .Member<decimal?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Invoice, decimal?>(MemberGet2))
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Invoice, string?>(MemberGet3))
                 );
             }
+
+            private string MemberGet0(in global::Shapes.Invoice value) => value.Number;
+
+            private int MemberGet1(in global::Shapes.Invoice value) => value.Lines;
+
+            private decimal? MemberGet2(in global::Shapes.Invoice value) => value.Total;
+
+            private string? MemberGet3(in global::Shapes.Invoice value) => value.Memo;
+
+            private string ValueGet0(in Values values) => values.M0;
+            private void ValueSet0(ref Values values, string member) { values.M0 = member; }
+
+            private int ValueGet1(in Values values) => values.M1;
+            private void ValueSet1(ref Values values, int member) { values.M1 = member; }
+
+            private decimal? ValueGet2(in Values values) => values.M2;
+            private void ValueSet2(ref Values values, decimal? member) { values.M2 = member; }
+
+            private string? ValueGet3(in Values values) => values.M3;
+            private void ValueSet3(ref Values values, string? member) { values.M3 = member; values.HasM3 = true; }
 
             public override global::Shapes.Invoice Create() => throw new global::System.NotSupportedException();
 

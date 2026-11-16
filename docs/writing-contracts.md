@@ -115,6 +115,53 @@ public sealed class GeometryContracts : BinarySerializerContext
 member-encoded type the context holds no contract for is a `BinaryConfigurationException` naming it,
 instead of a description by reflection.
 
+## A contract created on first use
+
+`Add(new PointContract())` creates the contract with the context. A context that lists many types and a
+process that uses a few of them can instead add each contract as the function that creates it: the
+serializer calls the function the first time an operation looks the type up, keeps the contract it
+returns, and never calls it again. The source generator adds its contracts this way.
+
+```csharp
+using ViShap.Viper;
+using ViShap.Viper.Contracts;
+
+public sealed class Reading
+{
+    public int Value { get; set; }
+}
+
+public sealed class SensorContracts : BinarySerializerContext
+{
+    public SensorContracts()
+    {
+        Add(static () => new ReadingContract());
+        Add(SupportedTypes.Object<Reading>());
+    }
+
+    private sealed class ReadingContract() : TypeContract<Reading>(
+        MemberLayout.Positional,
+        [new("Value", typeof(int), null)],
+        canBeConstructed: true)
+    {
+        public override Reading Create() => new();
+
+        public override void Write(ref MemberWriter writer, in Reading value) => writer.Member(value.Value);
+
+        public override void ReadPositional(ref MemberReader reader, ref Reading value) =>
+            value.Value = reader.Member<int>();
+
+        public override bool ReadKeyed(ref MemberReader reader, int key, ref Reading value) =>
+            throw new NotSupportedException();
+    }
+}
+```
+
+An exception the function throws — a `BinaryConfigurationException` from a description the contract's
+constructor refuses, for one — is raised by the operation that first uses the type, not by the context's
+constructor, and the next use calls the function again. Threads that use the type for the first time at
+once may each call it; one contract is kept.
+
 ## What a contract implements
 
 The constructor of `TypeContract<T>` takes the description the serializer checks every call against:
@@ -601,8 +648,10 @@ same contract.
 - A description that cannot be checked — an undefined layout, a null member, a key under a positional
   layout, a keyed member without a key, keys out of order or repeated, a negative key, an empty name — is
   a `BinaryConfigurationException` from the constructor.
-- A context holds one contract per type and adds each supported type once; a second one, and anything
-  added after options were built with the context, is a `BinaryConfigurationException`. `TypeInfo<T>()`
+- A context holds one contract per type, added as an instance or as the function that creates it, and adds
+  each supported type once; a second one, and anything added after options were built with the context,
+  is a `BinaryConfigurationException`. A function that returns `null` is one too, raised where the type is
+  first used. `Add(null)` names neither overload; cast the `null` to say which one you mean. `TypeInfo<T>()`
   for a type the context did not make supported, other than a scalar, is one too.
 - A context, and every contract in it, is shared by every operation and thread that uses the options:
   keep no per-call state in either.

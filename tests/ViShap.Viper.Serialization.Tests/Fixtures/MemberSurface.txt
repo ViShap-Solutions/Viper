@@ -56,6 +56,7 @@ ViShap.Viper.BinarySerializer :: SerializePooled<T>(T, BinaryTypeInfo<T>) : Pool
 ViShap.Viper.BinarySerializerContext :: TryGetTypeInfo<T>() : BinaryTypeInfo<T>
 ViShap.Viper.BinarySerializerContext :: protected .ctor()
 ViShap.Viper.BinarySerializerContext :: protected Add(SupportedType) : Void
+ViShap.Viper.BinarySerializerContext :: protected Add<T>(Func<TypeContract<T>>) : Void
 ViShap.Viper.BinarySerializerContext :: protected Add<T>(TypeContract<T>) : Void
 ViShap.Viper.BinarySerializerContext :: protected TypeInfo<T>() : BinaryTypeInfo<T>
 ViShap.Viper.BinarySerializerOptions :: AllowV0Fallback : Boolean { get; }

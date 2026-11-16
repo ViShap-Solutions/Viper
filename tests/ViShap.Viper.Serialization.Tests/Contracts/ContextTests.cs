@@ -567,7 +567,7 @@ public class ContextTests
 
     private sealed class NullContext : BinarySerializerContext
     {
-        public NullContext() => Add<CountedPair>(null!);
+        public NullContext() => Add<CountedPair>((TypeContract<CountedPair>)null!);
     }
 
     private sealed class DescribedContract(MemberLayout layout, MemberDescription[] members)

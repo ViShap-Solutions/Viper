@@ -36,7 +36,7 @@ internal static class Emitter
         writer.Line($"public {self}()");
         writer.Open();
         foreach (string contract in body.ContractClasses)
-            writer.Line($"Add(new {contract}());");
+            writer.Line($"Add(static () => new {contract}());");
         foreach (string supported in body.Supported)
             writer.Line($"Add({supported});");
         foreach (var info in body.TypeInfos)
@@ -68,6 +68,7 @@ internal static class Emitter
         writer.Open();
 
         Constructor(writer, contract);
+        AccessorMethods(writer, contract);
         writer.Line();
         Create(writer, contract);
         writer.Line();
@@ -130,10 +131,9 @@ internal static class Emitter
         writer.Indent();
         for (int index = 0; index < members.Length; index++)
         {
-            string field = Field(index);
-            string mark = starts[index].Length == 0 ? $" values.Has{field} = true;" : string.Empty;
+            string member = members[index].TypeName;
             string separator = index == members.Length - 1 ? "," : string.Empty;
-            writer.Line($".Member<{members[index].TypeName}>(static (in Values values) => values.{field}, static (ref Values values, {members[index].TypeName} member) => {{ values.{field} = member;{mark} }}){separator}");
+            writer.Line($".Member<{member}>({Getter("Values", member, $"ValueGet{index}")}, {Setter("Values", member, $"ValueSet{index}")}){separator}");
         }
         writer.Outdent();
         writer.Line("static (ref Values values) =>");
@@ -187,26 +187,64 @@ internal static class Emitter
 
     /// <summary>
     /// The accessor table the serializer walks: one entry per member, in the order of the description,
-    /// reaching the member exactly as <c>Write</c> and the read methods do.
+    /// each a pair of delegates to the methods <see cref="AccessorMethods"/> writes, closed over the
+    /// contract. The delegates are created in the constructor, which runs once per context, and the
+    /// methods are compiled when the serializer first calls them.
     /// </summary>
     private static void UseAccessors(CodeWriter writer, ContractModel contract)
     {
         string type = contract.TypeName;
+        var members = contract.Members.ToArray();
         writer.Line($"UseAccessors(new {Contracts}.MemberAccessors<{type}>()");
         writer.Indent();
-        foreach (var member in contract.Members)
+        for (int index = 0; index < members.Length; index++)
         {
-            if (contract.Constructor is not null)
-            {
-                writer.Line($".Member<{member.TypeName}>(static (in {type} value) => {member.Get})");
-                continue;
-            }
-
-            string set = string.Format(CultureInfo.InvariantCulture, member.Set!, "member");
-            writer.Line($".Member<{member.TypeName}>(static (in {type} value) => {member.Get}, static (ref {type} value, {member.TypeName} member) => {{ {set} }})");
+            string getter = Getter(type, members[index].TypeName, $"MemberGet{index}");
+            writer.Line(contract.Constructor is null
+                ? $".Member<{members[index].TypeName}>({getter}, {Setter(type, members[index].TypeName, $"MemberSet{index}")})"
+                : $".Member<{members[index].TypeName}>({getter})");
         }
         writer.Outdent();
         writer.Line(");");
+    }
+
+    private static string Getter(string owner, string member, string method) =>
+        $"new {Contracts}.MemberGetter<{owner}, {member}>({method})";
+
+    private static string Setter(string owner, string member, string method) =>
+        $"new {Contracts}.MemberSetter<{owner}, {member}>({method})";
+
+    /// <summary>
+    /// The instance methods the accessor tables point at: per member, a getter and — unless the type is read through
+    /// a constructor — a setter, reaching the member exactly as <c>Write</c> and the read methods do; for a
+    /// type read through a constructor, a getter and a setter of each field of its values.
+    /// </summary>
+    private static void AccessorMethods(CodeWriter writer, ContractModel contract)
+    {
+        string type = contract.TypeName;
+        var members = contract.Members.ToArray();
+        for (int index = 0; index < members.Length; index++)
+        {
+            string member = members[index].TypeName;
+            writer.Line();
+            writer.Line($"private {member} MemberGet{index}(in {type} value) => {members[index].Get};");
+            if (contract.Constructor is null)
+                writer.Line($"private void MemberSet{index}(ref {type} value, {member} member) {{ {string.Format(CultureInfo.InvariantCulture, members[index].Set!, "member")} }}");
+        }
+
+        if (contract.Constructor is not { } constructor)
+            return;
+
+        var starts = constructor.Starts.ToArray();
+        for (int index = 0; index < members.Length; index++)
+        {
+            string field = Field(index);
+            string member = members[index].TypeName;
+            string mark = starts[index].Length == 0 ? $" values.Has{field} = true;" : string.Empty;
+            writer.Line();
+            writer.Line($"private {member} ValueGet{index}(in Values values) => values.{field};");
+            writer.Line($"private void ValueSet{index}(ref Values values, {member} member) {{ values.{field} = member;{mark} }}");
+        }
     }
 
     private static void Create(CodeWriter writer, ContractModel contract)

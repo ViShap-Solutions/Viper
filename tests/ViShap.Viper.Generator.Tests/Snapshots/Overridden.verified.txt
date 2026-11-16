@@ -21,11 +21,20 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Overriding>()
-                    .Member<int>(static (in global::Shapes.Overriding value) => value.Value, static (ref global::Shapes.Overriding value, int member) => { value.Value = member; })
-                    .Member<int>(static (in global::Shapes.Overriding value) => ((global::Shapes.Virtual)value).Getter, static (ref global::Shapes.Overriding value, int member) => { ((global::Shapes.Virtual)value).Getter = member; })
-                    .Member<int>(static (in global::Shapes.Overriding value) => ((global::Shapes.Virtual)value).Other, static (ref global::Shapes.Overriding value, int member) => { ((global::Shapes.Virtual)value).Other = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Overriding, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Overriding, int>(MemberSet0))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Overriding, int>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Overriding, int>(MemberSet1))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Overriding, int>(MemberGet2), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Overriding, int>(MemberSet2))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Overriding value) => value.Value;
+            private void MemberSet0(ref global::Shapes.Overriding value, int member) { value.Value = member; }
+
+            private int MemberGet1(in global::Shapes.Overriding value) => ((global::Shapes.Virtual)value).Getter;
+            private void MemberSet1(ref global::Shapes.Overriding value, int member) { ((global::Shapes.Virtual)value).Getter = member; }
+
+            private int MemberGet2(in global::Shapes.Overriding value) => ((global::Shapes.Virtual)value).Other;
+            private void MemberSet2(ref global::Shapes.Overriding value, int member) { ((global::Shapes.Virtual)value).Other = member; }
 
             public override global::Shapes.Overriding Create() => new global::Shapes.Overriding();
 

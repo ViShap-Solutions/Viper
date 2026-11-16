@@ -22,10 +22,16 @@ namespace Shapes
                         canBeConstructed: true)
                 {
                     UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Host.Inner>()
-                        .Member<global::Shapes.Host.Leaf?>(static (in global::Shapes.Host.Inner value) => value.Child, static (ref global::Shapes.Host.Inner value, global::Shapes.Host.Leaf? member) => { value.Child = member; })
-                        .Member<int>(static (in global::Shapes.Host.Inner value) => value.N, static (ref global::Shapes.Host.Inner value, int member) => { value.N = member; })
+                        .Member<global::Shapes.Host.Leaf?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Host.Inner, global::Shapes.Host.Leaf?>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Host.Inner, global::Shapes.Host.Leaf?>(MemberSet0))
+                        .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Host.Inner, int>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Host.Inner, int>(MemberSet1))
                     );
                 }
+
+                private global::Shapes.Host.Leaf? MemberGet0(in global::Shapes.Host.Inner value) => value.Child;
+                private void MemberSet0(ref global::Shapes.Host.Inner value, global::Shapes.Host.Leaf? member) { value.Child = member; }
+
+                private int MemberGet1(in global::Shapes.Host.Inner value) => value.N;
+                private void MemberSet1(ref global::Shapes.Host.Inner value, int member) { value.N = member; }
 
                 public override global::Shapes.Host.Inner Create() => new global::Shapes.Host.Inner();
 

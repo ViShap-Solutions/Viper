@@ -20,10 +20,16 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Circle>()
-                    .Member<string?>(static (in global::Shapes.Circle value) => ((global::Shapes.Shape)value).Label, static (ref global::Shapes.Circle value, string? member) => { ((global::Shapes.Shape)value).Label = member; })
-                    .Member<double>(static (in global::Shapes.Circle value) => value.Radius, static (ref global::Shapes.Circle value, double member) => { value.Radius = member; })
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Circle, string?>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Circle, string?>(MemberSet0))
+                    .Member<double>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Circle, double>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Circle, double>(MemberSet1))
                 );
             }
+
+            private string? MemberGet0(in global::Shapes.Circle value) => ((global::Shapes.Shape)value).Label;
+            private void MemberSet0(ref global::Shapes.Circle value, string? member) { ((global::Shapes.Shape)value).Label = member; }
+
+            private double MemberGet1(in global::Shapes.Circle value) => value.Radius;
+            private void MemberSet1(ref global::Shapes.Circle value, double member) { value.Radius = member; }
 
             public override global::Shapes.Circle Create() => new global::Shapes.Circle();
 

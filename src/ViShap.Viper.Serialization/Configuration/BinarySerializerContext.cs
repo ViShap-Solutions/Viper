@@ -6,7 +6,8 @@ namespace ViShap.Viper;
 /// A set of type contracts the serializer uses instead of the ones it builds by reflection. Derive a
 /// <see langword="partial"/> class from it, list the root types with <see cref="BinaryContextAttribute"/>,
 /// and the ViShap.Viper source generator writes the contracts and a <c>Default</c> instance; or add
-/// contracts of your own from the constructor with <see cref="Add{T}"/>.
+/// contracts of your own from the constructor with <see cref="Add{T}(TypeContract{T})"/> or, to create
+/// each one when its type is first used, <see cref="Add{T}(Func{TypeContract{T}})"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,10 +35,10 @@ namespace ViShap.Viper;
 /// </remarks>
 public abstract class BinarySerializerContext
 {
-    private readonly Dictionary<Type, ITypeContract> _contracts = [];
+    private readonly Dictionary<Type, ContractSlot> _contracts = [];
     private readonly HashSet<Type> _supported = [];
     private readonly Lock _gate = new();
-    private FrozenDictionary<Type, ITypeContract>? _snapshot;
+    private FrozenDictionary<Type, ContractSlot>? _snapshot;
 
     /// <summary>Creates an empty context; a derived constructor adds its contracts.</summary>
     protected BinarySerializerContext() { }
@@ -61,11 +62,44 @@ public abstract class BinarySerializerContext
                     $"'{GetType()}' is already in use by built options; contracts are added before " +
                     "the context is first used, from its constructor.");
 
-            if (!_contracts.TryAdd(typeof(T), contract))
+            if (!_contracts.TryAdd(typeof(T), ContractSlot.Of(contract)))
                 throw new BinaryConfigurationException(
                     $"'{GetType()}' already holds a contract for '{typeof(T)}'.");
 
             contract.Seal();
+        }
+    }
+
+    /// <summary>
+    /// Adds the contract the serializer uses for <typeparamref name="T"/>, created by
+    /// <paramref name="contract"/> the first time an operation looks the type up, so a context pays for
+    /// the contracts of the types a process uses and no others.
+    /// </summary>
+    /// <param name="contract">
+    /// Creates the contract. It is called at most once for each use that finds no contract yet: several
+    /// threads may call it at once, and one of the contracts they create is kept. An exception it throws
+    /// is raised by the operation that looked the type up, and is not kept, so the next use calls it again.
+    /// </param>
+    /// <typeparam name="T">The member-encoded type the contract describes.</typeparam>
+    /// <exception cref="ArgumentNullException"><paramref name="contract"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException">
+    /// The context already holds a contract for <typeparamref name="T"/>, or options have already been
+    /// built with it. An operation raises it as well when <paramref name="contract"/> returns null.
+    /// </exception>
+    protected void Add<T>(Func<TypeContract<T>> contract)
+    {
+        ArgumentNullException.ThrowIfNull(contract);
+
+        lock (_gate)
+        {
+            if (_snapshot is not null)
+                throw new BinaryConfigurationException(
+                    $"'{GetType()}' is already in use by built options; contracts are added before " +
+                    "the context is first used, from its constructor.");
+
+            if (!_contracts.TryAdd(typeof(T), ContractSlot.Deferred(contract)))
+                throw new BinaryConfigurationException(
+                    $"'{GetType()}' already holds a contract for '{typeof(T)}'.");
         }
     }
 
@@ -130,7 +164,7 @@ public abstract class BinarySerializerContext
     }
 
     /// <summary>The contracts, frozen the first time options are built with the context.</summary>
-    internal FrozenDictionary<Type, ITypeContract> Snapshot()
+    internal FrozenDictionary<Type, ContractSlot> Snapshot()
     {
         lock (_gate)
             return _snapshot ??= _contracts.ToFrozenDictionary();

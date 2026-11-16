@@ -14,8 +14,8 @@ namespace Shapes
             /// <summary>Creates the context, adds its generated contracts and makes the types it reaches supported.</summary>
             public Contracts()
             {
-                Add(new Shapes_Host_InnerContract());
-                Add(new Shapes_Host_LeafContract());
+                Add(static () => new Shapes_Host_InnerContract());
+                Add(static () => new Shapes_Host_LeafContract());
                 Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Host.Inner>());
                 Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Host.Leaf>());
                 Inner = TypeInfo<global::Shapes.Host.Inner>();

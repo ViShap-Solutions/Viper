@@ -23,13 +23,28 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Guarded>()
-                    .Member<int>(static (in global::Shapes.Guarded value) => value.Count, static (ref global::Shapes.Guarded value, int member) => { Set0(value, member); })
-                    .Member<string>(static (in global::Shapes.Guarded value) => value.Name, static (ref global::Shapes.Guarded value, string member) => { value.Name = member; })
-                    .Member<string?>(static (in global::Shapes.Guarded value) => Get2(value), static (ref global::Shapes.Guarded value, string? member) => { Set2(value, member); })
-                    .Member<int>(static (in global::Shapes.Guarded value) => value.Version, static (ref global::Shapes.Guarded value, int member) => { Set3(value, member); })
-                    .Member<int>(static (in global::Shapes.Guarded value) => value.@class, static (ref global::Shapes.Guarded value, int member) => { value.@class = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Guarded, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Guarded, int>(MemberSet0))
+                    .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Guarded, string>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Guarded, string>(MemberSet1))
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Guarded, string?>(MemberGet2), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Guarded, string?>(MemberSet2))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Guarded, int>(MemberGet3), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Guarded, int>(MemberSet3))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Guarded, int>(MemberGet4), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Guarded, int>(MemberSet4))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Guarded value) => value.Count;
+            private void MemberSet0(ref global::Shapes.Guarded value, int member) { Set0(value, member); }
+
+            private string MemberGet1(in global::Shapes.Guarded value) => value.Name;
+            private void MemberSet1(ref global::Shapes.Guarded value, string member) { value.Name = member; }
+
+            private string? MemberGet2(in global::Shapes.Guarded value) => Get2(value);
+            private void MemberSet2(ref global::Shapes.Guarded value, string? member) { Set2(value, member); }
+
+            private int MemberGet3(in global::Shapes.Guarded value) => value.Version;
+            private void MemberSet3(ref global::Shapes.Guarded value, int member) { Set3(value, member); }
+
+            private int MemberGet4(in global::Shapes.Guarded value) => value.@class;
+            private void MemberSet4(ref global::Shapes.Guarded value, int member) { value.@class = member; }
 
             public override global::Shapes.Guarded Create() => Construct();
 

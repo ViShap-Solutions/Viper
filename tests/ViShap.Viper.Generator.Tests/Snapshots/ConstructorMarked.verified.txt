@@ -22,8 +22,8 @@ namespace Shapes
                 UseConstructor(
                     static () => new Values(),
                     new global::ViShap.Viper.Contracts.MemberAccessors<Values>()
-                        .Member<long>(static (in Values values) => values.M0, static (ref Values values, long member) => { values.M0 = member; })
-                        .Member<string>(static (in Values values) => values.M1, static (ref Values values, string member) => { values.M1 = member; }),
+                        .Member<long>(new global::ViShap.Viper.Contracts.MemberGetter<Values, long>(ValueGet0), new global::ViShap.Viper.Contracts.MemberSetter<Values, long>(ValueSet0))
+                        .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<Values, string>(ValueGet1), new global::ViShap.Viper.Contracts.MemberSetter<Values, string>(ValueSet1)),
                     static (ref Values values) =>
                     {
                         var value = Construct(values.M0, values.M1);
@@ -31,10 +31,20 @@ namespace Shapes
                     }
                 );
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Stamp>()
-                    .Member<long>(static (in global::Shapes.Stamp value) => value.Ticks)
-                    .Member<string>(static (in global::Shapes.Stamp value) => value.Zone)
+                    .Member<long>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Stamp, long>(MemberGet0))
+                    .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Stamp, string>(MemberGet1))
                 );
             }
+
+            private long MemberGet0(in global::Shapes.Stamp value) => value.Ticks;
+
+            private string MemberGet1(in global::Shapes.Stamp value) => value.Zone;
+
+            private long ValueGet0(in Values values) => values.M0;
+            private void ValueSet0(ref Values values, long member) { values.M0 = member; }
+
+            private string ValueGet1(in Values values) => values.M1;
+            private void ValueSet1(ref Values values, string member) { values.M1 = member; }
 
             public override global::Shapes.Stamp Create() => throw new global::System.NotSupportedException();
 

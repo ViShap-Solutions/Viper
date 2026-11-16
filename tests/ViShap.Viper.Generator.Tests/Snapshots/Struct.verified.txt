@@ -21,11 +21,20 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Point>()
-                    .Member<int>(static (in global::Shapes.Point value) => value.X, static (ref global::Shapes.Point value, int member) => { value.X = member; })
-                    .Member<int>(static (in global::Shapes.Point value) => value.Y, static (ref global::Shapes.Point value, int member) => { value.Y = member; })
-                    .Member<int>(static (in global::Shapes.Point value) => Field2(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in value)), static (ref global::Shapes.Point value, int member) => { Field2(ref value) = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Point, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Point, int>(MemberSet0))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Point, int>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Point, int>(MemberSet1))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Point, int>(MemberGet2), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Point, int>(MemberSet2))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Point value) => value.X;
+            private void MemberSet0(ref global::Shapes.Point value, int member) { value.X = member; }
+
+            private int MemberGet1(in global::Shapes.Point value) => value.Y;
+            private void MemberSet1(ref global::Shapes.Point value, int member) { value.Y = member; }
+
+            private int MemberGet2(in global::Shapes.Point value) => Field2(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in value));
+            private void MemberSet2(ref global::Shapes.Point value, int member) { Field2(ref value) = member; }
 
             public override global::Shapes.Point Create() => default;
 

@@ -20,10 +20,16 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Hiding>()
-                    .Member<int>(static (in global::Shapes.Hiding value) => ((global::Shapes.Plain)value).Value, static (ref global::Shapes.Hiding value, int member) => { ((global::Shapes.Plain)value).Value = member; })
-                    .Member<string?>(static (in global::Shapes.Hiding value) => value.Value, static (ref global::Shapes.Hiding value, string? member) => { value.Value = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Hiding, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Hiding, int>(MemberSet0))
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Hiding, string?>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Hiding, string?>(MemberSet1))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Hiding value) => ((global::Shapes.Plain)value).Value;
+            private void MemberSet0(ref global::Shapes.Hiding value, int member) { ((global::Shapes.Plain)value).Value = member; }
+
+            private string? MemberGet1(in global::Shapes.Hiding value) => value.Value;
+            private void MemberSet1(ref global::Shapes.Hiding value, string? member) { value.Value = member; }
 
             public override global::Shapes.Hiding Create() => new global::Shapes.Hiding();
 
