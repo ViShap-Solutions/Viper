@@ -26,6 +26,7 @@ internal static class ContextRun
         Conformance();
         await EntryPoints();
         Collection();
+        Constructed();
         Unavailable();
         Uncontracted();
 
@@ -200,6 +201,32 @@ internal static class ContextRun
         Check(readStamps is not null && readStamps.SetEquals(stamps), $"a custom collection read through an Add that returns bool {Hash(stamped)}");
     }
 
+    // --- types read through a constructor with parameters -------------------------------------------------
+
+    private static void Constructed()
+    {
+        var context = ConstructedContext.Default;
+        var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+        var receipt = new Receipt(7, "EUR") { Note = "paid" };
+
+        byte[] written = serializer.Serialize(receipt, context.Receipt);
+        var read = serializer.Deserialize(written, context.Receipt);
+
+        Check(read is not null && read.Number == 7 && read.Currency == "EUR" && read.Note == "paid",
+            $"a type read through its constructor {Hash(written)}");
+
+        var money = new Money(12.5m, "EUR");
+        byte[] priced = serializer.Serialize(money, context.Money);
+
+        Check(serializer.Deserialize(priced, context.Money) == money, $"a record read through its primary constructor {Hash(priced)}");
+
+        var extent = new Extent(3, 4);
+        byte[] measured = serializer.Serialize(extent, context.Extent);
+        var readExtent = serializer.Deserialize(measured, context.Extent);
+
+        Check(readExtent.Width == 3 && readExtent.Height == 4, $"a struct read through its marked constructor {Hash(measured)}");
+    }
+
     // --- a type no context offered ------------------------------------------------------------------------
 
     private static void Unavailable()
@@ -312,3 +339,46 @@ internal sealed class Stamps : HashSet<int>;
 
 [BinaryContext(typeof(Basket), typeof(Stamps))]
 internal partial class BasketContext : BinarySerializerContext;
+
+/// <summary>A class read through the constructor marked for it, with a member assigned after it.</summary>
+internal sealed class Receipt
+{
+    [BinaryConstructor]
+    public Receipt(int number, string currency)
+    {
+        Number = number;
+        Currency = currency;
+    }
+
+    public Receipt(string currency)
+        : this(0, currency)
+    {
+    }
+
+    public int Number { get; }
+
+    public string Currency { get; }
+
+    public string? Note { get; set; }
+}
+
+/// <summary>A record read through its primary constructor.</summary>
+internal sealed record Money(decimal Amount, string Currency);
+
+/// <summary>A struct read through the constructor marked for it.</summary>
+internal readonly struct Extent
+{
+    [BinaryConstructor]
+    public Extent(int width, int height)
+    {
+        Width = width;
+        Height = height;
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+}
+
+[BinaryContext(typeof(Receipt), typeof(Money), typeof(Extent))]
+internal partial class ConstructedContext : BinarySerializerContext;

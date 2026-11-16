@@ -90,8 +90,9 @@ top of the file:
 ## What a type needs
 
 Any type made of the [supported types](supported-types.md) can be serialized without annotation. A
-class or struct is written member by member, and it must be constructible by the reader: it needs a
-parameterless constructor, which may be non-public, or be a struct.
+class or struct is written member by member, and it must be constructible by the reader: a struct, a
+class with a parameterless constructor, which may be non-public, or a type whose constructor takes its
+members by name, as a record's does ([construction](contracts.md#construction)).
 
 Without annotations the layout is *positional*: the public read/write properties and the public
 non-`readonly` fields are written in the order of their names, and that order is the format. Renaming

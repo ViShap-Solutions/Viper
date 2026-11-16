@@ -123,7 +123,7 @@ can create from a payload is closed, and the set is what the declarations list. 
 | a value's runtime type differs from the declared type and the declared type has no matching declaration — including any value written through `object` | `BinaryTypeException`, **when writing** |
 | a payload carries a tag the declared type does not list | `BinaryTypeException`, when reading |
 | the declarations are invalid: duplicate tags, a tag outside 0–255, a derived type that is not assignable | `BinaryTypeException`, the first time the type is used |
-| a type with no parameterless constructor and no declaration naming the type to build | `BinaryTypeException`, when reading |
+| a type with no constructor the reader can use and no declaration naming the type to build | `BinaryTypeException`, when reading |
 
 Writing fails rather than falling back to the declared type's layout, because a reader could not tell
 that a derived layout had been reduced to its base. Without a declaration a reader always builds the

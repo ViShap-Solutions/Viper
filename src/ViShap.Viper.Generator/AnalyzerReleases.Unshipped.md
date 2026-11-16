@@ -26,3 +26,5 @@ VPR018 | ViShap.Viper | Warning | Abstract type or interface without [BinaryUnio
 VPR019 | ViShap.Viper | Warning | Type described by reflection
 VPR020 | ViShap.Viper | Error | Type information name conflict
 VPR021 | ViShap.Viper | Error | Type unavailable without reflection
+VPR022 | ViShap.Viper | Error | Several constructors marked [BinaryConstructor]
+VPR023 | ViShap.Viper | Error | [BinaryConstructor] parameter names no member

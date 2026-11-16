@@ -43,6 +43,12 @@ internal abstract class StructuralCodec<T> : Codec<T>
                 object instance = value;
                 if (references.TryGetVisibleId(instance, out int existingId))
                 {
+                    if (writer.State.Graph.IsAncestor(instance))
+                        throw new BinaryTypeException(
+                            $"Circular reference through '{instance.GetType()}', which is read through a constructor with " +
+                            "parameters: a constructor cannot receive the instance it is creating. Break the cycle, or give " +
+                            "the type a parameterless constructor.");
+
                     ReferenceFrame.WriteBackReference(ref writer, existingId);
                     return;
                 }
@@ -179,8 +185,9 @@ internal abstract class StructuralCodec<T> : Codec<T>
         if (ReferenceEquals(existing, ReadReferenceTable.Pending))
             throw new BinaryFormatException(
                 $"Reference to object id {id} points at an object that is still being constructed — " +
-                "a cycle through a container that cannot be created before its elements " +
-                "(array, immutable or frozen collection) is not representable.");
+                "a cycle through a value that cannot be created before its elements or members " +
+                "(array, immutable or frozen collection, type read through a constructor with " +
+                "parameters) is not representable.");
 
         return existing is T value
             ? value

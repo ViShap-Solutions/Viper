@@ -18,7 +18,7 @@ used.
 | Immutable | `ImmutableList<>`, `IImmutableList<>`, `ImmutableHashSet<>`, `IImmutableSet<>`, `ImmutableSortedSet<>`, `ImmutableQueue<>`, `IImmutableQueue<>`, `ImmutableStack<>`, `IImmutableStack<>`, `ImmutableDictionary<,>`, `IImmutableDictionary<,>`, `ImmutableSortedDictionary<,>` |
 | Frozen | `FrozenSet<>`, `FrozenDictionary<,>` |
 | Custom collections | any concrete type implementing `ICollection<T>` with a public parameterless constructor and an `Add` method |
-| Objects | any other type with a parameterless constructor, written member by member |
+| Objects | any other type the reader can [construct](contracts.md#construction), written member by member |
 
 `Nullable<T>` of any supported value type is supported as well.
 
@@ -136,8 +136,8 @@ written, and reading it is a `BinaryTypeException`.
 - **Delegates** are rejected with `BinaryTypeException` as a root value, as a member or as an element.
   Mark a member that holds one with `[BinaryIgnore]`.
 - **A type that cannot be constructed** — an interface or an abstract class with no
-  [`[BinaryUnion]`](polymorphism.md) declaration, or a class with no parameterless constructor — is a
-  `BinaryTypeException` when it is read.
+  [`[BinaryUnion]`](polymorphism.md) declaration, or a class with no constructor the reader can use
+  ([construction](contracts.md#construction)) — is a `BinaryTypeException` when it is read.
 - **A value whose runtime type differs from its declared type** and has no union declaration is a
   `BinaryTypeException` when it is written.
 

@@ -76,6 +76,7 @@ internal static class Emitter
         ReadPositional(writer, contract);
         writer.Line();
         ReadKeyed(writer, contract);
+        Values(writer, contract);
         Accessors(writer, contract);
 
         writer.Close();
@@ -104,7 +105,83 @@ internal static class Emitter
         writer.Outdent();
         writer.Outdent();
         writer.Open();
+        UseConstructor(writer, contract);
         UseAccessors(writer, contract);
+        writer.Close();
+    }
+
+    /// <summary>
+    /// The values a type read through a constructor is read into — one field per member, starting at the
+    /// value a keyed payload that leaves the member out gives it — the table that assigns them, and the
+    /// call that makes the instance from them and assigns the members the constructor does not take.
+    /// </summary>
+    private static void UseConstructor(CodeWriter writer, ContractModel contract)
+    {
+        if (contract.Constructor is not { } constructor)
+            return;
+
+        var members = contract.Members.ToArray();
+        var starts = constructor.Starts.ToArray();
+
+        writer.Line("UseConstructor(");
+        writer.Indent();
+        writer.Line("static () => new Values(),");
+        writer.Line($"new {Contracts}.MemberAccessors<Values>()");
+        writer.Indent();
+        for (int index = 0; index < members.Length; index++)
+        {
+            string field = Field(index);
+            string mark = starts[index].Length == 0 ? $" values.Has{field} = true;" : string.Empty;
+            string separator = index == members.Length - 1 ? "," : string.Empty;
+            writer.Line($".Member<{members[index].TypeName}>(static (in Values values) => values.{field}, static (ref Values values, {members[index].TypeName} member) => {{ values.{field} = member;{mark} }}){separator}");
+        }
+        writer.Outdent();
+        writer.Line("static (ref Values values) =>");
+        writer.Open();
+        string arguments = string.Join(", ", constructor.ParameterMembers.Select(member => $"values.{Field(member)}"));
+        writer.Line($"var value = {string.Format(CultureInfo.InvariantCulture, constructor.Call, arguments)};");
+        for (int index = 0; index < members.Length; index++)
+        {
+            if (starts[index].Length != 0)
+                continue;
+
+            string field = Field(index);
+            writer.Line($"if (values.Has{field})");
+            writer.Indent();
+            writer.Line(string.Format(CultureInfo.InvariantCulture, members[index].Set!, $"values.{field}"));
+            writer.Outdent();
+        }
+        writer.Line("return value;");
+        writer.Close();
+        writer.Outdent();
+        writer.Line(");");
+    }
+
+    private static string Field(int index) => "M" + index.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>The values of a type read through a constructor, as a struct, so nothing is boxed.</summary>
+    private static void Values(CodeWriter writer, ContractModel contract)
+    {
+        if (contract.Constructor is not { } constructor)
+            return;
+
+        var members = contract.Members.ToArray();
+        var starts = constructor.Starts.ToArray();
+
+        writer.Line();
+        writer.Line("private struct Values");
+        writer.Open();
+        writer.Line("public Values()");
+        writer.Open();
+        writer.Close();
+        for (int index = 0; index < members.Length; index++)
+        {
+            string field = Field(index);
+            writer.Line();
+            writer.Line($"public {members[index].TypeName} {field} = {(starts[index].Length == 0 ? "default!" : starts[index])};");
+            if (starts[index].Length == 0)
+                writer.Line($"public bool Has{field};");
+        }
         writer.Close();
     }
 
@@ -119,7 +196,13 @@ internal static class Emitter
         writer.Indent();
         foreach (var member in contract.Members)
         {
-            string set = string.Format(CultureInfo.InvariantCulture, member.Set, "member");
+            if (contract.Constructor is not null)
+            {
+                writer.Line($".Member<{member.TypeName}>(static (in {type} value) => {member.Get})");
+                continue;
+            }
+
+            string set = string.Format(CultureInfo.InvariantCulture, member.Set!, "member");
             writer.Line($".Member<{member.TypeName}>(static (in {type} value) => {member.Get}, static (ref {type} value, {member.TypeName} member) => {{ {set} }})");
         }
         writer.Outdent();
@@ -155,7 +238,7 @@ internal static class Emitter
     private static void ReadPositional(CodeWriter writer, ContractModel contract)
     {
         string signature = $"public override void ReadPositional(ref {Contracts}.MemberReader reader, ref {contract.TypeName} value)";
-        if (contract.IsKeyed)
+        if (contract.IsKeyed || contract.Constructor is not null)
         {
             writer.Line($"{signature} =>");
             writer.Indent();
@@ -167,14 +250,14 @@ internal static class Emitter
         writer.Line(signature);
         writer.Open();
         foreach (var member in contract.Members)
-            writer.Line(string.Format(CultureInfo.InvariantCulture, member.Set, $"reader.Member<{member.TypeName}>()"));
+            writer.Line(string.Format(CultureInfo.InvariantCulture, member.Set!, $"reader.Member<{member.TypeName}>()"));
         writer.Close();
     }
 
     private static void ReadKeyed(CodeWriter writer, ContractModel contract)
     {
         string signature = $"public override bool ReadKeyed(ref {Contracts}.MemberReader reader, int key, ref {contract.TypeName} value)";
-        if (!contract.IsKeyed)
+        if (!contract.IsKeyed || contract.Constructor is not null)
         {
             writer.Line($"{signature} =>");
             writer.Indent();
@@ -191,7 +274,7 @@ internal static class Emitter
         {
             writer.Line($"case {member.Key!.Value.ToString(CultureInfo.InvariantCulture)}:");
             writer.Indent();
-            writer.Line(string.Format(CultureInfo.InvariantCulture, member.Set, $"reader.Member<{member.TypeName}>()"));
+            writer.Line(string.Format(CultureInfo.InvariantCulture, member.Set!, $"reader.Member<{member.TypeName}>()"));
             writer.Line("return true;");
             writer.Outdent();
         }

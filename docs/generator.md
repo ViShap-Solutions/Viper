@@ -62,7 +62,9 @@ service that uses the generator and one that does not read each other's data.
 
 Public members are read and assigned directly. A non-public member marked `[BinaryInclude]` or
 `[BinaryKey]`, a property with an `init` or a non-public setter, and a constructor that is not public or
-that would leave `required` members unset are reached through `[UnsafeAccessor]`. A type does not have
+that would leave `required` members unset are reached through `[UnsafeAccessor]`. A type read through a
+[constructor with parameters](contracts.md#construction) is read into a struct of values and then
+constructed, so nothing is boxed. A type does not have
 to be `partial` and does not have to be yours to change.
 
 A type gets no generated contract, and is described by reflection as before, when the generator cannot
@@ -193,3 +195,15 @@ MSBuild property `ViperReflectionEnabled` set to `false`. There, the type would 
 run time and its first use would be `BinaryConfigurationException`. Move the type into a project with a
 `[BinaryContext]` of its own, make it accessible from the context, or mark the member that stands in the
 way `[BinaryIgnore]`.
+
+### VPR022
+
+**Several constructors marked `[BinaryConstructor]`** (error). At most one constructor of a type names the
+way it is read. Remove the attribute from all but one.
+
+### VPR023
+
+**`[BinaryConstructor]` parameter names no member** (error). Every parameter of the marked constructor
+receives the member it is named after, ignoring case, which must be of exactly the parameter's type; this
+parameter names none, names two members that differ only in case, or names a member of another type.
+Rename the parameter after its member, or mark another constructor.

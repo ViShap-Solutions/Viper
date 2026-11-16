@@ -18,7 +18,7 @@ public class TypeSupportTests
     private readonly BinarySerializer _serializer = new();
 
     [Fact]
-    public void Deserialize_MemberEncodedTypeWithoutAParameterlessConstructor_ThrowsType()
+    public void Deserialize_MemberEncodedTypeWithSeveralConstructorsAndNoneMarked_ThrowsType()
     {
         byte[] payload = _serializer.Serialize(new RequiresArguments(5));
 

@@ -72,10 +72,89 @@ An event is unaffected: its backing field is private and is not a member.
 
 ### Construction
 
-The reader creates the object itself. A class needs a parameterless constructor, of any visibility; a
-struct is created as `default`. A type that has none — an interface, an abstract class, a class that only
-has constructors with parameters — is a `BinaryTypeException` on read, unless a
-[`[BinaryUnion]`](polymorphism.md) map names the concrete type to build.
+The reader creates the object itself, through the first of:
+
+1. the constructor marked `[BinaryConstructor]`, on a class or a struct;
+2. for a class, a parameterless constructor, of any visibility; a struct is created as `default`;
+3. for a class, its single public constructor, when every parameter is named after one of its members,
+   ignoring case, and is of exactly that member's type — a record's primary constructor is one.
+
+Each parameter receives the value read for its member, and every other member that was read is then
+assigned through its setter or `init`:
+
+```csharp
+using ViShap.Viper;
+
+var serializer = new BinarySerializer();
+
+var invoice = new Invoice("A-17", 3) { Memo = "paid" };
+Invoice copy = serializer.Deserialize<Invoice>(serializer.Serialize(invoice))!;
+Console.WriteLine($"{copy.Number} {copy.Lines} {copy.Memo}");   // A-17 3 paid
+
+Stamp stamp = serializer.Deserialize<Stamp>(serializer.Serialize(Stamp.At(42)))!;
+Console.WriteLine($"{stamp.Ticks} {stamp.Zone}");   // 42 UTC
+
+Extent extent = serializer.Deserialize<Extent>(serializer.Serialize(new Extent(3, 4)));
+Console.WriteLine($"{extent.Width}x{extent.Height}");   // 3x4
+
+public sealed record Invoice(string Number, int Lines)
+{
+    public string? Memo { get; set; }
+}
+
+public readonly struct Extent
+{
+    [BinaryConstructor]
+    public Extent(int width, int height)
+    {
+        Width = width;
+        Height = height;
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+}
+
+public sealed class Stamp
+{
+    [BinaryConstructor]
+    private Stamp(long ticks, string zone)
+    {
+        Ticks = ticks;
+        Zone = zone;
+    }
+
+    public long Ticks { get; }
+
+    public string Zone { get; }
+
+    public static Stamp At(long ticks) => new(ticks, "UTC");
+}
+```
+
+A marked constructor also brings in the members only a constructor can set — a property with no setter,
+a `readonly` field — that its parameters name, as `Ticks`, `Zone`, `Width` and `Height` above. A marked
+parameterless constructor of a struct is called instead of creating it as `default`, so the values it
+sets are kept for the members a keyed payload leaves out. Without the mark the
+constructors never choose the members, so adding or changing a constructor never changes what a type
+writes; a class whose constructors the reader cannot use is still written, and only reading it fails.
+
+Under a keyed layout a field the payload does not carry gives its parameter the parameter's default
+value — `int retries = 3` gives `3` — or the default of its type; a member assigned after construction
+keeps what the constructor and its initializers gave it.
+
+A class read through a constructor with parameters does not exist until every member is read, so it
+cannot be part of a cycle. With
+`PreserveReferences`, writing a cycle through such a type is a `BinaryTypeException` and reading one is a
+`BinaryFormatException`; a value two members share is still read back as one instance. `Populate` of such
+a type is a `BinaryTypeException`, because it has no instance to fill.
+
+A type the reader cannot create — an interface, an abstract class, a class with several public
+constructors with parameters and none marked — is a `BinaryTypeException` on read, unless a
+[`[BinaryUnion]`](polymorphism.md) map names the concrete type to build. Two constructors marked
+`[BinaryConstructor]`, or a marked constructor with a parameter that names no single member of its type,
+is a `BinaryTypeException` the first time the type is used.
 
 ## Keyed layout
 

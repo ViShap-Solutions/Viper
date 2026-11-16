@@ -15,6 +15,9 @@ internal interface ITypeContract
 
     bool CanBeConstructed { get; }
 
+    /// <summary>Whether the type is read through a constructor with parameters, which a cycle cannot reach.</summary>
+    bool Constructs { get; }
+
     /// <summary>The position of the member with <paramref name="key"/>, or a negative number when no member has it.</summary>
     int IndexOfKey(int key);
 

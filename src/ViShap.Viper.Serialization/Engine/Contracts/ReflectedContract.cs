@@ -21,7 +21,8 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
         MemberLayout layout,
         MemberAccessor<T>[] accessors,
         bool canBeConstructed,
-        ConstructorInfo? constructor)
+        ConstructorInfo? constructor,
+        ConstructorPlan? plan)
         : base(layout, [.. accessors.Select(accessor => accessor.Description)], canBeConstructed)
     {
         _accessors = accessors;
@@ -32,6 +33,16 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
             ? null
             : Expression.Lambda<Func<T>>(Expression.New(constructor)).Compile();
 
+        if (plan is not null)
+        {
+            var values = new MemberAccessors<object?[]>();
+            for (int index = 0; index < accessors.Length; index++)
+                accessors[index].AddValueTo(values, index);
+
+            var defaults = plan.Defaults;
+            UseConstructor(() => (object?[])defaults.Clone(), values, Construct(plan, accessors));
+        }
+
         var table = new MemberAccessors<T>();
         foreach (var accessor in accessors)
             accessor.AddTo(table);
@@ -39,9 +50,44 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
         UseAccessors(table);
     }
 
+    /// <summary>
+    /// Compiles the constructor call over the values read: the constructor with its parameters' values,
+    /// then every other member that was read, assigned on the new instance.
+    /// </summary>
+    private static MemberConstructor<object?[], T> Construct(ConstructorPlan plan, MemberAccessor<T>[] accessors)
+    {
+        var values = Expression.Parameter(typeof(object?[]).MakeByRefType(), "values");
+        var instance = Expression.Variable(typeof(T), "instance");
+        var body = new List<Expression>();
+
+        var parameters = plan.Constructor.GetParameters();
+        var arguments = new Expression[parameters.Length];
+        for (int index = 0; index < parameters.Length; index++)
+        {
+            var slot = Expression.ArrayIndex(values, Expression.Constant(plan.ParameterMembers[index]));
+            arguments[index] = Expression.Convert(slot, parameters[index].ParameterType);
+        }
+
+        body.Add(Expression.Assign(instance, Expression.New(plan.Constructor, arguments)));
+
+        for (int index = 0; index < accessors.Length; index++)
+        {
+            if (plan.ParameterMembers.Contains(index))
+                continue;
+
+            var slot = Expression.ArrayIndex(values, Expression.Constant(index));
+            body.Add(Expression.IfThen(
+                Expression.NotEqual(slot, Expression.Constant(ConstructorPlan.Missing)),
+                accessors[index].Assign(instance, Expression.Convert(slot, accessors[index].Description.MemberType))));
+        }
+
+        body.Add(instance);
+        return Expression.Lambda<MemberConstructor<object?[], T>>(Expression.Block([instance], body), values).Compile();
+    }
+
     public override T Create() =>
-        typeof(T).IsValueType ? default! :
         _create is not null ? _create() :
+        typeof(T).IsValueType ? default! :
         throw new BinaryTypeException($"'{typeof(T)}' cannot be constructed during deserialization.");
 
     public override void Write(ref MemberWriter writer, in T value)
@@ -60,6 +106,16 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
         _byKey.TryGetValue(key, out var accessor) && accessor.ReadKeyedFrom(ref reader, ref value);
 }
 
+/// <summary>
+/// The constructor a type is read through, which member each of its parameters takes, and the values
+/// the members start with: a parameter's C# default, or <see cref="Missing"/> for a member assigned after.
+/// </summary>
+internal sealed record ConstructorPlan(ConstructorInfo Constructor, int[] ParameterMembers, object?[] Defaults)
+{
+    /// <summary>The value of a member assigned after construction that the payload did not carry.</summary>
+    public static readonly object Missing = new();
+}
+
 /// <summary>Reads and writes one member of <typeparamref name="T"/> through a <see cref="MemberWriter"/> or <see cref="MemberReader"/>.</summary>
 internal abstract class MemberAccessor<T>(MemberDescription description)
 {
@@ -73,13 +129,20 @@ internal abstract class MemberAccessor<T>(MemberDescription description)
 
     /// <summary>Adds this member's getter and setter to the contract's accessor table.</summary>
     public abstract void AddTo(MemberAccessors<T> table);
+
+    /// <summary>Adds this member's place among the values a constructor is called with.</summary>
+    public abstract void AddValueTo(MemberAccessors<object?[]> values, int index);
+
+    /// <summary>An expression assigning <paramref name="value"/> to this member of <paramref name="owner"/>.</summary>
+    public abstract Expression Assign(Expression owner, Expression value);
 }
 
 /// <summary>One member of <typeparamref name="T"/>, of type <typeparamref name="TMember"/>, with its getter and setter compiled once.</summary>
 internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
 {
     private readonly MemberGetter<T, TMember> _get;
-    private readonly MemberSetter<T, TMember> _set;
+    private readonly MemberSetter<T, TMember>? _set;
+    private readonly MemberInfo _member;
     private readonly int? _key;
 
     public MemberAccessor(MemberDescription description, MemberInfo member)
@@ -93,8 +156,11 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
             ? Expression.Field(owner, field)
             : Expression.Property(owner, (PropertyInfo)member);
 
+        _member = member;
         _get = Expression.Lambda<MemberGetter<T, TMember>>(access, owner).Compile();
-        _set = Expression.Lambda<MemberSetter<T, TMember>>(Expression.Assign(access, value), owner, value).Compile();
+        _set = IsAssignable(member)
+            ? Expression.Lambda<MemberSetter<T, TMember>>(Expression.Assign(access, value), owner, value).Compile()
+            : null;
     }
 
     public override void WriteTo(ref MemberWriter writer, in T owner)
@@ -106,15 +172,35 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
     }
 
     public override void ReadPositionalFrom(ref MemberReader reader, ref T owner) =>
-        _set(ref owner, reader.Member<TMember>());
+        _set!(ref owner, reader.Member<TMember>());
 
     public override bool ReadKeyedFrom(ref MemberReader reader, ref T owner)
     {
-        _set(ref owner, reader.Member<TMember>());
+        _set!(ref owner, reader.Member<TMember>());
         return true;
     }
 
-    public override void AddTo(MemberAccessors<T> table) => table.Member(_get, _set);
+    public override void AddTo(MemberAccessors<T> table)
+    {
+        if (_set is null)
+            table.Member(_get);
+        else
+            table.Member(_get, _set);
+    }
+
+    public override void AddValueTo(MemberAccessors<object?[]> values, int index) =>
+        values.Member(
+            (in object?[] slots) => (TMember)slots[index]!,
+            (ref object?[] slots, TMember value) => slots[index] = value);
+
+    public override Expression Assign(Expression owner, Expression value) =>
+        Expression.Assign(
+            _member is FieldInfo field ? Expression.Field(owner, field) : Expression.Property(owner, (PropertyInfo)_member),
+            value);
+
+    /// <summary>Whether the member can be assigned after construction: a property with a setter or an <c>init</c>, a field not readonly.</summary>
+    private static bool IsAssignable(MemberInfo member) =>
+        member is FieldInfo field ? !field.IsInitOnly : ((PropertyInfo)member).CanWrite;
 }
 
 /// <summary>
@@ -131,17 +217,18 @@ internal static class ReflectedContract
         var candidates = Candidates(type).ToArray();
         bool isContract = type.GetCustomAttribute<BinaryContractAttribute>() is not null;
 
-        var constructor = type.IsValueType || type.IsAbstract
-            ? null
-            : type.GetConstructor(
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-                Type.EmptyTypes);
+        var (constructor, marked) = Constructors(type);
+        if (marked is not null)
+            candidates = [.. candidates, .. Matched(type, marked)];
 
-        bool canBeConstructed = type.IsValueType || constructor is not null;
+        bool canBeConstructed = (type.IsValueType && marked is null) || constructor is not null;
 
         var (layout, members) = isContract
             ? (MemberLayout.Keyed, Keyed(type, candidates))
             : (MemberLayout.Positional, Positional(type, candidates));
+
+        var withParameters = marked ?? (canBeConstructed || type.IsAbstract || type.IsValueType ? null : Single(type, members));
+        var plan = withParameters is null ? null : Plan(type, withParameters, members);
 
         var accessors = Array.CreateInstance(typeof(MemberAccessor<>).MakeGenericType(type), members.Length);
         for (int i = 0; i < members.Length; i++)
@@ -151,8 +238,121 @@ internal static class ReflectedContract
             typeof(ReflectedContract<>).MakeGenericType(type),
             BindingFlags.Instance | BindingFlags.NonPublic,
             binder: null,
-            [layout, accessors, canBeConstructed, constructor],
+            [layout, accessors, canBeConstructed, constructor, plan],
             culture: null)!;
+    }
+
+    /// <summary>
+    /// The constructors a type is read through before its members are known: the one marked
+    /// <see cref="BinaryConstructorAttribute"/>, as the parameterless one when it takes no parameter;
+    /// otherwise, for a class, a parameterless one of any visibility. An unmarked struct is created as
+    /// <see langword="default"/>, and an abstract type is never created.
+    /// </summary>
+    private static (ConstructorInfo? Parameterless, ConstructorInfo? Marked) Constructors(Type type)
+    {
+        if (type.IsAbstract)
+            return (null, null);
+
+        var all = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        var marked = all.Where(c => c.GetCustomAttribute<BinaryConstructorAttribute>() is not null).ToArray();
+
+        if (marked.Length > 1)
+            throw new BinaryTypeException(
+                $"'{type}' marks {marked.Length} constructors [BinaryConstructor]; at most one constructor of a type carries it.");
+
+        if (marked.Length == 1 && marked[0].GetParameters().Length > 0)
+            return (null, marked[0]);
+
+        if (marked.Length == 1)
+            return (marked[0], null);
+
+        return (type.IsValueType ? null : all.FirstOrDefault(c => c.GetParameters().Length == 0), null);
+    }
+
+    /// <summary>
+    /// The single public constructor of a class with no parameterless one, when each of its parameters
+    /// names one of the type's members; otherwise <c>null</c>, and the type is written but not read. Only a
+    /// marked constructor brings in the members nothing but a constructor sets, so the members of a type,
+    /// and its bytes, never depend on its constructors alone.
+    /// </summary>
+    private static ConstructorInfo? Single(Type type, Candidate[] members)
+    {
+        var candidates = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+        if (candidates.Length != 1)
+            return null;
+
+        return candidates[0].GetParameters().All(parameter => Match(members, parameter) >= 0) ? candidates[0] : null;
+    }
+
+    /// <summary>
+    /// The members only a constructor sets that a parameter of <paramref name="constructor"/> names, which
+    /// the type's members include when it is read through that constructor.
+    /// </summary>
+    private static IEnumerable<Candidate> Matched(Type type, ConstructorInfo constructor)
+    {
+        var names = new HashSet<string>(constructor.GetParameters().Select(p => p.Name!), StringComparer.OrdinalIgnoreCase);
+        return ConstructorOnly(type).Where(candidate => names.Contains(candidate.Name));
+    }
+
+    /// <summary>
+    /// The index of the one member <paramref name="parameter"/> names, by name ignoring case and of exactly
+    /// its type; or -1 when no member, or more than one, has its name, or the member is of another type.
+    /// </summary>
+    private static int Match(Candidate[] members, ParameterInfo parameter)
+    {
+        int found = -1;
+        for (int index = 0; index < members.Length; index++)
+        {
+            if (!string.Equals(members[index].Name, parameter.Name, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (found >= 0)
+                return -1;
+
+            found = index;
+        }
+
+        return found >= 0 && members[found].MemberType == parameter.ParameterType ? found : -1;
+    }
+
+    /// <summary>
+    /// Pairs each parameter of <paramref name="constructor"/> with the member of the same name and type,
+    /// and records the values the members start with.
+    /// </summary>
+    private static ConstructorPlan Plan(Type type, ConstructorInfo constructor, Candidate[] members)
+    {
+        var parameters = constructor.GetParameters();
+        var parameterMembers = new int[parameters.Length];
+        var defaults = new object?[members.Length];
+        Array.Fill(defaults, ConstructorPlan.Missing);
+
+        for (int index = 0; index < parameters.Length; index++)
+        {
+            var parameter = parameters[index];
+            int member = Match(members, parameter);
+            if (member < 0)
+                throw new BinaryTypeException(
+                    $"Parameter '{parameter.Name}' of the [BinaryConstructor] of '{type}' names no single member of the " +
+                    "same name and type. Name it after a member, or mark another constructor.");
+
+            parameterMembers[index] = member;
+            defaults[member] = DefaultOf(parameter);
+        }
+
+        return new ConstructorPlan(constructor, parameterMembers, defaults);
+    }
+
+    /// <summary>The value a parameter receives when a keyed payload leaves its member out: its C# default, or the type's.</summary>
+    private static object? DefaultOf(ParameterInfo parameter)
+    {
+        var type = parameter.ParameterType;
+        object? value = parameter.HasDefaultValue ? parameter.DefaultValue : null;
+
+        if (value is null)
+            return type.IsValueType && Nullable.GetUnderlyingType(type) is null ? Activator.CreateInstance(type) : null;
+
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        return underlying.IsEnum ? Enum.ToObject(underlying, value) : value;
     }
 
     private static object Accessor(Type type, Candidate candidate)
@@ -325,6 +525,35 @@ internal static class ReflectedContract
     /// two declarations share a name, and nothing else — a base declaration is written before the one
     /// that hides it.
     /// </summary>
+    /// <summary>
+    /// The members a type's ordinary candidates leave out because nothing but a constructor can set them:
+    /// properties with a getter and no setter, and readonly fields that are not compiler-generated.
+    /// </summary>
+    private static IEnumerable<Candidate> ConstructorOnly(Type type)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        int distance = 0;
+        for (var level = type; level is not null && level != typeof(object); level = level.BaseType, distance++)
+        {
+            foreach (var property in level.GetProperties(flags))
+            {
+                if (!property.CanRead || property.CanWrite || property.GetIndexParameters().Length != 0)
+                    continue;
+
+                yield return Candidate.From(distance, property.Name, property.GetMethod!.IsPublic, property, property.PropertyType);
+            }
+
+            foreach (var field in level.GetFields(flags))
+            {
+                if (!field.IsInitOnly || field.GetCustomAttribute<CompilerGeneratedAttribute>() is not null)
+                    continue;
+
+                yield return Candidate.From(distance, field.Name, field.IsPublic, field, field.FieldType);
+            }
+        }
+    }
+
     private sealed record Candidate(
         int Distance,
         string Name,

@@ -39,7 +39,9 @@ public class DiagnosticTests
         { "VPR018", "public abstract class T { public int A { get; set; } }", "'Sample.T' is abstract", null, null },
         { "VPR019", "public class T : Exception { }", "derives from 'System.Exception'", null, null },
         { "VPR020", "public class T { public int A { get; set; } }\n[BinaryContext(typeof(T))] public partial class Ctx : BinarySerializerContext { public int T => 0; }", "as 'T': the context already has a member of that name", null, null },
-        { "VPR021", "public class T : Exception { }", "derives from 'System.Exception'", null, null }
+        { "VPR021", "public class T : Exception { }", "derives from 'System.Exception'", null, null },
+        { "VPR022", "public class T { [BinaryConstructor] public T(int a) => A = a; [BinaryConstructor] public T(long a) => A = (int)a; public int A { get; set; } }", "'Sample.T' marks 2 constructors", null, null },
+        { "VPR023", "public class T { [BinaryConstructor] public T(int count) => A = count; public int A { get; set; } }", "Parameter 'count' of the [BinaryConstructor] of 'Sample.T'", null, null }
     };
 
     [Theory]
