@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Buffers.Binary;
+using System.Text.Unicode;
 using System.Text;
 
 namespace ViShap.Viper.Io;
@@ -125,6 +127,9 @@ internal ref struct WireWriter
     public void WriteString(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
+
+        if (TryWriteStringInPlace(value))
+            return;
 
         int byteCount = EncodedLength(value);
         if (byteCount > _state.Limits.MaxStringBytes)
@@ -287,6 +292,57 @@ internal ref struct WireWriter
                 "A string holds a lone surrogate, which UTF-8 cannot encode.", ex);
         }
     }
+
+    /// <summary>
+    /// Encodes a string of the payload straight into the span already held, when that span can take the
+    /// longest encoding the string could have, then writes its length plus one in front of the bytes.
+    /// A string that does not fit, holds a lone surrogate or exceeds <c>MaxStringBytes</c> is left to
+    /// the general path, which measures it first and raises what the format says it raises.
+    /// </summary>
+    private bool TryWriteStringInPlace(string value)
+    {
+        if (value.Length > MaxInPlaceChars)
+            return false;
+
+        int longest = value.Length * 3;
+        int prefix = VarintLength((uint)longest + 1);
+        int start = _buffered + prefix;
+        if (_span.Length - start < longest)
+            return false;
+
+        var destination = _span.Slice(start, longest);
+        if (Utf8.FromUtf16(value, destination, out _, out int written, replaceInvalidSequences: false) != OperationStatus.Done ||
+            written > _state.Limits.MaxStringBytes)
+            return false;
+
+        uint folded = (uint)written + 1;
+        int used = VarintLength(folded);
+        if (used < prefix)
+            destination[..written].CopyTo(_span[(_buffered + used)..]);
+
+        var length = _span.Slice(_buffered, used);
+        for (int i = 0; i < used - 1; i++)
+        {
+            length[i] = (byte)(folded | 0x80);
+            folded >>= 7;
+        }
+
+        length[used - 1] = (byte)folded;
+        _buffered += used + written;
+        return true;
+    }
+
+    /// <summary>The longest string encoded in place: three bytes a character still fit a 7-bit integer.</summary>
+    private const int MaxInPlaceChars = (int.MaxValue - 1) / 3;
+
+    private static int VarintLength(uint value) => value switch
+    {
+        < 1u << 7 => 1,
+        < 1u << 14 => 2,
+        < 1u << 21 => 3,
+        < 1u << 28 => 4,
+        _ => 5
+    };
 
     private void WriteEncodedBytes(string value, int byteCount)
     {
