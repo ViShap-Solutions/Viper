@@ -80,7 +80,7 @@ internal sealed class MapCodec<TMap, TKey, TValue, TBuilder, TEnumerator>(
         var builder = shape.Create(
             count.CapacityFor(KeyCodec.MinimumWireSize + ValueCodec.MinimumWireSize, reader.Remaining));
         if (referenceId >= 0)
-            Register(ref reader, referenceId, shape.BuilderIsInstance ? builder! : ReadReferenceTable.Pending);
+            Register(ref reader, referenceId, shape.BuilderIsInstance ? shape.Instance(builder) : ReadReferenceTable.Pending);
 
         for (int i = 0; i < count.Value; i++)
         {

@@ -122,7 +122,7 @@ calls. For a stream of frames every frame is a call, so limits apply per frame a
 
 | Limit | Default | Bounds |
 |---|---:|---|
-| `MaxDepth` | 512 | structural nesting, counting objects and containers alike; it keeps a hostile payload from exhausting the stack, and applies to writing as well as reading |
+| `MaxDepth` | 512 | structural nesting, counting objects and containers alike; it applies to writing as well as reading, and a level the calling thread's stack could not hold is refused like a level past it, with `BinaryLimitException`, so no payload exhausts the stack |
 | `MaxArrayLength` | 1,000,000 | one array; for a rank above one, every dimension and their product. It bounds every element type alike, `byte[]` included |
 | `MaxCollectionLength` | 1,000,000 | the elements of one collection |
 | `MaxDictionaryEntries` | 1,000,000 | the entries of one dictionary |

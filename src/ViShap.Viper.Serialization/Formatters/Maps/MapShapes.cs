@@ -26,6 +26,8 @@ internal abstract class MapShape<TMap, TKey, TValue, TBuilder, TEnumerator>
 
     public abstract TBuilder Create(int capacity);
 
+    public virtual object Instance(TBuilder builder) => builder!;
+
     public abstract void Add(ref TBuilder builder, TKey key, TValue value);
 
     public abstract TMap Complete(TBuilder builder);
@@ -71,15 +73,42 @@ internal sealed class SortedDictionaryShape<TKey, TValue>
     public override SortedDictionary<TKey, TValue> Complete(SortedDictionary<TKey, TValue> builder) => builder;
 }
 
+/// <summary>
+/// <c>SortedList&lt;K,V&gt;</c> inserts into an array, so entries that arrive out of order would each
+/// move every entry after them. They are gathered beside the list instead, sorted by its comparer, and
+/// added in ascending order when the map completes; the list itself is the instance a reference resolves
+/// to from the start, and a repeated key is refused by the list as it would be on arrival.
+/// </summary>
 internal sealed class SortedListShape<TKey, TValue>
-    : MapShape<SortedList<TKey, TValue>, TKey, TValue, SortedList<TKey, TValue>, IEnumerator<KeyValuePair<TKey, TValue>>>
+    : MapShape<SortedList<TKey, TValue>, TKey, TValue, SortedListShape<TKey, TValue>.Builder, IEnumerator<KeyValuePair<TKey, TValue>>>
     where TKey : notnull
 {
     public override int? CountOf(SortedList<TKey, TValue> map) => map.Count;
     public override IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator(SortedList<TKey, TValue> map) => map.GetEnumerator();
-    public override SortedList<TKey, TValue> Create(int capacity) => [];
-    public override void Add(ref SortedList<TKey, TValue> builder, TKey key, TValue value) => builder.Add(key, value);
-    public override SortedList<TKey, TValue> Complete(SortedList<TKey, TValue> builder) => builder;
+    public override Builder Create(int capacity) => new(capacity);
+    public override object Instance(Builder builder) => builder.List;
+    public override void Add(ref Builder builder, TKey key, TValue value) => builder.Entries.Add(new(key, value));
+
+    public override SortedList<TKey, TValue> Complete(Builder builder)
+    {
+        var entries = builder.Entries;
+        var comparer = builder.List.Comparer;
+        entries.Sort((x, y) => comparer.Compare(x.Key, y.Key));
+
+        builder.List.Capacity = entries.Count;
+        foreach (var entry in entries)
+            builder.List.Add(entry.Key, entry.Value);
+
+        return builder.List;
+    }
+
+    /// <summary>The list a payload fills, and the entries gathered for it.</summary>
+    internal sealed class Builder(int capacity)
+    {
+        public SortedList<TKey, TValue> List { get; } = [];
+
+        public List<KeyValuePair<TKey, TValue>> Entries { get; } = new(capacity);
+    }
 }
 
 /// <summary>

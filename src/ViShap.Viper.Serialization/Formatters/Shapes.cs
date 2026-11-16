@@ -104,6 +104,12 @@ internal interface IMapShape<TMap, TKey, TValue, TBuilder, TEnumerator>
 
     TBuilder Create(int capacity);
 
+    /// <summary>
+    /// The instance a builder fills, registered for reference identity when <see cref="BuilderIsInstance"/>
+    /// is set: the builder itself, unless it gathers entries beside the instance it completes.
+    /// </summary>
+    object Instance(TBuilder builder);
+
     void Add(ref TBuilder builder, TKey key, TValue value);
 
     TMap Complete(TBuilder builder);
