@@ -139,6 +139,83 @@ many calls — and a call that disagrees is a `BinaryTypeException` naming the t
 a damaged payload. The member type is the exact type the member is written and read as: a member
 declared `List<Line>` is described as `typeof(List<Line>)` and read with `reader.Member<List<Line>>()`.
 
+## An accessor table
+
+A contract can also hand the serializer its members as a table of typed accessors: one getter and one
+setter per member, in the order of the description. The serializer then reads and assigns the members
+through the table itself, instead of calling `Write` and the read methods for each one. Build the table
+with `MemberAccessors<T>`, whose `Member` takes a `MemberGetter<T, TMember>` and a
+`MemberSetter<T, TMember>`, and hand it over with `UseAccessors` from the contract's constructor:
+
+```csharp
+using ViShap.Viper;
+using ViShap.Viper.Contracts;
+
+var context = new PriceContracts();
+var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+
+var price = new Price { Amount = 12.50m, Currency = "EUR" };
+Price? copy = serializer.Deserialize(serializer.Serialize(price, context.Price), context.Price);
+Console.WriteLine($"{copy!.Amount} {copy.Currency}");   // 12.50 EUR
+
+public sealed class Price
+{
+    public decimal Amount { get; set; }
+    public string Currency { get; set; } = "";
+}
+
+public sealed class PriceContracts : BinarySerializerContext
+{
+    public PriceContracts()
+    {
+        Add(new PriceContract());
+        Add(SupportedTypes.Object<Price>());
+        Price = TypeInfo<Price>();
+    }
+
+    public BinaryTypeInfo<Price> Price { get; }
+
+    private sealed class PriceContract : TypeContract<Price>
+    {
+        public PriceContract()
+            : base(
+                MemberLayout.Positional,
+                [new("Amount", typeof(decimal), null), new("Currency", typeof(string), null)],
+                canBeConstructed: true)
+        {
+            UseAccessors(new MemberAccessors<Price>()
+                .Member(static (in Price o) => o.Amount, static (ref Price o, decimal v) => o.Amount = v)
+                .Member(static (in Price o) => o.Currency, static (ref Price o, string v) => o.Currency = v));
+        }
+
+        public override Price Create() => new();
+
+        public override void Write(ref MemberWriter writer, in Price value)
+        {
+            writer.Member(value.Amount);
+            writer.Member(value.Currency);
+        }
+
+        public override void ReadPositional(ref MemberReader reader, ref Price value)
+        {
+            value.Amount = reader.Member<decimal>();
+            value.Currency = reader.Member<string>();
+        }
+
+        public override bool ReadKeyed(ref MemberReader reader, int key, ref Price value) =>
+            throw new NotSupportedException();
+    }
+}
+```
+
+The table is checked against the description when it is handed over: an entry for each member, each
+for the member's exact type, handed over once and before the contract is added to a context — anything
+else is a `BinaryConfigurationException`. A member is written and read through its entry exactly as
+`writer.Member` and `reader.Member` write and read it, under a positional layout and a keyed one alike.
+The contract keeps implementing `Write` and the read methods, and they must agree with the table: the
+serializer still calls them when a read is traced for diagnostics ([`BinaryFormatDumper`](diagnostics.md)).
+The source generator writes a table for every contract it emits.
+
 ## A keyed contract
 
 Under a keyed layout `Write` names each member's key, and `ReadKeyed` answers the key of each field the

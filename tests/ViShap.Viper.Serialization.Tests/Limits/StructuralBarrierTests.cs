@@ -248,6 +248,22 @@ public class StructuralBarrierTests
     }
 
     [Fact]
+    public void AccessorTables_ExposeOnlyMemberValues()
+    {
+        // A table is a list of getters and setters: what a contract hands over sees one member value
+        // and its owner, and nothing of the wire.
+        Assert.Equal(["Member"], PublicMemberNames(typeof(MemberAccessors<>)));
+
+        foreach (var accessor in new[] { typeof(MemberGetter<,>), typeof(MemberSetter<,>) })
+        {
+            var parameters = accessor.GetMethod("Invoke")!.GetParameters();
+            Assert.All(parameters, parameter => Assert.True(
+                Unwrapped(parameter.ParameterType).IsGenericParameter,
+                $"{accessor.Name} takes a '{parameter.ParameterType}', which is not the owner or the member."));
+        }
+    }
+
+    [Fact]
     public void OnlyTheEngineReadsACountFromTheWire()
     {
         // ReadCount and WriteCount are the only way to a count, and outside the readers and writers

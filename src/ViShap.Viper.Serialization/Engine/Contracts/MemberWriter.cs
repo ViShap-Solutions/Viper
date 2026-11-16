@@ -40,19 +40,51 @@ public ref struct MemberWriter
     internal static MemberWriter Begin(scoped ref WireWriter writer, ITypeContract contract, bool nullFolded)
     {
         if (contract.Layout == MemberLayout.Keyed)
-        {
-            int count = contract.Members.Length;
-            ref var state = ref writer.State;
-            if (count > state.Limits.MaxKeyedFields)
-                throw new BinaryLimitException(
-                    $"Keyed field count {count} exceeds the configured maximum of " +
-                    $"{state.Limits.MaxKeyedFields} (MaxKeyedFields).");
-
-            state.Budget.ConsumeKeyedFields(count);
-            writer.WriteFolded(count, nullFolded, "Keyed field count");
-        }
+            WriteFieldCount(ref writer, contract, nullFolded);
 
         return new MemberWriter(writer, contract);
+    }
+
+    /// <summary>
+    /// Writes the field count of a keyed layout — every member is written — after holding it to
+    /// <c>MaxKeyedFields</c> and charging it to the operation's keyed-field budget.
+    /// </summary>
+    internal static void WriteFieldCount(scoped ref WireWriter writer, ITypeContract contract, bool nullFolded)
+    {
+        int count = contract.Members.Length;
+        ref var state = ref writer.State;
+        if (count > state.Limits.MaxKeyedFields)
+            throw new BinaryLimitException(
+                $"Keyed field count {count} exceeds the configured maximum of " +
+                $"{state.Limits.MaxKeyedFields} (MaxKeyedFields).");
+
+        state.Budget.ConsumeKeyedFields(count);
+        writer.WriteFolded(count, nullFolded, "Keyed field count");
+    }
+
+    /// <summary>Writes a keyed field's key and a length to patch, and returns where the length is.</summary>
+    internal static long BeginField(scoped ref WireWriter writer, int key)
+    {
+        writer.Write7BitEncodedInt(key);
+
+        long lengthPosition = writer.Position;
+        writer.WriteInt32(0);
+        return lengthPosition;
+    }
+
+    /// <summary>Patches the length of the keyed field begun at <paramref name="lengthPosition"/>, once its payload is written.</summary>
+    internal static void EndField(scoped ref WireWriter writer, MemberDescription member, long lengthPosition)
+    {
+        long payloadLength = writer.Position - lengthPosition - sizeof(int);
+
+        if (payloadLength > int.MaxValue)
+            throw new BinaryFormatException(
+                $"Keyed member '{member.Name}' payload length {payloadLength} exceeds Int32 range.");
+
+        if (!writer.State.Phases.AdmitsPayload(payloadLength))
+            writer.State.Phases.CheckPayload(payloadLength, $"Keyed member '{member.Name}' payload length");
+
+        writer.PatchInt32(lengthPosition, (int)payloadLength);
     }
 
     /// <summary>Requires every member to have been written, then hands the writer back.</summary>
@@ -97,12 +129,7 @@ public ref struct MemberWriter
     public void Member<TMember>(int key, TMember value)
     {
         var member = Next<TMember>(MemberLayout.Keyed, key);
-
-        _writer.Write7BitEncodedInt(key);
-
-        long lengthPosition = _writer.Position;
-        _writer.WriteInt32(0);
-        long payloadStart = _writer.Position;
+        long lengthPosition = BeginField(ref _writer, key);
 
         if (_writer.State.Graph.Written is { } references)
         {
@@ -114,16 +141,7 @@ public ref struct MemberWriter
             FormatterCache<TMember>.Instance.Write(ref _writer, value);
         }
 
-        long payloadLength = _writer.Position - payloadStart;
-
-        if (payloadLength > int.MaxValue)
-            throw new BinaryFormatException(
-                $"Keyed member '{member.Name}' payload length {payloadLength} exceeds Int32 range.");
-
-        if (!_writer.State.Phases.AdmitsPayload(payloadLength))
-            _writer.State.Phases.CheckPayload(payloadLength, $"Keyed member '{member.Name}' payload length");
-
-        _writer.PatchInt32(lengthPosition, (int)payloadLength);
+        EndField(ref _writer, member, lengthPosition);
         _mark = _writer.State.MemberCalls;
     }
 

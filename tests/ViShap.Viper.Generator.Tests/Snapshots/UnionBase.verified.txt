@@ -18,6 +18,9 @@ namespace Shapes
                     },
                     canBeConstructed: false)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Shape>()
+                    .Member<string?>(static (in global::Shapes.Shape value) => value.Label, static (ref global::Shapes.Shape value, string? member) => { value.Label = member; })
+                );
             }
 
             public override global::Shapes.Shape Create() => throw new global::System.NotSupportedException();

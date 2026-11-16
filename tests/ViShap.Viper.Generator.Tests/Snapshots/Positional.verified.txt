@@ -21,6 +21,12 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Account>()
+                    .Member<int>(static (in global::Shapes.Account value) => value.Id, static (ref global::Shapes.Account value, int member) => { value.Id = member; })
+                    .Member<decimal>(static (in global::Shapes.Account value) => value.Balance, static (ref global::Shapes.Account value, decimal member) => { value.Balance = member; })
+                    .Member<string?>(static (in global::Shapes.Account value) => value.Owner, static (ref global::Shapes.Account value, string? member) => { value.Owner = member; })
+                    .Member<int>(static (in global::Shapes.Account value) => Field3(value), static (ref global::Shapes.Account value, int member) => { Field3(value) = member; })
+                );
             }
 
             public override global::Shapes.Account Create() => new global::Shapes.Account();

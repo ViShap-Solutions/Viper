@@ -103,8 +103,27 @@ internal static class Emitter
         writer.Line($"canBeConstructed: {(contract.CanBeConstructed ? "true" : "false")})");
         writer.Outdent();
         writer.Outdent();
-        writer.Line("{");
-        writer.Line("}");
+        writer.Open();
+        UseAccessors(writer, contract);
+        writer.Close();
+    }
+
+    /// <summary>
+    /// The accessor table the serializer walks: one entry per member, in the order of the description,
+    /// reaching the member exactly as <c>Write</c> and the read methods do.
+    /// </summary>
+    private static void UseAccessors(CodeWriter writer, ContractModel contract)
+    {
+        string type = contract.TypeName;
+        writer.Line($"UseAccessors(new {Contracts}.MemberAccessors<{type}>()");
+        writer.Indent();
+        foreach (var member in contract.Members)
+        {
+            string set = string.Format(CultureInfo.InvariantCulture, member.Set, "member");
+            writer.Line($".Member<{member.TypeName}>(static (in {type} value) => {member.Get}, static (ref {type} value, {member.TypeName} member) => {{ {set} }})");
+        }
+        writer.Outdent();
+        writer.Line(");");
     }
 
     private static void Create(CodeWriter writer, ContractModel contract)

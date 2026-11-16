@@ -19,6 +19,10 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Hiding>()
+                    .Member<int>(static (in global::Shapes.Hiding value) => ((global::Shapes.Plain)value).Value, static (ref global::Shapes.Hiding value, int member) => { ((global::Shapes.Plain)value).Value = member; })
+                    .Member<string?>(static (in global::Shapes.Hiding value) => value.Value, static (ref global::Shapes.Hiding value, string? member) => { value.Value = member; })
+                );
             }
 
             public override global::Shapes.Hiding Create() => new global::Shapes.Hiding();

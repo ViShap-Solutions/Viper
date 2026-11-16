@@ -64,6 +64,8 @@ public abstract class BinarySerializerContext
             if (!_contracts.TryAdd(typeof(T), contract))
                 throw new BinaryConfigurationException(
                     $"'{GetType()}' already holds a contract for '{typeof(T)}'.");
+
+            contract.Seal();
         }
     }
 
