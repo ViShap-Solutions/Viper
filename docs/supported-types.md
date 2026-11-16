@@ -82,6 +82,17 @@ public sealed class Sample
 - **Order.** `Stack<>`, `ConcurrentStack<>` and `ImmutableStack<>` round-trip so that iteration order is
   preserved. Unordered containers — `HashSet<>`, `ConcurrentBag<>`, `FrozenSet<>` and every dictionary
   that is not sorted — round-trip their contents, not their iteration order.
+- **Hashed containers read with their own comparer.** A payload chooses its keys, and for a key type
+  whose hash is a fixed function of its value it could choose keys that all share a hash, making the read
+  slow in proportion to the square of the entry count. So a `Dictionary<,>`, `HashSet<>`,
+  `ConcurrentDictionary<,>`, `ImmutableDictionary<,>`, `ImmutableHashSet<>`, `FrozenDictionary<,>` or
+  `FrozenSet<>` that is read — directly or behind an interface — whose key is a number, `bool`, `char`,
+  `Rune`, an enum, `Guid`, a date or time type, `BigInteger` or `Version` comes back with a comparer
+  whose hash is seeded per process. Equality, contents and lookups are the same; `Comparer` (or
+  `KeyComparer`) is not `EqualityComparer<TKey>.Default`. `string` keys keep the default comparer, which
+  the runtime already randomizes. Any other key type — a tuple, a nullable value, a record or a class of
+  yours — keeps its default comparer; if it is read from untrusted input, hash every field through
+  `HashCode` in its `GetHashCode()`.
 - **`PriorityQueue<TElement,TPriority>`** round-trips its element and priority pairs, so dequeue order is
   rebuilt from the priorities rather than copied.
 - **`Lazy<T>`** travels as its value, so writing one materializes it: an unevaluated instance has its

@@ -43,7 +43,7 @@ internal sealed class DictionaryShape<TKey, TValue>
 {
     public override int? CountOf(Dictionary<TKey, TValue> map) => map.Count;
     public override Dictionary<TKey, TValue>.Enumerator GetEnumerator(Dictionary<TKey, TValue> map) => map.GetEnumerator();
-    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity);
+    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity, KeyComparer<TKey>.Instance);
     public override void Add(ref Dictionary<TKey, TValue> builder, TKey key, TValue value) => builder.Add(key, value);
     public override Dictionary<TKey, TValue> Complete(Dictionary<TKey, TValue> builder) => builder;
 }
@@ -55,7 +55,7 @@ internal sealed class DictionaryInterfaceShape<TKey, TValue>
 {
     public override int? CountOf(IDictionary<TKey, TValue> map) => Counts.Of(map);
     public override IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator(IDictionary<TKey, TValue> map) => map.GetEnumerator();
-    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity);
+    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity, KeyComparer<TKey>.Instance);
     public override void Add(ref Dictionary<TKey, TValue> builder, TKey key, TValue value) => builder.Add(key, value);
     public override IDictionary<TKey, TValue> Complete(Dictionary<TKey, TValue> builder) => builder;
 }
@@ -92,7 +92,7 @@ internal sealed class ConcurrentDictionaryShape<TKey, TValue>
 {
     public override int? CountOf(ConcurrentDictionary<TKey, TValue> map) => map.Count;
     public override IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator(ConcurrentDictionary<TKey, TValue> map) => map.GetEnumerator();
-    public override ConcurrentDictionary<TKey, TValue> Create(int capacity) => new();
+    public override ConcurrentDictionary<TKey, TValue> Create(int capacity) => new(KeyComparer<TKey>.Instance);
     public override void Add(ref ConcurrentDictionary<TKey, TValue> builder, TKey key, TValue value) => builder.TryAdd(key, value);
     public override ConcurrentDictionary<TKey, TValue> Complete(ConcurrentDictionary<TKey, TValue> builder) => builder;
 }
@@ -109,7 +109,7 @@ internal sealed class ReadOnlyDictionaryShape<TMap, TKey, TValue>
     public override bool BuilderIsInstance => false;
     public override int? CountOf(TMap map) => Counts.Of(map);
     public override IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator(TMap map) => map.GetEnumerator();
-    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity);
+    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity, KeyComparer<TKey>.Instance);
     public override void Add(ref Dictionary<TKey, TValue> builder, TKey key, TValue value) => builder.Add(RequireKey(key), value);
     public override TMap Complete(Dictionary<TKey, TValue> builder) => (TMap)(object)new ReadOnlyDictionary<TKey, TValue>(builder);
 }
@@ -121,9 +121,9 @@ internal sealed class FrozenDictionaryShape<TKey, TValue>
     public override bool BuilderIsInstance => false;
     public override int? CountOf(FrozenDictionary<TKey, TValue> map) => map.Count;
     public override FrozenDictionary<TKey, TValue>.Enumerator GetEnumerator(FrozenDictionary<TKey, TValue> map) => map.GetEnumerator();
-    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity);
+    public override Dictionary<TKey, TValue> Create(int capacity) => new(capacity, KeyComparer<TKey>.Instance);
     public override void Add(ref Dictionary<TKey, TValue> builder, TKey key, TValue value) => builder.Add(RequireKey(key), value);
-    public override FrozenDictionary<TKey, TValue> Complete(Dictionary<TKey, TValue> builder) => builder.ToFrozenDictionary();
+    public override FrozenDictionary<TKey, TValue> Complete(Dictionary<TKey, TValue> builder) => builder.ToFrozenDictionary(KeyComparer<TKey>.Instance);
 }
 
 internal sealed class ImmutableDictionaryShape<TKey, TValue>
@@ -133,7 +133,7 @@ internal sealed class ImmutableDictionaryShape<TKey, TValue>
     public override bool BuilderIsInstance => false;
     public override int? CountOf(ImmutableDictionary<TKey, TValue> map) => map.Count;
     public override ImmutableDictionary<TKey, TValue>.Enumerator GetEnumerator(ImmutableDictionary<TKey, TValue> map) => map.GetEnumerator();
-    public override ImmutableDictionary<TKey, TValue>.Builder Create(int capacity) => ImmutableDictionary.CreateBuilder<TKey, TValue>();
+    public override ImmutableDictionary<TKey, TValue>.Builder Create(int capacity) => ImmutableDictionary.CreateBuilder<TKey, TValue>(KeyComparer<TKey>.Instance);
     public override void Add(ref ImmutableDictionary<TKey, TValue>.Builder builder, TKey key, TValue value) => builder.Add(key, value);
     public override ImmutableDictionary<TKey, TValue> Complete(ImmutableDictionary<TKey, TValue>.Builder builder) => builder.ToImmutable();
 }
@@ -145,7 +145,7 @@ internal sealed class ImmutableDictionaryInterfaceShape<TKey, TValue>
     public override bool BuilderIsInstance => false;
     public override int? CountOf(IImmutableDictionary<TKey, TValue> map) => Counts.Of(map);
     public override IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator(IImmutableDictionary<TKey, TValue> map) => map.GetEnumerator();
-    public override ImmutableDictionary<TKey, TValue>.Builder Create(int capacity) => ImmutableDictionary.CreateBuilder<TKey, TValue>();
+    public override ImmutableDictionary<TKey, TValue>.Builder Create(int capacity) => ImmutableDictionary.CreateBuilder<TKey, TValue>(KeyComparer<TKey>.Instance);
     public override void Add(ref ImmutableDictionary<TKey, TValue>.Builder builder, TKey key, TValue value) => builder.Add(key, value);
     public override IImmutableDictionary<TKey, TValue> Complete(ImmutableDictionary<TKey, TValue>.Builder builder) => builder.ToImmutable();
 }

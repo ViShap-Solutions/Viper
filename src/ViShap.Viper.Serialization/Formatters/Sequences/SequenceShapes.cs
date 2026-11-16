@@ -88,7 +88,7 @@ internal sealed class HashSetShape<T> : SequenceShape<HashSet<T>, T, HashSet<T>,
 {
     public override int? CountOf(HashSet<T> collection) => collection.Count;
     public override HashSet<T>.Enumerator GetEnumerator(HashSet<T> collection) => collection.GetEnumerator();
-    public override HashSet<T> Create(int capacity) => new(capacity);
+    public override HashSet<T> Create(int capacity) => new(capacity, KeyComparer<T>.Instance);
     public override void Add(ref HashSet<T> builder, T element) => builder.Add(element);
     public override HashSet<T> Complete(HashSet<T> builder) => builder;
 }
@@ -98,7 +98,7 @@ internal sealed class SetInterfaceShape<T> : SequenceShape<ISet<T>, T, HashSet<T
 {
     public override int? CountOf(ISet<T> collection) => Counts.Of(collection);
     public override IEnumerator<T> GetEnumerator(ISet<T> collection) => collection.GetEnumerator();
-    public override HashSet<T> Create(int capacity) => new(capacity);
+    public override HashSet<T> Create(int capacity) => new(capacity, KeyComparer<T>.Instance);
     public override void Add(ref HashSet<T> builder, T element) => builder.Add(element);
     public override ISet<T> Complete(HashSet<T> builder) => builder;
 }
