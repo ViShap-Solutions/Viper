@@ -81,7 +81,10 @@ public sealed class Sample
   identity across such a member is preserved, the concrete type is not.
 - **Order.** `Stack<>`, `ConcurrentStack<>` and `ImmutableStack<>` round-trip so that iteration order is
   preserved. Unordered containers — `HashSet<>`, `ConcurrentBag<>`, `FrozenSet<>` and every dictionary
-  that is not sorted — round-trip their contents, not their iteration order.
+  that is not sorted — round-trip their contents, not their iteration order. A container that orders or
+  hashes its elements itself — the sorted, hashed, frozen, concurrent and immutable hashed families and
+  `PriorityQueue<,>` — accepts them in any order on read, so the same value can arrive in more than one
+  order; a repeated element or key is still malformed.
 - **Hashed containers read with their own comparer.** A payload chooses its keys, and for a key type
   whose hash is a fixed function of its value it could choose keys that all share a hash, making the read
   slow in proportion to the square of the entry count. So a `Dictionary<,>`, `HashSet<>`,

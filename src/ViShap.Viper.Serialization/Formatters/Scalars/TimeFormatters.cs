@@ -6,7 +6,19 @@ internal sealed class DateTimeFormatter : IScalarFormatter<DateTime>
 
     public void Write(ref WireWriter writer, DateTime value) => writer.WriteInt64(value.ToBinary());
 
-    public DateTime Read(ref WireReader reader) => DateTime.FromBinary(reader.ReadInt64());
+    public DateTime Read(ref WireReader reader)
+    {
+        long binary = reader.ReadInt64();
+
+        try
+        {
+            return DateTime.FromBinary(binary);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new BinaryFormatException($"DateTime value {binary} is outside the supported range.", ex);
+        }
+    }
 }
 
 internal sealed class DateTimeOffsetFormatter : IScalarFormatter<DateTimeOffset>
