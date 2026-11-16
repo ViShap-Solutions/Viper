@@ -20,6 +20,11 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Dog>()
+                    .Member<bool>(static (in global::Shapes.Dog value) => value.GoodBoy, static (ref global::Shapes.Dog value, bool member) => { value.GoodBoy = member; })
+                    .Member<string?>(static (in global::Shapes.Dog value) => ((global::Shapes.Animal)value).Name, static (ref global::Shapes.Dog value, string? member) => { ((global::Shapes.Animal)value).Name = member; })
+                    .Member<int>(static (in global::Shapes.Dog value) => Field2(value), static (ref global::Shapes.Dog value, int member) => { Field2(value) = member; })
+                );
             }
 
             public override global::Shapes.Dog Create() => new global::Shapes.Dog();

@@ -35,6 +35,9 @@ public class PublicSurfaceTests
         "ViShap.Viper.BinaryTypeInfo`1",
 
         "ViShap.Viper.Contracts.TypeContract`1",
+        "ViShap.Viper.Contracts.MemberAccessors`1",
+        "ViShap.Viper.Contracts.MemberGetter`2",
+        "ViShap.Viper.Contracts.MemberSetter`2",
         "ViShap.Viper.Contracts.MemberWriter",
         "ViShap.Viper.Contracts.MemberReader",
         "ViShap.Viper.Contracts.MemberDescription",
@@ -506,6 +509,7 @@ public class PublicSurfaceTests
     /// </summary>
     private static bool IsCompilerSupplied(MemberInfo member) =>
         member.DeclaringType!.IsEnum ||
+        member.DeclaringType.IsSubclassOf(typeof(Delegate)) ||
         member is MethodInfo { IsSpecialName: true } ||
         member is ConstructorInfo { } constructor && constructor.GetParameters().Length == 0 ||
         member.Name is "Equals" or "GetHashCode" or "ToString" or "PrintMembers" or "Deconstruct" or "<Clone>$";

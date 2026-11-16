@@ -20,6 +20,11 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Overriding>()
+                    .Member<int>(static (in global::Shapes.Overriding value) => value.Value, static (ref global::Shapes.Overriding value, int member) => { value.Value = member; })
+                    .Member<int>(static (in global::Shapes.Overriding value) => ((global::Shapes.Virtual)value).Getter, static (ref global::Shapes.Overriding value, int member) => { ((global::Shapes.Virtual)value).Getter = member; })
+                    .Member<int>(static (in global::Shapes.Overriding value) => ((global::Shapes.Virtual)value).Other, static (ref global::Shapes.Overriding value, int member) => { ((global::Shapes.Virtual)value).Other = member; })
+                );
             }
 
             public override global::Shapes.Overriding Create() => new global::Shapes.Overriding();

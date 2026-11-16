@@ -155,13 +155,23 @@ ViShap.Viper.Compression.NoCompression :: Compress(ReadOnlySpan<Byte>, IBufferWr
 ViShap.Viper.Compression.NoCompression :: CustomName : String { get; }
 ViShap.Viper.Compression.NoCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
 ViShap.Viper.Compression.NoCompression :: Kind : CompressionAlgorithm { get; }
+ViShap.Viper.Contracts.MemberAccessors`1 :: .ctor()
+ViShap.Viper.Contracts.MemberAccessors`1 :: Member<TMember>(MemberGetter<T, TMember>, MemberSetter<T, TMember>) : MemberAccessors<T>
 ViShap.Viper.Contracts.MemberDescription :: .ctor(String, Type, Int32?)
 ViShap.Viper.Contracts.MemberDescription :: Key : Int32? { get; }
 ViShap.Viper.Contracts.MemberDescription :: MemberType : Type { get; }
 ViShap.Viper.Contracts.MemberDescription :: Name : String { get; }
+ViShap.Viper.Contracts.MemberGetter`2 :: .ctor(Object, IntPtr)
+ViShap.Viper.Contracts.MemberGetter`2 :: BeginInvoke(in T, AsyncCallback, Object) : IAsyncResult
+ViShap.Viper.Contracts.MemberGetter`2 :: EndInvoke(in T, IAsyncResult) : TMember
+ViShap.Viper.Contracts.MemberGetter`2 :: Invoke(in T) : TMember
 ViShap.Viper.Contracts.MemberLayout :: Keyed = 1
 ViShap.Viper.Contracts.MemberLayout :: Positional = 0
 ViShap.Viper.Contracts.MemberReader :: Member<TMember>() : TMember
+ViShap.Viper.Contracts.MemberSetter`2 :: .ctor(Object, IntPtr)
+ViShap.Viper.Contracts.MemberSetter`2 :: BeginInvoke(ref T, TMember, AsyncCallback, Object) : IAsyncResult
+ViShap.Viper.Contracts.MemberSetter`2 :: EndInvoke(ref T, IAsyncResult) : Void
+ViShap.Viper.Contracts.MemberSetter`2 :: Invoke(ref T, TMember) : Void
 ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(Int32, TMember) : Void
 ViShap.Viper.Contracts.MemberWriter :: Member<TMember>(TMember) : Void
 ViShap.Viper.Contracts.SupportedType :: Type : Type { get; }
@@ -243,6 +253,7 @@ ViShap.Viper.Contracts.TypeContract`1 :: ReadKeyed(ref MemberReader, Int32, ref 
 ViShap.Viper.Contracts.TypeContract`1 :: ReadPositional(ref MemberReader, ref T) : Void
 ViShap.Viper.Contracts.TypeContract`1 :: Write(ref MemberWriter, in T) : Void
 ViShap.Viper.Contracts.TypeContract`1 :: protected .ctor(MemberLayout, MemberDescription[], Boolean)
+ViShap.Viper.Contracts.TypeContract`1 :: protected UseAccessors(MemberAccessors<T>) : Void
 ViShap.Viper.Crypto.Aes256GcmEncryption :: .ctor()
 ViShap.Viper.Crypto.Aes256GcmEncryption :: AuthenticatesAssociatedData : Boolean { get; }
 ViShap.Viper.Crypto.Aes256GcmEncryption :: CustomName : String { get; }

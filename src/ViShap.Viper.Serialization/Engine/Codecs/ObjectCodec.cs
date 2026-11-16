@@ -238,6 +238,12 @@ internal static class ObjectMembers
     /// </summary>
     public static void Write<T>(ref WireWriter writer, TypeContract<T> contract, in T value, bool nullFolded)
     {
+        if (contract.Accessors is { } accessors)
+        {
+            WriteTable(ref writer, contract, accessors, in value, nullFolded);
+            return;
+        }
+
         var members = MemberWriter.Begin(ref writer, contract, nullFolded);
         contract.Write(ref members, in value);
         members.End(ref writer);
@@ -321,8 +327,53 @@ internal static class ObjectMembers
     /// The members of a positional value. Kept apart from the keyed loop so that a nested positional
     /// graph, which recurses through here, carries none of that loop's state on every level of the stack.
     /// </summary>
+    /// <summary>
+    /// Writes the members through the contract's accessor table: in order for a positional layout, and
+    /// for a keyed one each as a field — key, length, payload — under the same accounting and reference
+    /// scope as <c>MemberWriter</c>.
+    /// </summary>
+    private static void WriteTable<T>(ref WireWriter writer, TypeContract<T> contract, Accessor<T>[] accessors, in T value, bool nullFolded)
+    {
+        if (contract.Layout == MemberLayout.Positional)
+        {
+            foreach (var accessor in accessors)
+                accessor.Write(ref writer, in value);
+
+            return;
+        }
+
+        ITypeContract description = contract;
+        MemberWriter.WriteFieldCount(ref writer, description, nullFolded);
+
+        var members = description.Members;
+        for (int index = 0; index < accessors.Length; index++)
+        {
+            long lengthPosition = MemberWriter.BeginField(ref writer, members[index].Key!.Value);
+
+            if (writer.State.Graph.Written is { } references)
+            {
+                using var scope = references.Enter();
+                accessors[index].Write(ref writer, in value);
+            }
+            else
+            {
+                accessors[index].Write(ref writer, in value);
+            }
+
+            MemberWriter.EndField(ref writer, members[index], lengthPosition);
+        }
+    }
+
     private static void ReadPositional<T>(ref WireReader reader, TypeContract<T> contract, ref T instance)
     {
+        if (contract.Accessors is { } accessors && reader.State.Trace is null)
+        {
+            foreach (var accessor in accessors)
+                accessor.Read(ref reader, ref instance);
+
+            return;
+        }
+
         reader.State.Trace?.Shape(TraceShape.Object, contract.Members.Count);
         var members = MemberReader.Positional(ref reader, contract);
         contract.ReadPositional(ref members, ref instance);
@@ -332,6 +383,7 @@ internal static class ObjectMembers
     private static void ReadKeyed<T>(ref WireReader reader, TypeContract<T> contract, ref T instance, bool nullFolded)
     {
         var trace = reader.State.Trace;
+        var accessors = trace is null ? contract.Accessors : null;
         ITypeContract description = contract;
         ref var state = ref reader.State;
 
@@ -366,6 +418,12 @@ internal static class ObjectMembers
                 trace.Field(key, payloadLength, fieldStart);
             }
 
+            if (accessors is not null)
+            {
+                ReadField(reader.SliceField(key, payloadLength), description, accessors, key, ref instance);
+                continue;
+            }
+
             var field = MemberReader.Field(reader.SliceField(key, payloadLength), contract, key);
             bool known = contract.ReadKeyed(ref field, key, ref instance);
             field.EndField();
@@ -385,5 +443,31 @@ internal static class ObjectMembers
 
             trace?.EndField(known, reader.Position);
         }
+    }
+
+    /// <summary>
+    /// Reads one keyed field through the accessor of its key, in the field's own window and reference
+    /// scope, and requires the value to fill the field; a key the description does not hold is skipped.
+    /// </summary>
+    private static void ReadField<T>(WireReader field, ITypeContract description, Accessor<T>[] accessors, int key, ref T instance)
+    {
+        int index = description.IndexOfKey(key);
+        if (index < 0)
+            return;
+
+        if (field.State.Graph.Read is { } references)
+        {
+            using var scope = references.Enter();
+            accessors[index].Read(ref field, ref instance);
+        }
+        else
+        {
+            accessors[index].Read(ref field, ref instance);
+        }
+
+        if (field.Remaining != 0)
+            throw new BinaryFormatException(
+                $"Key {key} payload contains {field.Remaining} trailing byte(s) after " +
+                $"decoding '{description.Members[index].Name}'.");
     }
 }

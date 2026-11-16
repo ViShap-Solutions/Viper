@@ -125,6 +125,8 @@ public abstract class TypeContract<T> : ITypeContract
 {
     private readonly MemberDescription[] _members;
     private readonly int[] _keys;
+    private Accessor<T>[]? _accessors;
+    private bool _inUse;
 
     /// <summary>Describes the contract the serializer checks every call against.</summary>
     /// <param name="layout">How the members are laid out on the wire.</param>
@@ -201,6 +203,52 @@ public abstract class TypeContract<T> : ITypeContract
     MemberDescription[] ITypeContract.Members => _members;
 
     int ITypeContract.IndexOfKey(int key) => Array.BinarySearch(_keys, key);
+
+    /// <summary>
+    /// Hands the serializer the members as a table of typed accessors, which it then walks itself to write
+    /// and read them; <see cref="Write"/>, <see cref="ReadPositional"/> and <see cref="ReadKeyed"/> are
+    /// still called when a read is traced for diagnostics, and must agree with the table. Called once,
+    /// from the contract's constructor.
+    /// </summary>
+    /// <param name="accessors">One entry per member, in the order of the description.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="accessors"/> is null.</exception>
+    /// <exception cref="BinaryConfigurationException">
+    /// The table has another number of entries than the description has members, an entry is for another
+    /// type than its member's, a table was already handed over, or the contract is already in use.
+    /// </exception>
+    protected void UseAccessors(MemberAccessors<T> accessors)
+    {
+        ArgumentNullException.ThrowIfNull(accessors);
+
+        if (_inUse)
+            throw new BinaryConfigurationException(
+                $"The contract of '{typeof(T)}' is already in use; its accessors are handed over from its constructor.");
+
+        if (_accessors is not null)
+            throw new BinaryConfigurationException($"The contract of '{typeof(T)}' already handed over its accessors.");
+
+        var entries = accessors.ToArray();
+        if (entries.Length != _members.Length)
+            throw new BinaryConfigurationException(
+                $"The contract of '{typeof(T)}' describes {_members.Length} members but its accessor table has " +
+                $"{entries.Length} entries.");
+
+        for (int index = 0; index < entries.Length; index++)
+        {
+            if (entries[index].MemberType != _members[index].MemberType)
+                throw new BinaryConfigurationException(
+                    $"The accessor of member '{_members[index].Name}' of '{typeof(T)}' is for " +
+                    $"'{entries[index].MemberType}', but the member is a '{_members[index].MemberType}'.");
+        }
+
+        _accessors = entries;
+    }
+
+    /// <summary>The accessor table the contract handed over, or <c>null</c>.</summary>
+    internal Accessor<T>[]? Accessors => _accessors;
+
+    /// <summary>Marks the contract as in use, after which its accessors can no longer be handed over.</summary>
+    internal void Seal() => _inUse = true;
 
     /// <summary>
     /// Creates the instance a payload is read into, before any of its members are read: through the

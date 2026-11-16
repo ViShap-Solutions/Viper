@@ -31,6 +31,12 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
         _create = constructor is null
             ? null
             : Expression.Lambda<Func<T>>(Expression.New(constructor)).Compile();
+
+        var table = new MemberAccessors<T>();
+        foreach (var accessor in accessors)
+            accessor.AddTo(table);
+
+        UseAccessors(table);
     }
 
     public override T Create() =>
@@ -54,10 +60,6 @@ internal sealed class ReflectedContract<T> : TypeContract<T>
         _byKey.TryGetValue(key, out var accessor) && accessor.ReadKeyedFrom(ref reader, ref value);
 }
 
-internal delegate TMember Getter<T, TMember>(in T owner);
-
-internal delegate void Setter<T, TMember>(ref T owner, TMember value);
-
 /// <summary>Reads and writes one member of <typeparamref name="T"/> through a <see cref="MemberWriter"/> or <see cref="MemberReader"/>.</summary>
 internal abstract class MemberAccessor<T>(MemberDescription description)
 {
@@ -68,13 +70,16 @@ internal abstract class MemberAccessor<T>(MemberDescription description)
     public abstract void ReadPositionalFrom(ref MemberReader reader, ref T owner);
 
     public abstract bool ReadKeyedFrom(ref MemberReader reader, ref T owner);
+
+    /// <summary>Adds this member's getter and setter to the contract's accessor table.</summary>
+    public abstract void AddTo(MemberAccessors<T> table);
 }
 
 /// <summary>One member of <typeparamref name="T"/>, of type <typeparamref name="TMember"/>, with its getter and setter compiled once.</summary>
 internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
 {
-    private readonly Getter<T, TMember> _get;
-    private readonly Setter<T, TMember> _set;
+    private readonly MemberGetter<T, TMember> _get;
+    private readonly MemberSetter<T, TMember> _set;
     private readonly int? _key;
 
     public MemberAccessor(MemberDescription description, MemberInfo member)
@@ -88,8 +93,8 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
             ? Expression.Field(owner, field)
             : Expression.Property(owner, (PropertyInfo)member);
 
-        _get = Expression.Lambda<Getter<T, TMember>>(access, owner).Compile();
-        _set = Expression.Lambda<Setter<T, TMember>>(Expression.Assign(access, value), owner, value).Compile();
+        _get = Expression.Lambda<MemberGetter<T, TMember>>(access, owner).Compile();
+        _set = Expression.Lambda<MemberSetter<T, TMember>>(Expression.Assign(access, value), owner, value).Compile();
     }
 
     public override void WriteTo(ref MemberWriter writer, in T owner)
@@ -108,6 +113,8 @@ internal sealed class MemberAccessor<T, TMember> : MemberAccessor<T>
         _set(ref owner, reader.Member<TMember>());
         return true;
     }
+
+    public override void AddTo(MemberAccessors<T> table) => table.Member(_get, _set);
 }
 
 /// <summary>

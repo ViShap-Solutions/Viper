@@ -21,6 +21,10 @@ namespace Shapes
                         },
                         canBeConstructed: true)
                 {
+                    UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Host.Inner>()
+                        .Member<global::Shapes.Host.Leaf?>(static (in global::Shapes.Host.Inner value) => value.Child, static (ref global::Shapes.Host.Inner value, global::Shapes.Host.Leaf? member) => { value.Child = member; })
+                        .Member<int>(static (in global::Shapes.Host.Inner value) => value.N, static (ref global::Shapes.Host.Inner value, int member) => { value.N = member; })
+                    );
                 }
 
                 public override global::Shapes.Host.Inner Create() => new global::Shapes.Host.Inner();

@@ -19,6 +19,10 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Box<int>>()
+                    .Member<global::System.Collections.Generic.List<int>?>(static (in global::Shapes.Box<int> value) => value.Items, static (ref global::Shapes.Box<int> value, global::System.Collections.Generic.List<int>? member) => { value.Items = member; })
+                    .Member<int>(static (in global::Shapes.Box<int> value) => Access0<int>.Field1(value), static (ref global::Shapes.Box<int> value, int member) => { Access0<int>.Field1(value) = member; })
+                );
             }
 
             public override global::Shapes.Box<int> Create() => new global::Shapes.Box<int>();

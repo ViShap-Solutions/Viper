@@ -19,6 +19,10 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.KeyedDog>()
+                    .Member<int>(static (in global::Shapes.KeyedDog value) => ((global::Shapes.KeyedAnimal)value).Id, static (ref global::Shapes.KeyedDog value, int member) => { ((global::Shapes.KeyedAnimal)value).Id = member; })
+                    .Member<int>(static (in global::Shapes.KeyedDog value) => value.Bones, static (ref global::Shapes.KeyedDog value, int member) => { value.Bones = member; })
+                );
             }
 
             public override global::Shapes.KeyedDog Create() => new global::Shapes.KeyedDog();

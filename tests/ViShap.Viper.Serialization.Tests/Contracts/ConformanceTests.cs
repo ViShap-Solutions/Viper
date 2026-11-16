@@ -378,6 +378,33 @@ public abstract class ContractConformance
         0x03, 0x04, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00
     ];
 
+    // --- CONF-08, CONF-09: the accessor table and the contract's methods agree ----------------------
+
+    [Fact]
+    public void Write_ThroughTheEnginesWalkAndThroughTheContractsMethods_WritesTheSameBytes()
+    {
+        Assert.Equal<byte[]>(
+            WriteBoxed(ContractOf<ConformancePositional>(), Positional()),
+            Write(ContractOf<ConformancePositional>(), Positional()));
+        Assert.Equal<byte[]>(
+            WriteBoxed(ContractOf<ConformanceKeyed>(), Keyed()),
+            Write(ContractOf<ConformanceKeyed>(), Keyed()));
+    }
+
+    [Fact]
+    public void Read_ThroughTheEnginesWalkAndThroughTheContractsMethods_ReadsTheSameValue()
+    {
+        var positional = ContractOf<ConformancePositional>();
+        byte[] positionalBytes = Write(positional, Positional());
+        Assert.Equal<byte[]>(positionalBytes, Write(positional, Read(positional, positionalBytes)));
+        Assert.Equal<byte[]>(positionalBytes, Write(positional, ReadThroughMethods(positional, positionalBytes)));
+
+        var keyed = ContractOf<ConformanceKeyed>();
+        byte[] keyedBytes = Write(keyed, Keyed());
+        Assert.Equal<byte[]>(keyedBytes, Write(keyed, Read(keyed, keyedBytes)));
+        Assert.Equal<byte[]>(keyedBytes, Write(keyed, ReadThroughMethods(keyed, keyedBytes)));
+    }
+
     // --- the engine's entries for a contract -----------------------------------------------------
 
     private static (string Name, Type Type, int? Key)[] Describe<T>(TypeContract<T> contract) =>
@@ -397,6 +424,17 @@ public abstract class ContractConformance
         });
 
     /// <summary>A new instance read through the engine's entry for a declared type's contract, which must consume every byte.</summary>
+    /// <summary>Reads as the dumper does, with a trace on the operation, which takes the contract's own methods.</summary>
+    private static T ReadThroughMethods<T>(TypeContract<T> contract, byte[] bytes)
+    {
+        var operation = new OperationBox();
+        operation.State.Trace = new SilentTrace();
+        var reader = new WireReader(bytes, ref operation.State);
+        var value = ObjectMembers.ReadInstance(ref reader, contract, referenceId: -1, target: null, nullFolded: false);
+        Assert.Equal(0, reader.Remaining);
+        return value;
+    }
+
     private static T Read<T>(TypeContract<T> contract, byte[] bytes, bool nullFolded = false)
     {
         var operation = new OperationBox();

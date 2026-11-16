@@ -19,6 +19,10 @@ namespace Shapes
                     },
                     canBeConstructed: true)
             {
+                UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Circle>()
+                    .Member<string?>(static (in global::Shapes.Circle value) => ((global::Shapes.Shape)value).Label, static (ref global::Shapes.Circle value, string? member) => { ((global::Shapes.Shape)value).Label = member; })
+                    .Member<double>(static (in global::Shapes.Circle value) => value.Radius, static (ref global::Shapes.Circle value, double member) => { value.Radius = member; })
+                );
             }
 
             public override global::Shapes.Circle Create() => new global::Shapes.Circle();
