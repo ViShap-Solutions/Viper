@@ -47,6 +47,11 @@ public sealed partial class BinarySerializer
     private readonly BinarySerializerOptions _options;
     private readonly FormatRouter _router;
 
+    // The pipelines held by their own types, so a call reaches them without an interface dispatch;
+    // the router stays the one place that decides a version from bytes it does not recognize.
+    private readonly V1FormatPipeline _v1;
+    private readonly V0FormatPipeline? _v0;
+
     /// <summary>Creates a serializer.</summary>
     /// <param name="options">
     /// Configuration built with <see cref="BinarySerializerOptions.Configure"/>, or
@@ -60,18 +65,20 @@ public sealed partial class BinarySerializer
         ArgumentNullException.ThrowIfNull(_options.Limits);
         _options.Limits.Validate();
 
-        var pipelines = new Dictionary<int, IFormatPipeline>
-        {
-            [BinaryFormatHeaderV1.Version] = new V1FormatPipeline(
-                _options.Compression,
-                _options.Checksum,
-                _options.Encryption,
-                _options.KeyId,
-                _options.Catalog)
-        };
+        _v1 = new V1FormatPipeline(
+            _options.Compression,
+            _options.Checksum,
+            _options.Encryption,
+            _options.KeyId,
+            _options.Catalog);
+
+        var pipelines = new Dictionary<int, IFormatPipeline> { [BinaryFormatHeaderV1.Version] = _v1 };
 
         if (_options.AllowV0Fallback || _options.WriteVersion == V0FormatPipeline.Version)
-            pipelines[V0FormatPipeline.Version] = new V0FormatPipeline();
+        {
+            _v0 = new V0FormatPipeline();
+            pipelines[V0FormatPipeline.Version] = _v0;
+        }
 
         _router = new FormatRouter(pipelines, _options.AllowV0Fallback);
     }
@@ -926,11 +933,16 @@ public sealed partial class BinarySerializer
 
     // --- the operation behind every entry point ---------------------------------------------------
 
-    private EncodedFrame Encode<T>(T value) =>
-        Encode(value, BeginOperation());
-
-    private EncodedFrame Encode<T>(T value, OperationState state) =>
-        _router.ForWriting(_options.WriteVersion).Write(value, ref state);
+    private EncodedFrame Encode<T>(T value)
+    {
+        var state = BeginOperation();
+        return _options.WriteVersion switch
+        {
+            BinaryFormatHeaderV1.Version => _v1.Write(value, ref state),
+            V0FormatPipeline.Version when _v0 is not null => _v0.Write(value, ref state),
+            _ => _router.ForWriting(_options.WriteVersion).Write(value, ref state),
+        };
+    }
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
     private async ValueTask WriteAsync<T>(Stream destination, T value, CancellationToken cancellationToken)
@@ -973,7 +985,9 @@ public sealed partial class BinarySerializer
             throw EmptyPayload();
 
         var state = BeginOperation();
-        return _router.ForReading(source).Read(source, target, ref state, out consumed);
+        return FormatRouter.TryReadVersion(source, out int version) && version == BinaryFormatHeaderV1.Version
+            ? _v1.Read(source, target, ref state, out consumed)
+            : _router.ForReading(source).Read(source, target, ref state, out consumed);
     }
 
     private T? ReadFirst<T>(ReadOnlySequence<byte> source, T? target, out long consumed)
@@ -987,7 +1001,9 @@ public sealed partial class BinarySerializer
             : prefix[..CopyPrefix(source, prefix)];
 
         var state = BeginOperation();
-        return _router.ForReading(identified).Read(source, target, ref state, out consumed);
+        return FormatRouter.TryReadVersion(identified, out int version) && version == BinaryFormatHeaderV1.Version
+            ? _v1.Read(source, target, ref state, out consumed)
+            : _router.ForReading(identified).Read(source, target, ref state, out consumed);
 
         static int CopyPrefix(ReadOnlySequence<byte> source, Span<byte> prefix)
         {

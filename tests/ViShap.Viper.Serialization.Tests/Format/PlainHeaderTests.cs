@@ -1,3 +1,4 @@
+using System.Buffers;
 using ViShap.Viper.Checksum;
 using ViShap.Viper.Compression;
 using ViShap.Viper.Crypto;
@@ -124,5 +125,84 @@ public class PlainHeaderTests
         Assert.InRange(frame.Length - header.HeaderLength, payloadLength - 1, payloadLength);
         Assert.Equal(General(Plain(preserveReferences: false, frame.Length - header.HeaderLength)), frame[..header.HeaderLength]);
         Assert.Equal(text, serializer.Deserialize<string>(frame));
+    }
+
+    // --- the short read of a frame with no service record ------------------------------------------
+
+    private static readonly BinarySerializer Serializer = new();
+
+    private sealed class Segment : ReadOnlySequenceSegment<byte>
+    {
+        public Segment(ReadOnlyMemory<byte> memory, Segment? previous)
+        {
+            Memory = memory;
+            if (previous is not null)
+            {
+                RunningIndex = previous.RunningIndex + previous.Memory.Length;
+                previous.Next = this;
+            }
+        }
+    }
+
+    private static ReadOnlySequence<byte> OneBytePerSegment(byte[] bytes)
+    {
+        var first = new Segment(bytes.AsMemory(0, 1), null);
+        var last = first;
+        for (int index = 1; index < bytes.Length; index++)
+            last = new Segment(bytes.AsMemory(index, 1), last);
+
+        return new ReadOnlySequence<byte>(first, 0, last, 1);
+    }
+
+    [Fact]
+    public void Deserialize_APlainFrameFromASpanAndFromOneBytePerSegment_ReadsTheSameValueAndLength()
+    {
+        byte[] frame = Serializer.Serialize("plain header");
+        byte[] followed = [.. frame, 0x7F];
+
+        string? fromSpan = Serializer.Deserialize<string>(followed.AsSpan(), out int spanConsumed);
+        string? fromSegments = Serializer.Deserialize<string>(OneBytePerSegment(followed), out SequencePosition position);
+
+        Assert.Equal("plain header", fromSpan);
+        Assert.Equal(fromSpan, fromSegments);
+        Assert.Equal(frame.Length, spanConsumed);
+        Assert.Equal(frame.Length, OneBytePerSegment(followed).Slice(0, position).Length);
+    }
+
+    [Fact]
+    public void Deserialize_APlainFrameDeclaringMoreBytesThanArrive_ThrowsFormat()
+    {
+        byte[] frame = Serializer.Serialize("plain header");
+
+        Assert.Throws<BinaryFormatException>(() => Serializer.Deserialize<string>(frame.AsSpan(0, frame.Length - 1)));
+    }
+
+    [Fact]
+    public void Deserialize_APlainFrameAboveTheWireBudget_ThrowsLimit()
+    {
+        byte[] frame = Serializer.Serialize("plain header");
+        var tight = new BinarySerializer(BinarySerializerOptions.Configure()
+            .WithLimits(SerializationLimits.Default with { MaxWireBytes = frame.Length - 1 })
+            .Build());
+
+        Assert.Throws<BinaryLimitException>(() => tight.Deserialize<string>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_APlainFrameFollowedByAnotherByte_ThrowsFormat()
+    {
+        byte[] frame = [.. Serializer.Serialize("plain header"), 0x00];
+
+        AssertEx.Throws<BinaryFormatException>("after the end of the payload", () => Serializer.Deserialize<string>(frame));
+    }
+
+    [Fact]
+    public void Deserialize_APlainFrameWhosePayloadEndsBeforeItsDeclaredLength_ThrowsFormat()
+    {
+        byte[] frame = Serializer.Serialize("plain header");
+        var header = Wire.ReadHeader(frame);
+        byte[] longer = [.. Wire.Header(header.OnDiskLength + 1), .. Wire.Body(frame), 0x00];
+
+        AssertEx.Throws<BinaryFormatException>("trailing byte", () => Serializer.Deserialize<string>(longer));
     }
 }
