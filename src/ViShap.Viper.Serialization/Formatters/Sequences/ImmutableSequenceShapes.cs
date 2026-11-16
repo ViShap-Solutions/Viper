@@ -31,7 +31,7 @@ internal sealed class ImmutableHashSetShape<T>
     public override bool BuilderIsInstance => false;
     public override int? CountOf(ImmutableHashSet<T> collection) => collection.Count;
     public override ImmutableHashSet<T>.Enumerator GetEnumerator(ImmutableHashSet<T> collection) => collection.GetEnumerator();
-    public override ImmutableHashSet<T>.Builder Create(int capacity) => ImmutableHashSet.CreateBuilder<T>();
+    public override ImmutableHashSet<T>.Builder Create(int capacity) => ImmutableHashSet.CreateBuilder<T>(KeyComparer<T>.Instance);
     public override void Add(ref ImmutableHashSet<T>.Builder builder, T element) => builder.Add(element);
     public override ImmutableHashSet<T> Complete(ImmutableHashSet<T>.Builder builder) => builder.ToImmutable();
 }
@@ -42,7 +42,7 @@ internal sealed class ImmutableSetInterfaceShape<T>
     public override bool BuilderIsInstance => false;
     public override int? CountOf(IImmutableSet<T> collection) => Counts.Of(collection);
     public override IEnumerator<T> GetEnumerator(IImmutableSet<T> collection) => collection.GetEnumerator();
-    public override ImmutableHashSet<T>.Builder Create(int capacity) => ImmutableHashSet.CreateBuilder<T>();
+    public override ImmutableHashSet<T>.Builder Create(int capacity) => ImmutableHashSet.CreateBuilder<T>(KeyComparer<T>.Instance);
     public override void Add(ref ImmutableHashSet<T>.Builder builder, T element) => builder.Add(element);
     public override IImmutableSet<T> Complete(ImmutableHashSet<T>.Builder builder) => builder.ToImmutable();
 }
@@ -96,5 +96,5 @@ internal sealed class FrozenSetShape<T> : SequenceShape<FrozenSet<T>, T, List<T>
     public override FrozenSet<T>.Enumerator GetEnumerator(FrozenSet<T> collection) => collection.GetEnumerator();
     public override List<T> Create(int capacity) => new(capacity);
     public override void Add(ref List<T> builder, T element) => builder.Add(element);
-    public override FrozenSet<T> Complete(List<T> builder) => builder.ToFrozenSet();
+    public override FrozenSet<T> Complete(List<T> builder) => builder.ToFrozenSet(KeyComparer<T>.Instance);
 }
