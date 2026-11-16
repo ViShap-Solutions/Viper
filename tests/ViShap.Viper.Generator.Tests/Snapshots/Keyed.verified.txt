@@ -21,11 +21,20 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Customer>()
-                    .Member<string>(static (in global::Shapes.Customer value) => value.Name, static (ref global::Shapes.Customer value, string member) => { value.Name = member; })
-                    .Member<global::System.Collections.Generic.List<string>?>(static (in global::Shapes.Customer value) => value.Tags, static (ref global::Shapes.Customer value, global::System.Collections.Generic.List<string>? member) => { value.Tags = member; })
-                    .Member<long>(static (in global::Shapes.Customer value) => Field2(value), static (ref global::Shapes.Customer value, long member) => { Field2(value) = member; })
+                    .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Customer, string>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Customer, string>(MemberSet0))
+                    .Member<global::System.Collections.Generic.List<string>?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Customer, global::System.Collections.Generic.List<string>?>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Customer, global::System.Collections.Generic.List<string>?>(MemberSet1))
+                    .Member<long>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Customer, long>(MemberGet2), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Customer, long>(MemberSet2))
                 );
             }
+
+            private string MemberGet0(in global::Shapes.Customer value) => value.Name;
+            private void MemberSet0(ref global::Shapes.Customer value, string member) { value.Name = member; }
+
+            private global::System.Collections.Generic.List<string>? MemberGet1(in global::Shapes.Customer value) => value.Tags;
+            private void MemberSet1(ref global::Shapes.Customer value, global::System.Collections.Generic.List<string>? member) { value.Tags = member; }
+
+            private long MemberGet2(in global::Shapes.Customer value) => Field2(value);
+            private void MemberSet2(ref global::Shapes.Customer value, long member) { Field2(value) = member; }
 
             public override global::Shapes.Customer Create() => new global::Shapes.Customer();
 

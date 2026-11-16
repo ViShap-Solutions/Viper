@@ -23,9 +23,9 @@ namespace Shapes
                 UseConstructor(
                     static () => new Values(),
                     new global::ViShap.Viper.Contracts.MemberAccessors<Values>()
-                        .Member<int>(static (in Values values) => values.M0, static (ref Values values, int member) => { values.M0 = member; })
-                        .Member<string?>(static (in Values values) => values.M1, static (ref Values values, string? member) => { values.M1 = member; values.HasM1 = true; })
-                        .Member<int>(static (in Values values) => values.M2, static (ref Values values, int member) => { values.M2 = member; }),
+                        .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<Values, int>(ValueGet0), new global::ViShap.Viper.Contracts.MemberSetter<Values, int>(ValueSet0))
+                        .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<Values, string?>(ValueGet1), new global::ViShap.Viper.Contracts.MemberSetter<Values, string?>(ValueSet1))
+                        .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<Values, int>(ValueGet2), new global::ViShap.Viper.Contracts.MemberSetter<Values, int>(ValueSet2)),
                     static (ref Values values) =>
                     {
                         var value = new global::Shapes.Extent(values.M2, values.M0);
@@ -35,11 +35,26 @@ namespace Shapes
                     }
                 );
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Extent>()
-                    .Member<int>(static (in global::Shapes.Extent value) => value.Height)
-                    .Member<string?>(static (in global::Shapes.Extent value) => value.Unit)
-                    .Member<int>(static (in global::Shapes.Extent value) => value.Width)
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Extent, int>(MemberGet0))
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Extent, string?>(MemberGet1))
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Extent, int>(MemberGet2))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Extent value) => value.Height;
+
+            private string? MemberGet1(in global::Shapes.Extent value) => value.Unit;
+
+            private int MemberGet2(in global::Shapes.Extent value) => value.Width;
+
+            private int ValueGet0(in Values values) => values.M0;
+            private void ValueSet0(ref Values values, int member) { values.M0 = member; }
+
+            private string? ValueGet1(in Values values) => values.M1;
+            private void ValueSet1(ref Values values, string? member) { values.M1 = member; values.HasM1 = true; }
+
+            private int ValueGet2(in Values values) => values.M2;
+            private void ValueSet2(ref Values values, int member) { values.M2 = member; }
 
             public override global::Shapes.Extent Create() => throw new global::System.NotSupportedException();
 

@@ -19,9 +19,12 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Tally>()
-                    .Member<int>(static (in global::Shapes.Tally value) => value.Count, static (ref global::Shapes.Tally value, int member) => { value.Count = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Tally, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Tally, int>(MemberSet0))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.Tally value) => value.Count;
+            private void MemberSet0(ref global::Shapes.Tally value, int member) { value.Count = member; }
 
             public override global::Shapes.Tally Create() => new global::Shapes.Tally();
 

@@ -20,10 +20,16 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Box<string>>()
-                    .Member<global::System.Collections.Generic.List<string>?>(static (in global::Shapes.Box<string> value) => value.Items, static (ref global::Shapes.Box<string> value, global::System.Collections.Generic.List<string>? member) => { value.Items = member; })
-                    .Member<string>(static (in global::Shapes.Box<string> value) => Access0<string>.Field1(value), static (ref global::Shapes.Box<string> value, string member) => { Access0<string>.Field1(value) = member; })
+                    .Member<global::System.Collections.Generic.List<string>?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Box<string>, global::System.Collections.Generic.List<string>?>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Box<string>, global::System.Collections.Generic.List<string>?>(MemberSet0))
+                    .Member<string>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Box<string>, string>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Box<string>, string>(MemberSet1))
                 );
             }
+
+            private global::System.Collections.Generic.List<string>? MemberGet0(in global::Shapes.Box<string> value) => value.Items;
+            private void MemberSet0(ref global::Shapes.Box<string> value, global::System.Collections.Generic.List<string>? member) { value.Items = member; }
+
+            private string MemberGet1(in global::Shapes.Box<string> value) => Access0<string>.Field1(value);
+            private void MemberSet1(ref global::Shapes.Box<string> value, string member) { Access0<string>.Field1(value) = member; }
 
             public override global::Shapes.Box<string> Create() => new global::Shapes.Box<string>();
 

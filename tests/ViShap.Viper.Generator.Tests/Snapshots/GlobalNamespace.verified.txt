@@ -17,9 +17,12 @@ partial class Contracts
                 canBeConstructed: true)
         {
             UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Thing>()
-                .Member<int>(static (in global::Thing value) => value.Id, static (ref global::Thing value, int member) => { value.Id = member; })
+                .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Thing, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Thing, int>(MemberSet0))
             );
         }
+
+        private int MemberGet0(in global::Thing value) => value.Id;
+        private void MemberSet0(ref global::Thing value, int member) { value.Id = member; }
 
         public override global::Thing Create() => new global::Thing();
 

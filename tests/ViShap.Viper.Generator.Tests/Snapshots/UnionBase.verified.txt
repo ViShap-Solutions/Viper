@@ -19,9 +19,12 @@ namespace Shapes
                     canBeConstructed: false)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.Shape>()
-                    .Member<string?>(static (in global::Shapes.Shape value) => value.Label, static (ref global::Shapes.Shape value, string? member) => { value.Label = member; })
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.Shape, string?>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.Shape, string?>(MemberSet0))
                 );
             }
+
+            private string? MemberGet0(in global::Shapes.Shape value) => value.Label;
+            private void MemberSet0(ref global::Shapes.Shape value, string? member) { value.Label = member; }
 
             public override global::Shapes.Shape Create() => throw new global::System.NotSupportedException();
 

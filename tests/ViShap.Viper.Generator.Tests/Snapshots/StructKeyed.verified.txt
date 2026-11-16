@@ -20,10 +20,16 @@ namespace Shapes
                     canBeConstructed: true)
             {
                 UseAccessors(new global::ViShap.Viper.Contracts.MemberAccessors<global::Shapes.KeyedPoint>()
-                    .Member<int>(static (in global::Shapes.KeyedPoint value) => value.X, static (ref global::Shapes.KeyedPoint value, int member) => { value.X = member; })
-                    .Member<string?>(static (in global::Shapes.KeyedPoint value) => Field1(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in value)), static (ref global::Shapes.KeyedPoint value, string? member) => { Field1(ref value) = member; })
+                    .Member<int>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.KeyedPoint, int>(MemberGet0), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.KeyedPoint, int>(MemberSet0))
+                    .Member<string?>(new global::ViShap.Viper.Contracts.MemberGetter<global::Shapes.KeyedPoint, string?>(MemberGet1), new global::ViShap.Viper.Contracts.MemberSetter<global::Shapes.KeyedPoint, string?>(MemberSet1))
                 );
             }
+
+            private int MemberGet0(in global::Shapes.KeyedPoint value) => value.X;
+            private void MemberSet0(ref global::Shapes.KeyedPoint value, int member) { value.X = member; }
+
+            private string? MemberGet1(in global::Shapes.KeyedPoint value) => Field1(ref global::System.Runtime.CompilerServices.Unsafe.AsRef(in value));
+            private void MemberSet1(ref global::Shapes.KeyedPoint value, string? member) { Field1(ref value) = member; }
 
             public override global::Shapes.KeyedPoint Create() => default;
 

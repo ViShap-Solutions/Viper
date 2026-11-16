@@ -16,9 +16,13 @@ internal struct GraphState
 
     private const int NearAncestors = 8;
 
+    /// <summary>The path depth from which the ancestors are also held in an index, so a search stops growing with depth.</summary>
+    internal const int IndexedAncestors = 32;
+
     private Near _near;
     private object?[]? _ancestors;
     private int _ancestorCount;
+    private AncestorIndex? _index;
 
     /// <summary>The write-side reference table, when the payload carries reference framing.</summary>
     public WriteReferenceTable? Written { get; private set; }
@@ -41,7 +45,7 @@ internal struct GraphState
     public void BeginRead(bool preserveReferences) =>
         Read = preserveReferences ? ReadReferenceTable.Rent() : null;
 
-    /// <summary>Returns the reference tables and the ancestor stack, all cleared, to their pools.</summary>
+    /// <summary>Returns the reference tables, the ancestor stack and its index, all cleared, to their pools.</summary>
     public void End()
     {
         if (Written is not null)
@@ -62,6 +66,12 @@ internal struct GraphState
             _ancestors = null;
         }
 
+        if (_index is not null)
+        {
+            AncestorIndex.Return(_index);
+            _index = null;
+        }
+
         if (_ancestorCount > 0)
             _near = default;
 
@@ -72,38 +82,49 @@ internal struct GraphState
     /// <summary>
     /// Enters <paramref name="value"/> on the path from the root, refusing it when it is already on
     /// that path: without reference framing a cycle has no finite encoding. The path is never deeper
-    /// than the depth budget, which has admitted this value, so a linear search by reference is
-    /// bounded by <c>MaxDepth</c> and a value shared between siblings is not mistaken for a cycle.
+    /// than the depth budget, which has admitted this value, and a value shared between siblings is not
+    /// mistaken for a cycle. A shallow path is searched by reference, one ancestor after another; the
+    /// first search on a path already <see cref="IndexedAncestors"/> deep puts every ancestor in an
+    /// index by reference, which answers the search for the rest of the payload.
     /// </summary>
     public void PushAncestor(object value)
     {
-        int near = Math.Min(_ancestorCount, NearAncestors);
-        for (int index = 0; index < near; index++)
+        if (_index is null && _ancestorCount >= IndexedAncestors)
         {
-            if (ReferenceEquals(_near[index], value))
+            _index = AncestorIndex.Rent();
+            for (int index = 0; index < _ancestorCount; index++)
+                _index.Add(At(index));
+        }
+
+        if (_index is not null)
+        {
+            if (!_index.Add(value))
                 throw Cycle(value);
         }
-
-        for (int index = NearAncestors; index < _ancestorCount; index++)
+        else if (Search(value))
         {
-            if (ReferenceEquals(_ancestors![index - NearAncestors], value))
-                throw Cycle(value);
+            throw Cycle(value);
         }
 
-        if (_ancestorCount < NearAncestors)
-        {
-            _near[_ancestorCount++] = value;
-            return;
-        }
-
-        if (_ancestors is null || _ancestorCount - NearAncestors == _ancestors.Length)
-            GrowAncestors();
-
-        _ancestors![_ancestorCount++ - NearAncestors] = value;
+        Append(value);
     }
 
     /// <summary>Whether <paramref name="value"/> is on the current path.</summary>
-    public readonly bool IsAncestor(object value)
+    public readonly bool IsAncestor(object value) => _index?.Contains(value) ?? Search(value);
+
+    public void PopAncestor()
+    {
+        _ancestorCount--;
+        _index?.Remove(At(_ancestorCount));
+
+        if (_ancestorCount < NearAncestors)
+            _near[_ancestorCount] = null;
+        else
+            _ancestors![_ancestorCount - NearAncestors] = null;
+    }
+
+    /// <summary>Searches the path by reference, one ancestor after another.</summary>
+    private readonly bool Search(object value)
     {
         int near = Math.Min(_ancestorCount, NearAncestors);
         for (int index = 0; index < near; index++)
@@ -121,13 +142,23 @@ internal struct GraphState
         return false;
     }
 
-    public void PopAncestor()
+    private void Append(object value)
     {
-        if (--_ancestorCount < NearAncestors)
-            _near[_ancestorCount] = null;
-        else
-            _ancestors![_ancestorCount - NearAncestors] = null;
+        if (_ancestorCount < NearAncestors)
+        {
+            _near[_ancestorCount++] = value;
+            return;
+        }
+
+        if (_ancestors is null || _ancestorCount - NearAncestors == _ancestors.Length)
+            GrowAncestors();
+
+        _ancestors![_ancestorCount++ - NearAncestors] = value;
     }
+
+    /// <summary>The ancestor at <paramref name="index"/> on the path, counted from the root.</summary>
+    private readonly object At(int index) =>
+        index < NearAncestors ? _near[index]! : _ancestors![index - NearAncestors]!;
 
     private static BinaryTypeException Cycle(object value) =>
         new($"Circular reference detected while serializing '{value.GetType()}' — an object of " +
@@ -147,6 +178,52 @@ internal struct GraphState
         }
 
         _ancestors = grown;
+    }
+
+    /// <summary>
+    /// The ancestors of a deep path, by reference. One operation uses one index, taken with
+    /// <see cref="Rent"/> once its path is deep enough and handed back with <see cref="Return"/>,
+    /// which clears it, so no object of one operation is reachable from the next.
+    /// </summary>
+    internal sealed class AncestorIndex
+    {
+        [ThreadStatic]
+        private static AncestorIndex? s_cached;
+
+        private readonly HashSet<object> _ancestors = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>The number of ancestors the index holds.</summary>
+        public int Count => _ancestors.Count;
+
+        /// <summary>A cleared index, reused when the current thread returned one.</summary>
+        public static AncestorIndex Rent()
+        {
+            var index = s_cached ?? new AncestorIndex();
+            s_cached = null;
+            return index;
+        }
+
+        /// <summary>
+        /// Clears <paramref name="index"/> and keeps it for the next operation on this thread unless it
+        /// grew past <see cref="ReferencePool.MaxRetainedEntries"/>.
+        /// </summary>
+        public static void Return(AncestorIndex index)
+        {
+            bool retain = index._ancestors.EnsureCapacity(0) <= ReferencePool.MaxRetainedEntries;
+            index._ancestors.Clear();
+
+            if (retain)
+                s_cached = index;
+        }
+
+        /// <summary>The index this thread keeps for its next operation, if it keeps one.</summary>
+        internal static AncestorIndex? Cached => s_cached;
+
+        public bool Add(object value) => _ancestors.Add(value);
+
+        public bool Contains(object value) => _ancestors.Contains(value);
+
+        public void Remove(object value) => _ancestors.Remove(value);
     }
 
     /// <summary>The first ancestors of the current path, held in the state itself, so a shallow write rents nothing.</summary>

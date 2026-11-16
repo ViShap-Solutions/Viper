@@ -385,6 +385,40 @@ public class ConstructorTests
         AssertEx.Throws<BinaryTypeException>("constructor", () => Framed.Serialize(head));
     }
 
+    [Theory]
+    [InlineData(31)]
+    [InlineData(100)]
+    public void Serialize_ACycleThroughAConstructedTypeDeepInThePath_ThrowsType(int length)
+    {
+        var head = Constructed(length, out var last);
+        last.Next = head;
+
+        AssertEx.Throws<BinaryTypeException>("constructor", () => Framed.Serialize(head));
+    }
+
+    [Theory]
+    [InlineData(31)]
+    [InlineData(100)]
+    public void Serialize_ADeepConstructedPathSharedBySiblings_WritesABackReference(int length)
+    {
+        var head = Constructed(length, out _);
+
+        var restored = Framed.Deserialize<List<Node>>(Framed.Serialize(new List<Node> { head, head }))!;
+
+        Assert.Same(restored[0], restored[1]);
+    }
+
+    /// <summary>A chain of <paramref name="length"/> nodes read through a constructor; the last is returned through <paramref name="last"/>.</summary>
+    private static Node Constructed(int length, out Node last)
+    {
+        last = new Node((length - 1).ToString(System.Globalization.CultureInfo.InvariantCulture), next: null);
+        var head = last;
+        for (int index = length - 2; index >= 0; index--)
+            head = new Node(index.ToString(System.Globalization.CultureInfo.InvariantCulture), head);
+
+        return head;
+    }
+
     [Fact]
     public void Deserialize_ABackReferenceToAConstructedAncestor_ThrowsFormat()
     {

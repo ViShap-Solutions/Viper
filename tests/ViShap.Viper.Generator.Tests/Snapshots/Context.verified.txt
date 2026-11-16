@@ -12,7 +12,7 @@ namespace Shapes
         /// <summary>Creates the context, adds its generated contracts and makes the types it reaches supported.</summary>
         public Contracts()
         {
-            Add(new Shapes_AccountContract());
+            Add(static () => new Shapes_AccountContract());
             Add(global::ViShap.Viper.Contracts.SupportedTypes.Object<global::Shapes.Account>());
             Account = TypeInfo<global::Shapes.Account>();
         }
