@@ -53,6 +53,25 @@ public class ByteIdentityTests
         public record Rec(int A, string B) { public Rec() : this(0, "") { } }
         public class Keywords { public int @class { get; set; } public string? @event; }
         public enum Color { Red, Green }
+        public record Money(decimal Amount, string Currency);
+        public class Order { public Order(int id, string? customer) { Id = id; Customer = customer; } public int Id { get; init; } public string? Customer { get; init; } public string? Note { get; set; } }
+        public class Sealed { [BinaryConstructor] private Sealed(int value, string label) { Value = value; Label = label; } public int Value { get; } public readonly string Label; private int Hidden { get; set; } }
+        [BinaryContract] public class Settings
+        {
+            public Settings(string name, int retries = 3, Color color = Color.Green, decimal rate = 1.5m, double ratio = double.NaN, long? limit = 7, string? region = "eu")
+            { Name = name; Retries = retries; Color = color; Rate = rate; Ratio = ratio; Limit = limit; Region = region; }
+            [BinaryKey(0)] public string Name { get; init; } [BinaryKey(1)] public int Retries { get; init; } [BinaryKey(2)] public Color Color { get; init; }
+            [BinaryKey(3)] public decimal Rate { get; init; } [BinaryKey(4)] public double Ratio { get; init; } [BinaryKey(5)] public long? Limit { get; init; }
+            [BinaryKey(6)] public string? Region { get; init; } [BinaryKey(7)] public string Label { get; set; } = "initial";
+        }
+        [BinaryContract] public class SettingsV1 { [BinaryKey(0)] public string Name { get; set; } = ""; [BinaryKey(9)] public int Unknown { get; set; } }
+        [BinaryContract] public struct NameOnly { [BinaryKey(0)] public string? Name { get; set; } }
+        [BinaryContract] public struct StartOnly { [BinaryKey(0)] public int Start { get; set; } }
+        public class Boxed<T> { [BinaryConstructor] private Boxed(T value, List<T>? items) { Value = value; Items = items; } public T Value { get; } public List<T>? Items { get; } }
+        public readonly struct Amount { [BinaryConstructor] private Amount(decimal value, string currency) { Value = value; Currency = currency; } public decimal Value { get; } public string Currency { get; } }
+        [BinaryContract] public struct Policy { [BinaryConstructor] public Policy() => Retries = 3; [BinaryKey(0)] public string? Name { get; set; } [BinaryKey(1)] public int Retries { get; set; } }
+        [BinaryContract] public readonly struct Window { [BinaryConstructor] public Window(int start, int size = 10) { Start = start; Size = size; } [BinaryKey(0)] public int Start { get; } [BinaryKey(1)] public int Size { get; } [BinaryKey(2)] public string? Label { get; init; } }
+        public class Constructed { public Money? Money { get; set; } public Order? Order { get; set; } public Sealed? Sealed { get; set; } public Settings? Settings { get; set; } public Boxed<string>? Boxed { get; set; } public Amount Amount { get; set; } public Policy Policy { get; set; } public Window? Window { get; set; } }
         public class Graph
         {
             public Simple? Left { get; set; }
@@ -66,14 +85,15 @@ public class ByteIdentityTests
         }
 
         [BinaryContext(typeof(Graph), typeof(WithNonPublic), typeof(Required), typeof(PrivateCtor), typeof(KeyedChild),
-            typeof(Ordered), typeof(Shadow), typeof(VirtualDerived), typeof(GenericHolder), typeof(Outer), typeof(Rec), typeof(Keywords))]
+            typeof(Ordered), typeof(Shadow), typeof(VirtualDerived), typeof(GenericHolder), typeof(Outer), typeof(Rec), typeof(Keywords), typeof(Constructed))]
         public partial class CorpusContracts : BinarySerializerContext;
         """;
 
     private static readonly string[] Roots =
     [
         "Graph", "WithNonPublic", "Required", "PrivateCtor", "Keyed", "KeyedChild", "Ordered", "Shadow", "VirtualDerived",
-        "GenericHolder", "Outer", "Outer+Nested", "Rec", "Keywords", "Simple", "Point", "KeyedPoint", "Shape", "Circle"
+        "GenericHolder", "Outer", "Outer+Nested", "Rec", "Keywords", "Simple", "Point", "KeyedPoint", "Shape", "Circle",
+        "Constructed", "Money", "Order", "Sealed", "Settings", "Amount", "Policy", "Window"
     ];
 
     public static TheoryData<int, bool> Configurations() => new() { { 1, false }, { 1, true }, { 0, false } };
@@ -104,6 +124,30 @@ public class ByteIdentityTests
             object? read = Read(generated, type, actual);
             Assert.Equal(expected, Write(reflected, type, read!));
         }
+    }
+
+    [Theory]
+    [InlineData("SettingsV1", "Settings", "Retries", 3)]
+    [InlineData("NameOnly", "Policy", "Retries", 3)]
+    [InlineData("StartOnly", "Window", "Size", 10)]
+    public void KeyedFieldsThePayloadLeavesOut_TakeTheSameDefaultsThroughGeneratedContractsAsThroughReflection(
+        string older, string newer, string member, int expected)
+    {
+        var run = Harness.Run(Corpus);
+        var assembly = run.Load();
+        var context = (BinarySerializerContext)assembly.GetType("Corpus.CorpusContracts")!
+            .GetProperty("Default", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+        var reflected = new BinarySerializer();
+        var generated = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).RequireGeneratedContracts().Build());
+        var olderType = assembly.GetType($"Corpus.{older}", throwOnError: true)!;
+        var newerType = assembly.GetType($"Corpus.{newer}", throwOnError: true)!;
+        byte[] payload = Write(reflected, olderType, Filler.Fill(olderType, seed: 1, depth: 0)!);
+
+        object? throughReflection = Read(reflected, newerType, payload);
+        object? throughGenerated = Read(generated, newerType, payload);
+
+        Assert.Equal(Write(reflected, newerType, throughReflection!), Write(reflected, newerType, throughGenerated!));
+        Assert.Equal(expected, newerType.GetProperty(member)!.GetValue(throughGenerated));
     }
 
     private static BinarySerializerOptionsBuilder Options(int version, bool references) =>

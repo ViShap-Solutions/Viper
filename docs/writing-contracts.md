@@ -123,7 +123,7 @@ The constructor of `TypeContract<T>` takes the description the serializer checks
 |---|---|
 | `layout` | `MemberLayout.Positional` or `MemberLayout.Keyed` |
 | `members` | one `MemberDescription(name, memberType, key)` per member, in the order the contract writes them: position order under a positional layout with every key `null`, ascending key order under a keyed one with every key given |
-| `canBeConstructed` | whether `Create` produces an instance to read into; `false` for a type that is written but never read, such as one with no parameterless constructor — reading it is a `BinaryTypeException` |
+| `canBeConstructed` | whether `Create` produces an instance to read into; `false` for a type that is written but never read, or one read through a constructor with parameters (`UseConstructor`) — reading a type that is neither is a `BinaryTypeException` |
 
 and the type implements four methods:
 
@@ -215,6 +215,94 @@ else is a `BinaryConfigurationException`. A member is written and read through i
 The contract keeps implementing `Write` and the read methods, and they must agree with the table: the
 serializer still calls them when a read is traced for diagnostics ([`BinaryFormatDumper`](diagnostics.md)).
 The source generator writes a table for every contract it emits.
+
+## A constructor with parameters
+
+A type whose members a constructor takes is read through `UseConstructor`, called from the contract's
+constructor before `UseAccessors`. The serializer reads the members into a value of your own —
+`TValues`, one place per member — through a second table, then calls a `MemberConstructor<TValues, T>`
+that makes the instance from them. `start` creates the values before anything is read, so the value it
+gives a member is the one that member keeps when a keyed payload leaves it out. The table over `T` then
+needs only getters: `Member` with a single `MemberGetter<T, TMember>` adds a member that is written and
+never assigned.
+
+```csharp
+using ViShap.Viper;
+using ViShap.Viper.Contracts;
+
+var context = new RateContracts();
+var serializer = new BinarySerializer(BinarySerializerOptions.Configure().WithContracts(context).Build());
+
+Rate? copy = serializer.Deserialize(serializer.Serialize(new Rate("EUR", 1.08m), context.Rate), context.Rate);
+Console.WriteLine($"{copy!.Currency} {copy.Value}");   // EUR 1.08
+
+public sealed class Rate(string currency, decimal value)
+{
+    public string Currency { get; } = currency;
+    public decimal Value { get; } = value;
+}
+
+public sealed class RateContracts : BinarySerializerContext
+{
+    public RateContracts()
+    {
+        Add(new RateContract());
+        Add(SupportedTypes.Object<Rate>());
+        Rate = TypeInfo<Rate>();
+    }
+
+    public BinaryTypeInfo<Rate> Rate { get; }
+
+    private struct Values
+    {
+        public string Currency;
+        public decimal Value;
+    }
+
+    private sealed class RateContract : TypeContract<Rate>
+    {
+        public RateContract()
+            : base(
+                MemberLayout.Positional,
+                [new("Currency", typeof(string), null), new("Value", typeof(decimal), null)],
+                canBeConstructed: false)
+        {
+            UseConstructor(
+                static () => new Values { Currency = "" },
+                new MemberAccessors<Values>()
+                    .Member(static (in Values v) => v.Currency, static (ref Values v, string m) => v.Currency = m)
+                    .Member(static (in Values v) => v.Value, static (ref Values v, decimal m) => v.Value = m),
+                static (ref Values v) => new Rate(v.Currency, v.Value));
+
+            UseAccessors(new MemberAccessors<Rate>()
+                .Member(static (in Rate o) => o.Currency)
+                .Member(static (in Rate o) => o.Value));
+        }
+
+        public override Rate Create() => throw new NotSupportedException();
+
+        public override void Write(ref MemberWriter writer, in Rate value)
+        {
+            writer.Member(value.Currency);
+            writer.Member(value.Value);
+        }
+
+        public override void ReadPositional(ref MemberReader reader, ref Rate value) =>
+            throw new NotSupportedException();
+
+        public override bool ReadKeyed(ref MemberReader reader, int key, ref Rate value) =>
+            throw new NotSupportedException();
+    }
+}
+```
+
+The values table is held to the description as the accessor table is, and each of its entries must
+assign; `UseConstructor` is handed over once. An accessor table with an entry that has no setter is a
+`BinaryConfigurationException` unless the contract reads through a constructor. The serializer never
+calls `Create`, `ReadPositional` or `ReadKeyed` of such a contract, refuses a cycle through its type and
+refuses to populate it, and a `MemberConstructor` that returns `null` is a `BinaryTypeException`. The
+source generator writes all of this for a type the serializer reads through a
+[constructor](contracts.md#construction), with a struct of its own as the values.
 
 ## A keyed contract
 

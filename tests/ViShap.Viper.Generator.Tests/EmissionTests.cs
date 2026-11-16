@@ -37,6 +37,74 @@ public class EmissionTests
     }
 
     [Fact]
+    public void Constructor_ValuesReadThenTheConstructorCalled()
+    {
+        var run = Harness.Run(Usings + """
+            namespace Shapes;
+
+            [BinaryContract]
+            public class Invoice
+            {
+                public Invoice(string number, int lines = 1, decimal? total = null)
+                {
+                    Number = number;
+                    Lines = lines;
+                    Total = total;
+                }
+
+                [BinaryKey(1)] public string Number { get; init; }
+                [BinaryKey(2)] public int Lines { get; init; }
+                [BinaryKey(3)] public decimal? Total { get; init; }
+                [BinaryKey(4)] public string? Memo { get; set; }
+            }
+
+            public class Stamp
+            {
+                [BinaryConstructor]
+                private Stamp(long ticks, string zone)
+                {
+                    Ticks = ticks;
+                    Zone = zone;
+                }
+
+                public long Ticks { get; }
+                public readonly string Zone;
+            }
+
+            public readonly struct Extent
+            {
+                [BinaryConstructor]
+                public Extent(int width, int height = 1)
+                {
+                    Width = width;
+                    Height = height;
+                }
+
+                public int Width { get; }
+                public int Height { get; }
+                public string? Unit { get; init; }
+            }
+
+            public struct Tally
+            {
+                [BinaryConstructor]
+                public Tally() => Count = 1;
+
+                public int Count { get; set; }
+            }
+
+            [BinaryContext(typeof(Invoice), typeof(Stamp), typeof(Extent), typeof(Tally))]
+            public partial class Contracts : BinarySerializerContext;
+            """);
+
+        AssertCompiles(run);
+        Snapshot.Match("ConstructorKeyed", run.Source("Shapes_InvoiceContract.g.cs"));
+        Snapshot.Match("ConstructorMarked", run.Source("Shapes_StampContract.g.cs"));
+        Snapshot.Match("ConstructorStruct", run.Source("Shapes_ExtentContract.g.cs"));
+        Snapshot.Match("ConstructorStructParameterless", run.Source("Shapes_TallyContract.g.cs"));
+    }
+
+    [Fact]
     public void Keyed_KeysInAscendingOrder()
     {
         var run = Harness.Run(Usings + """

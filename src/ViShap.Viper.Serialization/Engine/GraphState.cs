@@ -102,6 +102,25 @@ internal struct GraphState
         _ancestors![_ancestorCount++ - NearAncestors] = value;
     }
 
+    /// <summary>Whether <paramref name="value"/> is on the current path.</summary>
+    public readonly bool IsAncestor(object value)
+    {
+        int near = Math.Min(_ancestorCount, NearAncestors);
+        for (int index = 0; index < near; index++)
+        {
+            if (ReferenceEquals(_near[index], value))
+                return true;
+        }
+
+        for (int index = NearAncestors; index < _ancestorCount; index++)
+        {
+            if (ReferenceEquals(_ancestors![index - NearAncestors], value))
+                return true;
+        }
+
+        return false;
+    }
+
     public void PopAncestor()
     {
         if (--_ancestorCount < NearAncestors)

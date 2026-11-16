@@ -47,7 +47,18 @@ internal sealed record ContractModel(
     CreateKind Create,
     string? CreateCall,
     EquatableArray<MemberModel> Members,
-    EquatableArray<AccessorModel> Accessors);
+    EquatableArray<AccessorModel> Accessors,
+    ConstructorModel? Constructor);
+
+/// <summary>
+/// The constructor with parameters a type is read through: the call that makes an instance from its
+/// arguments (<c>{0}</c>), the member each parameter takes, and the value each member starts with —
+/// a parameter's default, or empty for a member assigned after construction when the payload carries it.
+/// </summary>
+internal sealed record ConstructorModel(
+    string Call,
+    EquatableArray<int> ParameterMembers,
+    EquatableArray<string> Starts);
 
 /// <summary>How <c>Create</c> makes an instance.</summary>
 internal enum CreateKind
@@ -75,7 +86,7 @@ internal sealed record MemberModel(
     string TypeOfName,
     int? Key,
     string Get,
-    string Set);
+    string? Set);
 
 /// <summary>
 /// One <c>[UnsafeAccessor]</c> method a contract declares, already rendered; <see cref="GenericClass"/>

@@ -30,6 +30,7 @@ internal sealed class Planner
 
     private readonly INamedTypeSymbol? _contractAttribute;
     private readonly INamedTypeSymbol? _keyAttribute;
+    private readonly INamedTypeSymbol? _constructorAttribute;
     private readonly INamedTypeSymbol? _orderAttribute;
     private readonly INamedTypeSymbol? _includeAttribute;
     private readonly INamedTypeSymbol? _ignoreAttribute;
@@ -45,6 +46,7 @@ internal sealed class Planner
 
         _contractAttribute = compilation.GetTypeByMetadataName(AttributeNamespace + "BinaryContractAttribute");
         _keyAttribute = compilation.GetTypeByMetadataName(AttributeNamespace + "BinaryKeyAttribute");
+        _constructorAttribute = compilation.GetTypeByMetadataName(AttributeNamespace + "BinaryConstructorAttribute");
         _orderAttribute = compilation.GetTypeByMetadataName(AttributeNamespace + "BinaryOrderAttribute");
         _includeAttribute = compilation.GetTypeByMetadataName(AttributeNamespace + "BinaryIncludeAttribute");
         _ignoreAttribute = compilation.GetTypeByMetadataName(AttributeNamespace + "BinaryIgnoreAttribute");
@@ -224,9 +226,19 @@ internal sealed class Planner
             return;
         }
 
+        if (!MarkedConstructor(type, out var marked))
+            return;
+
+        if (marked is not null)
+            candidates.AddRange(ConstructorOnly(type, marked));
+
         bool keyed = IsContract(type);
         var members = keyed ? Keyed(type, candidates) : Positional(type, candidates);
         if (members is null)
+            return;
+
+        var withParameters = marked ?? Single(type, members);
+        if (marked is not null && !Matches(type, marked, members))
             return;
 
         foreach (var member in members)
@@ -238,7 +250,202 @@ internal sealed class Planner
             return;
         }
 
-        _contracts.Add((type, Contract(type, keyed, members)));
+        _contracts.Add((type, Contract(type, keyed, members, withParameters)));
+    }
+
+    // --- the constructor, as ReflectedContract chooses it ---------------------------------------------
+
+    /// <summary>
+    /// The constructor with parameters marked <c>[BinaryConstructor]</c>, or <c>null</c>; false when more
+    /// than one is marked. An abstract type is never read through a constructor.
+    /// </summary>
+    private bool MarkedConstructor(INamedTypeSymbol type, out IMethodSymbol? marked)
+    {
+        marked = null;
+        if (type.IsAbstract || type.TypeKind == TypeKind.Interface)
+            return true;
+
+        var all = type.InstanceConstructors.Where(constructor => Find(constructor, _constructorAttribute) is not null).ToList();
+        if (all.Count > 1)
+        {
+            Report(Descriptors.SeveralMarkedConstructors, all[1].Locations.FirstOrDefault(), Display(type),
+                all.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return false;
+        }
+
+        if (all.Count == 1 && all[0].Parameters.Length > 0)
+            marked = all[0];
+
+        return true;
+    }
+
+    /// <summary>
+    /// The single public constructor of a class with no parameterless one, when each of its parameters
+    /// names one of the members; otherwise <c>null</c>, and the type is written but not read.
+    /// </summary>
+    private static IMethodSymbol? Single(INamedTypeSymbol type, IReadOnlyList<Candidate> members)
+    {
+        if (type.IsValueType || type.IsAbstract || type.TypeKind == TypeKind.Interface)
+            return null;
+
+        if (type.InstanceConstructors.Any(constructor => constructor.Parameters.Length == 0))
+            return null;
+
+        var candidates = type.InstanceConstructors.Where(constructor => constructor.DeclaredAccessibility == Accessibility.Public).ToList();
+        if (candidates.Count != 1)
+            return null;
+
+        return candidates[0].Parameters.All(parameter => Match(members, parameter) >= 0) ? candidates[0] : null;
+    }
+
+    /// <summary>Reports each parameter of a marked constructor that names no single member of its type.</summary>
+    private bool Matches(INamedTypeSymbol type, IMethodSymbol constructor, IReadOnlyList<Candidate> members)
+    {
+        bool valid = true;
+        foreach (var parameter in constructor.Parameters)
+        {
+            if (Match(members, parameter) >= 0)
+                continue;
+
+            Report(Descriptors.UnmatchedConstructorParameter, parameter.Locations.FirstOrDefault(), Display(type), parameter.Name);
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    /// <summary>
+    /// The index of the one member a parameter names, by name ignoring case and of exactly its type; or -1
+    /// when no member, or more than one, has its name, or the member is of another type.
+    /// </summary>
+    private static int Match(IReadOnlyList<Candidate> members, IParameterSymbol parameter)
+    {
+        int found = -1;
+        for (int index = 0; index < members.Count; index++)
+        {
+            if (!string.Equals(members[index].Name, parameter.Name, System.StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (found >= 0)
+                return -1;
+
+            found = index;
+        }
+
+        return found >= 0 && SymbolEqualityComparer.Default.Equals(members[found].Type, parameter.Type) ? found : -1;
+    }
+
+    /// <summary>
+    /// The members only a constructor sets — properties with a getter and no setter, read-only fields that
+    /// are not compiler-generated — that a parameter of the marked constructor names.
+    /// </summary>
+    private IEnumerable<Candidate> ConstructorOnly(INamedTypeSymbol type, IMethodSymbol constructor)
+    {
+        var names = new HashSet<string>(constructor.Parameters.Select(parameter => parameter.Name), System.StringComparer.OrdinalIgnoreCase);
+        int distance = 0;
+
+        for (var level = type; level is not null; level = level.BaseType, distance++)
+        {
+            if (level.SpecialType is SpecialType.System_Object or SpecialType.System_ValueType)
+                break;
+
+            foreach (var member in level.GetMembers())
+            {
+                if (member is not IPropertySymbol { IsStatic: false, IsIndexer: false, GetMethod: not null, SetMethod: null } property)
+                    continue;
+
+                if (names.Contains(property.Name))
+                    yield return Describe(
+                        distance, property, property.Type, level,
+                        property.GetMethod.DeclaredAccessibility == Accessibility.Public,
+                        attribute => FindOnProperty(property, attribute));
+            }
+
+            foreach (var member in level.GetMembers())
+            {
+                if (member is not IFieldSymbol { IsStatic: false, IsConst: false, IsReadOnly: true } field)
+                    continue;
+
+                if (field.IsImplicitlyDeclared || Find(field, _compilerGenerated) is not null)
+                    continue;
+
+                if (names.Contains(field.Name))
+                    yield return Describe(
+                        distance, field, field.Type, level,
+                        field.DeclaredAccessibility == Accessibility.Public,
+                        attribute => Find(field, attribute));
+            }
+        }
+    }
+
+    /// <summary>
+    /// How generated code calls <paramref name="constructor"/>, and the value every member starts with
+    /// before the payload's are read.
+    /// </summary>
+    private ConstructorModel ConstructorPlan(
+        INamedTypeSymbol type,
+        IMethodSymbol constructor,
+        IReadOnlyList<Candidate> members,
+        List<AccessorModel> accessors,
+        Dictionary<INamedTypeSymbol, string> genericClasses)
+    {
+        var parameterMembers = constructor.Parameters.Select(parameter => Match(members, parameter)).ToArray();
+        var starts = new string[members.Count];
+        for (int index = 0; index < starts.Length; index++)
+            starts[index] = string.Empty;
+
+        for (int index = 0; index < parameterMembers.Length; index++)
+            starts[parameterMembers[index]] = Start(constructor.Parameters[index]);
+
+        string call;
+        if (IsAccessible(constructor) && !IsObsolete(constructor) && !HasRequiredMembers(type))
+        {
+            call = $"new {TypeNames.Annotated(type)}({{0}})";
+        }
+        else
+        {
+            string accessor = AccessorCall(type, "Construct", genericClasses, out string owner, out string? genericClass, out string? parameters);
+            var declared = constructor.OriginalDefinition.Parameters
+                .Select((parameter, index) => $"{TypeNames.Annotated(parameter.Type)} p{index.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+            accessors.Add(new AccessorModel(
+                "[global::System.Runtime.CompilerServices.UnsafeAccessor(global::System.Runtime.CompilerServices.UnsafeAccessorKind.Constructor)]\n" +
+                $"public static extern {owner} Construct({string.Join(", ", declared)});",
+                genericClass,
+                parameters));
+            call = accessor + "({0})";
+        }
+
+        return new ConstructorModel(call, new EquatableArray<int>(parameterMembers), new EquatableArray<string>(starts));
+    }
+
+    /// <summary>The value a parameter starts with: its C# default when it declares one, else its type's.</summary>
+    private static string Start(IParameterSymbol parameter)
+    {
+        string type = TypeNames.Annotated(parameter.Type);
+        if (!parameter.HasExplicitDefaultValue || parameter.ExplicitDefaultValue is null)
+            return "default!";
+
+        var target = parameter.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
+            ? nullable.TypeArguments[0]
+            : parameter.Type;
+
+        string literal = parameter.ExplicitDefaultValue switch
+        {
+            double d when double.IsNaN(d) => "double.NaN",
+            double d when double.IsPositiveInfinity(d) => "double.PositiveInfinity",
+            double d when double.IsNegativeInfinity(d) => "double.NegativeInfinity",
+            float f when float.IsNaN(f) => "float.NaN",
+            float f when float.IsPositiveInfinity(f) => "float.PositiveInfinity",
+            float f when float.IsNegativeInfinity(f) => "float.NegativeInfinity",
+            decimal m => SymbolDisplay.FormatPrimitive(m, quoteStrings: false, useHexadecimalNumbers: false) + "m",
+            double d => d.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "d",
+            float f => f.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "f",
+            var value => SymbolDisplay.FormatPrimitive(value, quoteStrings: true, useHexadecimalNumbers: false)
+        };
+
+        return target.TypeKind == TypeKind.Enum
+            ? $"({type})({TypeNames.Annotated(target)})({literal})"
+            : $"({type})({literal})";
     }
 
     /// <summary>Why generated code cannot describe <paramref name="type"/>, or <see langword="null"/> when it can.</summary>
@@ -586,16 +793,22 @@ internal sealed class Planner
 
     // --- the contract ---------------------------------------------------------------------------------
 
-    private ContractModel Contract(INamedTypeSymbol type, bool keyed, IReadOnlyList<Candidate> candidates)
+    private ContractModel Contract(INamedTypeSymbol type, bool keyed, IReadOnlyList<Candidate> candidates, IMethodSymbol? withParameters)
     {
         var accessors = new List<AccessorModel>();
         var genericClasses = new Dictionary<INamedTypeSymbol, string>(SymbolEqualityComparer.Default);
         var members = new List<MemberModel>();
 
         for (int index = 0; index < candidates.Count; index++)
-            members.Add(Member(type, candidates[index], index, accessors, genericClasses));
+        {
+            bool assigned = withParameters is null || !withParameters.Parameters.Any(parameter => Match(candidates, parameter) == index);
+            members.Add(Member(type, candidates[index], index, assigned, accessors, genericClasses));
+        }
 
-        var (create, createCall, canBeConstructed) = Construction(type, accessors, genericClasses);
+        var (create, createCall, canBeConstructed) = withParameters is null
+            ? Construction(type, accessors, genericClasses)
+            : (CreateKind.None, null, false);
+        var constructor = withParameters is null ? null : ConstructorPlan(type, withParameters, candidates, accessors, genericClasses);
 
         return new ContractModel(
             ClassName: string.Empty,
@@ -607,7 +820,8 @@ internal sealed class Planner
             Create: create,
             CreateCall: createCall,
             Members: new EquatableArray<MemberModel>(members),
-            Accessors: new EquatableArray<AccessorModel>(accessors));
+            Accessors: new EquatableArray<AccessorModel>(accessors),
+            Constructor: constructor);
     }
 
     private (CreateKind Create, string? Call, bool CanBeConstructed) Construction(
@@ -615,15 +829,15 @@ internal sealed class Planner
         List<AccessorModel> accessors,
         Dictionary<INamedTypeSymbol, string> genericClasses)
     {
-        if (type.IsValueType)
-            return (CreateKind.Default, null, true);
-
         if (type.IsAbstract || type.TypeKind == TypeKind.Interface)
             return (CreateKind.None, null, false);
 
-        var constructor = type.InstanceConstructors.FirstOrDefault(candidate => candidate.Parameters.Length == 0);
+        var constructor = type.IsValueType
+            ? type.InstanceConstructors.FirstOrDefault(candidate => candidate.Parameters.Length == 0 && Find(candidate, _constructorAttribute) is not null)
+            : type.InstanceConstructors.FirstOrDefault(candidate => candidate.Parameters.Length == 0);
+
         if (constructor is null)
-            return (CreateKind.None, null, false);
+            return type.IsValueType ? (CreateKind.Default, null, true) : (CreateKind.None, null, false);
 
         bool direct = IsAccessible(constructor) && !IsObsolete(constructor) && !HasRequiredMembers(type);
         if (direct)
@@ -644,6 +858,7 @@ internal sealed class Planner
         INamedTypeSymbol type,
         Candidate candidate,
         int index,
+        bool assigned,
         List<AccessorModel> accessors,
         Dictionary<INamedTypeSymbol, string> genericClasses)
     {
@@ -653,13 +868,13 @@ internal sealed class Planner
         string name = Escape(candidate.Name);
 
         string get;
-        string set;
+        string? set;
 
         switch (candidate.Symbol)
         {
             case IFieldSymbol field when IsAccessible(field) && !IsObsolete(field):
                 get = $"{ownerExpression}.{name}";
-                set = $"{ownerExpression}.{name} = {{0}};";
+                set = field.IsReadOnly || !assigned ? null : $"{ownerExpression}.{name} = {{0}};";
                 break;
 
             case IFieldSymbol field:
@@ -672,7 +887,7 @@ internal sealed class Planner
                     genericClass,
                     parameters));
                 get = $"{call}({ReadOwner(isStruct)})";
-                set = $"{call}({WriteOwner(isStruct)}) = {{0}};";
+                set = field.IsReadOnly || !assigned ? null : $"{call}({WriteOwner(isStruct)}) = {{0}};";
                 break;
             }
 
@@ -693,8 +908,12 @@ internal sealed class Planner
                     get = $"{call}({ReadOwner(isStruct)})";
                 }
 
-                var setter = property.SetMethod!;
-                if (IsAccessible(setter) && !setter.IsInitOnly && !IsObsolete(property) && !IsObsolete(setter))
+                var setter = property.SetMethod;
+                if (setter is null || !assigned)
+                {
+                    set = null;
+                }
+                else if (IsAccessible(setter) && !setter.IsInitOnly && !IsObsolete(property) && !IsObsolete(setter))
                 {
                     set = $"{ownerExpression}.{name} = {{0}};";
                 }

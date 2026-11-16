@@ -126,6 +126,7 @@ public abstract class TypeContract<T> : ITypeContract
     private readonly MemberDescription[] _members;
     private readonly int[] _keys;
     private Accessor<T>[]? _accessors;
+    private Construction<T>? _construction;
     private bool _inUse;
 
     /// <summary>Describes the contract the serializer checks every call against.</summary>
@@ -200,6 +201,8 @@ public abstract class TypeContract<T> : ITypeContract
 
     Type ITypeContract.Type => typeof(T);
 
+    bool ITypeContract.Constructs => _construction is not null;
+
     MemberDescription[] ITypeContract.Members => _members;
 
     int ITypeContract.IndexOfKey(int key) => Array.BinarySearch(_keys, key);
@@ -228,21 +231,81 @@ public abstract class TypeContract<T> : ITypeContract
             throw new BinaryConfigurationException($"The contract of '{typeof(T)}' already handed over its accessors.");
 
         var entries = accessors.ToArray();
+        RequireDescribed(entries, "accessor table");
+
+        for (int index = 0; index < entries.Length; index++)
+        {
+            if (!entries[index].Assigns && _construction is null)
+                throw new BinaryConfigurationException(
+                    $"The accessor of member '{_members[index].Name}' of '{typeof(T)}' has no setter, which only a " +
+                    "contract that reads through a constructor can leave out; call UseConstructor first.");
+        }
+
+        _accessors = entries;
+    }
+
+    /// <summary>
+    /// Has the serializer read the type through a constructor: the members are read into
+    /// <typeparamref name="TValues"/>, which <paramref name="start"/> creates with the value each member
+    /// keeps when a keyed payload leaves it out, and the instance is then made from them by
+    /// <paramref name="construct"/>. Called once, from the contract's constructor, before
+    /// <see cref="UseAccessors"/>.
+    /// </summary>
+    /// <typeparam name="TValues">What the values are read into: one place per member, in the order of the description.</typeparam>
+    /// <param name="start">Creates the values before any member is read.</param>
+    /// <param name="values">One entry per member, in the order of the description, each assigning its place in the values.</param>
+    /// <param name="construct">Creates the instance from the values: calls the constructor and assigns the members it does not take.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="BinaryConfigurationException">
+    /// The table has another number of entries than the description has members, an entry is for another
+    /// type than its member's or assigns nothing, a constructor was already handed over, or the contract is
+    /// already in use.
+    /// </exception>
+    protected void UseConstructor<TValues>(Func<TValues> start, MemberAccessors<TValues> values, MemberConstructor<TValues, T> construct)
+    {
+        ArgumentNullException.ThrowIfNull(start);
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(construct);
+
+        if (_inUse)
+            throw new BinaryConfigurationException(
+                $"The contract of '{typeof(T)}' is already in use; its constructor is handed over from its own constructor.");
+
+        if (_construction is not null)
+            throw new BinaryConfigurationException($"The contract of '{typeof(T)}' already handed over its constructor.");
+
+        var entries = values.ToArray();
+        RequireDescribed(entries, "values table");
+
+        for (int index = 0; index < entries.Length; index++)
+        {
+            if (!entries[index].Assigns)
+                throw new BinaryConfigurationException(
+                    $"The values entry of member '{_members[index].Name}' of '{typeof(T)}' has no setter; every value read is kept.");
+        }
+
+        _construction = new Construction<T, TValues>(start, entries, construct);
+    }
+
+    /// <summary>Holds a table to the description: one entry per member, each for the member's exact type.</summary>
+    private void RequireDescribed<TOwner>(Accessor<TOwner>[] entries, string table)
+    {
         if (entries.Length != _members.Length)
             throw new BinaryConfigurationException(
-                $"The contract of '{typeof(T)}' describes {_members.Length} members but its accessor table has " +
+                $"The contract of '{typeof(T)}' describes {_members.Length} members but its {table} has " +
                 $"{entries.Length} entries.");
 
         for (int index = 0; index < entries.Length; index++)
         {
             if (entries[index].MemberType != _members[index].MemberType)
                 throw new BinaryConfigurationException(
-                    $"The accessor of member '{_members[index].Name}' of '{typeof(T)}' is for " +
+                    $"The {table} entry of member '{_members[index].Name}' of '{typeof(T)}' is for " +
                     $"'{entries[index].MemberType}', but the member is a '{_members[index].MemberType}'.");
         }
-
-        _accessors = entries;
     }
+
+    /// <summary>How the contract constructs an instance from the values read, or <c>null</c>.</summary>
+    internal Construction<T>? Construction => _construction;
 
     /// <summary>The accessor table the contract handed over, or <c>null</c>.</summary>
     internal Accessor<T>[]? Accessors => _accessors;

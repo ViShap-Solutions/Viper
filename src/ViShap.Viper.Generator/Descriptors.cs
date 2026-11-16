@@ -119,13 +119,23 @@ internal static class Descriptors
         "Type unavailable without reflection",
         "'{0}' gets no generated contract, and the application turns the reflection path off (ViperReflectionEnabled is false, as it is when published trimmed or with native AOT), so it cannot be serialized: {1}");
 
+    public static readonly DiagnosticDescriptor SeveralMarkedConstructors = Error(
+        "VPR022",
+        "Several constructors marked [BinaryConstructor]",
+        "'{0}' marks {1} constructors [BinaryConstructor]; at most one constructor of a type carries it");
+
+    public static readonly DiagnosticDescriptor UnmatchedConstructorParameter = Error(
+        "VPR023",
+        "[BinaryConstructor] parameter names no member",
+        "Parameter '{1}' of the [BinaryConstructor] of '{0}' names no single member of the same name and type; name it after a member, or mark another constructor");
+
     private static readonly Dictionary<string, DiagnosticDescriptor> All = new[]
     {
         ContextNotPartial, ContextBaseType, ContextMemberConflict, KeyWithoutContract, IncludeWithIgnore,
         DuplicateOrder, IncludeOnContract, OrderOnContract, KeyWithIgnore, UnmarkedContractMember,
         NegativeKey, DuplicateKey, DelegateMember, MemberWithoutRepresentation, UnionTagOutOfRange,
         DuplicateUnionTag, UnionTypeNotAssignable, AbstractWithoutUnion, DescribedByReflection,
-        TypeInfoNameConflict, UnavailableWithoutReflection
+        TypeInfoNameConflict, UnavailableWithoutReflection, SeveralMarkedConstructors, UnmatchedConstructorParameter
     }.ToDictionary(descriptor => descriptor.Id);
 
     /// <summary>Every descriptor, in id order.</summary>

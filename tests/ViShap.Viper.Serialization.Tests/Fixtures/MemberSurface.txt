@@ -1,3 +1,4 @@
+ViShap.Viper.BinaryConstructorAttribute :: .ctor()
 ViShap.Viper.BinaryContextAttribute :: .ctor(Type[])
 ViShap.Viper.BinaryContextAttribute :: Types : IReadOnlyList<Type> { get; }
 ViShap.Viper.BinaryContractAttribute :: .ctor()
@@ -156,7 +157,12 @@ ViShap.Viper.Compression.NoCompression :: CustomName : String { get; }
 ViShap.Viper.Compression.NoCompression :: Decompress(ReadOnlySpan<Byte>, IBufferWriter<Byte>, Int32) : Void
 ViShap.Viper.Compression.NoCompression :: Kind : CompressionAlgorithm { get; }
 ViShap.Viper.Contracts.MemberAccessors`1 :: .ctor()
+ViShap.Viper.Contracts.MemberAccessors`1 :: Member<TMember>(MemberGetter<T, TMember>) : MemberAccessors<T>
 ViShap.Viper.Contracts.MemberAccessors`1 :: Member<TMember>(MemberGetter<T, TMember>, MemberSetter<T, TMember>) : MemberAccessors<T>
+ViShap.Viper.Contracts.MemberConstructor`2 :: .ctor(Object, IntPtr)
+ViShap.Viper.Contracts.MemberConstructor`2 :: BeginInvoke(ref TValues, AsyncCallback, Object) : IAsyncResult
+ViShap.Viper.Contracts.MemberConstructor`2 :: EndInvoke(ref TValues, IAsyncResult) : T
+ViShap.Viper.Contracts.MemberConstructor`2 :: Invoke(ref TValues) : T
 ViShap.Viper.Contracts.MemberDescription :: .ctor(String, Type, Int32?)
 ViShap.Viper.Contracts.MemberDescription :: Key : Int32? { get; }
 ViShap.Viper.Contracts.MemberDescription :: MemberType : Type { get; }
@@ -254,6 +260,7 @@ ViShap.Viper.Contracts.TypeContract`1 :: ReadPositional(ref MemberReader, ref T)
 ViShap.Viper.Contracts.TypeContract`1 :: Write(ref MemberWriter, in T) : Void
 ViShap.Viper.Contracts.TypeContract`1 :: protected .ctor(MemberLayout, MemberDescription[], Boolean)
 ViShap.Viper.Contracts.TypeContract`1 :: protected UseAccessors(MemberAccessors<T>) : Void
+ViShap.Viper.Contracts.TypeContract`1 :: protected UseConstructor<TValues>(Func<TValues>, MemberAccessors<TValues>, MemberConstructor<TValues, T>) : Void
 ViShap.Viper.Crypto.Aes256GcmEncryption :: .ctor()
 ViShap.Viper.Crypto.Aes256GcmEncryption :: AuthenticatesAssociatedData : Boolean { get; }
 ViShap.Viper.Crypto.Aes256GcmEncryption :: CustomName : String { get; }

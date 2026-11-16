@@ -9,119 +9,133 @@ internal abstract class Accessor<T>
 {
     public abstract Type MemberType { get; }
 
+    /// <summary>Whether the member is assigned on read; a member a constructor sets is written only.</summary>
+    public abstract bool Assigns { get; }
+
     public abstract void Write(ref WireWriter writer, in T owner);
 
     public abstract void Read(ref WireReader reader, ref T owner);
+
+    /// <summary>Reads the member through the codec of its type, which reports the value to a trace.</summary>
+    public abstract void ReadTraced(ref WireReader reader, ref T owner);
 
     /// <summary>
     /// The entry for a member of type <typeparamref name="TMember"/>: a built-in scalar is written and
     /// read by its formatter directly, the null of a string by the folded length, and any other member
     /// by the codec of its type.
     /// </summary>
-    public static Accessor<T> For<TMember>(MemberGetter<T, TMember> get, MemberSetter<T, TMember> set)
+    public static Accessor<T> For<TMember>(MemberGetter<T, TMember> get, MemberSetter<T, TMember>? set)
     {
         if (typeof(TMember) == typeof(bool))
-            return new ScalarAccessor<T, bool, BooleanFormat>((MemberGetter<T, bool>)(object)get, (MemberSetter<T, bool>)(object)set);
+            return new ScalarAccessor<T, bool, BooleanFormat>((MemberGetter<T, bool>)(object)get, (MemberSetter<T, bool>?)(object?)set);
 
         if (typeof(TMember) == typeof(byte))
-            return new ScalarAccessor<T, byte, ByteFormat>((MemberGetter<T, byte>)(object)get, (MemberSetter<T, byte>)(object)set);
+            return new ScalarAccessor<T, byte, ByteFormat>((MemberGetter<T, byte>)(object)get, (MemberSetter<T, byte>?)(object?)set);
 
         if (typeof(TMember) == typeof(sbyte))
-            return new ScalarAccessor<T, sbyte, SByteFormat>((MemberGetter<T, sbyte>)(object)get, (MemberSetter<T, sbyte>)(object)set);
+            return new ScalarAccessor<T, sbyte, SByteFormat>((MemberGetter<T, sbyte>)(object)get, (MemberSetter<T, sbyte>?)(object?)set);
 
         if (typeof(TMember) == typeof(short))
-            return new ScalarAccessor<T, short, Int16Format>((MemberGetter<T, short>)(object)get, (MemberSetter<T, short>)(object)set);
+            return new ScalarAccessor<T, short, Int16Format>((MemberGetter<T, short>)(object)get, (MemberSetter<T, short>?)(object?)set);
 
         if (typeof(TMember) == typeof(ushort))
-            return new ScalarAccessor<T, ushort, UInt16Format>((MemberGetter<T, ushort>)(object)get, (MemberSetter<T, ushort>)(object)set);
+            return new ScalarAccessor<T, ushort, UInt16Format>((MemberGetter<T, ushort>)(object)get, (MemberSetter<T, ushort>?)(object?)set);
 
         if (typeof(TMember) == typeof(int))
-            return new ScalarAccessor<T, int, Int32Format>((MemberGetter<T, int>)(object)get, (MemberSetter<T, int>)(object)set);
+            return new ScalarAccessor<T, int, Int32Format>((MemberGetter<T, int>)(object)get, (MemberSetter<T, int>?)(object?)set);
 
         if (typeof(TMember) == typeof(uint))
-            return new ScalarAccessor<T, uint, UInt32Format>((MemberGetter<T, uint>)(object)get, (MemberSetter<T, uint>)(object)set);
+            return new ScalarAccessor<T, uint, UInt32Format>((MemberGetter<T, uint>)(object)get, (MemberSetter<T, uint>?)(object?)set);
 
         if (typeof(TMember) == typeof(long))
-            return new ScalarAccessor<T, long, Int64Format>((MemberGetter<T, long>)(object)get, (MemberSetter<T, long>)(object)set);
+            return new ScalarAccessor<T, long, Int64Format>((MemberGetter<T, long>)(object)get, (MemberSetter<T, long>?)(object?)set);
 
         if (typeof(TMember) == typeof(ulong))
-            return new ScalarAccessor<T, ulong, UInt64Format>((MemberGetter<T, ulong>)(object)get, (MemberSetter<T, ulong>)(object)set);
+            return new ScalarAccessor<T, ulong, UInt64Format>((MemberGetter<T, ulong>)(object)get, (MemberSetter<T, ulong>?)(object?)set);
 
         if (typeof(TMember) == typeof(float))
-            return new ScalarAccessor<T, float, SingleFormat>((MemberGetter<T, float>)(object)get, (MemberSetter<T, float>)(object)set);
+            return new ScalarAccessor<T, float, SingleFormat>((MemberGetter<T, float>)(object)get, (MemberSetter<T, float>?)(object?)set);
 
         if (typeof(TMember) == typeof(double))
-            return new ScalarAccessor<T, double, DoubleFormat>((MemberGetter<T, double>)(object)get, (MemberSetter<T, double>)(object)set);
+            return new ScalarAccessor<T, double, DoubleFormat>((MemberGetter<T, double>)(object)get, (MemberSetter<T, double>?)(object?)set);
 
         if (typeof(TMember) == typeof(decimal))
-            return new ScalarAccessor<T, decimal, DecimalFormat>((MemberGetter<T, decimal>)(object)get, (MemberSetter<T, decimal>)(object)set);
+            return new ScalarAccessor<T, decimal, DecimalFormat>((MemberGetter<T, decimal>)(object)get, (MemberSetter<T, decimal>?)(object?)set);
 
         if (typeof(TMember) == typeof(char))
-            return new ScalarAccessor<T, char, CharFormat>((MemberGetter<T, char>)(object)get, (MemberSetter<T, char>)(object)set);
+            return new ScalarAccessor<T, char, CharFormat>((MemberGetter<T, char>)(object)get, (MemberSetter<T, char>?)(object?)set);
 
         if (typeof(TMember) == typeof(Half))
-            return new ScalarAccessor<T, Half, HalfFormat>((MemberGetter<T, Half>)(object)get, (MemberSetter<T, Half>)(object)set);
+            return new ScalarAccessor<T, Half, HalfFormat>((MemberGetter<T, Half>)(object)get, (MemberSetter<T, Half>?)(object?)set);
 
         if (typeof(TMember) == typeof(Int128))
-            return new ScalarAccessor<T, Int128, Int128Format>((MemberGetter<T, Int128>)(object)get, (MemberSetter<T, Int128>)(object)set);
+            return new ScalarAccessor<T, Int128, Int128Format>((MemberGetter<T, Int128>)(object)get, (MemberSetter<T, Int128>?)(object?)set);
 
         if (typeof(TMember) == typeof(UInt128))
-            return new ScalarAccessor<T, UInt128, UInt128Format>((MemberGetter<T, UInt128>)(object)get, (MemberSetter<T, UInt128>)(object)set);
+            return new ScalarAccessor<T, UInt128, UInt128Format>((MemberGetter<T, UInt128>)(object)get, (MemberSetter<T, UInt128>?)(object?)set);
 
         if (typeof(TMember) == typeof(nint))
-            return new ScalarAccessor<T, nint, IntPtrFormat>((MemberGetter<T, nint>)(object)get, (MemberSetter<T, nint>)(object)set);
+            return new ScalarAccessor<T, nint, IntPtrFormat>((MemberGetter<T, nint>)(object)get, (MemberSetter<T, nint>?)(object?)set);
 
         if (typeof(TMember) == typeof(nuint))
-            return new ScalarAccessor<T, nuint, UIntPtrFormat>((MemberGetter<T, nuint>)(object)get, (MemberSetter<T, nuint>)(object)set);
+            return new ScalarAccessor<T, nuint, UIntPtrFormat>((MemberGetter<T, nuint>)(object)get, (MemberSetter<T, nuint>?)(object?)set);
 
         if (typeof(TMember) == typeof(System.Text.Rune))
-            return new ScalarAccessor<T, System.Text.Rune, RuneFormat>((MemberGetter<T, System.Text.Rune>)(object)get, (MemberSetter<T, System.Text.Rune>)(object)set);
+            return new ScalarAccessor<T, System.Text.Rune, RuneFormat>((MemberGetter<T, System.Text.Rune>)(object)get, (MemberSetter<T, System.Text.Rune>?)(object?)set);
 
         if (typeof(TMember) == typeof(Guid))
-            return new ScalarAccessor<T, Guid, GuidFormat>((MemberGetter<T, Guid>)(object)get, (MemberSetter<T, Guid>)(object)set);
+            return new ScalarAccessor<T, Guid, GuidFormat>((MemberGetter<T, Guid>)(object)get, (MemberSetter<T, Guid>?)(object?)set);
 
         if (typeof(TMember) == typeof(DateTime))
-            return new ScalarAccessor<T, DateTime, DateTimeFormat>((MemberGetter<T, DateTime>)(object)get, (MemberSetter<T, DateTime>)(object)set);
+            return new ScalarAccessor<T, DateTime, DateTimeFormat>((MemberGetter<T, DateTime>)(object)get, (MemberSetter<T, DateTime>?)(object?)set);
 
         if (typeof(TMember) == typeof(DateTimeOffset))
-            return new ScalarAccessor<T, DateTimeOffset, DateTimeOffsetFormat>((MemberGetter<T, DateTimeOffset>)(object)get, (MemberSetter<T, DateTimeOffset>)(object)set);
+            return new ScalarAccessor<T, DateTimeOffset, DateTimeOffsetFormat>((MemberGetter<T, DateTimeOffset>)(object)get, (MemberSetter<T, DateTimeOffset>?)(object?)set);
 
         if (typeof(TMember) == typeof(TimeSpan))
-            return new ScalarAccessor<T, TimeSpan, TimeSpanFormat>((MemberGetter<T, TimeSpan>)(object)get, (MemberSetter<T, TimeSpan>)(object)set);
+            return new ScalarAccessor<T, TimeSpan, TimeSpanFormat>((MemberGetter<T, TimeSpan>)(object)get, (MemberSetter<T, TimeSpan>?)(object?)set);
 
         if (typeof(TMember) == typeof(DateOnly))
-            return new ScalarAccessor<T, DateOnly, DateOnlyFormat>((MemberGetter<T, DateOnly>)(object)get, (MemberSetter<T, DateOnly>)(object)set);
+            return new ScalarAccessor<T, DateOnly, DateOnlyFormat>((MemberGetter<T, DateOnly>)(object)get, (MemberSetter<T, DateOnly>?)(object?)set);
 
         if (typeof(TMember) == typeof(TimeOnly))
-            return new ScalarAccessor<T, TimeOnly, TimeOnlyFormat>((MemberGetter<T, TimeOnly>)(object)get, (MemberSetter<T, TimeOnly>)(object)set);
+            return new ScalarAccessor<T, TimeOnly, TimeOnlyFormat>((MemberGetter<T, TimeOnly>)(object)get, (MemberSetter<T, TimeOnly>?)(object?)set);
 
         if (typeof(TMember) == typeof(string))
-            return new ScalarAccessor<T, string?, StringFormat>((MemberGetter<T, string?>)(object)get, (MemberSetter<T, string?>)(object)set);
+            return new ScalarAccessor<T, string?, StringFormat>((MemberGetter<T, string?>)(object)get, (MemberSetter<T, string?>?)(object?)set);
 
         return new CodecAccessor<T, TMember>(get, set);
     }
 }
 
 /// <summary>A built-in scalar member, written and read by its formatter with no dispatch between.</summary>
-internal sealed class ScalarAccessor<T, TMember, TFormat>(MemberGetter<T, TMember> get, MemberSetter<T, TMember> set)
+internal sealed class ScalarAccessor<T, TMember, TFormat>(MemberGetter<T, TMember> get, MemberSetter<T, TMember>? set)
     : Accessor<T>
     where TFormat : struct, IScalarFormat<TMember>
 {
     public override Type MemberType => typeof(TMember);
 
+    public override bool Assigns => set is not null;
+
     public override void Write(ref WireWriter writer, in T owner) => TFormat.Write(ref writer, get(in owner));
 
-    public override void Read(ref WireReader reader, ref T owner) => set(ref owner, TFormat.Read(ref reader));
+    public override void Read(ref WireReader reader, ref T owner) => set!(ref owner, TFormat.Read(ref reader));
+
+    public override void ReadTraced(ref WireReader reader, ref T owner) => set!(ref owner, FormatterCache<TMember>.Instance.Read(ref reader));
 }
 
 /// <summary>Any other member, written and read by the engine's codec for its type.</summary>
-internal sealed class CodecAccessor<T, TMember>(MemberGetter<T, TMember> get, MemberSetter<T, TMember> set) : Accessor<T>
+internal sealed class CodecAccessor<T, TMember>(MemberGetter<T, TMember> get, MemberSetter<T, TMember>? set) : Accessor<T>
 {
     public override Type MemberType => typeof(TMember);
 
+    public override bool Assigns => set is not null;
+
     public override void Write(ref WireWriter writer, in T owner) => FormatterCache<TMember>.Instance.Write(ref writer, get(in owner));
 
-    public override void Read(ref WireReader reader, ref T owner) => set(ref owner, FormatterCache<TMember>.Instance.Read(ref reader));
+    public override void Read(ref WireReader reader, ref T owner) => set!(ref owner, FormatterCache<TMember>.Instance.Read(ref reader));
+
+    public override void ReadTraced(ref WireReader reader, ref T owner) => Read(ref reader, ref owner);
 }
 
 /// <summary>A built-in scalar's formatter reached statically, so an accessor over it is specialized per scalar.</summary>

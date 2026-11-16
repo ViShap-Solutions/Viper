@@ -119,6 +119,8 @@ public class RequiresArguments
 {
     public RequiresArguments(int value) => Value = value;
 
+    public RequiresArguments(string text) => Value = text.Length;
+
     public int Value { get; set; }
 }
 

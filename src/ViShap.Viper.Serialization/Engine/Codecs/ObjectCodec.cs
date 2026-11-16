@@ -83,6 +83,43 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
         return ReflectionPath.IsEnabled ? TypeContractCache.Get(runtimeType) : throw ReflectionPath.NoContract(runtimeType);
     }
 
+    /// <summary>Writes the members of a value held on the ancestor path while they are written.</summary>
+    private static void WriteOnPath(ref WireWriter writer, TypeContract<T> contract, in T value, bool nullFolded)
+    {
+        writer.State.Graph.PushAncestor(value!);
+        try
+        {
+            ObjectMembers.Write(ref writer, contract, in value, nullFolded);
+        }
+        finally
+        {
+            writer.State.Graph.PopAncestor();
+        }
+    }
+
+    /// <summary>Writes the members of a value of another runtime type, held on the ancestor path while they are written.</summary>
+    private static void WriteBoxedOnPath(ref WireWriter writer, ITypeContract contract, object value)
+    {
+        writer.State.Graph.PushAncestor(value);
+        try
+        {
+            var boxed = MemberWriter.Begin(ref writer, contract, nullFolded: false);
+            contract.WriteBoxed(ref boxed, value);
+            boxed.End(ref writer);
+        }
+        finally
+        {
+            writer.State.Graph.PopAncestor();
+        }
+    }
+
+    /// <summary>
+    /// Whether the value is kept on the path while its members are written: a reference-framed value of a
+    /// type read through a constructor, which a back reference from its own members could never reach.
+    /// </summary>
+    private static bool Opens(ref OperationState state, ITypeContract contract) =>
+        IsReference && state.Graph.Written is not null && contract.Constructs;
+
     private UnionMap? Union => (_union ??= new UnionLookup(TypeContractCache.GetUnion(typeof(T)))).Map;
 
     protected override void WriteBody(ref WireWriter writer, T value, bool nullFolded)
@@ -110,11 +147,22 @@ internal sealed class ObjectCodec<T> : StructuralCodec<T>
 
         if (runtimeType == typeof(T))
         {
-            ObjectMembers.Write(ref writer, Contract(ref writer.State), in value, nullFolded);
+            var contract = Contract(ref writer.State);
+            if (Opens(ref writer.State, contract))
+                WriteOnPath(ref writer, contract, in value, nullFolded);
+            else
+                ObjectMembers.Write(ref writer, contract, in value, nullFolded);
+
             return;
         }
 
         var runtimeContract = RuntimeContract(runtimeType, ref writer.State);
+        if (Opens(ref writer.State, runtimeContract))
+        {
+            WriteBoxedOnPath(ref writer, runtimeContract, value!);
+            return;
+        }
+
         var boxed = MemberWriter.Begin(ref writer, runtimeContract, nullFolded: false);
         runtimeContract.WriteBoxed(ref boxed, value!);
         boxed.End(ref writer);
@@ -262,6 +310,24 @@ internal static class ObjectMembers
         object? target,
         bool nullFolded)
     {
+        if (contract.Construction is { } construction)
+        {
+            if (target is not null)
+                throw new BinaryTypeException(
+                    $"'{typeof(T)}' is read through a constructor with parameters, which cannot fill an existing " +
+                    "instance. Use a Deserialize overload instead.");
+
+            if (referenceId >= 0)
+                reader.State.Graph.Read!.Register(referenceId, ReadReferenceTable.Pending);
+
+            var constructed = construction.Read(ref reader, contract, nullFolded);
+
+            if (referenceId >= 0)
+                reader.State.Graph.Read!.Replace(referenceId, constructed!);
+
+            return constructed;
+        }
+
         var instance = target is not null ? (T)target : Create(contract);
 
         if (referenceId >= 0)
@@ -277,7 +343,7 @@ internal static class ObjectMembers
     /// </summary>
     public static object ReadBoxed<T>(ref WireReader reader, TypeContract<T> contract, int referenceId, object? target)
     {
-        if (!typeof(T).IsValueType)
+        if (!typeof(T).IsValueType || contract.Construction is not null)
             return ReadInstance(ref reader, contract, referenceId, target, nullFolded: false)!;
 
         object box = target ?? Create(contract)!;
@@ -304,8 +370,9 @@ internal static class ObjectMembers
         if (!contract.CanBeConstructed)
             throw new BinaryTypeException(
                 $"'{typeof(T)}' cannot be constructed during deserialization — a concrete type " +
-                "with a public or non-public parameterless constructor is required. An interface or " +
-                "an abstract class needs a [BinaryUnion] map naming the type to build.");
+                "needs a parameterless constructor of any visibility, a single public constructor whose " +
+                "parameters name its members, or one marked [BinaryConstructor]. An interface or an " +
+                "abstract class needs a [BinaryUnion] map naming the type to build.");
 
         var instance = contract.Create();
         if (!typeof(T).IsValueType && instance is null)
@@ -385,7 +452,6 @@ internal static class ObjectMembers
         var trace = reader.State.Trace;
         var accessors = trace is null ? contract.Accessors : null;
         ITypeContract description = contract;
-        ref var state = ref reader.State;
 
         var fieldCount = reader.ReadCount(CountKind.KeyedFields, "Keyed field count", nullFolded);
         trace?.Shape(TraceShape.KeyedObject, fieldCount);
@@ -393,34 +459,11 @@ internal static class ObjectMembers
         int previousKey = -1;
         for (int i = 0; i < fieldCount; i++)
         {
-            long fieldStart = reader.Position;
-            int key = reader.Read7BitEncodedInt("field key");
-            if (key == previousKey)
-                throw new BinaryFormatException($"Duplicate keyed field key {key}.");
-
-            if (key < previousKey)
-                throw new BinaryFormatException(
-                    $"Keyed field key {key} follows key {previousKey}; fields must appear in ascending " +
-                    "key order.");
-
-            previousKey = key;
-
-            int payloadLength = reader.ReadInt32();
-            if (!state.Phases.AdmitsPayload(payloadLength))
-                state.Phases.CheckPayload(payloadLength, $"Key {key} payload length");
-
-            if (trace is not null)
-            {
-                int index = description.IndexOfKey(key);
-                if (index >= 0)
-                    trace.Label(description.Members[index].Name);
-
-                trace.Field(key, payloadLength, fieldStart);
-            }
+            int key = ReadFieldHeader(ref reader, description, ref previousKey, out int payloadLength);
 
             if (accessors is not null)
             {
-                ReadField(reader.SliceField(key, payloadLength), description, accessors, key, ref instance);
+                ReadField(reader.SliceField(key, payloadLength), description, accessors, key, ref instance, traced: false);
                 continue;
             }
 
@@ -449,25 +492,108 @@ internal static class ObjectMembers
     /// Reads one keyed field through the accessor of its key, in the field's own window and reference
     /// scope, and requires the value to fill the field; a key the description does not hold is skipped.
     /// </summary>
-    private static void ReadField<T>(WireReader field, ITypeContract description, Accessor<T>[] accessors, int key, ref T instance)
+    private static bool ReadField<T>(WireReader field, ITypeContract description, Accessor<T>[] accessors, int key, ref T instance, bool traced)
     {
         int index = description.IndexOfKey(key);
         if (index < 0)
-            return;
+            return false;
 
         if (field.State.Graph.Read is { } references)
         {
             using var scope = references.Enter();
-            accessors[index].Read(ref field, ref instance);
+            ReadEntry(ref field, accessors[index], ref instance, traced);
         }
         else
         {
-            accessors[index].Read(ref field, ref instance);
+            ReadEntry(ref field, accessors[index], ref instance, traced);
         }
 
         if (field.Remaining != 0)
             throw new BinaryFormatException(
                 $"Key {key} payload contains {field.Remaining} trailing byte(s) after " +
                 $"decoding '{description.Members[index].Name}'.");
+
+        return true;
+    }
+
+    private static void ReadEntry<T>(ref WireReader reader, Accessor<T> accessor, ref T target, bool traced)
+    {
+        if (traced)
+            accessor.ReadTraced(ref reader, ref target);
+        else
+            accessor.Read(ref reader, ref target);
+    }
+
+    /// <summary>
+    /// Reads a keyed field's key and length: keys strictly ascending, the length within the payload
+    /// limit, and the field announced to a trace.
+    /// </summary>
+    private static int ReadFieldHeader(ref WireReader reader, ITypeContract description, ref int previousKey, out int payloadLength)
+    {
+        long fieldStart = reader.Position;
+        int key = reader.Read7BitEncodedInt("field key");
+        if (key == previousKey)
+            throw new BinaryFormatException($"Duplicate keyed field key {key}.");
+
+        if (key < previousKey)
+            throw new BinaryFormatException(
+                $"Keyed field key {key} follows key {previousKey}; fields must appear in ascending " +
+                "key order.");
+
+        previousKey = key;
+
+        ref var state = ref reader.State;
+        payloadLength = reader.ReadInt32();
+        if (!state.Phases.AdmitsPayload(payloadLength))
+            state.Phases.CheckPayload(payloadLength, $"Key {key} payload length");
+
+        if (state.Trace is { } trace)
+        {
+            int index = description.IndexOfKey(key);
+            if (index >= 0)
+                trace.Label(description.Members[index].Name);
+
+            trace.Field(key, payloadLength, fieldStart);
+        }
+
+        return key;
+    }
+
+    /// <summary>
+    /// Reads the members of a value built through a constructor into <paramref name="target"/>, the
+    /// values the constructor is then called with, through the values' accessor table: in order under a
+    /// positional layout, field by field under a keyed one, a field the description does not hold skipped.
+    /// </summary>
+    internal static void ReadValues<TValues>(
+        ref WireReader reader,
+        ITypeContract description,
+        Accessor<TValues>[] values,
+        ref TValues target,
+        bool nullFolded)
+    {
+        var trace = reader.State.Trace;
+
+        if (description.Layout == MemberLayout.Positional)
+        {
+            trace?.Shape(TraceShape.Object, values.Length);
+            for (int index = 0; index < values.Length; index++)
+            {
+                trace?.Label(description.Members[index].Name);
+                ReadEntry(ref reader, values[index], ref target, traced: trace is not null);
+            }
+
+            return;
+        }
+
+        var fieldCount = reader.ReadCount(CountKind.KeyedFields, "Keyed field count", nullFolded);
+        trace?.Shape(TraceShape.KeyedObject, fieldCount);
+
+        int previousKey = -1;
+        for (int i = 0; i < fieldCount; i++)
+        {
+            int key = ReadFieldHeader(ref reader, description, ref previousKey, out int payloadLength);
+            bool known = ReadField(reader.SliceField(key, payloadLength), description, values, key, ref target, traced: trace is not null);
+            trace?.EndField(known, reader.Position);
+        }
     }
 }

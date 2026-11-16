@@ -14,6 +14,13 @@ public delegate TMember MemberGetter<T, out TMember>(in T owner);
 /// <param name="value">The value read for the member.</param>
 public delegate void MemberSetter<T, in TMember>(ref T owner, TMember value);
 
+/// <summary>Creates an instance of <typeparamref name="T"/> from the values read for its members.</summary>
+/// <typeparam name="TValues">What the values were read into.</typeparam>
+/// <typeparam name="T">The type constructed.</typeparam>
+/// <param name="values">The values read; a member absent from a keyed payload keeps the value it started with.</param>
+/// <returns>The new instance.</returns>
+public delegate T MemberConstructor<TValues, out T>(ref TValues values);
+
 /// <summary>
 /// The members of a type contract as a table of typed accessors, which the serializer walks itself to
 /// write and read the members. A contract builds one entry per member, in the order of its description,
@@ -43,6 +50,22 @@ public sealed class MemberAccessors<T>
         ArgumentNullException.ThrowIfNull(set);
 
         _entries.Add(Accessor<T>.For(get, set));
+        return this;
+    }
+
+    /// <summary>
+    /// Adds the next member as one that is written but never assigned on read: a member a constructor
+    /// sets, of a contract that reads through <see cref="TypeContract{T}.UseConstructor"/>.
+    /// </summary>
+    /// <typeparam name="TMember">The member's type, exactly as the contract's description gives it.</typeparam>
+    /// <param name="get">Returns the member's value.</param>
+    /// <returns>This table, to add the next member to.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="get"/> is null.</exception>
+    public MemberAccessors<T> Member<TMember>(MemberGetter<T, TMember> get)
+    {
+        ArgumentNullException.ThrowIfNull(get);
+
+        _entries.Add(Accessor<T>.For(get, set: null));
         return this;
     }
 
