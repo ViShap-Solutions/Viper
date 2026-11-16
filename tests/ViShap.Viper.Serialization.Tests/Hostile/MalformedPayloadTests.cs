@@ -5,8 +5,9 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Hostile;
 
 /// <summary>
-/// Pins ENV-03, HST-11, HST-18 and HST-19: a payload that lies about its own shape is refused with a
-/// format error, and a declaration larger than the bytes behind it never drives an allocation.
+/// Pins ENV-03, HST-11, HST-18, HST-19 and HST-51: a payload that lies about its own shape is refused with a
+/// format error, a declaration larger than the bytes behind it never drives an allocation, and a time
+/// outside the range of its type is malformed rather than an argument error of the runtime.
 /// </summary>
 public class MalformedPayloadTests
 {
@@ -145,4 +146,42 @@ public class MalformedPayloadTests
     {
         writer.Write7BitEncodedInt(3_000_001);   // declares far more than the frame holds, plus one
     }));
+
+    // --- HST-51: a time outside the range of its type ------------------------------------------------
+
+    [Fact]
+    public void Deserialize_TimeValuesOutsideTheirRange_ThrowFormat()
+    {
+        var serializer = new BinarySerializer();
+        long utc = 1L << 62;
+
+        foreach (long binary in new[] { utc | (DateTime.MaxValue.Ticks + 1), DateTime.MaxValue.Ticks + 1, long.MaxValue })
+            Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<DateTime>(Frame(writer => writer.Write(binary))));
+
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<DateTimeOffset>(Frame(writer =>
+        {
+            writer.Write(DateTimeOffset.MaxValue.Ticks + 1);
+            writer.Write(0L);
+        })));
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<DateTimeOffset>(Frame(writer =>
+        {
+            writer.Write(0L);
+            writer.Write(TimeSpan.FromHours(15).Ticks);
+        })));
+
+        foreach (int day in new[] { -1, DateOnly.MaxValue.DayNumber + 1, int.MaxValue })
+            Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<DateOnly>(Frame(writer => writer.Write(day))));
+
+        foreach (long ticks in new[] { -1L, TimeSpan.TicksPerDay, long.MaxValue })
+            Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<TimeOnly>(Frame(writer => writer.Write(ticks))));
+
+        Assert.Throws<BinaryFormatException>(() => serializer.Deserialize<List<DateTime>>(Frame(writer =>
+        {
+            writer.Write((byte)3);
+            writer.Write(DateTime.UtcNow.ToBinary());
+            writer.Write(long.MaxValue);
+        })));
+    }
+
+    private static byte[] Frame(Action<BinaryWriter> write) => Wire.Frame(Wire.Payload(write));
 }

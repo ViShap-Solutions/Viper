@@ -1,0 +1,116 @@
+name: Viper fuzzing
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes per target
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  LIBFUZZER_DOTNET: https://github.com/Metalnem/libfuzzer-dotnet/releases/download/v2025.05.02.0904/libfuzzer-dotnet-ubuntu
+  SHARPFUZZ_VERSION: 2.3.0
+
+jobs:
+  fuzz:
+    name: Fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - primitives
+          - primitives-v0
+          - time-system
+          - numerics
+          - collections
+          - composites
+          - keyed
+          - union
+          - references
+          - absences
+          - primitives-crc32
+          - collections-deflate
+          - keyed-brotli
+          - deep-graph
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install SharpFuzz and libFuzzer
+        run: |
+          dotnet tool install --global SharpFuzz.CommandLine --version "$SHARPFUZZ_VERSION"
+          curl --fail --location --silent --show-error --output libfuzzer-dotnet "$LIBFUZZER_DOTNET"
+          chmod +x libfuzzer-dotnet
+
+      - name: Publish and instrument
+        run: |
+          dotnet publish tests/ViShap.Viper.Fuzz/ViShap.Viper.Fuzz.csproj --configuration Release --output fuzz-bin
+          sharpfuzz fuzz-bin/ViShap.Viper.Core.dll
+          sharpfuzz fuzz-bin/ViShap.Viper.Serialization.dll
+
+      - name: Fuzz
+        env:
+          VIPER_FUZZ_TARGET: ${{ matrix.target }}
+          MINUTES: ${{ github.event.inputs.minutes || '10' }}
+        run: |
+          mkdir -p work findings merged
+          cp tests/ViShap.Viper.Fuzz/Corpus/${{ matrix.target }}/* work/
+          ./libfuzzer-dotnet \
+            --target_path=dotnet \
+            --target_arg=fuzz-bin/ViShap.Viper.Fuzz.dll \
+            -max_total_time=$((MINUTES * 60)) \
+            -timeout=10 \
+            -rss_limit_mb=2048 \
+            -artifact_prefix=findings/ \
+            work
+
+      - name: Merge the corpus
+        if: always()
+        env:
+          VIPER_FUZZ_TARGET: ${{ matrix.target }}
+        run: |
+          ./libfuzzer-dotnet \
+            --target_path=dotnet \
+            --target_arg=fuzz-bin/ViShap.Viper.Fuzz.dll \
+            -merge=1 \
+            merged tests/ViShap.Viper.Fuzz/Corpus/${{ matrix.target }} work
+
+      - name: Upload the merged corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-${{ matrix.target }}
+          path: merged/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload the findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: findings-${{ matrix.target }}
+          path: findings/
+          if-no-files-found: ignore
+          retention-days: 90

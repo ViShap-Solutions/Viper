@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace ViShap.Viper.Checksum;
 
 /// <summary>Computes and verifies the payload checksum. Internal for the same reason as the other services.</summary>
@@ -30,7 +32,8 @@ internal sealed class ChecksumService(IChecksumAlgorithm algorithm)
 
     /// <summary>
     /// Checks <paramref name="expectedChecksum"/>, as the header recorded it, against the checksum of
-    /// <paramref name="rawPayload"/>. A payload without a checksum must record none.
+    /// <paramref name="rawPayload"/>. A payload without a checksum must record none. The two are compared
+    /// in time that does not depend on where they differ, so a keyed checksum reveals nothing through it.
     /// </summary>
     public static void Verify(
         IChecksumAlgorithm algorithm,
@@ -47,7 +50,7 @@ internal sealed class ChecksumService(IChecksumAlgorithm algorithm)
 
         algorithm.Compute(rawPayload, actual);
 
-        if (!actual.SequenceEqual(expectedChecksum))
+        if (!CryptographicOperations.FixedTimeEquals(actual, expectedChecksum))
             throw new BinaryIntegrityException(
                 "Checksum mismatch — the binary payload appears to be corrupted.");
     }

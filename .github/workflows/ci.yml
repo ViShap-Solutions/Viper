@@ -57,6 +57,19 @@ jobs:
           --no-restore
           --logger "trx;LogFileName=serialization-tests.trx"
 
+      - name: Run the mutation fuzzer at a longer budget
+        env:
+          VIPER_FUZZ_ITERATIONS: '5000'
+          VIPER_FUZZ_SEED: ${{ github.run_number }}
+        run: >
+          dotnet test
+          tests/ViShap.Viper.Serialization.Tests/ViShap.Viper.Serialization.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter "FullyQualifiedName~MutationFuzzTests"
+          --logger "trx;LogFileName=fuzz-tests.trx"
+
       - name: Run generator tests
         run: >
           dotnet test

@@ -46,7 +46,9 @@ public sealed record SerializationLimits
     /// <remarks>
     /// This is the bound that keeps a hostile payload from exhausting the stack: nesting is refused
     /// at the limit rather than followed until the process dies. It applies to reading and writing,
-    /// and to recursive containers such as a list of lists exactly as to recursive objects.
+    /// and to recursive containers such as a list of lists exactly as to recursive objects. A level
+    /// that the calling thread's remaining stack could not hold is refused in the same way, with
+    /// <see cref="Exceptions.BinaryLimitException"/>, before the limit is reached.
     /// </remarks>
     public int MaxDepth { get; init; } = 512;
 

@@ -3,14 +3,16 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Text;
+using ViShap.Viper.Diagnostics;
+using ViShap.Viper.Engine;
 using ViShap.Viper.Formatters;
 using ViShap.Viper.Serialization.Tests.Fixtures;
 
 namespace ViShap.Viper.Serialization.Tests.Hostile;
 
 /// <summary>
-/// Pins HST-46: keys a payload chooses to share a hash cannot make reading a hashed container
-/// quadratic. Every hashed container the engine creates for a built-in key type whose default hash is
+/// Pins HST-46 and HST-47: keys a payload chooses to share a hash cannot make reading a hashed container
+/// quadratic, and neither can the reference ids it declares. Every hashed container the engine creates for a built-in key type whose default hash is
 /// fixed is built with a comparer that hashes the whole value through a per-process seed, so keys that
 /// collide under the default hash land in different buckets, and equality stays the key type's own.
 /// </summary>
@@ -139,6 +141,55 @@ public class HashFloodingTests
         Assert.Equal(Keys, elements.Count);
         Assert.All(FoldedToZero, key => Assert.Contains(key, elements));
     }
+
+    // --- HST-47: reference ids ----------------------------------------------------------------------
+
+    /// <summary>
+    /// A reference-framed list of empty arrays whose first occurrences declare the ids
+    /// <paramref name="ids"/>: the list is id 0, then every element its own id and an empty count.
+    /// </summary>
+    private static byte[] ListDeclaring(int[] ids) =>
+        Wire.Frame(
+            Wire.Payload(writer =>
+            {
+                writer.Write(Wire.ReferenceFrame(0, back: false));
+                writer.Write7BitEncodedInt(ids.Length);
+                foreach (int id in ids)
+                {
+                    writer.Write(Wire.ReferenceFrame(id, back: false));
+                    writer.Write7BitEncodedInt(0);
+                }
+            }),
+            preserveReferences: true);
+
+    [Fact]
+    public void Deserialize_ReferenceIdsThatAreMultiplesOfTheBucketCount_SpreadsThem()
+    {
+        int[] ids = [.. Enumerable.Range(1, Keys).Select(x => x * Buckets)];
+        AssertOneDefaultBucket(ids);
+
+        var options = BinarySerializerOptions.Configure().PreserveReferences().Build();
+        var read = new BinarySerializer(options).Deserialize<List<int[]>>(ListDeclaring(ids))!;
+        Assert.Equal(Keys, read.Count);
+        Assert.Equal(Keys, BinaryFormatDumper.Dump<List<int[]>>(ListDeclaring(ids), options).Root!.Children.Count);
+
+        var table = ReadReferenceTable.Rent();
+        try
+        {
+            AssertSpread(ComparerOf<int, object>(table, "_visible"), ids);
+        }
+        finally
+        {
+            ReadReferenceTable.Return(table);
+        }
+
+        AssertSpread(ComparerOf<int, string>(new DumpTrace(), "_referencePaths"), ids);
+    }
+
+    private static IEqualityComparer<TKey> ComparerOf<TKey, TValue>(object owner, string field) where TKey : notnull =>
+        ((Dictionary<TKey, TValue>)owner.GetType()
+            .GetField(field, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(owner)!).Comparer;
 
     // --- every key type whose default hash a payload can steer ----------------------------------------
 

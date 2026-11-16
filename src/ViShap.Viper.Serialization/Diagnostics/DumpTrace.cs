@@ -17,7 +17,7 @@ internal sealed class DumpTrace : IWireTrace
 
     private readonly List<BinaryDumpNode> _open = [];
     private readonly List<long> _openFields = [];
-    private readonly Dictionary<int, string> _referencePaths = [];
+    private readonly Dictionary<int, string> _referencePaths = new(KeyComparer<int>.Instance);
     private readonly List<string> _openPaths = [];
     private string? _label;
     private bool _continue;

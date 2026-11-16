@@ -22,6 +22,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViShap.Viper.Generator", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViShap.Viper.Generator.Tests", "tests\ViShap.Viper.Generator.Tests\ViShap.Viper.Generator.Tests.csproj", "{36F63678-44D4-483D-9A58-E1913552081A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ViShap.Viper.Fuzz", "tests\ViShap.Viper.Fuzz\ViShap.Viper.Fuzz.csproj", "{BB6182EB-200C-4AC6-A1F4-14E6B7491447}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -126,6 +128,18 @@ Global
 		{36F63678-44D4-483D-9A58-E1913552081A}.Release|x64.Build.0 = Release|Any CPU
 		{36F63678-44D4-483D-9A58-E1913552081A}.Release|x86.ActiveCfg = Release|Any CPU
 		{36F63678-44D4-483D-9A58-E1913552081A}.Release|x86.Build.0 = Release|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Debug|x64.Build.0 = Debug|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Debug|x86.Build.0 = Debug|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Release|x64.ActiveCfg = Release|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Release|x64.Build.0 = Release|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Release|x86.ActiveCfg = Release|Any CPU
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -139,5 +153,6 @@ Global
 		{F05CECCF-16A6-4150-8FFF-1280814396F9} = {33861600-57B3-450C-9BD3-02A6E57CB1CD}
 		{AD1603B5-653F-4B58-90FC-963D66A9752A} = {B8701D43-62DA-4A71-A4B2-9CCAFBF40C08}
 		{36F63678-44D4-483D-9A58-E1913552081A} = {33861600-57B3-450C-9BD3-02A6E57CB1CD}
+		{BB6182EB-200C-4AC6-A1F4-14E6B7491447} = {33861600-57B3-450C-9BD3-02A6E57CB1CD}
 	EndGlobalSection
 EndGlobal

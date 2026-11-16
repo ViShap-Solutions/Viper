@@ -38,7 +38,9 @@ internal struct SerializationBudget(SerializationLimits limits)
 
     /// <summary>
     /// Enters one structural level. The returned scope restores the previous depth exactly once;
-    /// it is a <c>ref struct</c> over this budget, so entering a node costs no allocation.
+    /// it is a <c>ref struct</c> over this budget, so entering a node costs no allocation. A level the
+    /// thread's remaining stack could not hold is refused like a level past the limit, so no payload
+    /// reaches the end of the stack, whatever stack the calling thread was given.
     /// </summary>
     [UnscopedRef]
     public DepthScope EnterDepth()
@@ -47,6 +49,11 @@ internal struct SerializationBudget(SerializationLimits limits)
             throw new BinaryLimitException(
                 $"Nesting depth exceeds the configured limit of {Limits.MaxDepth} " +
                 $"({nameof(SerializationLimits.MaxDepth)}).");
+
+        if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
+            throw new BinaryLimitException(
+                $"Nesting depth {_depth + 1} is more than the stack of this thread can take; lower " +
+                $"{nameof(SerializationLimits.MaxDepth)} or give the thread a larger stack.");
 
         _depth++;
         return new DepthScope(ref this);
