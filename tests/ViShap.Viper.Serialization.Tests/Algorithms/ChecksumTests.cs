@@ -4,10 +4,11 @@ using ViShap.Viper.Serialization.Tests.Fixtures;
 namespace ViShap.Viper.Serialization.Tests.Algorithms;
 
 /// <summary>
-/// Pins CHK-02, CHK-04, CHK-08 and CHK-10: the built-in checksums round trip under their own
+/// Pins CHK-02, CHK-04, CHK-08, CHK-10 and CHK-11: the built-in checksums round trip under their own
 /// identifiers and resolve from the catalog, a checksum whose length does not match the algorithm the header names is malformed input, and
 /// requiring a checksum is a statement about the payload's metadata rather than a capability of the
-/// reader.
+/// reader; a recorded checksum that differs in any one byte is refused, and the comparison takes no
+/// shortcut at the first byte that differs.
 /// </summary>
 public class ChecksumTests
 {
@@ -178,6 +179,36 @@ public class ChecksumTests
 
         AssertEx.Throws<BinaryConfigurationException>(
             "between 1 and 255 bytes", () => Wide(0).Deserialize<int>(frame));
+    }
+
+    // --- CHK-11: the comparison is constant-time ---------------------------------------------------
+
+    [Fact]
+    public void Deserialize_ARecordedChecksumThatDiffersInAnyOneByte_ThrowsIntegrity()
+    {
+        var serializer = Wide(32);
+        byte[] recorded = Wire.ReadHeader(serializer.Serialize(42)).Checksum;
+
+        foreach (int position in new[] { 0, 1, 15, 30, 31 })
+        {
+            byte[] altered = [.. recorded];
+            altered[position] ^= 0x01;
+
+            byte[] frame = Wire.FrameWith(
+                Wire.Payload(writer => writer.Write(42)),
+                services: [Wire.ChecksumRecord((byte)ChecksumAlgorithm.Custom, altered, WideChecksum.RegisteredName)]);
+
+            Assert.Throws<BinaryIntegrityException>(() => serializer.Deserialize<int>(frame));
+        }
+    }
+
+    [Fact]
+    public void ChecksumService_ComparesTheHashesInConstantTime()
+    {
+        string service = SourceTree.ProductionFiles["ViShap.Viper.Serialization/Algorithms/ChecksumService.cs"];
+
+        Assert.Contains("CryptographicOperations.FixedTimeEquals(actual, expectedChecksum)", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("SequenceEqual", service, StringComparison.Ordinal);
     }
 
     private static BinarySerializer Wide(int checksumBytes) =>

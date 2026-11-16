@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ViShap.Viper.Core\ViShap.Viper.Core.csproj" />
+    <ProjectReference Include="..\..\src\ViShap.Viper.Serialization\ViShap.Viper.Serialization.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpFuzz" Version="2.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="ViShap.Viper" />
+    <Using Include="ViShap.Viper.Exceptions" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Hostile\Fuzz\FuzzTargets.cs" Link="Targets\FuzzTargets.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Hostile\Fuzz\FuzzCatalog.cs" Link="Targets\FuzzCatalog.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Compatibility.cs" Link="Fixtures\Compatibility.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Wire.cs" Link="Fixtures\Wire.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Streams.cs" Link="Fixtures\Streams.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\ChunkedPipeReader.cs" Link="Fixtures\ChunkedPipeReader.cs" />
+    <Compile Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Sequences.cs" Link="Fixtures\Sequences.cs" />
+    <None Include="..\ViShap.Viper.Serialization.Tests\Fixtures\Wire\*.bin" Link="Fixtures\Wire\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

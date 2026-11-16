@@ -92,7 +92,12 @@ internal sealed class ReadReferenceTable
     [ThreadStatic]
     private static ReadReferenceTable? s_cached;
 
-    private readonly Dictionary<int, object> _visible = [];
+    /// <summary>
+    /// The visible objects by the id their first occurrence declared. A payload chooses those ids, so
+    /// they are hashed through the per-process seed of <see cref="KeyComparer{T}"/> and cannot be made
+    /// to share a bucket.
+    /// </summary>
+    private readonly Dictionary<int, object> _visible = new(KeyComparer<int>.Instance);
     private readonly List<int> _registered = [];
     private readonly List<int> _scopeStarts = [];
 

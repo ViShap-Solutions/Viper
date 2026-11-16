@@ -137,16 +137,18 @@ dotnet add package ViShap.Viper
 │   ├── 📁 ViShap.Viper.Serialization.Tests     round trips, wire format, limits, hostile input, frozen v1.0.0 fixtures,
 │   │                                           the public surface and every example of the documentation
 │   ├── 📁 ViShap.Viper.Generator.Tests         emitted code, diagnostics, bytes identical to the reflection path
-│   └── 📁 ViShap.Viper.AotConsumer             an application published with native AOT in CI
+│   ├── 📁 ViShap.Viper.AotConsumer             an application published with native AOT in CI
+│   └── 📁 ViShap.Viper.Fuzz                    coverage-guided fuzzing targets of the read path and their corpus
 │
 ├── 📁 benchmarks
 │   └── 📁 ViShap.Viper.Serialization.Benchmarks  BenchmarkDotNet suites, against other .NET serializers too
 │
 ├── 📁 docs                                     the documentation, one page per subject
-├── 📁 .github/workflows                        CI on every pull request, CD to NuGet on a version tag
+├── 📁 .github/workflows                        CI on every pull request, nightly fuzzing, CD to NuGet on a version tag
 │
 ├── 🖼️ icon.png
 ├── ⚖️ LICENSE
+├── 🛡️ SECURITY.md
 ├── 🧩 Viper.sln
 └── 📝 README.md
 ```
