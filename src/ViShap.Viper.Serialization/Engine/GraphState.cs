@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace ViShap.Viper.Engine;
 
@@ -13,6 +14,9 @@ internal struct GraphState
 {
     private const int FirstAncestorCapacity = 16;
 
+    private const int NearAncestors = 8;
+
+    private Near _near;
     private object?[]? _ancestors;
     private int _ancestorCount;
 
@@ -58,6 +62,9 @@ internal struct GraphState
             _ancestors = null;
         }
 
+        if (_ancestorCount > 0)
+            _near = default;
+
         _ancestorCount = 0;
         DetectsCycles = false;
     }
@@ -70,24 +77,44 @@ internal struct GraphState
     /// </summary>
     public void PushAncestor(object value)
     {
-        for (int index = 0; index < _ancestorCount; index++)
+        int near = Math.Min(_ancestorCount, NearAncestors);
+        for (int index = 0; index < near; index++)
         {
-            if (ReferenceEquals(_ancestors![index], value))
-                throw new BinaryTypeException(
-                    $"Circular reference detected while serializing '{value.GetType()}' — an object of " +
-                    "this type refers back to an ancestor already being written. Enable " +
-                    "BinarySerializerOptions.Configure().PreserveReferences(), break the cycle, or " +
-                    "exclude one side with [BinaryIgnore].");
+            if (ReferenceEquals(_near[index], value))
+                throw Cycle(value);
         }
 
-        if (_ancestors is null || _ancestorCount == _ancestors.Length)
+        for (int index = NearAncestors; index < _ancestorCount; index++)
+        {
+            if (ReferenceEquals(_ancestors![index - NearAncestors], value))
+                throw Cycle(value);
+        }
+
+        if (_ancestorCount < NearAncestors)
+        {
+            _near[_ancestorCount++] = value;
+            return;
+        }
+
+        if (_ancestors is null || _ancestorCount - NearAncestors == _ancestors.Length)
             GrowAncestors();
 
-        _ancestors![_ancestorCount++] = value;
+        _ancestors![_ancestorCount++ - NearAncestors] = value;
     }
 
-    /// <summary>Leaves the value entered last.</summary>
-    public void PopAncestor() => _ancestors![--_ancestorCount] = null;
+    public void PopAncestor()
+    {
+        if (--_ancestorCount < NearAncestors)
+            _near[_ancestorCount] = null;
+        else
+            _ancestors![_ancestorCount - NearAncestors] = null;
+    }
+
+    private static BinaryTypeException Cycle(object value) =>
+        new($"Circular reference detected while serializing '{value.GetType()}' — an object of " +
+            "this type refers back to an ancestor already being written. Enable " +
+            "BinarySerializerOptions.Configure().PreserveReferences(), break the cycle, or " +
+            "exclude one side with [BinaryIgnore].");
 
     private void GrowAncestors()
     {
@@ -96,10 +123,17 @@ internal struct GraphState
 
         if (_ancestors is not null)
         {
-            _ancestors.AsSpan(0, _ancestorCount).CopyTo(grown);
+            _ancestors.AsSpan(0, _ancestorCount - NearAncestors).CopyTo(grown);
             ArrayPool<object?>.Shared.Return(_ancestors, clearArray: true);
         }
 
         _ancestors = grown;
+    }
+
+    /// <summary>The first ancestors of the current path, held in the state itself, so a shallow write rents nothing.</summary>
+    [InlineArray(NearAncestors)]
+    private struct Near
+    {
+        private object? _element;
     }
 }

@@ -105,4 +105,40 @@ public class CycleDetectionTests
 
         Assert.Equal("0", _serializer.Deserialize<Cyclic>(_serializer.Serialize(value))!.Name);
     }
+
+    [Theory]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(17)]
+    public void Serialize_ACycleClosingOnEitherSideOfTheFirstAncestors_ThrowsType(int length)
+    {
+        var toRoot = Chain(length, out var last);
+        last.Next = toRoot;
+
+        var toMiddle = Chain(length, out var tail);
+        var middle = toMiddle;
+        for (int index = 0; index < length / 2; index++)
+            middle = middle.Next!;
+        tail.Next = middle;
+
+        AssertEx.Throws<BinaryTypeException>(Diagnostic, () => _serializer.Serialize(toRoot));
+        AssertEx.Throws<BinaryTypeException>(Diagnostic, () => _serializer.Serialize(toMiddle));
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(12)]
+    public void Serialize_TheSameObjectsAfterTheirCycleWasRefused_IsNotRefused(int length)
+    {
+        var root = Chain(length, out var last);
+        last.Next = root;
+        Assert.Throws<BinaryTypeException>(() => _serializer.Serialize(root));
+
+        last.Next = null;
+
+        Assert.Equal("0", _serializer.Deserialize<Cyclic>(_serializer.Serialize(root))!.Name);
+    }
 }

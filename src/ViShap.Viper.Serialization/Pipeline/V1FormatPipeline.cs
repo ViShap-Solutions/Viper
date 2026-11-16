@@ -26,7 +26,7 @@ internal sealed class V1FormatPipeline(
 
     public EncodedFrame Write<T>(T data, ref OperationState state)
     {
-        var payload = new PayloadBuffer(state.Limits.MaxPayloadBytes, "payload");
+        var payload = PayloadBuffer.Rent(state.Limits.MaxPayloadBytes, "payload");
         try
         {
             var writer = new WireWriter(payload, ref state);
@@ -42,16 +42,7 @@ internal sealed class V1FormatPipeline(
             state.Phases.CheckCompressed(length, "Compressed payload length");
             state.Phases.CheckEncrypted(length, "On-disk payload length");
 
-            var headerBytes = WriteHeader(Header(ref state, [], uncompressedLength: 0, onDiskLength: length), ref state);
-            try
-            {
-                return EncodedFrame.Of(headerBytes, payload, state.Limits.MaxWireBytes);
-            }
-            catch
-            {
-                headerBytes.Dispose();
-                throw;
-            }
+            return EncodedFrame.OfPlain(state.PreserveReferences, payload, state.Limits.MaxWireBytes);
         }
         catch
         {
@@ -188,7 +179,7 @@ internal sealed class V1FormatPipeline(
 
     private static PayloadBuffer WriteHeader(in BinaryFormatHeaderV1 header, ref OperationState state)
     {
-        var headerBytes = new PayloadBuffer(state.Limits.MaxWireBytes, "wire");
+        var headerBytes = PayloadBuffer.Rent(state.Limits.MaxWireBytes, "wire");
         try
         {
             var writer = new WireWriter(headerBytes, ref state);
@@ -313,6 +304,26 @@ internal sealed class V1FormatPipeline(
         out int headerLength,
         out PayloadPhases phases)
     {
+        if (BinaryFormatHeaderV1.TryReadPlain(prefix, out var plain, out headerLength))
+        {
+            plain.CheckLengths(state.Limits);
+
+            if (state.RequireEncryption)
+                throw new BinaryIntegrityException(
+                    "The payload is not encrypted, but this serializer requires encrypted input.");
+
+            if (state.RequireChecksum)
+                throw new BinaryIntegrityException(
+                    "The payload carries no checksum, but this serializer requires one.");
+
+            CheckOnDiskLength(plain, headerLength, available, budget);
+            phases = new PayloadPhases(
+                catalog.ResolveCompression(CompressionAlgorithm.None, null),
+                catalog.ResolveChecksum(ChecksumAlgorithm.None, null),
+                catalog.ResolveEncryption(EncryptionAlgorithm.None, null));
+            return plain;
+        }
+
         var headerReader = new WireReader(prefix, ref state, budget);
         var header = BinaryFormatHeaderV1.ReadFrom(ref headerReader);
         headerLength = (int)headerReader.Consumed;

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 
@@ -21,6 +22,8 @@ internal readonly struct EncodedFrame : IDisposable
     private readonly PayloadBuffer? _payload;
     private readonly RentedBytes _body;
     private readonly SealedBody _sealed;
+    private readonly PlainHeader _plain;
+    private readonly int _plainLength;
 
     private EncodedFrame(PayloadBuffer? header, PayloadBuffer? payload, RentedBytes body, SealedBody sealedBody)
     {
@@ -29,6 +32,27 @@ internal readonly struct EncodedFrame : IDisposable
         _body = body;
         _sealed = sealedBody;
     }
+
+    private EncodedFrame(in PlainHeader plain, int plainLength, PayloadBuffer payload)
+    {
+        _plain = plain;
+        _plainLength = plainLength;
+        _payload = payload;
+    }
+
+    /// <summary>
+    /// A versioned frame with no service record. Its header is a handful of bytes that depend only on the
+    /// payload mode and the payload's length, so the frame holds them itself rather than in a buffer.
+    /// </summary>
+    public static EncodedFrame OfPlain(bool preserveReferences, PayloadBuffer payload, long maxWireBytes)
+    {
+        var plain = default(PlainHeader);
+        int length = BinaryFormatHeaderV1.WritePlain(plain, preserveReferences, checked((int)payload.Length));
+        return Checked(new EncodedFrame(plain, length, payload), maxWireBytes);
+    }
+
+    [UnscopedRef]
+    private ReadOnlySpan<byte> Plain => ((ReadOnlySpan<byte>)_plain)[.._plainLength];
 
     /// <summary>
     /// A frame of <paramref name="header"/> and <paramref name="payload"/>, or of
@@ -57,7 +81,7 @@ internal readonly struct EncodedFrame : IDisposable
         Checked(new EncodedFrame(header, payload: null, default, body), maxWireBytes);
 
     /// <summary>The number of bytes in the frame.</summary>
-    public long Length => (_header?.Length ?? 0) + (_payload?.Length ?? 0) + _body.Length + _sealed.Length;
+    public long Length => _plainLength + (_header?.Length ?? 0) + (_payload?.Length ?? 0) + _body.Length + _sealed.Length;
 
     /// <summary>Copies the frame into a new array of exactly its length.</summary>
     public byte[] ToArray()
@@ -70,6 +94,9 @@ internal readonly struct EncodedFrame : IDisposable
     /// <summary>Copies the frame into the first <see cref="Length"/> bytes of <paramref name="destination"/>.</summary>
     public void CopyTo(Span<byte> destination)
     {
+        Plain.CopyTo(destination);
+        destination = destination[_plainLength..];
+
         if (_header is not null)
         {
             _header.CopyTo(destination);
@@ -101,6 +128,7 @@ internal readonly struct EncodedFrame : IDisposable
 
         try
         {
+            destination.Write(Plain);
             _header?.WriteTo(destination);
             _payload?.WriteTo(destination);
             destination.Write(_body.Span);
@@ -137,6 +165,9 @@ internal readonly struct EncodedFrame : IDisposable
 
         try
         {
+            if (_plainLength > 0)
+                await WritePlainAsync(destination, cancellationToken).ConfigureAwait(false);
+
             if (_header is not null)
                 await _header.WriteToAsync(destination, cancellationToken).ConfigureAwait(false);
 
@@ -205,6 +236,7 @@ internal readonly struct EncodedFrame : IDisposable
             return;
         }
 
+        PayloadBuffer.CopyInto(destination, Plain);
         _header?.WriteTo(destination);
         _payload?.WriteTo(destination);
         PayloadBuffer.CopyInto(destination, _body.Span);
@@ -282,6 +314,34 @@ internal readonly struct EncodedFrame : IDisposable
         {
             throw new BinaryStreamException("Failed to flush wire data to the underlying stream.", ex);
         }
+    }
+
+    /// <summary>Writes the inline header to a stream from a pooled copy, which an awaited write needs.</summary>
+    private ValueTask WritePlainAsync(Stream destination, CancellationToken cancellationToken)
+    {
+        byte[] copy = ArrayPool<byte>.Shared.Rent(_plainLength);
+        Plain.CopyTo(copy);
+        return Write(destination, copy, _plainLength, cancellationToken);
+
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+        static async ValueTask Write(Stream destination, byte[] copy, int length, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await destination.WriteAsync(copy.AsMemory(0, length), cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(copy, clearArray: true);
+            }
+        }
+    }
+
+    /// <summary>The bytes of a header with no service record, at most <see cref="BinaryFormatHeaderV1.PlainMaxLength"/>.</summary>
+    [InlineArray(BinaryFormatHeaderV1.PlainMaxLength)]
+    private struct PlainHeader
+    {
+        private byte _element;
     }
 
     private static EncodedFrame Checked(EncodedFrame frame, long maxWireBytes) =>
