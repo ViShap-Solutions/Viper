@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace ViShap.Viper.Engine;
 
@@ -58,9 +59,18 @@ internal struct ElementBuffer<T> : IDisposable
 /// <summary>The engine's loops over the elements of an array, in both directions.</summary>
 internal static class Elements
 {
-    /// <summary>Writes each element as a framed value of its declared type.</summary>
+    /// <summary>
+    /// Writes each element as a framed value of its declared type. Elements whose encoding is their own
+    /// little-endian bytes (<see cref="RawElements{T}"/>) are written as one block.
+    /// </summary>
     public static void Write<T>(ref WireWriter writer, ReadOnlySpan<T> elements)
     {
+        if (RawElements<T>.IsRaw && RawElements<T>.TryAsBytes(elements, out var bytes))
+        {
+            writer.Write(bytes);
+            return;
+        }
+
         var codec = FormatterCache<T>.Instance;
         foreach (var element in elements)
             codec.Write(ref writer, element);
@@ -84,6 +94,12 @@ internal static class Elements
         if (count.IsBackedBy(Unsafe.SizeOf<T>(), reader.Remaining))
         {
             var array = new T[count.Value];
+            if (RawElements<T>.IsRaw && trace is null && RawElements<T>.TryAsWritableBytes(array, out var bytes))
+            {
+                reader.ReadExact(bytes, typeof(T).Name);
+                return array;
+            }
+
             for (int i = 0; i < array.Length; i++)
             {
                 trace?.LabelIndex(i);
@@ -147,5 +163,50 @@ internal static class Elements
             throw new BinaryFormatException(
                 $"{what} declares {declared}, but '{declaredType}' materialized {materialized} — a " +
                 "duplicate key or element is not admitted.");
+    }
+}
+
+/// <summary>
+/// Whether the elements of <typeparamref name="T"/> are encoded as their own bytes in memory: a
+/// fixed-width number or a character, whose formatter writes it little-endian with no check on read,
+/// on a little-endian machine. A span of them is then the same bytes as the elements written one by one.
+/// </summary>
+internal static class RawElements<T>
+{
+    public static readonly bool IsRaw =
+        BitConverter.IsLittleEndian &&
+        (typeof(T) == typeof(byte) || typeof(T) == typeof(sbyte) ||
+         typeof(T) == typeof(short) || typeof(T) == typeof(ushort) || typeof(T) == typeof(char) ||
+         typeof(T) == typeof(int) || typeof(T) == typeof(uint) ||
+         typeof(T) == typeof(long) || typeof(T) == typeof(ulong) ||
+         typeof(T) == typeof(float) || typeof(T) == typeof(double));
+
+    /// <summary>The bytes of <paramref name="elements"/>, when their length fits a span.</summary>
+    public static bool TryAsBytes(ReadOnlySpan<T> elements, out ReadOnlySpan<byte> bytes)
+    {
+        long length = (long)elements.Length * Unsafe.SizeOf<T>();
+        if (length > int.MaxValue)
+        {
+            bytes = default;
+            return false;
+        }
+
+        bytes = MemoryMarshal.CreateReadOnlySpan(
+            ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(elements)), (int)length);
+        return true;
+    }
+
+    /// <summary>The bytes of <paramref name="elements"/>, to read into, when their length fits a span.</summary>
+    public static bool TryAsWritableBytes(Span<T> elements, out Span<byte> bytes)
+    {
+        long length = (long)elements.Length * Unsafe.SizeOf<T>();
+        if (length > int.MaxValue)
+        {
+            bytes = default;
+            return false;
+        }
+
+        bytes = MemoryMarshal.CreateSpan(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(elements)), (int)length);
+        return true;
     }
 }
