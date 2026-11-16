@@ -224,9 +224,18 @@ internal sealed class V1FormatPipeline(
         out long consumed)
     {
         var budget = WireBudget(ref state);
-        var header = ReadHeader(
-            HeaderPrefix(source, budget), source.Length, budget, ref state,
-            out int headerLength, out var phases);
+        var prefix = HeaderPrefix(source, budget);
+
+        if (BinaryFormatHeaderV1.TryReadPlain(prefix, out var plain, out int plainLength))
+        {
+            CheckPlain(plain, plainLength, source.Length, budget, ref state);
+            consumed = plainLength + (long)plain.OnDiskLength;
+
+            var reader = new WireReader(source.Slice(plainLength, plain.OnDiskLength), ref state);
+            return DecodePayload(ref reader, target, plain.PreserveReferences);
+        }
+
+        var header = ReadHeader(prefix, source.Length, budget, ref state, out int headerLength, out var phases);
 
         consumed = headerLength + (long)header.OnDiskLength;
 
@@ -306,17 +315,7 @@ internal sealed class V1FormatPipeline(
     {
         if (BinaryFormatHeaderV1.TryReadPlain(prefix, out var plain, out headerLength))
         {
-            plain.CheckLengths(state.Limits);
-
-            if (state.RequireEncryption)
-                throw new BinaryIntegrityException(
-                    "The payload is not encrypted, but this serializer requires encrypted input.");
-
-            if (state.RequireChecksum)
-                throw new BinaryIntegrityException(
-                    "The payload carries no checksum, but this serializer requires one.");
-
-            CheckOnDiskLength(plain, headerLength, available, budget);
+            CheckPlain(plain, headerLength, available, budget, ref state);
             phases = new PayloadPhases(
                 catalog.ResolveCompression(CompressionAlgorithm.None, null),
                 catalog.ResolveChecksum(ChecksumAlgorithm.None, null),
@@ -359,6 +358,31 @@ internal sealed class V1FormatPipeline(
     /// Two-phase framing: the declared size is compared with the configured maximum and with the
     /// bytes that can still arrive before a buffer is allocated for it or its bytes are waited for.
     /// </summary>
+    /// <summary>
+    /// Holds a header with no service record to what <see cref="ReadHeader"/> holds every header to, in
+    /// the same order: its declared lengths against the limits, the integrity the serializer requires,
+    /// and its payload against the bytes that can still arrive.
+    /// </summary>
+    private static void CheckPlain(
+        in BinaryFormatHeaderV1 header,
+        int headerLength,
+        long available,
+        WireBudget budget,
+        ref OperationState state)
+    {
+        header.CheckLengths(state.Limits);
+
+        if (state.RequireEncryption)
+            throw new BinaryIntegrityException(
+                "The payload is not encrypted, but this serializer requires encrypted input.");
+
+        if (state.RequireChecksum)
+            throw new BinaryIntegrityException(
+                "The payload carries no checksum, but this serializer requires one.");
+
+        CheckOnDiskLength(header, headerLength, available, budget);
+    }
+
     private static void CheckOnDiskLength(
         in BinaryFormatHeaderV1 header,
         int headerLength,

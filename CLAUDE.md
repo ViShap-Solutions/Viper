@@ -123,7 +123,7 @@ weakened and the public surface only grown. Features not taken into a release st
 
 The public API is fully XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside
 the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing
-the exported surface with the generated XML file. The suite is 2 394 tests, and the generator's 46,
+the exported surface with the generated XML file. The suite is 2 399 tests, and the generator's 46,
 green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
@@ -228,7 +228,7 @@ The shapes and the codecs are deliberately `internal` for v1.0; publishing them 
 
 ### Versioned envelope
 
-`BinarySerializer` builds one pipeline per supported version. Writing uses `options.WriteVersion` (default `BinaryFormatConstants.LatestVersion` = 1). Reading a V1 payload is *self-describing*: `FormatRouter` decodes magic `0x52455342` + the varint version from the bytes the source has already delivered and dispatches — nothing is read twice and no source rewinds; bytes without the magic are read as V0 only when `AllowV0Fallback` is set, and are otherwise rejected rather than guessed at. Every source is read from memory: a stream or a pipe is buffered by `Pipeline/FrameReader` exactly as far as the frame extends — the identifying bytes, then as much of the header as `BinaryFormatHeaderV1.TryMeasure` says it holds, then the rest of the declared frame — so **any stream is read, seekable or not**, and nothing past the frame is taken. A span or a sequence without a bytes-consumed form must be exactly one frame. Asynchronous methods await only the frame's bytes (reading) or the output (writing); the engine never awaits.
+`BinarySerializer` builds one pipeline per supported version. Writing uses `options.WriteVersion` (default `BinaryFormatConstants.LatestVersion` = 1). Reading a V1 payload is *self-describing*: the magic `0x52455342` + the varint version are decoded from the bytes the source has already delivered, a version 1 frame goes straight to the V1 pipeline, whose frame with no service record is read by a short path that applies the general reader's checks, and `FormatRouter` dispatches everything else — nothing is read twice and no source rewinds; bytes without the magic are read as V0 only when `AllowV0Fallback` is set, and are otherwise rejected rather than guessed at. Every source is read from memory: a stream or a pipe is buffered by `Pipeline/FrameReader` exactly as far as the frame extends — the identifying bytes, then as much of the header as `BinaryFormatHeaderV1.TryMeasure` says it holds, then the rest of the declared frame — so **any stream is read, seekable or not**, and nothing past the frame is taken. A span or a sequence without a bytes-consumed form must be exactly one frame. Asynchronous methods await only the frame's bytes (reading) or the output (writing); the engine never awaits.
 
 V0 and V1 are peers with different jobs, not a current format and a deprecated one — see `internal/System-Contract.md` §10.
 
@@ -311,7 +311,8 @@ Key material is a `SecretKey` (always an owned copy) obtained from an `IKeyProvi
   reasoning behind a decision belong in `internal/`.
 - The repository owner makes every commit. Never commit, push, or open a PR. Leave finished work in
   the working tree and report the changed paths.
-- Whenever the work reaches a natural commit point — a QA-plan section or stage closed, a defect
-  fixed, a session wrapped up — end the report with a ready commit message in English. Keep it
-  terse, as the history is: one subject line, optionally a short clause after a dash naming the
-  consequence. No body, no bullet list, no trailer. The detail belongs in the report and in `internal/`.
+- Whenever the work reaches a natural commit point — a QA-plan section or stage closed, a defect fixed,
+  a session wrapped up — end the report with a ready commit message in English. Keep it terse, as the
+  history is: one subject line, optionally a short clause after a comma or a colon (never an em or en
+  dash) naming the consequence. No body, no bullet list, no trailer. The detail belongs in the report
+  and in `internal/`.
