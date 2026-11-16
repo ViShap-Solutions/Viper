@@ -23,7 +23,7 @@ dotnet run --project benchmarks/ViShap.Viper.Serialization.Benchmarks --configur
 
 CI (`.github/workflows/ci.yml`) runs restore → build → the serialization and generator test projects on every PR and push to `main`, `release/**` and `support/**`, and a `native-aot` job that publishes `tests/ViShap.Viper.AotConsumer` with native AOT on Linux (clang, zlib1g-dev), fails on any trimming or AOT warning, runs it and compares its output with the JIT run's. Locally on Windows the publish needs the Visual Studio C++ tools: `dotnet publish tests/ViShap.Viper.AotConsumer -c Release -r win-x64`. CD (`cd.yml`) fires on `v*` tags: a stable `vX.Y.Z` must point exactly at `origin/main` HEAD; a pre-release `vX.Y.Z-alpha.N`, `-beta.N` or `-rc.N` must point at a commit on a `release/*` branch of origin, and is refused once `vX.Y.Z` exists. It packs all four packages with `-p:Version=<tag minus v>` and pushes them to NuGet. Version comes solely from the tag — no version properties in the `.csproj` files.
 
-Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_conformance_auditor`, `viper_refactorer`); follow it for anything about how work moves through the repository.
+Branches, tags, the release cycle, SemVer rules, fixture freezing and benchmark baselines are defined in `internal/Development-Workflow.md` (Russian). It binds the owner, every agent and every skill (`viper_engine`, `viper_tester`, `viper_bencher`, `viper_auditor`, `viper_auditor_next`, `viper_conformance_auditor`, `viper_refactorer`); follow it for anything about how work moves through the repository.
 
 ## Where the authoritative information lives
 
@@ -73,6 +73,9 @@ system). Where a historical document and the contract disagree, the contract is 
   would cost under SemVer. Nothing here is decided; an idea becomes work only through a plan.
 - `internal/Benchmark-Graceful-Stop.md` — *plan.* A decided backlog item for the benchmark harness,
   done in `rc.2` (P6).
+- `internal/v1.1/V1.1-Plan.md` — *plan.* The plan of `v1.1.0`: the rules of the release (§0), the
+  inventory of what is in and out (§1), the owner's decisions E1–E6 (§2) and the stages V0–V11 with
+  their gates and Progress table (§3, §5). The `viper_engine` skill works it.
 - `internal/rc2/` — the work before `v1.0.0`. `RC2-Plan.md`, `Native-AOT-Design.md` and
   `Audit-Brief.md` — *plan*: the plan of `rc.2` with the owner's decisions and its Progress table, the
   approved design of native AOT through the context, and the brief of the `rc.2` conformance audit.
@@ -107,20 +110,21 @@ system). Where a historical document and the contract disagree, the contract is 
 - Operational besides the workflow: this file, `internal/README.md`, the skills under
   `.claude/skills/`, the package READMEs and `docs/`.
 
-Current state: `src/` matches the contract. The architecture rework, its reconciliation, the consumer
-documentation, the release conformance audit and its closure check (R9e) are done, and `v1.0.0-rc.1` is
-tagged. The work before `v1.0.0` is `internal/rc2/RC2-Plan.md`: the public type-contract seam and the
-source generator (P1–P4), the generator profile, the engine fast path and native AOT through the context
-(P4a–P4d), the executable examples (P5f), the Track B adapters and the graceful stop of the harness (P6)
-and the documentation (P7) are done. The audit of `rc.2` (P8), run by `viper_conformance_auditor` from its
-brief `internal/rc2/Audit-Brief.md`, wrote `internal/rc2/Audit-Conformance.md` with findings RC2-01…RC2-13,
-fixed on two `bugfix/rc2-audit-*` branches; its closure session found RC2-14…RC2-16 and fixed and
-closed them on `audit/rc2-closure`; `v1.0.0-rc.2` is tagged at `fdd4c30` and published, and the release
-of `v1.0.0` — `release/v1.0.0` into `main`, then the tag — is the owner's next step. The other additive
-features were deferred past `v1.0.0` into `internal/ideas/`. The public API is fully
-XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside the assemblies. CS1591
-stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing the exported surface
-with the generated XML file. The suite is 2 322 tests, and the generator's 46, green in Debug and Release.
+Current state: `src/` matches the contract. `v1.0.0` was released on 2026-10-26 from the plan of
+`internal/rc2/RC2-Plan.md`, whose stages, audit and closure are done; `v1.0.1` and `v1.0.2` are
+documentation and metadata patches, and `v1.0.3` reads hashed containers with a seeded comparer for
+built-in key types (Q16 of `internal/QA-Plan.md`). The Track A baseline of `v1.0.0` is
+`benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/v1.0.0/`; Track B is deferred by the owner. The open work is `v1.1.0`, on
+`release/v1.1.0`, planned in `internal/v1.1/V1.1-Plan.md` and executed by the `viper_engine` skill: an
+engine release that removes the machinery around the engine's checks — the frame, the call, the
+per-member dispatch (`internal/performance/PERF-13`) — with no byte on the wire changed, no guarantee
+weakened and the public surface only grown. Features not taken into a release stay in
+`internal/ideas/`.
+
+The public API is fully XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside
+the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing
+the exported surface with the generated XML file. The suite is 2 322 tests, and the generator's 46,
+green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
 what it takes, what it returns, which exception it raises. It never cites `internal/System-Contract.md` and
