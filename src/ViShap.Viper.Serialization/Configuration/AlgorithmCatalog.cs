@@ -40,10 +40,15 @@ internal sealed class AlgorithmCatalog
                 checksum.ToFrozenDictionary(StringComparer.Ordinal),
                 encryption.ToFrozenDictionary(StringComparer.Ordinal));
 
+    // The pass-throughs hold no state, so one of each serves every read through this catalog.
+    private readonly NoCompression _noCompression = new();
+    private readonly NoChecksum _noChecksum = new();
+    private readonly NoEncryption _noEncryption = new();
+
     public ICompressionAlgorithm ResolveCompression(CompressionAlgorithm kind, string? customName) =>
         kind switch
         {
-            CompressionAlgorithm.None => new NoCompression(),
+            CompressionAlgorithm.None => _noCompression,
             CompressionAlgorithm.Deflate => new DeflateCompression(),
             CompressionAlgorithm.Brotli => new BrotliCompression(),
             CompressionAlgorithm.Custom => ResolveCustom(_compression, customName, "compression"),
@@ -54,7 +59,7 @@ internal sealed class AlgorithmCatalog
     public IChecksumAlgorithm ResolveChecksum(ChecksumAlgorithm kind, string? customName) =>
         kind switch
         {
-            ChecksumAlgorithm.None => new NoChecksum(),
+            ChecksumAlgorithm.None => _noChecksum,
             ChecksumAlgorithm.Crc32 => new Crc32Checksum(),
             ChecksumAlgorithm.XxHash3 => new XxHash3Checksum(),
             ChecksumAlgorithm.XxHash128 => new XxHash128Checksum(),
@@ -66,7 +71,7 @@ internal sealed class AlgorithmCatalog
     public IEncryptionAlgorithm ResolveEncryption(EncryptionAlgorithm kind, string? customName) =>
         kind switch
         {
-            EncryptionAlgorithm.None => new NoEncryption(),
+            EncryptionAlgorithm.None => _noEncryption,
             EncryptionAlgorithm.Aes256Gcm => new Aes256GcmEncryption(),
             EncryptionAlgorithm.ChaCha20Poly1305 => SupportedChaCha20Poly1305(),
             EncryptionAlgorithm.Custom => ResolveCustom(_encryption, customName, "encryption"),

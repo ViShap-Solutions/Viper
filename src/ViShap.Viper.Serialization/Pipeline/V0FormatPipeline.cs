@@ -30,7 +30,7 @@ internal sealed class V0FormatPipeline : IFormatPipeline
     public EncodedFrame Write<T>(T data, ref OperationState state)
     {
         var budget = Budget(ref state);
-        var payload = new PayloadBuffer(budget.Maximum, budget.Resource);
+        var payload = PayloadBuffer.Rent(budget.Maximum, budget.Resource);
         try
         {
             var writer = new WireWriter(payload, ref state);

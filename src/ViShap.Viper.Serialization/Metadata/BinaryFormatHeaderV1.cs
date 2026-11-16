@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -45,6 +46,12 @@ internal readonly record struct BinaryFormatHeaderV1(
     /// needs more of the source than this.
     /// </summary>
     public const int MaxLength = 4096;
+
+    /// <summary>
+    /// The most bytes the header of a frame with no service record occupies: the magic, the version, the
+    /// payload mode, a service count of zero and a five-byte <see cref="OnDiskLength"/>.
+    /// </summary>
+    public const int PlainMaxLength = MagicLength + 3 + 5;
 
     /// <summary>The service number of the checksum, an annotation.</summary>
     public const int ChecksumService = 1;
@@ -201,6 +208,78 @@ internal readonly record struct BinaryFormatHeaderV1(
     }
 
     /// <summary>
+    /// Writes the header of a frame with no service record — the bytes <see cref="WriteTo"/> writes for
+    /// it — into <paramref name="destination"/>, which holds at least <see cref="PlainMaxLength"/> bytes.
+    /// </summary>
+    /// <returns>The number of bytes written.</returns>
+    internal static int WritePlain(Span<byte> destination, bool preserveReferences, int onDiskLength)
+    {
+        BinaryPrimitives.WriteInt32LittleEndian(destination, BinaryFormatConstants.Magic);
+        destination[MagicLength] = Version;
+        destination[MagicLength + 1] = preserveReferences ? (byte)ReferencesMode : (byte)0;
+        destination[MagicLength + 2] = 0;
+
+        int length = MagicLength + 3;
+        uint rest = (uint)onDiskLength;
+        while (rest >= 0x80)
+        {
+            destination[length++] = (byte)(rest | 0x80);
+            rest >>= 7;
+        }
+
+        destination[length++] = (byte)rest;
+        return length;
+    }
+
+    /// <summary>
+    /// Reads the header of a frame with no service record from the start of <paramref name="prefix"/>
+    /// when it is one: the magic, version 1, a payload mode of 0 or 1, a service count of zero and a
+    /// minimally encoded length within <see cref="int.MaxValue"/>. Anything else — another header, a
+    /// spelling the format refuses, a prefix that ends too soon — returns <c>false</c> and is left to
+    /// <see cref="ReadFrom"/>, which reports it as the format requires. Lengths are not checked here.
+    /// </summary>
+    internal static bool TryReadPlain(ReadOnlySpan<byte> prefix, out BinaryFormatHeaderV1 header, out int headerLength)
+    {
+        header = default;
+        headerLength = 0;
+
+        if (prefix.Length < MagicLength + 4 ||
+            BinaryPrimitives.ReadInt32LittleEndian(prefix) != BinaryFormatConstants.Magic ||
+            prefix[MagicLength] != Version ||
+            prefix[MagicLength + 1] > ReferencesMode ||
+            prefix[MagicLength + 2] != 0)
+            return false;
+
+        int index = MagicLength + 3;
+        uint length = 0;
+        for (int shift = 0; ; shift += 7)
+        {
+            if (index == prefix.Length || shift == 35)
+                return false;
+
+            byte next = prefix[index++];
+            length |= (uint)(next & 0x7F) << shift;
+
+            if (next < 0x80)
+            {
+                if ((next == 0 && shift > 0) || length > int.MaxValue)
+                    return false;
+
+                break;
+            }
+        }
+
+        header = new BinaryFormatHeaderV1(
+            PreserveReferences: prefix[MagicLength + 1] == ReferencesMode,
+            ChecksumAlgorithm.None, null, [],
+            CompressionAlgorithm.None, null, 0,
+            EncryptionAlgorithm.None, null, null,
+            OnDiskLength: (int)length);
+        headerLength = index;
+        return true;
+    }
+
+    /// <summary>
     /// Reads and checks a header. The reader is over the frame's first bytes, at most
     /// <see cref="MaxLength"/> of them, so the header's end is where the reader stops.
     /// </summary>
@@ -302,7 +381,7 @@ internal readonly record struct BinaryFormatHeaderV1(
     /// the decompression ratio against <see cref="OnDiskLength"/> — exactly without encryption, and as
     /// an upper bound with it, since a ciphertext is never shorter than its plaintext.
     /// </summary>
-    private void CheckLengths(SerializationLimits limits)
+    internal void CheckLengths(SerializationLimits limits)
     {
         CheckLength(OnDiskLength, limits.MaxEncryptedBytes, nameof(OnDiskLength), nameof(limits.MaxEncryptedBytes));
 

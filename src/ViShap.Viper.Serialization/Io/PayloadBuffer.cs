@@ -13,14 +13,30 @@ namespace ViShap.Viper.Io;
 /// exceed the budget fails while it is being written, and nothing reaches a destination until the
 /// pipeline copies the finished bytes out. Every segment is cleared before it goes back to the pool.
 /// </para>
+/// <para>
+/// An operation rents its buffers with <see cref="Rent"/>. Each thread keeps two of them between
+/// operations, with their first segment cleared whole, so an operation that fits in it rents nothing
+/// from the pool; a buffer is handed to one operation at a time and goes back to the cache once,
+/// however often it is disposed.
+/// </para>
 /// </summary>
 internal sealed class PayloadBuffer : IDisposable
 {
     private const int FirstSegmentBytes = 512;
     private const int LargestGrowthBytes = 1024 * 1024;
 
-    private readonly long _maximum;
-    private readonly string _resourceName;
+    private const int KeptSegmentBytes = 4096;
+
+    [ThreadStatic]
+    private static PayloadBuffer? t_first;
+
+    [ThreadStatic]
+    private static PayloadBuffer? t_second;
+
+    private long _maximum;
+    private string _resourceName;
+    private bool _cached;
+    private bool _returned;
     private readonly List<byte[]> _segments = [];
     private readonly List<int> _segmentLengths = [];
     private byte[]? _current;
@@ -36,6 +52,36 @@ internal sealed class PayloadBuffer : IDisposable
 
         _maximum = maximum;
         _resourceName = resourceName;
+    }
+
+    /// <summary>
+    /// A buffer from this thread's cache, or a new one, which goes back to the cache when it is disposed.
+    /// </summary>
+    /// <param name="maximum">The largest number of bytes the buffer may hold.</param>
+    /// <param name="resourceName">The budget named in a limit failure, e.g. "payload".</param>
+    public static PayloadBuffer Rent(long maximum, string resourceName)
+    {
+        if (maximum <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maximum));
+
+        var buffer = t_first;
+        if (buffer is not null)
+        {
+            t_first = null;
+        }
+        else
+        {
+            buffer = t_second;
+            t_second = null;
+        }
+
+        if (buffer is null)
+            return new PayloadBuffer(maximum, resourceName) { _cached = true };
+
+        buffer._maximum = maximum;
+        buffer._resourceName = resourceName;
+        buffer._returned = false;
+        return buffer;
     }
 
     /// <summary>The bytes committed so far.</summary>
@@ -178,17 +224,58 @@ internal sealed class PayloadBuffer : IDisposable
     /// <summary>Clears every segment and returns it to the pool.</summary>
     public void Dispose()
     {
+        if (!_cached)
+        {
+            Release(keepFirst: false);
+            return;
+        }
+
+        if (_returned)
+            return;
+
+        _returned = true;
+        Release(keepFirst: true);
+
+        if (t_first is null)
+            t_first = this;
+        else if (t_second is null)
+            t_second = this;
+        else
+            Release(keepFirst: false);
+    }
+
+    /// <summary>
+    /// Clears every segment, the bytes handed out and never committed included, and returns it to the
+    /// pool — except, when <paramref name="keepFirst"/> is set, the first small one, which stays as the
+    /// buffer's segment for the next operation.
+    /// </summary>
+    private void Release(bool keepFirst)
+    {
+        byte[]? kept = null;
+
         foreach (var segment in _segments)
-            ArrayPool<byte>.Shared.Return(segment, clearArray: true);
+            kept = ReleaseSegment(segment, keepFirst && kept is null, kept);
 
         if (_current is not null)
-            ArrayPool<byte>.Shared.Return(_current, clearArray: true);
+            kept = ReleaseSegment(_current, keepFirst && kept is null, kept);
 
         _segments.Clear();
         _segmentLengths.Clear();
-        _current = null;
+        _current = kept;
         _currentLength = 0;
         _completedLength = 0;
+    }
+
+    private static byte[]? ReleaseSegment(byte[] segment, bool mayKeep, byte[]? kept)
+    {
+        if (mayKeep && segment.Length <= KeptSegmentBytes)
+        {
+            Array.Clear(segment);
+            return segment;
+        }
+
+        ArrayPool<byte>.Shared.Return(segment, clearArray: true);
+        return kept;
     }
 
     private void StartSegment(int sizeHint)
