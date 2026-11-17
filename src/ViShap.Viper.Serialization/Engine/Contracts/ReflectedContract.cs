@@ -8,8 +8,10 @@ namespace ViShap.Viper.Engine;
 
 /// <summary>
 /// The type contract built by reflection: one typed accessor per member, in the order of the
-/// description, each compiled once. Nothing is boxed — a member travels as its own type from the
-/// getter to its codec and from its codec to the setter, and a struct owner is assigned in place.
+/// description, each compiled once. A member travels as its own type from the getter to its codec and
+/// from its codec to the setter, and a struct owner is assigned in place, so nothing is boxed; the one
+/// exception is a type read through a constructor with parameters, whose values are read into an array
+/// of objects, so a value-type member of such a type is boxed on read.
 /// </summary>
 internal sealed class ReflectedContract<T> : TypeContract<T>
 {
