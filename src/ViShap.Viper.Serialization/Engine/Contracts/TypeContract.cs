@@ -6,7 +6,8 @@ namespace ViShap.Viper.Contracts;
 public enum MemberLayout
 {
     /// <summary>
-    /// Members follow one another in plan order, with nothing between them: the order is the format.
+    /// Members follow one another in the order of the description, with nothing between them: the
+    /// order is the format. Reflection orders them by <see cref="BinaryOrderAttribute"/>, then by name.
     /// </summary>
     Positional,
 
@@ -77,13 +78,20 @@ public sealed class MemberDescription
 /// Everything around the members belongs to the serializer: null and object references, the
 /// <see cref="BinaryUnionAttribute"/> tag, depth, limits and cycles, the keyed field count, each
 /// field's key and length, skipping unknown keys, and requiring a field to be read exactly. A
-/// contract is handed only a <see cref="MemberWriter"/> or a <see cref="MemberReader"/>, which take
-/// and return one member value per call and expose no bytes, no counts and no position.
+/// contract reaches the members in one of two ways, and neither exposes a byte, a count or a position:
+/// it implements <see cref="Write"/>, <see cref="ReadPositional"/> and <see cref="ReadKeyed"/>, which
+/// are handed a <see cref="MemberWriter"/> or a <see cref="MemberReader"/> that take and return one
+/// member value per call; or it hands the serializer a <see cref="MemberAccessors{T}"/> table with
+/// <see cref="UseAccessors"/>, one typed getter and setter per member, which the serializer walks
+/// itself. A type read through a constructor with parameters adds <see cref="UseConstructor"/>.
 /// </para>
 /// <para>
-/// The serializer checks every call against the description given to the constructor — the member
-/// each call names, its type, its key and the number of calls — and a call that disagrees with it is
-/// a <see cref="BinaryTypeException"/> naming the type and the member, never a distorted payload.
+/// The serializer holds the contract to the description given to the constructor. It checks every
+/// call of a <see cref="MemberWriter"/> or a <see cref="MemberReader"/> — the member each call names,
+/// its type, its key and the number of calls — and a call that disagrees with it is a
+/// <see cref="BinaryTypeException"/> naming the type and the member, never a distorted payload. It
+/// checks an accessor table once, when the contract hands it over: one entry per member, each of the
+/// member's exact type.
 /// </para>
 /// <para>
 /// A contract that describes a type the way the reflection-built one does — the same layout, members,
@@ -132,12 +140,13 @@ public abstract class TypeContract<T> : ITypeContract
     /// <summary>Describes the contract the serializer checks every call against.</summary>
     /// <param name="layout">How the members are laid out on the wire.</param>
     /// <param name="members">
-    /// The members in the order the contract writes them: plan order under a positional layout,
-    /// ascending key order under a keyed one. The array is copied.
+    /// The members in the order the contract writes them: the position order of the type under a
+    /// positional layout, ascending key order under a keyed one. The array is copied.
     /// </param>
     /// <param name="canBeConstructed">
     /// Whether <see cref="Create"/> produces an instance to read into; <see langword="false"/> for an
-    /// abstract type or an interface, which is read only through a <see cref="BinaryUnionAttribute"/> arm.
+    /// abstract type or an interface, which is read only through a <see cref="BinaryUnionAttribute"/> arm,
+    /// and for a type read through a constructor with parameters (<see cref="UseConstructor"/>).
     /// </param>
     /// <exception cref="BinaryConfigurationException">
     /// <paramref name="layout"/> is not a defined layout; <paramref name="members"/> is null or holds a
@@ -191,8 +200,8 @@ public abstract class TypeContract<T> : ITypeContract
     public MemberLayout Layout { get; }
 
     /// <summary>
-    /// The members in the order the contract writes them: plan order under a positional layout,
-    /// ascending key order under a keyed one.
+    /// The members in the order the contract writes them: the position order of the type under a
+    /// positional layout, ascending key order under a keyed one.
     /// </summary>
     public IReadOnlyList<MemberDescription> Members { get; }
 
@@ -209,9 +218,10 @@ public abstract class TypeContract<T> : ITypeContract
 
     /// <summary>
     /// Hands the serializer the members as a table of typed accessors, which it then walks itself to write
-    /// and read them; <see cref="Write"/>, <see cref="ReadPositional"/> and <see cref="ReadKeyed"/> are
-    /// still called when a read is traced for diagnostics, and must agree with the table. Called once,
-    /// from the contract's constructor.
+    /// and read them. <see cref="Write"/> is still called when a value is written as an arm of a
+    /// <see cref="BinaryUnionAttribute"/> base, and <see cref="ReadPositional"/> and
+    /// <see cref="ReadKeyed"/> when a read is traced for diagnostics, so they must agree with the table.
+    /// Called once, from the contract's constructor.
     /// </summary>
     /// <param name="accessors">One entry per member, in the order of the description.</param>
     /// <exception cref="ArgumentNullException"><paramref name="accessors"/> is null.</exception>
@@ -315,16 +325,18 @@ public abstract class TypeContract<T> : ITypeContract
 
     /// <summary>
     /// Creates the instance a payload is read into, before any of its members are read: through the
-    /// type's parameterless constructor, or <see langword="default"/> for a struct.
+    /// type's parameterless constructor, or <see langword="default"/> for a struct. Not called when
+    /// <see cref="CanBeConstructed"/> is <see langword="false"/>, or for a contract that reads through
+    /// <see cref="UseConstructor"/>.
     /// </summary>
     /// <returns>The new instance.</returns>
     public abstract T Create();
 
     /// <summary>
     /// Writes the members of <paramref name="value"/>: under a positional layout one
-    /// <see cref="MemberWriter.Member{TMember}(TMember)"/> call per member, in plan order; under a keyed
-    /// layout one <see cref="MemberWriter.Member{TMember}(int, TMember)"/> call per member, in ascending
-    /// key order.
+    /// <see cref="MemberWriter.Member{TMember}(TMember)"/> call per member, in the order of the
+    /// description; under a keyed layout one <see cref="MemberWriter.Member{TMember}(int, TMember)"/> call
+    /// per member, in ascending key order.
     /// </summary>
     /// <param name="writer">What the members are written through.</param>
     /// <param name="value">The value whose members are written; never null.</param>
@@ -332,8 +344,8 @@ public abstract class TypeContract<T> : ITypeContract
 
     /// <summary>
     /// Under a positional layout, reads the members into <paramref name="value"/>: one
-    /// <see cref="MemberReader.Member{TMember}"/> call per member, in plan order. Not called under a
-    /// keyed layout.
+    /// <see cref="MemberReader.Member{TMember}"/> call per member, in the order of the description. Not
+    /// called under a keyed layout.
     /// </summary>
     /// <param name="reader">What the members are read through.</param>
     /// <param name="value">The instance being read into; a struct is assigned in place.</param>

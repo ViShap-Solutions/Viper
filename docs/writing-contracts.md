@@ -3,9 +3,10 @@
 The serializer describes each member-encoded type by reflection the first time it meets it, and the
 [source generator](generator.md) writes that description at build time instead. A contract can also be
 written by hand: a class deriving from `TypeContract<T>` that states the type's layout and members and
-reads and writes them in plain code, added to a `BinarySerializerContext` of your own. Everything around
-the members stays with the serializer — nulls, object references, union tags, field keys and lengths,
-depth, limits — and every call the contract makes is checked.
+reads and writes them in plain code, or hands the serializer a table of accessors to them, added to a
+`BinarySerializerContext` of your own. Everything around the members stays with the serializer — nulls,
+object references, union tags, field keys and lengths, depth, limits — and everything the contract does
+is checked against what it states.
 
 Write one by hand for a type the generator leaves to reflection — a type declared in another assembly,
 or one with a member that implements an interface explicitly ([VPR019](generator.md#vpr019)) — or when
@@ -176,7 +177,7 @@ and the type implements four methods:
 
 | Method | What it does |
 |---|---|
-| `Create` | the instance a payload is read into, before any member is read: a new object, or `default` for a struct |
+| `Create` | the instance a payload is read into, before any member is read: a new object, or `default` for a struct; never called when `canBeConstructed` is `false` |
 | `Write` | one `writer.Member(value)` per member in order under a positional layout; one `writer.Member(key, value)` per member in ascending key order under a keyed one |
 | `ReadPositional` | positional layout: one `reader.Member<T>()` per member, in the same order |
 | `ReadKeyed` | keyed layout: called once for each field of the payload, with its key; a known key reads its member with one `reader.Member<T>()` and returns `true`, an unknown one returns `false` and the field is skipped |
@@ -260,8 +261,9 @@ for the member's exact type, handed over once and before the contract is added t
 else is a `BinaryConfigurationException`. A member is written and read through its entry exactly as
 `writer.Member` and `reader.Member` write and read it, under a positional layout and a keyed one alike.
 The contract keeps implementing `Write` and the read methods, and they must agree with the table: the
-serializer still calls them when a read is traced for diagnostics ([`BinaryFormatDumper`](diagnostics.md)).
-The source generator writes a table for every contract it emits.
+serializer still calls `Write` when a value is written through a [`[BinaryUnion]`](polymorphism.md) base
+whose arm the type is, and the read methods when a read is traced for diagnostics
+([`BinaryFormatDumper`](diagnostics.md)). The source generator writes a table for every contract it emits.
 
 ## A constructor with parameters
 
@@ -657,9 +659,10 @@ same contract.
   keep no per-call state in either.
 - A contract held for a type the serializer encodes by a dedicated encoding — a collection, a string, a
   scalar — is never consulted.
-- An exception your contract throws — from `Create`, `Write`, `ReadPositional` or `ReadKeyed` — is yours
-  and reaches the caller unchanged; a write it interrupts leaves nothing in its destination. A class
-  contract whose `Create` returns `null` is a `BinaryTypeException`.
+- An exception your contract throws — from `Create`, `Write`, `ReadPositional` or `ReadKeyed`, or from a
+  getter or a setter of its tables, `start` or its `MemberConstructor` — is yours and reaches the caller
+  unchanged; a write it interrupts leaves nothing in its destination. A class contract whose `Create` or
+  `MemberConstructor` returns `null` is a `BinaryTypeException`.
 - The encoding a supported type receives is the one the serializer would build for it by reflection,
   whichever context adds it, so the first context of the process that adds a type supplies it for every
   serializer, and nothing a context adds changes how another configuration writes or reads.

@@ -72,7 +72,7 @@ public ref struct MemberReader
     internal readonly void EndField() => EnsureCurrent();
 
     /// <summary>
-    /// Reads a member: under a positional layout the next one in plan order; under a keyed layout the
+    /// Reads a member: under a positional layout the next one in the order of the description; under a keyed layout the
     /// member of the current field, which is a scope of its own for object references.
     /// </summary>
     /// <typeparam name="TMember">The member's type, exactly as the contract describes it.</typeparam>

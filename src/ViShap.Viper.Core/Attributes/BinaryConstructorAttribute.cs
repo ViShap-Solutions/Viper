@@ -11,7 +11,9 @@ namespace ViShap.Viper;
 /// before the members are assigned, on a struct instead of creating it as <see langword="default"/>.
 /// Without the attribute a class is read through its parameterless constructor of any visibility, and
 /// otherwise through its single public constructor whose parameters each name one of its members; a
-/// struct is created as <see langword="default"/>. At most one constructor of a type carries the attribute.
+/// struct is created as <see langword="default"/>. At most one constructor of a type carries the
+/// attribute; a second one, or a parameter that names no member of exactly its type, is a
+/// <see cref="Exceptions.BinaryTypeException"/> the first time the type is used.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Constructor)]
 public sealed class BinaryConstructorAttribute : Attribute;

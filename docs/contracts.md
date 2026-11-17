@@ -136,19 +136,19 @@ public sealed class Stamp
 A marked constructor also brings in the members only a constructor can set — a property with no setter,
 a `readonly` field — that its parameters name, as `Ticks`, `Zone`, `Width` and `Height` above. A marked
 parameterless constructor of a struct is called instead of creating it as `default`, so the values it
-sets are kept for the members a keyed payload leaves out. Without the mark the
-constructors never choose the members, so adding or changing a constructor never changes what a type
-writes; a class whose constructors the reader cannot use is still written, and only reading it fails.
+sets are kept for the members a keyed payload leaves out. Without the mark the constructors never choose
+the members, so adding or changing a constructor never changes what a type writes; a class whose
+constructors the reader cannot use is still written, and only reading it fails.
 
 Under a keyed layout a field the payload does not carry gives its parameter the parameter's default
 value — `int retries = 3` gives `3` — or the default of its type; a member assigned after construction
 keeps what the constructor and its initializers gave it.
 
 A class read through a constructor with parameters does not exist until every member is read, so it
-cannot be part of a cycle. With
-`PreserveReferences`, writing a cycle through such a type is a `BinaryTypeException` and reading one is a
-`BinaryFormatException`; a value two members share is still read back as one instance. `Populate` of such
-a type is a `BinaryTypeException`, because it has no instance to fill.
+cannot be part of a cycle. With `PreserveReferences`, writing a cycle through such a type is a
+`BinaryTypeException` and reading one is a `BinaryFormatException`; a value two members share is still
+read back as one instance. `Populate` of such a type is a `BinaryTypeException`, because it has no
+instance to fill.
 
 A type the reader cannot create — an interface, an abstract class, a class with several public
 constructors with parameters and none marked — is a `BinaryTypeException` on read, unless a
@@ -219,7 +219,8 @@ names.
   is a `BinaryFormatException`.
 - Unknown fields are skipped by their length, without being copied. They still count against
   `MaxKeyedFields` and `MaxTotalKeyedFields`.
-- Keys are non-negative and written as compact integers, so small keys cost marginally less.
+- Keys are non-negative and written as variable-length integers: a key from 0 to 127 takes one byte, a
+  larger one two or more.
 
 A payload that repeats a key or lists keys out of ascending order is malformed and is rejected with a
 `BinaryFormatException`, whether or not the reader knows the key.
