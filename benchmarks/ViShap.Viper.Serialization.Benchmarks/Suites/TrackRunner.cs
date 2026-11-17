@@ -11,6 +11,7 @@ using ViShap.Viper.Serialization.Benchmarks.DataSets;
 using ViShap.Viper.Serialization.Benchmarks.Environment;
 using ViShap.Viper.Serialization.Benchmarks.Reporting;
 using ViShap.Viper.Serialization.Benchmarks.Suites.Components;
+using ViShap.Viper.Serialization.Benchmarks.Suites.Engine;
 using ViShap.Viper.Serialization.Benchmarks.Verification;
 
 namespace ViShap.Viper.Serialization.Benchmarks.Suites;
@@ -66,6 +67,10 @@ internal static class TrackRunner
         ("A4", typeof(CompressionPrimitiveBenchmarks)),
         ("A4", typeof(ProtectionPrimitiveBenchmarks)),
         ("A4", typeof(DumperBenchmarks)),
+        ("A4", typeof(EntryCostBenchmarks)),
+        ("A4", typeof(FrameCostBenchmarks)),
+        ("A4", typeof(MemberCostBenchmarks)),
+        ("A4", typeof(ContainerCostBenchmarks)),
 
         // A5 — the scaling curves.
         ("A5", typeof(ElementCountScalingBenchmarks)),
