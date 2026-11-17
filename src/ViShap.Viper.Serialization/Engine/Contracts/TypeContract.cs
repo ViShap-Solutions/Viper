@@ -220,8 +220,9 @@ public abstract class TypeContract<T> : ITypeContract
     /// Hands the serializer the members as a table of typed accessors, which it then walks itself to write
     /// and read them. <see cref="Write"/> is still called when a value is written as an arm of a
     /// <see cref="BinaryUnionAttribute"/> base, and <see cref="ReadPositional"/> and
-    /// <see cref="ReadKeyed"/> when a read is traced for diagnostics, so they must agree with the table.
-    /// Called once, from the contract's constructor.
+    /// <see cref="ReadKeyed"/> when a read is traced for diagnostics, so they must agree with the table;
+    /// a contract that reads through <see cref="UseConstructor"/> is never read through those two
+    /// methods. Called once, from the contract's constructor.
     /// </summary>
     /// <param name="accessors">One entry per member, in the order of the description.</param>
     /// <exception cref="ArgumentNullException"><paramref name="accessors"/> is null.</exception>

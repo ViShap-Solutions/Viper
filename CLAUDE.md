@@ -74,8 +74,12 @@ system). Where a historical document and the contract disagree, the contract is 
 - `internal/Benchmark-Graceful-Stop.md` — *plan.* A decided backlog item for the benchmark harness,
   done in `rc.2` (P6).
 - `internal/v1.1/V1.1-Plan.md` — *plan.* The plan of `v1.1.0`: the rules of the release (§0), the
-  inventory of what is in and out (§1), the owner's decisions E1–E6 (§2) and the stages V0–V11 with
-  their gates and Progress table (§3, §5). The `viper_engine` skill works it.
+  inventory of what is in and out (§1), the owner's decisions E1–E14 (§2, §2.7) and the stages V0–V11
+  with their gates and Progress table (§3, §5). The `viper_engine` skill works it. Beside it:
+  `Audit-Brief.md` — *plan*: the brief of the conformance audit of `v1.1.0-rc.1`;
+  `Audit-Conformance.md` — *plan* until its closure, then *historical* (Russian): the report of that
+  audit and its findings `V11-nn`; `E1-Contract-Draft.md` — *historical*: the contract text of E1 as
+  drafted in V3, applied to the contract in V4.
 - `internal/rc2/` — the work before `v1.0.0`. `RC2-Plan.md`, `Native-AOT-Design.md` and
   `Audit-Brief.md` — *plan*: the plan of `rc.2` with the owner's decisions and its Progress table, the
   approved design of native AOT through the context, and the brief of the `rc.2` conformance audit.
@@ -113,7 +117,8 @@ system). Where a historical document and the contract disagree, the contract is 
 Current state: `src/` matches the contract. `v1.0.0` was released on 2026-10-26 from the plan of
 `internal/rc2/RC2-Plan.md`, whose stages, audit and closure are done; `v1.0.1` and `v1.0.2` are
 documentation and metadata patches, and `v1.0.3` reads hashed containers with a seeded comparer for
-built-in key types (Q16 of `internal/QA-Plan.md`). The Track A baseline of `v1.0.0` is
+built-in key types (Q16 of `internal/QA-Plan.md`); `v1.0.4` refuses a `DateTime` out of range, reads
+`SortedList<,>` sorted and checks the thread's stack on every structural level. The Track A baseline of `v1.0.0` is
 `benchmarks/ViShap.Viper.Serialization.Benchmarks/Baselines/v1.0.0/`; Track B is deferred by the owner. The open work is `v1.1.0`, on
 `release/v1.1.0`, planned in `internal/v1.1/V1.1-Plan.md` and executed by the `viper_engine` skill: an
 engine release that removes the machinery around the engine's checks — the frame, the call, the
@@ -123,7 +128,7 @@ weakened and the public surface only grown. Features not taken into a release st
 
 The public API is fully XML-documented and `GenerateDocumentationFile` is on, so the docs ship beside
 the assemblies. CS1591 stays a warning — `Api/PublicSurfaceTests` is what holds the line, by comparing
-the exported surface with the generated XML file. The suite is 2 528 tests, and the generator's 52,
+the exported surface with the generated XML file. The suite is 2 530 tests, and the generator's 52,
 green in Debug and Release.
 
 Public XML documentation is written for the NuGet consumer reading it on hover: what the member does,
@@ -178,7 +183,8 @@ Engine                      typed codecs, one per declared type (FormatterCache<
 WireReader / WireWriter     ref structs over memory, the only access to payload bytes
 Formatters                  shapes only: IScalarFormatter<T>, sequence / map / array shapes, typed composites
 Type contracts              TypeContract<T>: member order, access, construction (ReflectedContract<T>),
-                            reached only through MemberWriter / MemberReader
+                            reached only through MemberWriter / MemberReader or an accessor table
+                            (MemberAccessors<T>) the engine walks
 Algorithms                  pure mechanics over spans
 ```
 

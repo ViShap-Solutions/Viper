@@ -118,7 +118,7 @@ internal sealed class CompressionBuffer : IBufferWriter<byte>, IDisposable
                     "Decompression produced more data than the declared uncompressed length.")
                 : new BinaryLimitException(
                     $"Compressed payload could not fit within the configured maximum of {_limit} bytes " +
-                    $"({nameof(SerializationLimits.MaxCompressedBytes)}).");
+                    "(MaxCompressedBytes).");
 
         Grow(required);
     }

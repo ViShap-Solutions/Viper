@@ -10,7 +10,9 @@ namespace ViShap.Viper.Serialization.Tests.Contracts;
 /// returns, whatever the number of members, enums, nullables and nested structs it holds — through
 /// the contracts reflection builds, the contracts the source generator writes and contracts written by
 /// hand. One test turns the counter on a polymorphic slot over a struct, where boxing is the contract,
-/// to show the counter sees it when it happens.
+/// to show the counter sees it when it happens. A type read through a constructor with parameters is
+/// read into a struct of values by a generated contract and boxes nothing; the contract reflection
+/// builds reads its values into an array of objects, and boxes those values and nothing else.
 /// </summary>
 public class BoxingTests
 {
@@ -106,6 +108,45 @@ public class BoxingTests
         long arrays = Allocated(() => _ = new Colour[4096]) - Allocated(() => _ = new Colour[16]);
 
         Assert.True(Math.Abs(difference - arrays) < NotPerElement);
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_StructsReadThroughAConstructorWithGeneratedContracts_BoxNothing()
+    {
+        var few = Extents(16);
+        var many = Extents(4096);
+
+        Assert.True(WriteCost(Generated, many) - WriteCost(Generated, few) < NotPerElement);
+
+        long difference = ReadCost<Extent[]>(Generated, Generated.Serialize(many)) -
+                          ReadCost<Extent[]>(Generated, Generated.Serialize(few));
+        long arrays = Allocated(() => _ = new Extent[4096]) - Allocated(() => _ = new Extent[16]);
+
+        Assert.True(
+            Math.Abs(difference - arrays) < NotPerElement,
+            $"Reading 4 080 more constructed structs through generated contracts cost {difference:N0} more bytes; " +
+            $"their array costs {arrays:N0}.");
+    }
+
+    [Fact]
+    public void SerializeAndDeserialize_StructsReadThroughAConstructorByReflection_BoxOnlyTheValuesRead()
+    {
+        var few = Extents(16);
+        var many = Extents(4096);
+
+        Assert.True(WriteCost(many) - WriteCost(few) < NotPerElement);
+
+        long difference = ReadCost<Extent[]>(_serializer.Serialize(many)) - ReadCost<Extent[]>(_serializer.Serialize(few));
+        long arrays = Allocated(() => _ = new Extent[4096]) - Allocated(() => _ = new Extent[16]);
+        long perElement = (difference - arrays) / 4080;
+
+        // Each element is read into an array of three objects holding the three values, each boxed:
+        // more than nothing, and no more than that array and its three boxes.
+        long valuesAndBoxes = Allocated(() => _ = new object?[] { 1, 2.0, Colour.Blue });
+        Assert.True(perElement > 0, "Reading constructed structs by reflection boxed nothing.");
+        Assert.True(
+            perElement <= valuesAndBoxes,
+            $"Reading a constructed struct by reflection cost {perElement:N0} bytes; its values and their boxes cost {valuesAndBoxes:N0}.");
     }
 
     [Fact]
@@ -241,6 +282,24 @@ public class BoxingTests
         public (int, Colour) Tuple { get; set; }
     }
 
+    /// <summary>A value type read through a constructor that takes all its members.</summary>
+    public readonly struct Extent
+    {
+        [BinaryConstructor]
+        public Extent(int width, double height, Colour colour)
+        {
+            Width = width;
+            Height = height;
+            Colour = colour;
+        }
+
+        public int Width { get; }
+
+        public double Height { get; }
+
+        public Colour Colour { get; }
+    }
+
     [BinaryUnion(1, typeof(SquareLike))]
     public interface IShapeLike;
 
@@ -268,6 +327,9 @@ public class BoxingTests
             Tuple = (i, Colour.Red)
         })
     ];
+
+    private static Extent[] Extents(int count) =>
+        [.. Enumerable.Range(0, count).Select(i => new Extent(i, i / 2.0, (Colour)(i % 3)))];
 
     private static ConformancePoint[] Points(int count) =>
         [.. Enumerable.Range(0, count).Select(i => new ConformancePoint { X = i, Y = -i })];
@@ -311,5 +373,5 @@ public class BoxingTests
 }
 
 /// <summary>The contracts the source generator writes for the value-type graph of <see cref="BoxingTests"/>.</summary>
-[BinaryContext(typeof(BoxingTests.Probe[]))]
+[BinaryContext(typeof(BoxingTests.Probe[]), typeof(BoxingTests.Extent[]))]
 public partial class BoxingContracts : BinarySerializerContext;
