@@ -96,7 +96,7 @@ public class SourceInvariantTests
     [Fact]
     public void NoTypeBelowThePipelineReferencesSerializationLimits()
     {
-        string[] below = ["Engine/", "Formatters/", "Io/", "Compression/", "Checksum/", "Crypto/"];
+        string[] below = ["Engine/", "Formatters/", "Io/", "Algorithms/", "Compression/", "Checksum/", "Crypto/"];
 
         var offenders = SourceTree.ProductionFiles
             .Where(file => below.Any(folder =>
