@@ -46,11 +46,12 @@ public partial class AppContracts : BinarySerializerContext;
 The generator writes a contract for each listed type and for every member-encoded type it reaches —
 through members, array and collection elements, dictionary keys and values, nullable values and
 `[BinaryUnion]` arms. `Line` above needs no entry of its own. It also writes the context's public
-parameterless constructor and its `Default` property, so the class declares neither — the constructor adds
-each contract as the function that creates it, so a contract is built the first time its type is used; makes every type it
+parameterless constructor and its `Default` property, so the class declares neither; makes every type it
 reaches supported, so the serializer builds nothing for it by reflection; and gives the context one
 property of [type information](aot.md) per listed type — `AppContracts.Default.Order` — named after the
-type (`List_Order` for `List<Order>`).
+type (`List_Order` for `List<Order>`). The constructor adds each contract as the function that creates
+it, so a contract is built the first time its type is used and a process pays only for the types it
+uses.
 
 Each contract describes its type exactly as the serializer does by reflection: the same members, in
 the same order, with the same keys. Payloads are the same bytes with the context and without it, so a
@@ -63,10 +64,12 @@ service that uses the generator and one that does not read each other's data.
 
 Public members are read and assigned directly. A non-public member marked `[BinaryInclude]` or
 `[BinaryKey]`, a property with an `init` or a non-public setter, and a constructor that is not public or
-that would leave `required` members unset are reached through `[UnsafeAccessor]`. A type read through a
+that would leave `required` members unset are reached through `[UnsafeAccessor]`. Each contract hands
+the serializer an [accessor table](writing-contracts.md#an-accessor-table), one getter and setter per
+member, which the serializer walks itself. A type read through a
 [constructor with parameters](contracts.md#construction) is read into a struct of values and then
-constructed, so nothing is boxed. A type does not have
-to be `partial` and does not have to be yours to change.
+constructed, so nothing is boxed. A type does not have to be `partial` and does not have to be yours to
+change.
 
 A type gets no generated contract, and is described by reflection as before, when the generator cannot
 see or name all of it: a type declared in another assembly or deriving from one, a type not accessible

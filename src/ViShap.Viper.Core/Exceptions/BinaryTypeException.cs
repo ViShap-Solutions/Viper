@@ -7,9 +7,10 @@ namespace ViShap.Viper.Exceptions;
 /// <para>
 /// Typical causes: contradictory attributes on a member, a duplicate key or order, an unmarked member
 /// in a keyed contract, a runtime type with no <see cref="BinaryUnionAttribute"/> declaration for the
-/// declared type, an unknown union tag, a type that cannot be constructed because it has no
-/// parameterless constructor, a delegate, a cycle without reference preservation enabled, or
-/// populate-in-place applied to a type that is not member-encoded.
+/// declared type, an unknown union tag, a type the reader has no constructor to create, two
+/// constructors marked <see cref="BinaryConstructorAttribute"/>, a delegate, a cycle written without
+/// reference preservation enabled or through a type read through a constructor with parameters, or
+/// populate-in-place applied to a type that is not member-encoded or is read through such a constructor.
 /// </para>
 /// <para>
 /// These are usually programming errors surfaced the first time a type is used, not data errors, so

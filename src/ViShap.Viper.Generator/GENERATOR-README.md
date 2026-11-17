@@ -74,5 +74,7 @@ serializes through them.
 | VPR019 | Warning | a type that gets no generated contract and is described by reflection |
 | VPR020 | Error | two listed types, or a listed type and a member of the context, share the name of a type information property |
 | VPR021 | Error | a type that gets no generated contract, in an application that turns the reflection path off |
+| VPR022 | Error | several constructors of a type marked `[BinaryConstructor]` |
+| VPR023 | Error | a parameter of a `[BinaryConstructor]` constructor that names no member of exactly its type |
 
 Each is explained, with its fix, in [the generator documentation](https://github.com/ViShap-Solutions/Viper/blob/main/docs/generator.md).

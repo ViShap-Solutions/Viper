@@ -7,8 +7,8 @@ namespace ViShap.Viper;
 /// <para>
 /// Keys identify members across schema versions, so a key must be unique within its type and must
 /// never be reused for a different member once payloads exist. Members are written in ascending key
-/// order; the numeric value affects size only slightly (keys are 7-bit encoded), so small keys are
-/// marginally cheaper.
+/// order. A key is written as a variable-length integer: a key from 0 to 127 takes one byte, a larger
+/// one two or more.
 /// </para>
 /// <para>
 /// The attribute is only valid on a contract type. Using it without

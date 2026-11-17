@@ -26,6 +26,8 @@ it, and every failure is an exception from one hierarchy.
   frames.
 - **Explicit layouts** — positional by default; keyed contracts (`[BinaryContract]`, `[BinaryKey(n)]`) so a
   type can evolve without breaking stored data.
+- **Records and immutable types** — read through a record's primary constructor, a single public constructor
+  that takes the members by name, or one marked `[BinaryConstructor]`.
 - **Declared polymorphism** — `[BinaryUnion(tag, typeof(Derived))]`; only tags travel, never type names.
 - **References** — shared and cyclic references with `PreserveReferences()`.
 - **Data protection** — Deflate and Brotli compression, CRC-32 and XXH3 checksums, AES-256-GCM and
@@ -52,7 +54,7 @@ it, and every failure is an exception from one hierarchy.
 | Dictionaries | `Dictionary<,>`, `SortedDictionary<,>`, `SortedList<,>`, `ReadOnlyDictionary<,>`, `PriorityQueue<,>` |
 | Concurrent, immutable, frozen | `Concurrent*`, `Immutable*` (including `ImmutableArray<>`), `FrozenSet<>`, `FrozenDictionary<,>` |
 | Composite | `Nullable<T>`, `KeyValuePair<,>`, `Tuple<…>`, `ValueTuple<…>`, `Lazy<T>` |
-| Objects | any class or struct with a parameterless constructor, member by member |
+| Objects | any class or struct the reader can construct, records included, member by member |
 
 Every type and how it comes back: [Supported types](docs/supported-types.md).
 

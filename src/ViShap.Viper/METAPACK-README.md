@@ -65,6 +65,8 @@ Viper's reflection path is off and this example raises a `BinaryConfigurationExc
   an existing object, and a stream of frames.
 - **Explicit layouts.** Positional by default; keyed contracts with `[BinaryContract]` and
   `[BinaryKey(n)]` so a type can evolve without breaking stored data.
+- **Records and immutable types.** Read through a record's primary constructor, a single public
+  constructor that takes the members by name, or one marked `[BinaryConstructor]`.
 - **Declared polymorphism.** `[BinaryUnion(tag, typeof(Derived))]`; only tags travel, never type names.
 - **Shared and cyclic references** with `PreserveReferences()`.
 - **Data protection.** Deflate and Brotli compression, CRC-32 and XXH3 checksums, AES-256-GCM and

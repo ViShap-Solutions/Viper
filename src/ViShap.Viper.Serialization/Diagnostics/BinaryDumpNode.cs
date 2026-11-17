@@ -15,7 +15,7 @@ public enum BinaryDumpNodeKind
     /// <summary>A dictionary or another map; its children are the keys and the values, in order.</summary>
     Map,
 
-    /// <summary>An object whose members are written in plan order; its children are the members.</summary>
+    /// <summary>An object whose members are written one after another in position order; its children are the members.</summary>
     Object,
 
     /// <summary>An object of a <see cref="BinaryContractAttribute"/> type; its children are its keyed fields.</summary>

@@ -101,7 +101,7 @@ public ref struct MemberWriter
         writer = _writer;
     }
 
-    /// <summary>Writes the next member of a positional layout, in plan order.</summary>
+    /// <summary>Writes the next member of a positional layout, in the order of the description.</summary>
     /// <param name="value">The member's value.</param>
     /// <typeparam name="TMember">The member's type, exactly as the contract describes it.</typeparam>
     /// <exception cref="BinaryTypeException">

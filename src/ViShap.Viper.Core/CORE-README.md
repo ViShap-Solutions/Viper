@@ -29,6 +29,7 @@ dotnet add package ViShap.Viper.Core
 | `[BinaryIgnore]` | leaves a member out |
 | `[BinaryInclude]` | includes a non-public member of a positional type |
 | `[BinaryOrder(n)]` | pins the position of a member of a positional type |
+| `[BinaryConstructor]` | on a constructor, names the one a type is read through: its parameters receive the members they are named after |
 | `[BinaryUnion(tag, typeof(Derived))]` | declares a derived type a base class or interface may hold, and its one-byte tag |
 | `[BinaryContext(typeof(T), …)]` | on a `BinarySerializerContext`, lists the types the source generator writes contracts for; no effect at run time |
 
